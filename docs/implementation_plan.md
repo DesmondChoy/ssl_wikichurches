@@ -398,10 +398,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
   - `annotations`: 139 images with bounding box groups
 - **Coordinate format:** `left, top, width, height` (normalized 0-1, some edge values slightly negative—clamp to [0,1])
 - **Style IDs:** Wikidata Q-IDs requiring mapping:
-  - `Q46261` → Gothic (54 churches, 39%)
-  - `Q176483` → Romanesque (49 churches, 35%)
-  - `Q236122` → Baroque (22 churches, 16%)
-  - `Q840829` → Renaissance (17 churches, 12%)
+  - `Q46261` → Romanesque (54 churches, 39%)
+  - `Q176483` → Gothic (49 churches, 35%)
+  - `Q236122` → Renaissance (22 churches, 16%)
+  - `Q840829` → Baroque (17 churches, 12%)
 - **Bbox structure:** `annotations[image_id].bbox_groups[].elements[]` (nested, grouped by related features)
 
 ### Technical Notes

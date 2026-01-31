@@ -12,9 +12,15 @@ Usage:
 
     # Access constants
     print(CACHE_MAX_MODELS)  # 2
+
+    # Access data paths
+    from ssl_attention.config import DATASET_PATH, STYLE_MAPPING
+    print(DATASET_PATH)  # Path to WikiChurches dataset
 """
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -131,3 +137,44 @@ EPSILON: float = 1e-8
 
 # Interpolation mode for upsampling attention maps to image size.
 INTERPOLATION_MODE: str = "bilinear"
+
+
+# =============================================================================
+# Data Paths
+# =============================================================================
+
+# Root path to the WikiChurches dataset.
+# Can be overridden via SSL_DATASET_PATH environment variable.
+# Path: config.py -> ssl_attention -> src -> ssl_wikichurches -> dataset
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_DEFAULT_DATASET_PATH = _PROJECT_ROOT / "dataset"
+DATASET_PATH: Path = Path(os.environ.get("SSL_DATASET_PATH", _DEFAULT_DATASET_PATH))
+
+# Derived paths
+IMAGES_PATH: Path = DATASET_PATH / "images"
+ANNOTATIONS_PATH: Path = DATASET_PATH / "building_parts.json"
+CHURCHES_PATH: Path = DATASET_PATH / "churches.json"
+
+# Cache directory for feature/attention storage
+CACHE_PATH: Path = _PROJECT_ROOT / "outputs" / "cache"
+
+
+# =============================================================================
+# Style Classification
+# =============================================================================
+
+# Wikidata Q-IDs for the 4 main architectural styles in WikiChurches.
+# These 4 styles represent the majority of annotated images (142 of 9,502).
+# Note: Q46261=Romanesque, Q176483=Gothic (verified from style_names.txt)
+STYLE_MAPPING: dict[str, int] = {
+    "Q46261": 0,   # Romanesque (54 images in annotated subset)
+    "Q176483": 1,  # Gothic (49 images in annotated subset)
+    "Q236122": 2,  # Renaissance (22 images in annotated subset)
+    "Q840829": 3,  # Baroque (17 images in annotated subset)
+}
+
+# Human-readable style names (indexed by STYLE_MAPPING values)
+STYLE_NAMES: tuple[str, ...] = ("Romanesque", "Gothic", "Renaissance", "Baroque")
+
+# Number of architectural styles for classification
+NUM_STYLES: int = len(STYLE_MAPPING)

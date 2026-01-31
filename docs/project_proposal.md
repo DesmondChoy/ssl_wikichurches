@@ -38,7 +38,7 @@ While existing tools like BertViz and Comet ML visualize transformer attention, 
 - **Annotations:** `building_parts.json` containing 106 feature types and 631 bounding boxes
 - **Coordinate format:** Normalized (0-1) as `left, top, width, height`
 - **Style distribution:** Gothic (54), Romanesque (49), Baroque (22), Renaissance (17)
-- **Style IDs:** Wikidata Q-IDs (Q46261=Gothic, Q176483=Romanesque, Q236122=Baroque, Q840829=Renaissance)
+- **Style IDs:** Wikidata Q-IDs (Q46261=Romanesque, Q176483=Gothic, Q236122=Renaissance, Q840829=Baroque)
 
 **Preprocessing:**
 
