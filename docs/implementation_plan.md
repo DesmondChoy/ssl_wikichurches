@@ -5,8 +5,8 @@
 | Phase | Description | Status |
 |-------|-------------|--------|
 | Phase 1 | Core Infrastructure | ✅ Complete |
-| Phase 2 | Data Pipeline | ⬜ Not Started |
-| Phase 3 | Metrics & Evaluation | ⬜ Not Started |
+| Phase 2 | Data Pipeline | ✅ Complete |
+| Phase 3 | Metrics & Evaluation | ✅ Complete |
 | Phase 4 | Visualization & Analysis | ⬜ Not Started |
 | Phase 5 | Fine-Tuning Analysis | ⬜ Not Started |
 | Phase 6 | Interactive Analysis Tool | ⬜ Not Started |
@@ -192,44 +192,52 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `rollout.py` - Attention rollout through layers ✅
    - `gradcam.py` - Gradient-based baseline ✅
 
-### Phase 2: Data Pipeline ⬜ NEXT
+### Phase 2: Data Pipeline ✅ COMPLETE
 
-1. **Annotation parsing** (`annotations.py`)
+1. **Annotation parsing** (`annotations.py`) ✅
    - `BoundingBox` with `to_mask(H, W)` method
    - `ImageAnnotation` parsing `building_parts.json`
-   - Handle normalized (0-1) coordinates
+   - Handle normalized (0-1) coordinates with clamping
 
-2. **Dataset classes** (`wikichurches.py`)
+2. **Dataset classes** (`wikichurches.py`) ✅
    - `AnnotatedSubset` - 139 images with bboxes
    - `FullDataset` - 9,485 images for linear probe
    - Per-model preprocessing via registry
 
-3. **HDF5 caching** (`cache/manager.py`)
+3. **HDF5 caching** (`cache/manager.py`) ✅
    - Cache features and attention maps
    - Key: `{model}/{layer}/{image_id}`
+   - LRU eviction and corruption detection
 
-### Phase 3: Metrics & Evaluation ⬜
+### Phase 3: Metrics & Evaluation ✅ COMPLETE
 
-1. **IoU computation** (`metrics/iou.py`)
-   - Threshold at percentiles (top 10%, 20%, 30%)
-   - IoU against bbox union
+1. **IoU computation** (`metrics/iou.py`) ✅
+   - Threshold at percentiles (90/80/70/60/50)
+   - IoU against bbox union with coverage metric
    - Per-bbox breakdown
-   - Pointing game accuracy
+   - CorLoc@50 for literature comparison
 
-2. **Baselines** (`metrics/baselines.py`)
+2. **Pointing game** (`metrics/pointing_game.py`) ✅
+   - Binary hit detection (max attention in bbox)
+   - Top-k pointing accuracy
+   - Per-feature-type breakdown
+
+3. **Baselines** (`metrics/baselines.py`) ✅
    - Random uniform
    - Center Gaussian
    - Sobel edge saliency
+   - Saliency prior (center + border suppression)
 
-3. **Statistics** (`metrics/statistics.py`)
-   - Paired t-test / Wilcoxon
-   - Bootstrap CIs
+4. **Statistics** (`metrics/statistics.py`) ✅
+   - Paired t-test / Wilcoxon signed-rank
+   - Bootstrap CIs (10k samples)
    - Cohen's d effect size
+   - Holm multiple comparison correction
 
-4. **Linear probe** (`evaluation/linear_probe.py`)
-   - Train on frozen CLS features
-   - 4-class and full hierarchy
-   - Accuracy, F1, confusion matrix
+5. **Linear probe** (`evaluation/linear_probe.py`) ✅
+   - Train on frozen CLS features (sklearn LogisticRegression)
+   - Stratified k-fold cross-validation
+   - Accuracy, F1, per-class accuracy, confusion matrix
 
 ### Phase 4: Visualization & Analysis ⬜
 
@@ -312,12 +320,17 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper | ✅ Done |
 | 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper | ✅ Done |
 | 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method | ✅ Done |
-| 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ⬜ Phase 2 |
-| 10 | `src/ssl_attention/metrics/iou.py` | Primary metric | ⬜ Phase 3 |
-| 11 | `experiments/configs/default.yaml` | Experiment config | ⬜ Phase 2 |
-| 12 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper | ⬜ Phase 5 |
-| 13 | `experiments/scripts/fine_tune_models.py` | Training script | ⬜ Phase 5 |
-| 14 | `app/main.py` | Interactive analysis tool entry point | ⬜ Phase 6 |
+| 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ✅ Done |
+| 10 | `src/ssl_attention/data/wikichurches.py` | Dataset classes | ✅ Done |
+| 11 | `src/ssl_attention/cache/manager.py` | HDF5 caching | ✅ Done |
+| 12 | `src/ssl_attention/metrics/iou.py` | Primary metric | ✅ Done |
+| 13 | `src/ssl_attention/metrics/pointing_game.py` | Pointing game metric | ✅ Done |
+| 14 | `src/ssl_attention/metrics/baselines.py` | Baseline generators | ✅ Done |
+| 15 | `src/ssl_attention/metrics/statistics.py` | Statistical tests | ✅ Done |
+| 16 | `src/ssl_attention/evaluation/linear_probe.py` | Linear probe evaluation | ✅ Done |
+| 17 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper | ⬜ Phase 5 |
+| 18 | `experiments/scripts/fine_tune_models.py` | Training script | ⬜ Phase 5 |
+| 19 | `app/main.py` | Interactive analysis tool entry point | ⬜ Phase 6 |
 
 ### Additional Phase 1 Files Created
 
@@ -329,6 +342,21 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `src/ssl_attention/attention/gradcam.py` | GradCAM for transformers | ✅ Done |
 | `src/ssl_attention/config.py` | Centralized configuration | ✅ Done |
 | `src/ssl_attention/utils/device.py` | MPS/CUDA/CPU handling | ✅ Done |
+
+### Additional Phase 2 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/ssl_attention/data/__init__.py` | Data module exports | ✅ Done |
+| `src/ssl_attention/data/transforms.py` | Model-specific preprocessing | ✅ Done |
+| `src/ssl_attention/cache/__init__.py` | Cache module exports | ✅ Done |
+
+### Additional Phase 3 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/ssl_attention/metrics/__init__.py` | Metrics module exports | ✅ Done |
+| `src/ssl_attention/evaluation/__init__.py` | Evaluation module exports | ✅ Done |
 
 ---
 

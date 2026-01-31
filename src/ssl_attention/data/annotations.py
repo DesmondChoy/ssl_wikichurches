@@ -238,6 +238,28 @@ def load_annotations_with_features(
         data = json.load(f)
 
     feature_types = load_feature_types(data["meta"])
-    annotations = load_annotations(json_path)
+
+    # Parse annotations directly from already-loaded data to avoid reading file twice
+    annotations: dict[str, ImageAnnotation] = {}
+    for image_id, ann in data["annotations"].items():
+        bboxes: list[BoundingBox] = []
+        for group in ann.get("bbox_groups", []):
+            group_label = group["group_label"]
+            for elem in group.get("elements", []):
+                bboxes.append(
+                    BoundingBox(
+                        left=elem["left"],
+                        top=elem["top"],
+                        width=elem["width"],
+                        height=elem["height"],
+                        label=elem["label"],
+                        group_label=group_label,
+                    )
+                )
+        annotations[image_id] = ImageAnnotation(
+            image_id=image_id,
+            styles=tuple(ann.get("styles", [])),
+            bboxes=tuple(bboxes),
+        )
 
     return annotations, feature_types
