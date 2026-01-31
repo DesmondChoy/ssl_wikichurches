@@ -1,5 +1,20 @@
 # SSL WikiChurches Implementation Plan
 
+## Progress Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 | Core Infrastructure | ✅ Complete |
+| Phase 2 | Data Pipeline | ⬜ Not Started |
+| Phase 3 | Metrics & Evaluation | ⬜ Not Started |
+| Phase 4 | Visualization & Analysis | ⬜ Not Started |
+| Phase 5 | Fine-Tuning Analysis | ⬜ Not Started |
+| Phase 6 | Interactive Analysis Tool | ⬜ Not Started |
+
+**Last Updated:** 2026-01-31
+
+---
+
 ## Overview
 
 Build a system to compare SSL model attention patterns against 631 expert-annotated bounding boxes on 139 WikiChurches images, measuring whether models attend to the same features human experts consider diagnostic.
@@ -129,9 +144,9 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 ## Implementation Phases
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅ COMPLETE
 
-1. **Update `pyproject.toml`**
+1. **Update `pyproject.toml`** ✅
    ```toml
    dependencies = [
        "torch>=2.1.0",
@@ -149,7 +164,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    ]
    ```
 
-2. **Create protocols** (`src/ssl_attention/models/protocols.py`)
+2. **Create protocols** (`src/ssl_attention/models/protocols.py`) ✅
    ```python
    @dataclass
    class ModelOutput:
@@ -165,19 +180,19 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
        def forward(self, images: Tensor) -> ModelOutput: ...
    ```
 
-3. **Implement model wrappers** (separate files):
-   - `dinov2.py` - Handle registers, patch size 14
-   - `dinov3.py` - Handle RoPE, registers, patch size 16
-   - `mae.py` - Disable masking with `mask_ratio=0.0`
-   - `clip_model.py` - Vision encoder only
-   - `siglip.py` - Vision encoder only (SigLIP 2)
+3. **Implement model wrappers** (separate files): ✅
+   - `dinov2.py` - Handle registers, patch size 14 ✅
+   - `dinov3.py` - Handle RoPE, registers, patch size 16 ✅
+   - `mae.py` - Disable masking with `mask_ratio=0.0` ✅
+   - `clip_model.py` - Vision encoder only ✅
+   - `siglip.py` - Vision encoder only (SigLIP 2) ✅
 
-4. **Implement attention extractors**:
-   - `cls_attention.py` - CLS to patch attention with head fusion
-   - `rollout.py` - Attention rollout through layers
-   - `gradcam.py` - Gradient-based baseline
+4. **Implement attention extractors**: ✅
+   - `cls_attention.py` - CLS to patch attention with head fusion ✅
+   - `rollout.py` - Attention rollout through layers ✅
+   - `gradcam.py` - Gradient-based baseline ✅
 
-### Phase 2: Data Pipeline
+### Phase 2: Data Pipeline ⬜ NEXT
 
 1. **Annotation parsing** (`annotations.py`)
    - `BoundingBox` with `to_mask(H, W)` method
@@ -193,7 +208,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Cache features and attention maps
    - Key: `{model}/{layer}/{image_id}`
 
-### Phase 3: Metrics & Evaluation
+### Phase 3: Metrics & Evaluation ⬜
 
 1. **IoU computation** (`metrics/iou.py`)
    - Threshold at percentiles (top 10%, 20%, 30%)
@@ -216,7 +231,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - 4-class and full hierarchy
    - Accuracy, F1, confusion matrix
 
-### Phase 4: Visualization & Analysis
+### Phase 4: Visualization & Analysis ⬜
 
 1. **Heatmaps** (`visualization/heatmaps.py`)
    - Upsample to original resolution
@@ -227,7 +242,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Layer-wise progression
    - Per-feature-category breakdown
 
-### Phase 5: Fine-Tuning Analysis
+### Phase 5: Fine-Tuning Analysis ⬜
 
 1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`)
    - `FineTuner` class wrapping BaseVisionModel
@@ -250,7 +265,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Side-by-side heatmaps (frozen vs fine-tuned)
    - Attention shift maps (where did attention move?)
 
-### Phase 6: Interactive Analysis Tool
+### Phase 6: Interactive Analysis Tool ⬜
 
 1. **Technology Options** (to be finalized)
    - **Streamlit**: Python-native, fast prototyping, good for data dashboards
@@ -287,22 +302,33 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 ## Critical Files to Create
 
-| Priority | File | Purpose |
-|----------|------|---------|
-| 1 | `pyproject.toml` | Add ML dependencies |
-| 2 | `src/ssl_attention/models/protocols.py` | Core abstractions |
-| 3 | `src/ssl_attention/models/dinov2.py` | DINOv2 wrapper |
-| 4 | `src/ssl_attention/models/dinov3.py` | DINOv3 wrapper |
-| 5 | `src/ssl_attention/models/mae.py` | MAE wrapper |
-| 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper |
-| 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper |
-| 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method |
-| 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing |
-| 10 | `src/ssl_attention/metrics/iou.py` | Primary metric |
-| 11 | `experiments/configs/default.yaml` | Experiment config |
-| 12 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper |
-| 13 | `experiments/scripts/fine_tune_models.py` | Training script |
-| 14 | `app/main.py` | Interactive analysis tool entry point |
+| Priority | File | Purpose | Status |
+|----------|------|---------|--------|
+| 1 | `pyproject.toml` | Add ML dependencies | ✅ Done |
+| 2 | `src/ssl_attention/models/protocols.py` | Core abstractions | ✅ Done |
+| 3 | `src/ssl_attention/models/dinov2.py` | DINOv2 wrapper | ✅ Done |
+| 4 | `src/ssl_attention/models/dinov3.py` | DINOv3 wrapper | ✅ Done |
+| 5 | `src/ssl_attention/models/mae.py` | MAE wrapper | ✅ Done |
+| 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper | ✅ Done |
+| 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper | ✅ Done |
+| 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method | ✅ Done |
+| 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ⬜ Phase 2 |
+| 10 | `src/ssl_attention/metrics/iou.py` | Primary metric | ⬜ Phase 3 |
+| 11 | `experiments/configs/default.yaml` | Experiment config | ⬜ Phase 2 |
+| 12 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper | ⬜ Phase 5 |
+| 13 | `experiments/scripts/fine_tune_models.py` | Training script | ⬜ Phase 5 |
+| 14 | `app/main.py` | Interactive analysis tool entry point | ⬜ Phase 6 |
+
+### Additional Phase 1 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/ssl_attention/models/base.py` | BaseVisionModel ABC | ✅ Done |
+| `src/ssl_attention/models/registry.py` | Model registry with lazy loading | ✅ Done |
+| `src/ssl_attention/attention/rollout.py` | Attention rollout implementation | ✅ Done |
+| `src/ssl_attention/attention/gradcam.py` | GradCAM for transformers | ✅ Done |
+| `src/ssl_attention/config.py` | Centralized configuration | ✅ Done |
+| `src/ssl_attention/utils/device.py` | MPS/CUDA/CPU handling | ✅ Done |
 
 ---
 
