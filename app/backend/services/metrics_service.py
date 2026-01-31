@@ -6,14 +6,11 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.backend.config import (
-    AVAILABLE_MODELS,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
-    NUM_LAYERS,
-    STYLE_NAMES,
 )
 
 if TYPE_CHECKING:
@@ -254,13 +251,14 @@ class MetricsService:
                 for row in cursor.fetchall()
             ]
 
-    def get_summary(self) -> dict | None:
+    def get_summary(self) -> dict[str, Any] | None:
         """Load pre-computed summary from JSON file."""
         if not METRICS_SUMMARY_PATH.exists():
             return None
 
         with open(METRICS_SUMMARY_PATH) as f:
-            return json.load(f)
+            data: dict[str, Any] = json.load(f)
+            return data
 
 
 # Global instance

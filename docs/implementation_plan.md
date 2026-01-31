@@ -7,9 +7,9 @@
 | Phase 1 | Core Infrastructure | ✅ Complete |
 | Phase 2 | Data Pipeline | ✅ Complete |
 | Phase 3 | Metrics & Evaluation | ✅ Complete |
-| Phase 4 | Visualization & Analysis | ⬜ Not Started |
-| Phase 5 | Fine-Tuning Analysis | ⬜ Not Started |
-| Phase 6 | Interactive Analysis Tool | ⬜ Not Started |
+| Phase 4 | Visualization & Analysis | ✅ Complete |
+| Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
+| Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
 **Last Updated:** 2026-01-31
 
@@ -31,9 +31,15 @@ Build a system to compare SSL model attention patterns against 631 expert-annota
 ```
 ssl_wikichurches/
 ├── app/                            # Interactive analysis tool
-│   ├── components/                 # UI components
-│   ├── api/                        # Backend API (if using React)
-│   └── main.py                     # Entry point (Streamlit/Gradio)
+│   ├── backend/                    # FastAPI backend
+│   │   ├── routers/                # API route handlers
+│   │   ├── services/               # Business logic
+│   │   └── main.py                 # FastAPI entry point
+│   ├── frontend/                   # React + TypeScript frontend
+│   └── precompute/                 # Pre-computation scripts
+│
+├── notebooks/                      # Jupyter notebooks
+│   └── 01_data_exploration.ipynb   # Dataset exploration with Polars
 │
 ├── src/ssl_attention/
 │   ├── __init__.py
@@ -239,72 +245,73 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Stratified k-fold cross-validation
    - Accuracy, F1, per-class accuracy, confusion matrix
 
-### Phase 4: Visualization & Analysis ⬜ NEXT
+### Phase 4: Visualization & Analysis ✅ COMPLETE
 
-1. **Heatmaps** (`visualization/heatmaps.py`)
+1. **Heatmaps** (`visualization/heatmaps.py`) ✅
    - Upsample to original resolution
-   - Colormap overlay
+   - Colormap overlay with configurable colormaps
 
-2. **Comparison plots** (`visualization/plots.py`)
+2. **Overlays** (`visualization/overlays.py`) ✅
+   - Bounding box drawing with labels
+   - Attention heatmap overlay on images
+
+3. **Comparison plots** (`visualization/plots.py`) ✅
    - Model comparison bar charts with CIs
    - Layer-wise progression
    - Per-feature-category breakdown
+   - Style breakdown charts
+   - Scatter plots for coverage vs IoU
 
-### Phase 5: Fine-Tuning Analysis ⬜
+### Phase 5: Fine-Tuning Analysis 🔄 IN PROGRESS
 
-1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`)
-   - `FineTuner` class wrapping BaseVisionModel
-   - Configurable: which layers to unfreeze
-   - Classification head on CLS token
-   - Training loop with validation
+1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`) ✅
+   - `FineTuningConfig` dataclass for hyperparameters
+   - `FineTunableModel` wrapping SSL backbone + classification head
+   - `FineTuner` class with training loop, stratified split, class weighting
+   - `ClassificationHead` linear classifier on CLS token
+   - Differential learning rates for backbone vs head
+   - MPS memory management, checkpoint saving
 
-2. **Fine-tuning script** (`experiments/scripts/fine_tune_models.py`)
+2. **Fine-tuning script** (`experiments/scripts/fine_tune_models.py`) ✅
    - Train each model on style classification
    - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt`
-   - Log training curves
+   - Training summary with per-model results
 
-3. **Comparative analysis**
+3. **Comparative analysis** ⬜
    - Load fine-tuned models
    - Extract attention on annotated subset
    - Compute Δ IoU per model
    - Statistical tests (paired t-test on per-image IoU)
 
-4. **Visualization**
+4. **Visualization** ⬜
    - Side-by-side heatmaps (frozen vs fine-tuned)
    - Attention shift maps (where did attention move?)
 
-### Phase 6: Interactive Analysis Tool ⬜
+### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
-1. **Technology Options** (to be finalized)
-   - **Streamlit**: Python-native, fast prototyping, good for data dashboards
-   - **Gradio**: HuggingFace-style interfaces, easy model demos
-   - **React + FastAPI**: Full control, production-ready, richer interactivity
+**Technology Choice:** React + FastAPI (full control, production-ready)
 
-   Selection criteria: team familiarity, deployment needs, interactivity requirements
+1. **Backend** (`app/backend/`) ✅
+   - FastAPI with routers for images, attention, metrics, comparison
+   - Services for image loading, metrics querying (SQLite), caching
+   - Pre-computation scripts for attention maps, heatmaps, and metrics
 
-2. **Core Components**
-   - **Image Browser**: Grid view of 139 annotated images, filterable by style
-   - **Attention Viewer**: Heatmap overlay on selected image with expert bboxes
-   - **Model Selector**: Dropdown for model, method, layer, fine-tuning state
-   - **IoU Display**: Real-time IoU score for current configuration
+2. **Frontend** (`app/frontend/`) ✅
+   - React + TypeScript + Vite
+   - Image browser with style filtering
+   - Attention viewer with model/layer selection
+   - Model comparison views
 
-3. **Comparison View**
-   - Side-by-side panels for comparing:
-     - Same image, different models
-     - Same image, frozen vs fine-tuned
-   - Synchronized zoom/pan across panels
-   - Attention shift overlay (difference heatmap)
+3. **Pre-computation Pipeline** ✅
+   - `generate_attention_cache.py` - Extract attention to HDF5
+   - `generate_heatmap_images.py` - Render heatmap overlays as PNGs
+   - `generate_metrics_cache.py` - Compute IoU to SQLite
 
-4. **Metrics Dashboard**
-   - Model leaderboard sorted by mean IoU
-   - Per-feature-type breakdown (windows, arches, towers, etc.)
-   - Per-style breakdown (Gothic, Romanesque, Baroque, Renaissance)
-   - Statistical summary (CIs, effect sizes)
-
-5. **Data Flow**
-   - Pre-compute attention maps for all configurations → HDF5 cache
-   - Load on-demand for responsive interaction
-   - IoU computed client-side or cached
+4. **API Endpoints** ✅
+   - `/api/images` - Image listing, filtering, serving
+   - `/api/attention` - Heatmap and overlay serving
+   - `/api/metrics` - IoU metrics, leaderboard, layer progression
+   - `/api/compare` - Model comparison, frozen vs fine-tuned
 
 ---
 
@@ -328,9 +335,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 14 | `src/ssl_attention/metrics/baselines.py` | Baseline generators | ✅ Done |
 | 15 | `src/ssl_attention/metrics/statistics.py` | Statistical tests | ✅ Done |
 | 16 | `src/ssl_attention/evaluation/linear_probe.py` | Linear probe evaluation | ✅ Done |
-| 17 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper | ⬜ Phase 5 |
-| 18 | `experiments/scripts/fine_tune_models.py` | Training script | ⬜ Phase 5 |
-| 19 | `app/main.py` | Interactive analysis tool entry point | ⬜ Phase 6 |
+| 17 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper | ✅ Done |
+| 18 | `experiments/scripts/fine_tune_models.py` | Training script | ✅ Done |
+| 19 | `app/backend/main.py` | Interactive analysis tool backend | ✅ Done |
+| 20 | `app/frontend/` | Interactive analysis tool frontend | ✅ Done |
 
 ### Additional Phase 1 Files Created
 
@@ -357,6 +365,28 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 |------|---------|--------|
 | `src/ssl_attention/metrics/__init__.py` | Metrics module exports | ✅ Done |
 | `src/ssl_attention/evaluation/__init__.py` | Evaluation module exports | ✅ Done |
+
+### Additional Phase 4 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/ssl_attention/visualization/__init__.py` | Visualization module exports | ✅ Done |
+| `src/ssl_attention/visualization/heatmaps.py` | Attention heatmap generation | ✅ Done |
+| `src/ssl_attention/visualization/overlays.py` | Bbox + attention overlay | ✅ Done |
+| `src/ssl_attention/visualization/plots.py` | Statistical plots | ✅ Done |
+| `notebooks/01_data_exploration.ipynb` | Dataset exploration with Polars | ✅ Done |
+
+### Phase 6 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `app/backend/main.py` | FastAPI application entry | ✅ Done |
+| `app/backend/config.py` | Backend configuration | ✅ Done |
+| `app/backend/schemas.py` | Pydantic schemas | ✅ Done |
+| `app/backend/routers/` | API route handlers | ✅ Done |
+| `app/backend/services/` | Business logic services | ✅ Done |
+| `app/precompute/` | Pre-computation scripts | ✅ Done |
+| `app/frontend/` | React + TypeScript frontend | ✅ Done |
 
 ---
 

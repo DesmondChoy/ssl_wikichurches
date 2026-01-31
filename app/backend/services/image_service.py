@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import sys
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -94,7 +92,6 @@ class ImageService:
         """Check if original image file exists."""
         return self.get_image_path(image_id).exists()
 
-    @lru_cache(maxsize=50)
     def load_image(self, image_id: str, size: tuple[int, int] | None = None) -> PILImage.Image:
         """Load and optionally resize an image.
 

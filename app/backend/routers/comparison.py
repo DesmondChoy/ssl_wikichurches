@@ -17,7 +17,7 @@ router = APIRouter(prefix="/compare", tags=["comparison"])
 @router.get("/models", response_model=ModelComparisonSchema)
 async def compare_models(
     image_id: str,
-    models: Annotated[list[str], Query(description="Models to compare")] = ["dinov2", "clip"],
+    models: Annotated[list[str] | None, Query(description="Models to compare")] = None,
     layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> ModelComparisonSchema:
@@ -25,6 +25,10 @@ async def compare_models(
 
     Returns IoU results and heatmap URLs for side-by-side comparison.
     """
+    # Default models if not specified
+    if models is None:
+        models = ["dinov2", "clip"]
+
     # Validate models
     invalid = [m for m in models if m not in AVAILABLE_MODELS]
     if invalid:
@@ -202,7 +206,7 @@ async def compare_all_models_summary(
             "rank": entry["rank"],
             "best_iou": entry["best_iou"],
             "best_layer": entry["best_layer"],
-            "layer_progression": dict(zip(progression["layers"], progression["ious"])),
+            "layer_progression": dict(zip(progression["layers"], progression["ious"], strict=True)),
         }
 
     return {

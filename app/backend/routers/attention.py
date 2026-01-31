@@ -65,7 +65,7 @@ async def get_heatmap(
             headers={"Cache-Control": "max-age=86400"},
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @router.get("/{image_id}/overlay")
@@ -107,7 +107,7 @@ async def get_overlay(
             headers={"Cache-Control": "max-age=86400"},
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @router.get("/{image_id}/layers")

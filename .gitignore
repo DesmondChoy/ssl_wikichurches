@@ -14,3 +14,11 @@ wheels/
 
 # Dataset files
 dataset/
+
+# Runtime outputs
+outputs/
+
+# Experiment outputs (but allow scripts and configs)
+experiments/outputs/
+experiments/results/
+experiments/logs/

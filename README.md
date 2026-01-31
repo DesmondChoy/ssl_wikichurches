@@ -18,6 +18,16 @@ Download the [WikiChurches dataset](https://zenodo.org/records/5166987):
 uv run python scripts/download_wikichurches.py -o dataset/
 ```
 
+### Data Exploration
+
+Explore the dataset structure with the Polars-based notebook:
+
+```bash
+uv run jupyter lab notebooks/01_data_exploration.ipynb
+```
+
+This notebook loads all 4 data sources (churches, feature types, annotations, style names) and provides exploratory analysis including distributions by century, country, and architectural style.
+
 ## Models
 
 | Model | HuggingFace ID | Training |
@@ -27,6 +37,26 @@ uv run python scripts/download_wikichurches.py -o dataset/
 | MAE | `facebook/vit-mae-base` | Masked autoencoding |
 | CLIP | `openai/clip-vit-base-patch16` | Contrastive |
 | SigLIP 2 | `google/siglip2-base-patch16-224` | Contrastive (sigmoid) |
+
+## Fine-Tuning
+
+Fine-tune any SSL model on architectural style classification:
+
+```python
+from ssl_attention.evaluation import FineTuningConfig, FineTuner, FineTunableModel
+from ssl_attention.data import FullDataset
+from ssl_attention.config import DATASET_PATH
+
+config = FineTuningConfig(model_name="dinov2", num_epochs=10)
+model = FineTunableModel("dinov2", freeze_backbone=False)
+dataset = FullDataset(DATASET_PATH, filter_labeled=True)
+
+tuner = FineTuner(config)
+result = tuner.train(model, dataset)
+print(f"Best validation accuracy: {result.best_val_acc:.1%}")
+```
+
+Checkpoints are saved to `outputs/checkpoints/`. After fine-tuning, compare attention patterns before vs after to measure alignment shift.
 
 ## Visualization App
 

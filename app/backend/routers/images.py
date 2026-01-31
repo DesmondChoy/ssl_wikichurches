@@ -140,7 +140,7 @@ async def get_image_file(
             headers={"Cache-Control": "max-age=3600"},
         )
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}") from None
 
 
 @router.get("/{image_id}/thumbnail")
@@ -162,7 +162,7 @@ async def get_thumbnail(image_id: str) -> StreamingResponse:
             headers={"Cache-Control": "max-age=86400"},  # 24 hours
         )
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}") from None
 
 
 @router.get("/{image_id}/with_bboxes")
@@ -172,7 +172,7 @@ async def get_image_with_bboxes(image_id: str) -> StreamingResponse:
     if not bbox_path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Bbox image not found. Run generate_heatmap_images.py first.",
+            detail="Bbox image not found. Run generate_heatmap_images.py first.",
         )
 
     with open(bbox_path, "rb") as f:
