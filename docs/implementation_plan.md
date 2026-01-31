@@ -239,7 +239,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Stratified k-fold cross-validation
    - Accuracy, F1, per-class accuracy, confusion matrix
 
-### Phase 4: Visualization & Analysis ⬜
+### Phase 4: Visualization & Analysis ⬜ NEXT
 
 1. **Heatmaps** (`visualization/heatmaps.py`)
    - Upsample to original resolution
