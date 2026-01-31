@@ -272,7 +272,7 @@ def plot_model_leaderboard(
             )
 
     # Add rank indicators
-    for i, _model in enumerate(models[:3]):
+    for i, _ in enumerate(models[:3]):
         rank = ["#1", "#2", "#3"][i]
         color = ["gold", "silver", "#CD7F32"][i]  # Gold, silver, bronze
         ax.annotate(

@@ -141,7 +141,7 @@ class FullDataset(Dataset):
 
         # Load churches.json for Q-ID → style mapping
         churches_path = self.dataset_path / "churches.json"
-        with open(churches_path) as f:
+        with open(churches_path, encoding="utf-8") as f:
             self._churches = json.load(f)
 
         # Build Q-ID → style_label lookup
