@@ -783,7 +783,7 @@ def save_training_results(
             "config": result.config,
         })
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
     print(f"Saved training results to {output_path}")

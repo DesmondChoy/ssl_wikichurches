@@ -256,7 +256,7 @@ class MetricsService:
         if not METRICS_SUMMARY_PATH.exists():
             return None
 
-        with open(METRICS_SUMMARY_PATH) as f:
+        with open(METRICS_SUMMARY_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             return data
 

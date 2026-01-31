@@ -342,7 +342,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     summary = {"models": models_data, "leaderboard": leaderboard}
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
     print(f"Exported summary to {output_path}")

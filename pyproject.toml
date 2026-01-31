@@ -50,6 +50,9 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]  # Line length handled by formatter
 
+[tool.ruff.lint.per-file-ignores]
+"app/**/*.py" = ["E402"]  # Allow imports after sys.path modification
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
