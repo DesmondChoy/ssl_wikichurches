@@ -1,0 +1,199 @@
+/**
+ * Dashboard page with overall metrics and leaderboard.
+ */
+
+import { Link } from 'react-router-dom';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from 'recharts';
+import { useViewStore } from '../store/viewStore';
+import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
+import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { Select } from '../components/ui/Select';
+
+const COLORS = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'];
+
+export function DashboardPage() {
+  const { model, layer, percentile, setModel, setPercentile } = useViewStore();
+
+  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
+  const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile);
+
+  // Merge into single array by layer
+  const chartData: Record<string, number | string>[] = [];
+  for (let i = 0; i < 12; i++) {
+    const layerData: Record<string, number | string> = { layer: `L${i}` };
+    if (summary?.models) {
+      for (const [modelName, modelData] of Object.entries(summary.models)) {
+        const layerKey = `layer${i}`;
+        if (modelData.layer_progression[layerKey] !== undefined) {
+          layerData[modelName] = modelData.layer_progression[layerKey];
+        }
+      }
+    }
+    chartData.push(layerData);
+  }
+
+  // Style breakdown data
+  const styleData = styleBreakdown
+    ? Object.entries(styleBreakdown.styles).map(([style, iou]) => ({
+        style,
+        iou,
+        count: styleBreakdown.style_counts[style] || 0,
+      }))
+    : [];
+
+  const percentileOptions = [
+    { value: 90, label: 'Top 10%' },
+    { value: 85, label: 'Top 15%' },
+    { value: 80, label: 'Top 20%' },
+    { value: 70, label: 'Top 30%' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-1">
+            Attention-annotation alignment metrics across models
+          </p>
+        </div>
+
+        <Select
+          value={percentile}
+          onChange={(v) => setPercentile(Number(v))}
+          options={percentileOptions}
+          label="Threshold"
+        />
+      </div>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Leaderboard */}
+        <div>
+          <ModelLeaderboard
+            percentile={percentile}
+            onModelSelect={setModel}
+          />
+        </div>
+
+        {/* Layer progression chart */}
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold">Layer Progression (All Models)</h3>
+            </CardHeader>
+            <CardContent>
+              {summaryLoading ? (
+                <div className="h-64 animate-pulse bg-gray-100 rounded" />
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="layer" />
+                    <YAxis domain={[0, 1]} tickFormatter={(v) => v.toFixed(2)} />
+                    <Tooltip formatter={(value: number) => value.toFixed(3)} />
+                    <Legend />
+                    {summary?.leaderboard.map((entry, i) => (
+                      <Line
+                        key={entry.model}
+                        type="monotone"
+                        dataKey={entry.model}
+                        stroke={COLORS[i % COLORS.length]}
+                        strokeWidth={entry.model === model ? 3 : 1}
+                        dot={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Style breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold">IoU by Architectural Style</h3>
+              <span className="text-xs text-gray-500 capitalize">{model}</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {styleLoading ? (
+              <div className="h-48 animate-pulse bg-gray-100 rounded" />
+            ) : styleData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={styleData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" domain={[0, 1]} tickFormatter={(v) => v.toFixed(2)} />
+                  <YAxis type="category" dataKey="style" width={100} />
+                  <Tooltip
+                    formatter={(value: number, _name, props) => [
+                      `${value.toFixed(3)} (n=${props.payload.count})`,
+                      'IoU',
+                    ]}
+                  />
+                  <Bar dataKey="iou" fill="#0ea5e9" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-48 flex items-center justify-center text-gray-500">
+                No style data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick links */}
+        <Card>
+          <CardHeader>
+            <h3 className="font-semibold">Quick Actions</h3>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Link
+              to="/"
+              className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="font-medium">Browse Images</div>
+              <div className="text-sm text-gray-500">
+                View all 139 annotated church images
+              </div>
+            </Link>
+
+            <Link
+              to="/compare"
+              className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="font-medium">Compare Models</div>
+              <div className="text-sm text-gray-500">
+                Side-by-side attention comparison
+              </div>
+            </Link>
+
+            <div className="p-3 bg-yellow-50 rounded-lg">
+              <div className="font-medium text-yellow-800">Pre-computation Required</div>
+              <div className="text-sm text-yellow-700">
+                Run the pre-computation scripts to generate heatmaps and metrics
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
