@@ -12,8 +12,8 @@ Sequence structure: [CLS] + [4 registers] + [196 patches]
 Note: Requires transformers>=4.56.0 for DINOv3 support.
 """
 
-from typing import Any
 import warnings
+from typing import Any
 
 import torch
 from torch import nn

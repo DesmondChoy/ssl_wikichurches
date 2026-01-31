@@ -16,7 +16,6 @@ Reference:
 import math
 from typing import Any
 
-import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
@@ -98,10 +97,7 @@ class GradCAM:
             parts = self.target_layer.split(".")
             module = self.model
             for part in parts:
-                if part.isdigit():
-                    module = module[int(part)]
-                else:
-                    module = getattr(module, part)
+                module = module[int(part)] if part.isdigit() else getattr(module, part)  # type: ignore[index]
             return module
 
         # Default: find last transformer block
@@ -113,7 +109,7 @@ class GradCAM:
                 for part in parts:
                     module = getattr(module, part)
                 # Return the last block
-                return module[-1]
+                return module[-1]  # type: ignore[index,no-any-return]
             except (AttributeError, TypeError):
                 continue
 
@@ -150,13 +146,8 @@ class GradCAM:
         weights = self._gradients.mean(dim=-1, keepdim=True)  # (B, seq, 1)
 
         # Weight activations
-        # Activations shape: (B, seq, D) or similar
-        # Handle different activation shapes
-        if self._activations.dim() == 3:
-            activations = self._activations
-        else:
-            # Reshape if needed
-            activations = self._activations
+        # Activations shape: (B, seq, D)
+        activations = self._activations
 
         # Weighted combination
         cam = (weights * activations).sum(dim=-1)  # (B, seq)

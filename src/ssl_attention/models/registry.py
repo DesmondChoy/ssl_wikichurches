@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from ssl_attention.config import CACHE_MAX_MODELS, MODEL_ALIASES, MODELS
-from ssl_attention.models.protocols import VisionBackbone
+from ssl_attention.config import CACHE_MAX_MODELS, MODEL_ALIASES
 from ssl_attention.utils.device import clear_memory
 
 if TYPE_CHECKING:

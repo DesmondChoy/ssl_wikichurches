@@ -15,7 +15,7 @@ from typing import Any
 
 import torch
 from torch import nn
-from transformers import AutoConfig, CLIPVisionConfig, CLIPVisionModel
+from transformers import CLIPVisionConfig, CLIPVisionModel
 
 from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel

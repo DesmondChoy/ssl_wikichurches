@@ -12,7 +12,7 @@ Sequence structure: [CLS] + [196 patches]
 from typing import Any
 
 import torch
-from torch import Tensor, nn
+from torch import nn
 from transformers import ViTMAEConfig, ViTMAEModel
 
 from ssl_attention.config import MODELS

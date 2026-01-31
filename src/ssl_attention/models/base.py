@@ -1,8 +1,9 @@
 """Base class for vision model wrappers."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any
 
 import torch
 from PIL import Image
