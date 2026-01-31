@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-01-31
+**Last Updated:** 2026-01-31 (Phase 5 fine-tuning module quality reviewed)
 
 ---
 
@@ -266,14 +266,19 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`) ✅
    - `FineTuningConfig` dataclass for hyperparameters
+   - `FineTuningResult` dataclass for training metrics and checkpoint path
    - `FineTunableModel` wrapping SSL backbone + classification head
    - `FineTuner` class with training loop, stratified split, class weighting
    - `ClassificationHead` linear classifier on CLS token
    - Differential learning rates for backbone vs head
-   - MPS memory management, checkpoint saving
+   - MPS memory management (`torch.mps.empty_cache()`), checkpoint saving
+   - `load_finetuned_model()` for loading trained checkpoints
+   - `save_training_results()` for JSON export of training history
 
 2. **Fine-tuning script** (`experiments/scripts/fine_tune_models.py`) ✅
-   - Train each model on style classification
+   - Train single model or all models via CLI flags
+   - Configurable hyperparameters (epochs, batch size, learning rates)
+   - Head-only training option (`--freeze-backbone`)
    - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt`
    - Training summary with per-model results
 
@@ -375,6 +380,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `src/ssl_attention/visualization/overlays.py` | Bbox + attention overlay | ✅ Done |
 | `src/ssl_attention/visualization/plots.py` | Statistical plots | ✅ Done |
 | `notebooks/01_data_exploration.ipynb` | Dataset exploration with Polars | ✅ Done |
+
+### Phase 5 Files Created
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper with FineTunableModel | ✅ Done |
+| `experiments/scripts/fine_tune_models.py` | CLI training script | ✅ Done |
 
 ### Phase 6 Files Created
 
