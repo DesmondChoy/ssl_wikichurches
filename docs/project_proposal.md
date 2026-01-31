@@ -10,7 +10,7 @@
 
 ## 1\. Problem Statement
 
-Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?**
+Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?** Furthermore, when models are fine-tuned for a specific task, **does their attention shift toward expert-identified features, or do they discover alternative discriminative regions?**
 
 Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features."
 
@@ -49,9 +49,9 @@ Existing SSL benchmarks measure classification accuracy but do not explain *whic
 
 ## 3\. System Architecture
 
-### 3.1 Feature Extraction (Frozen Backbones)
+### 3.1 Feature Extraction Pipeline
 
-No training of SSL models—use pretrained weights from HuggingFace/timm:
+Use pretrained weights from HuggingFace/timm. Models are evaluated both **frozen** (Pass 1) and **fine-tuned** (Pass 2) to compare attention patterns before and after task-specific training:
 
 | Model | Parameters | Training Paradigm | Source |
 | :---- | :---- | :---- | :---- |
@@ -96,9 +96,30 @@ Quantify whether high-attention regions overlap with expert-annotated characteri
 
 Train lightweight linear classifiers on frozen features to verify representations are meaningful:
 
-- **Task:** Architectural style classification (4-class for annotated subset; full hierarchy for complete dataset)  
-- **Metrics:** Top-1 accuracy, per-class F1, confusion matrices  
+- **Task:** Architectural style classification (4-class for annotated subset; full hierarchy for complete dataset)
+- **Metrics:** Top-1 accuracy, per-class F1, confusion matrices
 - **Purpose:** Confirm models have learned discriminative features before analyzing attention
+
+### 3.5 Fine-Tuning Analysis (Second Pass)
+
+After evaluating frozen models, fine-tune each backbone on the style classification task:
+
+**Training setup:**
+- Dataset: Full 9,485 images with style labels
+- Task: 4-class architectural style classification
+- Strategy: Freeze backbone initially, then unfreeze last N layers
+- Epochs: ~10-20 with early stopping
+- Learning rate: 1e-5 to 1e-4 with warmup
+
+**Post-fine-tuning evaluation:**
+- Extract attention from fine-tuned models on same 139 annotated images
+- Compute IoU with expert bounding boxes
+- Compare Δ IoU (fine-tuned - frozen) per model
+
+**Key questions:**
+1. Does fine-tuning increase attention-expert alignment?
+2. Which SSL paradigm benefits most from task-specific training?
+3. Do fine-tuned models attend to features experts didn't annotate?
 
 ---
 
@@ -112,12 +133,14 @@ Train lightweight linear classifiers on frozen features to verify representation
 | Layer analysis | Early vs. middle vs. late ViT layers | At what depth does expert-aligned attention emerge? |
 | Attention method | CLS attention vs. rollout vs. GradCAM | Which extraction method best captures expert-relevant regions? |
 | Feature category | By annotated feature type (windows, arches, towers, etc.) | Which architectural elements do models attend to most/least? |
+| Fine-tuning effect | Frozen vs fine-tuned (same model) | Does task-specific training improve attention-expert alignment? |
 
 **Hypotheses to test:**
 
-1. Self-distillation (DINO) should produce more globally coherent attention than reconstruction (MAE), potentially yielding higher alignment with expert-annotated structural features  
-2. Language-supervised models (CLIP, SigLIP 2) may attend to "nameable" features more than purely visual SSL models  
+1. Self-distillation (DINO) should produce more globally coherent attention than reconstruction (MAE), potentially yielding higher alignment with expert-annotated structural features
+2. Language-supervised models (CLIP, SigLIP 2) may attend to "nameable" features more than purely visual SSL models
 3. DINOv3's Gram Anchoring may sharpen attention to semantically meaningful regions compared to DINOv2
+4. Fine-tuning on style classification will increase IoU with expert bboxes, as experts annotated style-diagnostic features
 
 ---
 
@@ -125,15 +148,18 @@ Train lightweight linear classifiers on frozen features to verify representation
 
 ### Quantitative Metrics
 
-- **Primary:** Mean IoU between attention peaks and expert bounding boxes (per model, per layer)  
-- **Secondary:** Linear probe accuracy on style classification  
+- **Primary:** Mean IoU between attention peaks and expert bounding boxes (per model, per layer)
+- **Secondary:** Linear probe accuracy on style classification
+- **Fine-tuning effect:** Δ IoU (fine-tuned - frozen) with paired statistical tests
 - **Statistical:** Paired t-tests or Wilcoxon signed-rank comparing models; bootstrap confidence intervals for IoU
 
 ### Qualitative Analysis
 
-- Attention visualization for representative images showing high/low alignment  
-- Failure case analysis: When models attend elsewhere, what do they attend to?  
+- Attention visualization for representative images showing high/low alignment
+- Failure case analysis: When models attend elsewhere, what do they attend to?
 - Cross-model comparison: Overlay attention maps from all five models on same images
+- Attention shift visualization: Side-by-side frozen vs fine-tuned heatmaps
+- Discovery analysis: Do fine-tuned models attend to unannotated-but-relevant features?
 
 ### Baselines
 
@@ -164,8 +190,8 @@ Train lightweight linear classifiers on frozen features to verify representation
 | 1 | Dataset acquisition, preprocessing, bounding box parsing, feature extraction pipeline |
 | 2 | Attention extraction implementation (CLS, rollout, GradCAM), baseline computation |
 | 3 | IoU computation pipeline, linear probe training, initial results |
-| 4 | Ablation experiments (layers, models, feature categories) |
-| 5 | Statistical analysis, visualization refinement, qualitative analysis |
+| 4 | Ablation experiments (layers, models, feature categories); **begin fine-tuning** |
+| 5 | **Fine-tuning analysis**, statistical comparison (frozen vs fine-tuned), visualization |
 | 6 | Report writing, recorded presentation |
 
 ---
@@ -180,16 +206,18 @@ Train lightweight linear classifiers on frozen features to verify representation
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
 | DINOv3/SigLIP 2 documentation still sparse | Both have HuggingFace weights available; community examples exist |
+| Fine-tuning may overfit on small style subset | Use validation split, early stopping, monitor attention maps for degeneration |
 
 ---
 
 ## 9\. Expected Contributions
 
-1. **Quantitative benchmark** for SSL attention alignment with human expert annotations on fine-grained visual recognition  
-2. **Comparative analysis** of how training paradigm (self-distillation vs. reconstruction vs. contrastive) affects attention patterns  
-3. **Temporal analysis** comparing DINOv2 (2023) to DINOv3 (2025) on attention quality  
-4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge  
+1. **Quantitative benchmark** for SSL attention alignment with human expert annotations on fine-grained visual recognition
+2. **Comparative analysis** of how training paradigm (self-distillation vs. reconstruction vs. contrastive) affects attention patterns
+3. **Temporal analysis** comparing DINOv2 (2023) to DINOv3 (2025) on attention quality
+4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge
 5. **Reproducible codebase** for attention-annotation alignment evaluation
+6. **Fine-tuning impact analysis** showing how task-specific training shifts attention patterns relative to expert annotations
 
 ---
 

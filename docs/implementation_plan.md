@@ -4,7 +4,8 @@
 
 Build a system to compare SSL model attention patterns against 631 expert-annotated bounding boxes on 139 WikiChurches images, measuring whether models attend to the same features human experts consider diagnostic.
 
-**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP 2 (all ViT-B, frozen)
+**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP 2 (all ViT-B, evaluated frozen and fine-tuned)
+**Research Design:** Two-pass analysis comparing attention patterns before and after task-specific fine-tuning
 **Primary Metric:** IoU between thresholded attention and expert bounding boxes
 **Platform:** M4 Pro with MPS backend
 
@@ -54,6 +55,7 @@ ssl_wikichurches/
 │   ├── evaluation/
 │   │   ├── __init__.py
 │   │   ├── linear_probe.py      # Linear classifier training
+│   │   ├── fine_tuning.py       # Full backbone fine-tuning
 │   │   └── ablations.py         # Layer analysis, model comparison
 │   │
 │   ├── visualization/
@@ -78,7 +80,8 @@ ssl_wikichurches/
 │       ├── extract_features.py
 │       ├── compute_attention.py
 │       ├── run_iou_analysis.py
-│       └── train_linear_probe.py
+│       ├── train_linear_probe.py
+│       └── fine_tune_models.py  # Fine-tuning script
 │
 ├── outputs/                     # Git-ignored
 │   ├── cache/
@@ -219,6 +222,29 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Layer-wise progression
    - Per-feature-category breakdown
 
+### Phase 5: Fine-Tuning Analysis
+
+1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`)
+   - `FineTuner` class wrapping BaseVisionModel
+   - Configurable: which layers to unfreeze
+   - Classification head on CLS token
+   - Training loop with validation
+
+2. **Fine-tuning script** (`experiments/scripts/fine_tune_models.py`)
+   - Train each model on style classification
+   - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt`
+   - Log training curves
+
+3. **Comparative analysis**
+   - Load fine-tuned models
+   - Extract attention on annotated subset
+   - Compute Δ IoU per model
+   - Statistical tests (paired t-test on per-image IoU)
+
+4. **Visualization**
+   - Side-by-side heatmaps (frozen vs fine-tuned)
+   - Attention shift maps (where did attention move?)
+
 ---
 
 ## Critical Files to Create
@@ -236,6 +262,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing |
 | 10 | `src/ssl_attention/metrics/iou.py` | Primary metric |
 | 11 | `experiments/configs/default.yaml` | Experiment config |
+| 12 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper |
+| 13 | `experiments/scripts/fine_tune_models.py` | Training script |
 
 ---
 
@@ -264,6 +292,12 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Attention overlays on sample images
    - Compare across models qualitatively
 
+6. **Fine-tuning verification**
+   - Training converges (loss decreases, val accuracy improves)
+   - Fine-tuned models load correctly
+   - Attention extraction works on fine-tuned models
+   - IoU comparison shows measurable difference
+
 ---
 
 ## Key Design Decisions
@@ -274,6 +308,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 4. **HDF5 caching** - Avoid recomputing features
 5. **Percentile thresholding** - More robust than fixed thresholds
 6. **Registers-aware extraction** - Skip register tokens for DINOv2/v3
+7. **Two-pass evaluation** - Compare frozen and fine-tuned attention to isolate effect of task-specific training
 
 ---
 
