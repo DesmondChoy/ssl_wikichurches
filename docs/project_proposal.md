@@ -31,11 +31,19 @@ Existing SSL benchmarks measure classification accuracy but do not explain *whic
 - Manageable scale for 6-week timeline  
 - Hierarchical labels support secondary analysis of concept granularity
 
+**Dataset Structure (Verified):**
+
+- **Annotations:** `building_parts.json` containing 106 feature types and 631 bounding boxes
+- **Coordinate format:** Normalized (0-1) as `left, top, width, height`
+- **Style distribution:** Gothic (54), Romanesque (49), Baroque (22), Renaissance (17)
+- **Style IDs:** Wikidata Q-IDs (Q46261=Gothic, Q176483=Romanesque, Q236122=Baroque, Q840829=Renaissance)
+
 **Preprocessing:**
 
-- Filter to the 139 churches with bounding box annotations for primary attention-alignment analysis  
-- Use full dataset (filtered to classes with ≥50 samples) for linear probe evaluation  
+- Filter to the 139 churches with bounding box annotations for primary attention-alignment analysis
+- Use full dataset (filtered to classes with ≥50 samples) for linear probe evaluation
 - Standard augmentation (resize, normalize) without heavy augmentation to preserve architectural detail
+- Clamp bounding box coordinates to [0,1] (some edge annotations have small negative values)
 
 ---
 
@@ -47,11 +55,11 @@ No training of SSL models—use pretrained weights from HuggingFace/timm:
 
 | Model | Parameters | Training Paradigm | Source |
 | :---- | :---- | :---- | :---- |
-| DINOv2 ViT-B/14 | 86M | Self-distillation (2023) | `facebook/dinov2-base` |
+| DINOv2 ViT-B/14 | 86M | Self-distillation (2023) | `facebook/dinov2-with-registers-base` |
 | DINOv3 ViT-B/16 | 86M | Self-distillation \+ Gram Anchoring (2025) | `facebook/dinov3-vitb16-pretrain-lvd1689m` |
 | MAE ViT-B/16 | 86M | Masked autoencoding | `facebook/vit-mae-base` |
 | CLIP ViT-B/16 | 86M | Contrastive language-image (softmax) | `openai/clip-vit-base-patch16` |
-| SigLIP ViT-B/16 | 86M | Contrastive language-image (sigmoid) | `timm/ViT-B-16-SigLIP` |
+| SigLIP 2 ViT-B/16 | 86M | Contrastive language-image (sigmoid) + dense features | `google/siglip2-base-patch16-224` |
 
 All models use ViT-B architecture for controlled comparison. Feature extraction runs on M4 Pro (MPS backend).
 
@@ -59,7 +67,7 @@ All models use ViT-B architecture for controlled comparison. Feature extraction 
 
 - **DINOv2 vs DINOv3:** Direct comparison of Gram Anchoring's effect on attention quality  
 - **MAE:** Tests whether pixel-reconstruction objectives produce different attention than discriminative objectives  
-- **CLIP vs SigLIP:** Tests whether loss function (softmax vs sigmoid) and training scale affect attention alignment with experts
+- **CLIP vs SigLIP 2:** Tests whether loss function (softmax vs sigmoid) and improved dense features affect attention alignment with experts
 
 ### 3.2 Attention Extraction and Visualization
 
@@ -98,9 +106,9 @@ Train lightweight linear classifiers on frozen features to verify representation
 
 | Ablation | Variable | Question Addressed |
 | :---- | :---- | :---- |
-| Model comparison | DINOv2 vs DINOv3 vs MAE vs CLIP vs SigLIP | Do different SSL paradigms produce different attention-expert alignment? |
+| Model comparison | DINOv2 vs DINOv3 vs MAE vs CLIP vs SigLIP 2 | Do different SSL paradigms produce different attention-expert alignment? |
 | Temporal comparison | DINOv2 (2023) vs DINOv3 (2025) | Does Gram Anchoring improve attention quality? |
-| Loss function | CLIP (softmax) vs SigLIP (sigmoid) | Does contrastive loss formulation affect attention patterns? |
+| Loss function | CLIP (softmax) vs SigLIP 2 (sigmoid) | Does contrastive loss formulation affect attention patterns? |
 | Layer analysis | Early vs. middle vs. late ViT layers | At what depth does expert-aligned attention emerge? |
 | Attention method | CLS attention vs. rollout vs. GradCAM | Which extraction method best captures expert-relevant regions? |
 | Feature category | By annotated feature type (windows, arches, towers, etc.) | Which architectural elements do models attend to most/least? |
@@ -108,7 +116,7 @@ Train lightweight linear classifiers on frozen features to verify representation
 **Hypotheses to test:**
 
 1. Self-distillation (DINO) should produce more globally coherent attention than reconstruction (MAE), potentially yielding higher alignment with expert-annotated structural features  
-2. Language-supervised models (CLIP, SigLIP) may attend to "nameable" features more than purely visual SSL models  
+2. Language-supervised models (CLIP, SigLIP 2) may attend to "nameable" features more than purely visual SSL models  
 3. DINOv3's Gram Anchoring may sharpen attention to semantically meaningful regions compared to DINOv2
 
 ---
@@ -140,7 +148,7 @@ Train lightweight linear classifiers on frozen features to verify representation
 
 | Requirement | How Addressed |
 | :---- | :---- |
-| Intelligent sensing technique | Self-supervised visual feature learning (DINOv2, DINOv3, MAE, CLIP, SigLIP) |
+| Intelligent sensing technique | Self-supervised visual feature learning (DINOv2, DINOv3, MAE, CLIP, SigLIP 2) |
 | Image/video analytics | Image classification, attention extraction, feature attribution |
 | Dataset handling | Public dataset (WikiChurches) with documented preprocessing |
 | Experimental comparison | Ablation across 5 models, 3 attention methods, multiple layers |
@@ -171,7 +179,7 @@ Train lightweight linear classifiers on frozen features to verify representation
 | Bounding boxes span only 4 style categories | Frame as focused study; note generalization limitations in discussion |
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
-| DINOv3/SigLIP documentation still sparse | Both have HuggingFace weights available; community examples exist |
+| DINOv3/SigLIP 2 documentation still sparse | Both have HuggingFace weights available; community examples exist |
 
 ---
 
@@ -195,4 +203,5 @@ Train lightweight linear classifiers on frozen features to verify representation
 - Radford, A., et al. (2021). Learning Transferable Visual Models From Natural Language Supervision. *ICML*.  
 - Simeoni, O., et al. (2025). DINOv3. *arXiv:2508.10104*.  
 - Zhai, X., et al. (2023). Sigmoid Loss for Language Image Pre-training. *ICCV*.
+- Tschannen, M., et al. (2025). SigLIP 2: A Better Multilingual Vision Language Encoder. *arXiv*.
 

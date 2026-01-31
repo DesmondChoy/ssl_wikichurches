@@ -4,7 +4,7 @@
 
 Build a system to compare SSL model attention patterns against 631 expert-annotated bounding boxes on 139 WikiChurches images, measuring whether models attend to the same features human experts consider diagnostic.
 
-**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP (all ViT-B, frozen)
+**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP 2 (all ViT-B, frozen)
 **Primary Metric:** IoU between thresholded attention and expert bounding boxes
 **Platform:** M4 Pro with MPS backend
 
@@ -30,7 +30,7 @@ ssl_wikichurches/
 │   │   ├── dinov3.py            # DINOv3 wrapper (facebook/dinov3-vitb16-pretrain-lvd1689m)
 │   │   ├── mae.py               # MAE wrapper (facebook/vit-mae-base)
 │   │   ├── clip_model.py        # CLIP wrapper (openai/clip-vit-base-patch16)
-│   │   └── siglip.py            # SigLIP wrapper (google/siglip-base-patch16-224)
+│   │   └── siglip.py            # SigLIP 2 wrapper (google/siglip2-base-patch16-224)
 │   │
 │   ├── attention/
 │   │   ├── __init__.py
@@ -98,7 +98,7 @@ ssl_wikichurches/
 | DINOv3 | `facebook/dinov3-vitb16-pretrain-lvd1689m` | `DINOv3ViTModel` | 16 | Requires transformers 4.56.0+, uses RoPE |
 | MAE | `facebook/vit-mae-base` | `ViTMAEModel` | 16 | Set `mask_ratio=0.0` for extraction |
 | CLIP | `openai/clip-vit-base-patch16` | `CLIPVisionModel` | 16 | Vision encoder only |
-| SigLIP | `google/siglip-base-patch16-224` | `SiglipVisionModel` | 16 | Uses sigmoid, not softmax |
+| SigLIP 2 | `google/siglip2-base-patch16-224` | `Siglip2VisionModel` | 16 | Improved dense features; better for attention alignment |
 
 ### Key API Patterns
 
@@ -162,7 +162,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `dinov3.py` - Handle RoPE, registers, patch size 16
    - `mae.py` - Disable masking with `mask_ratio=0.0`
    - `clip_model.py` - Vision encoder only
-   - `siglip.py` - Vision encoder only
+   - `siglip.py` - Vision encoder only (SigLIP 2)
 
 4. **Implement attention extractors**:
    - `cls_attention.py` - CLS to patch attention with head fusion
@@ -282,7 +282,21 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 - DINOv2 sequence: 1 CLS + 4 registers + 256 patches (patch 14, 224px)
 - DINOv3 sequence: 1 CLS + 4 registers + 196 patches (patch 16, 224px)
 - MAE sequence: 1 CLS + 196 patches (with mask_ratio=0)
-- CLIP/SigLIP: 1 CLS + 196 patches
-- Bounding boxes in `building_parts.json` are normalized (0-1)
-- 106 architectural feature types for category analysis
+- CLIP/SigLIP 2: 1 CLS + 196 patches
+
+### Dataset Details (Verified)
+
+- **Annotation file:** `building_parts.json` with nested structure:
+  - `meta`: 106 feature type definitions with hierarchical parent relationships
+  - `annotations`: 139 images with bounding box groups
+- **Coordinate format:** `left, top, width, height` (normalized 0-1, some edge values slightly negative—clamp to [0,1])
+- **Style IDs:** Wikidata Q-IDs requiring mapping:
+  - `Q46261` → Gothic (54 churches, 39%)
+  - `Q176483` → Romanesque (49 churches, 35%)
+  - `Q236122` → Baroque (22 churches, 16%)
+  - `Q840829` → Renaissance (17 churches, 12%)
+- **Bbox structure:** `annotations[image_id].bbox_groups[].elements[]` (nested, grouped by related features)
+
+### Technical Notes
+
 - MPS may need `torch.mps.empty_cache()` between batches
