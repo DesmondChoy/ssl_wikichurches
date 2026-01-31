@@ -12,7 +12,7 @@ Reference:
 Example:
     from ssl_attention.metrics import pointing_game_hit, compute_pointing_accuracy
 
-    hit, max_y, max_x = pointing_game_hit(attention, annotation, image_size=224)
+    hit, max_y, max_x = pointing_game_hit(attention, annotation)
     print(f"Hit: {hit}, Max attention at ({max_y}, {max_x})")
 
     accuracy, results = compute_pointing_accuracy(attn_maps, annotations, image_ids)
@@ -26,8 +26,6 @@ from typing import TYPE_CHECKING
 
 import torch
 from torch import Tensor
-
-from ssl_attention.config import DEFAULT_IMAGE_SIZE
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import ImageAnnotation
@@ -55,14 +53,12 @@ class PointingResult:
 def pointing_game_hit(
     attention: Tensor,
     annotation: ImageAnnotation,
-    image_size: int = DEFAULT_IMAGE_SIZE,
 ) -> tuple[bool, int, int]:
     """Check if maximum attention point falls inside any annotated bbox.
 
     Args:
         attention: Attention map of shape (H, W).
         annotation: ImageAnnotation with bounding boxes.
-        image_size: Size for mask generation (should match attention size).
 
     Returns:
         Tuple of (hit, max_y, max_x):

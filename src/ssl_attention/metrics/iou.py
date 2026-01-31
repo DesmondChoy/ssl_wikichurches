@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 import torch
 from torch import Tensor
 
-from ssl_attention.config import DEFAULT_IMAGE_SIZE, EPSILON
+from ssl_attention.config import EPSILON
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import ImageAnnotation
@@ -211,7 +211,6 @@ def compute_image_iou(
     annotation: ImageAnnotation,
     image_id: str,
     percentile: int,
-    image_size: int = DEFAULT_IMAGE_SIZE,
 ) -> IoUResult:
     """Compute IoU metrics for a single image.
 
@@ -220,7 +219,6 @@ def compute_image_iou(
         annotation: ImageAnnotation with bounding boxes.
         image_id: Image filename for result tracking.
         percentile: Percentile threshold for attention binarization.
-        image_size: Size to use for mask generation (should match attention size).
 
     Returns:
         IoUResult with IoU, coverage, and area statistics.
@@ -393,7 +391,7 @@ def compute_corloc(
 def aggregate_by_feature_type(
     per_bbox_results: list[list[tuple[int, float]]],
     feature_names: list[str] | None = None,
-) -> dict[int, dict[str, float]]:
+) -> dict[int, dict[str, float | str]]:
     """Aggregate per-bbox IoU results by feature type.
 
     Args:
@@ -414,17 +412,17 @@ def aggregate_by_feature_type(
             label_ious[label].append(iou)
 
     # Aggregate
-    result: dict[int, dict[str, float]] = {}
+    result: dict[int, dict[str, float | str]] = {}
 
     for label, ious in label_ious.items():
         ious_tensor = torch.tensor(ious)
-        stats: dict[str, float] = {
+        stats: dict[str, float | str] = {
             "mean_iou": ious_tensor.mean().item(),
             "std_iou": ious_tensor.std().item() if len(ious) > 1 else 0.0,
             "count": float(len(ious)),
         }
         if feature_names and label < len(feature_names):
-            stats["name"] = feature_names[label]  # type: ignore[assignment]
+            stats["name"] = feature_names[label]
         result[label] = stats
 
     return result
