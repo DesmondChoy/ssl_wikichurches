@@ -15,6 +15,11 @@ Build a system to compare SSL model attention patterns against 631 expert-annota
 
 ```
 ssl_wikichurches/
+├── app/                            # Interactive analysis tool
+│   ├── components/                 # UI components
+│   ├── api/                        # Backend API (if using React)
+│   └── main.py                     # Entry point (Streamlit/Gradio)
+│
 ├── src/ssl_attention/
 │   ├── __init__.py
 │   ├── config/
@@ -245,6 +250,39 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Side-by-side heatmaps (frozen vs fine-tuned)
    - Attention shift maps (where did attention move?)
 
+### Phase 6: Interactive Analysis Tool
+
+1. **Technology Options** (to be finalized)
+   - **Streamlit**: Python-native, fast prototyping, good for data dashboards
+   - **Gradio**: HuggingFace-style interfaces, easy model demos
+   - **React + FastAPI**: Full control, production-ready, richer interactivity
+
+   Selection criteria: team familiarity, deployment needs, interactivity requirements
+
+2. **Core Components**
+   - **Image Browser**: Grid view of 139 annotated images, filterable by style
+   - **Attention Viewer**: Heatmap overlay on selected image with expert bboxes
+   - **Model Selector**: Dropdown for model, method, layer, fine-tuning state
+   - **IoU Display**: Real-time IoU score for current configuration
+
+3. **Comparison View**
+   - Side-by-side panels for comparing:
+     - Same image, different models
+     - Same image, frozen vs fine-tuned
+   - Synchronized zoom/pan across panels
+   - Attention shift overlay (difference heatmap)
+
+4. **Metrics Dashboard**
+   - Model leaderboard sorted by mean IoU
+   - Per-feature-type breakdown (windows, arches, towers, etc.)
+   - Per-style breakdown (Gothic, Romanesque, Baroque, Renaissance)
+   - Statistical summary (CIs, effect sizes)
+
+5. **Data Flow**
+   - Pre-compute attention maps for all configurations → HDF5 cache
+   - Load on-demand for responsive interaction
+   - IoU computed client-side or cached
+
 ---
 
 ## Critical Files to Create
@@ -264,6 +302,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 11 | `experiments/configs/default.yaml` | Experiment config |
 | 12 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper |
 | 13 | `experiments/scripts/fine_tune_models.py` | Training script |
+| 14 | `app/main.py` | Interactive analysis tool entry point |
 
 ---
 
@@ -297,6 +336,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Fine-tuned models load correctly
    - Attention extraction works on fine-tuned models
    - IoU comparison shows measurable difference
+
+7. **Interactive tool verification**
+   - All 139 images load correctly
+   - Model/method/layer selectors function
+   - Comparison view synchronizes properly
+   - Metrics dashboard displays correct values
+   - Responsive on target browsers
 
 ---
 

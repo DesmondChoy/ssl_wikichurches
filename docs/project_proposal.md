@@ -8,17 +8,19 @@
 
 ---
 
-## 1\. Problem Statement
+## 1. Problem Statement
 
 Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?** Furthermore, when models are fine-tuned for a specific task, **does their attention shift toward expert-identified features, or do they discover alternative discriminative regions?**
 
 Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features."
 
+While existing tools like BertViz and Comet ML visualize transformer attention, they do not quantify whether attention aligns with domain expertise. This gap matters for practitioners fine-tuning foundation models: a model achieving high classification accuracy might exploit background correlations rather than attending to diagnostic features. We address this gap with both a quantitative benchmark and an interactive analysis tool.
+
 ---
 
-## 2\. Dataset
+## 2. Dataset
 
-**Primary Dataset:** WikiChurches (Barz & Denzler, 2021\)
+**Primary Dataset:** WikiChurches (Barz & Denzler, 2021)
 
 - 9,485 images of European church buildings  
 - Hierarchical architectural style labels (Gothic, Baroque, Romanesque, etc.)  
@@ -47,7 +49,7 @@ Existing SSL benchmarks measure classification accuracy but do not explain *whic
 
 ---
 
-## 3\. System Architecture
+## 3. System Architecture
 
 ### 3.1 Feature Extraction Pipeline
 
@@ -56,7 +58,7 @@ Use pretrained weights from HuggingFace/timm. Models are evaluated both **frozen
 | Model | Parameters | Training Paradigm | Source |
 | :---- | :---- | :---- | :---- |
 | DINOv2 ViT-B/14 | 86M | Self-distillation (2023) | `facebook/dinov2-with-registers-base` |
-| DINOv3 ViT-B/16 | 86M | Self-distillation \+ Gram Anchoring (2025) | `facebook/dinov3-vitb16-pretrain-lvd1689m` |
+| DINOv3 ViT-B/16 | 86M | Self-distillation + Gram Anchoring (2025) | `facebook/dinov3-vitb16-pretrain-lvd1689m` |
 | MAE ViT-B/16 | 86M | Masked autoencoding | `facebook/vit-mae-base` |
 | CLIP ViT-B/16 | 86M | Contrastive language-image (softmax) | `openai/clip-vit-base-patch16` |
 | SigLIP 2 ViT-B/16 | 86M | Contrastive language-image (sigmoid) + dense features | `google/siglip2-base-patch16-224` |
@@ -73,7 +75,7 @@ All models use ViT-B architecture for controlled comparison. Feature extraction 
 
 Extract attention maps from each model using multiple methods:
 
-1. **CLS token attention:** Aggregate attention from \[CLS\] token to spatial patches across heads  
+1. **CLS token attention:** Aggregate attention from [CLS] token to spatial patches across heads  
 2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies  
 3. **GradCAM (baseline):** Gradient-weighted activation maps for comparison with attention-based methods
 
@@ -121,9 +123,29 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 2. Which SSL paradigm benefits most from task-specific training?
 3. Do fine-tuned models attend to features experts didn't annotate?
 
+### 3.6 Interactive Analysis Tool
+
+The primary deliverable is a web-based dashboard for exploring attention-annotation alignment.
+
+**Core Features:**
+- Image browser with 139 annotated churches
+- Model/method/layer/fine-tuning-state selectors
+- Attention heatmap overlay with expert bounding boxes
+- IoU score display for current configuration
+
+**Comparison Features:**
+- Side-by-side model comparison
+- Frozen vs fine-tuned comparison
+- Attention shift highlighting
+
+**Metrics Features:**
+- Model leaderboard by IoU
+- Per-feature-type breakdown
+- Statistical comparison view
+
 ---
 
-## 4\. Ablation Studies
+## 4. Ablation Studies
 
 | Ablation | Variable | Question Addressed |
 | :---- | :---- | :---- |
@@ -144,7 +166,7 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 
 ---
 
-## 5\. Evaluation Plan
+## 5. Evaluation Plan
 
 ### Quantitative Metrics
 
@@ -161,6 +183,8 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 - Attention shift visualization: Side-by-side frozen vs fine-tuned heatmaps
 - Discovery analysis: Do fine-tuned models attend to unannotated-but-relevant features?
 
+**Interactive Demo:** The analysis tool allows users to explore attention across models, layers, and fine-tuning states. Users can compare how different SSL models attend to architectural features, observe attention shift after fine-tuning, and identify which models best align with expert annotations.
+
 ### Baselines
 
 - Random attention baseline  
@@ -170,7 +194,7 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 
 ---
 
-## 6\. Alignment with ISY5004 Requirements
+## 6. Alignment with ISY5004 Requirements
 
 | Requirement | How Addressed |
 | :---- | :---- |
@@ -179,11 +203,13 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 | Dataset handling | Public dataset (WikiChurches) with documented preprocessing |
 | Experimental comparison | Ablation across 5 models, 3 attention methods, multiple layers |
 | Literature review | SSL methods, attention visualization, interpretability metrics |
-| Not NLP/App development | Pure computer vision; no UI required |
+| Practical application | Interactive attention analysis tool for evaluating domain-adapted vision models |
+| Final developed system | Web-based dashboard with heatmap explorer, model comparison, and metrics views |
+| Commercial solutions comparison | BertViz, Comet ML (visualize but don't quantify); ASCENT-ViT (research, not commercial) |
 
 ---
 
-## 7\. Timeline (6 Weeks)
+## 7. Timeline (6 Weeks)
 
 | Week | Milestone |
 | :---- | :---- |
@@ -196,7 +222,7 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 
 ---
 
-## 8\. Risks and Mitigations
+## 8. Risks and Mitigations
 
 | Risk | Mitigation |
 | :---- | :---- |
@@ -210,7 +236,7 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 
 ---
 
-## 9\. Expected Contributions
+## 9. Expected Contributions
 
 1. **Quantitative benchmark** for SSL attention alignment with human expert annotations on fine-grained visual recognition
 2. **Comparative analysis** of how training paradigm (self-distillation vs. reconstruction vs. contrastive) affects attention patterns
@@ -218,6 +244,24 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge
 5. **Reproducible codebase** for attention-annotation alignment evaluation
 6. **Fine-tuning impact analysis** showing how task-specific training shifts attention patterns relative to expert annotations
+
+---
+
+## 10. Commercial and Research Solutions Comparison
+
+**Visualization Tools:**
+- BertViz: Interactive attention head visualization for transformers
+- Comet ML: MLOps platform with attention panels
+- Hugging Face Transformers: Built-in attention output visualization
+
+These tools visualize attention but do not quantify alignment with domain expertise.
+
+**Research on Attention-Annotation Alignment:**
+- ASCENT-ViT (2025): Aligns attention with concept annotations using Pixel TPR
+- Medical imaging studies: Evaluate attention against radiologist annotations
+- Chefer et al. (2021): Transformer interpretability beyond attention visualization
+
+**Knowledge Gap:** No existing work benchmarks multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. We fill this gap with a quantitative benchmark and interactive tool.
 
 ---
 
