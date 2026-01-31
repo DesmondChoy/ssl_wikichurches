@@ -13,17 +13,21 @@ Note: Requires transformers>=4.56.0 for DINOv3 support.
 """
 
 from typing import Any
+import warnings
 
 import torch
 from torch import nn
 from transformers import AutoModel
 
+from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
 from ssl_attention.models.protocols import ModelOutput
 
 # Suppress trust_remote_code warning
-import warnings
 warnings.filterwarnings("ignore", message=".*trust_remote_code.*")
+
+# Load configuration from central config
+_config = MODELS["dinov3"]
 
 
 class DINOv3(BaseVisionModel):
@@ -46,12 +50,12 @@ class DINOv3(BaseVisionModel):
     """
 
     model_name = "dinov3"
-    model_id = "facebook/dinov3-vitb16-pretrain-lvd1689m"
-    patch_size = 16
-    embed_dim = 768
-    num_layers = 12
-    num_heads = 12
-    num_registers = 4
+    model_id = _config.model_id
+    patch_size = _config.patch_size
+    embed_dim = _config.embed_dim
+    num_layers = _config.num_layers
+    num_heads = _config.num_heads
+    num_registers = _config.num_registers
 
     def _load_model(self) -> nn.Module:
         """Load DINOv3 from HuggingFace.

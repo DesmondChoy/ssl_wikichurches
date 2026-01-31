@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ssl_attention.config import CACHE_MAX_MODELS, MODEL_ALIASES, MODELS
 from ssl_attention.models.protocols import VisionBackbone
 from ssl_attention.utils.device import clear_memory
 
@@ -28,14 +29,8 @@ _MODEL_REGISTRY: dict[str, tuple[str, str]] = {
     "siglip": ("ssl_attention.models.siglip", "SigLIP"),
 }
 
-# Aliases for convenience
-_ALIASES: dict[str, str] = {
-    "dino": "dinov2",
-    "dinov2-reg": "dinov2",
-    "vit-mae": "mae",
-    "openai-clip": "clip",
-    "siglip2": "siglip",
-}
+# Use aliases from central config
+_ALIASES = MODEL_ALIASES
 
 
 def _resolve_name(name: str) -> str:
@@ -99,7 +94,7 @@ def create_model(
 
 
 # Cache key includes device and dtype for proper caching
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=CACHE_MAX_MODELS)
 def _cached_model(
     name: str,
     device_str: str,

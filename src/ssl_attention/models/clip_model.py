@@ -17,8 +17,12 @@ import torch
 from torch import nn
 from transformers import AutoConfig, CLIPVisionConfig, CLIPVisionModel
 
+from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
 from ssl_attention.models.protocols import ModelOutput
+
+# Load configuration from central config
+_config = MODELS["clip"]
 
 
 class CLIP(BaseVisionModel):
@@ -42,12 +46,12 @@ class CLIP(BaseVisionModel):
     """
 
     model_name = "clip"
-    model_id = "openai/clip-vit-base-patch16"
-    patch_size = 16
-    embed_dim = 768
-    num_layers = 12
-    num_heads = 12
-    num_registers = 0
+    model_id = _config.model_id
+    patch_size = _config.patch_size
+    embed_dim = _config.embed_dim
+    num_layers = _config.num_layers
+    num_heads = _config.num_heads
+    num_registers = _config.num_registers
 
     def _load_config(self) -> CLIPVisionConfig:
         """Load CLIP vision config with attention output enabled.

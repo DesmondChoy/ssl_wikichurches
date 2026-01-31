@@ -15,8 +15,12 @@ import torch
 from torch import Tensor, nn
 from transformers import ViTMAEConfig, ViTMAEModel
 
+from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
 from ssl_attention.models.protocols import ModelOutput
+
+# Load configuration from central config
+_config = MODELS["mae"]
 
 
 class MAE(BaseVisionModel):
@@ -41,12 +45,12 @@ class MAE(BaseVisionModel):
     """
 
     model_name = "mae"
-    model_id = "facebook/vit-mae-base"
-    patch_size = 16
-    embed_dim = 768
-    num_layers = 12
-    num_heads = 12
-    num_registers = 0  # MAE has no registers
+    model_id = _config.model_id
+    patch_size = _config.patch_size
+    embed_dim = _config.embed_dim
+    num_layers = _config.num_layers
+    num_heads = _config.num_heads
+    num_registers = _config.num_registers
 
     def _load_config(self) -> ViTMAEConfig:
         """Load MAE config with attention output enabled and no masking.

@@ -17,6 +17,8 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
+from ssl_attention.config import DEFAULT_IMAGE_SIZE, EPSILON, INTERPOLATION_MODE
+
 
 class HeadFusion(Enum):
     """Strategy for combining attention across heads.
@@ -151,7 +153,7 @@ def extract_cls_attention_all_layers(
 
 def attention_to_heatmap(
     attention: Tensor,
-    image_size: int = 224,
+    image_size: int = DEFAULT_IMAGE_SIZE,
     patch_size: int = 16,
     normalize: bool = True,
 ) -> Tensor:
@@ -191,7 +193,7 @@ def attention_to_heatmap(
     attn_upsampled = F.interpolate(
         attn_2d.unsqueeze(1),  # Add channel dim: (B, 1, H, W)
         size=(image_size, image_size),
-        mode="bilinear",
+        mode=INTERPOLATION_MODE,
         align_corners=False,
     ).squeeze(1)  # Remove channel dim: (B, H, W)
 
@@ -201,7 +203,7 @@ def attention_to_heatmap(
         flat = attn_upsampled.view(batch_size, -1)
         min_val = flat.min(dim=1, keepdim=True).values.view(batch_size, 1, 1)
         max_val = flat.max(dim=1, keepdim=True).values.view(batch_size, 1, 1)
-        attn_upsampled = (attn_upsampled - min_val) / (max_val - min_val + 1e-8)
+        attn_upsampled = (attn_upsampled - min_val) / (max_val - min_val + EPSILON)
 
     if squeeze:
         attn_upsampled = attn_upsampled.squeeze(0)

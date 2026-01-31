@@ -15,8 +15,12 @@ import torch
 from torch import nn
 from transformers import AutoModel
 
+from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
 from ssl_attention.models.protocols import ModelOutput
+
+# Load configuration from central config
+_config = MODELS["dinov2"]
 
 
 class DINOv2(BaseVisionModel):
@@ -38,12 +42,12 @@ class DINOv2(BaseVisionModel):
     """
 
     model_name = "dinov2"
-    model_id = "facebook/dinov2-with-registers-base"
-    patch_size = 14
-    embed_dim = 768
-    num_layers = 12
-    num_heads = 12
-    num_registers = 4
+    model_id = _config.model_id
+    patch_size = _config.patch_size
+    embed_dim = _config.embed_dim
+    num_layers = _config.num_layers
+    num_heads = _config.num_heads
+    num_registers = _config.num_registers
 
     def _load_model(self) -> nn.Module:
         """Load DINOv2 with registers from HuggingFace.

@@ -20,6 +20,8 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+from ssl_attention.config import DEFAULT_IMAGE_SIZE, EPSILON, INTERPOLATION_MODE
+
 
 class GradCAM:
     """Gradient-weighted Class Activation Mapping for Vision Transformers.
@@ -124,7 +126,7 @@ class GradCAM:
         self,
         target: Tensor,
         num_patches: int,
-        image_size: int = 224,
+        image_size: int = DEFAULT_IMAGE_SIZE,
     ) -> Tensor:
         """Compute Grad-CAM heatmap.
 
@@ -174,7 +176,7 @@ class GradCAM:
         cam_upsampled = F.interpolate(
             cam_2d.unsqueeze(1),
             size=(image_size, image_size),
-            mode="bilinear",
+            mode=INTERPOLATION_MODE,
             align_corners=False,
         ).squeeze(1)
 
@@ -183,7 +185,7 @@ class GradCAM:
         flat = cam_upsampled.view(batch_size, -1)
         min_val = flat.min(dim=1, keepdim=True).values.view(batch_size, 1, 1)
         max_val = flat.max(dim=1, keepdim=True).values.view(batch_size, 1, 1)
-        cam_upsampled = (cam_upsampled - min_val) / (max_val - min_val + 1e-8)
+        cam_upsampled = (cam_upsampled - min_val) / (max_val - min_val + EPSILON)
 
         return cam_upsampled
 
@@ -211,7 +213,7 @@ def compute_gradcam(
     model: nn.Module,
     images: Tensor,
     num_patches: int,
-    image_size: int = 224,
+    image_size: int = DEFAULT_IMAGE_SIZE,
     target_layer: str | None = None,
 ) -> Tensor:
     """Convenience function to compute Grad-CAM in one call.

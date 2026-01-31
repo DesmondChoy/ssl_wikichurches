@@ -14,6 +14,7 @@ import torch
 from torch import Tensor
 
 from ssl_attention.attention.cls_attention import HeadFusion, fuse_heads
+from ssl_attention.config import EPSILON
 
 
 def attention_rollout(
@@ -76,7 +77,7 @@ def attention_rollout(
             attn = _discard_low_attention(attn, discard_ratio)
 
         # Re-normalize after potential discarding
-        attn = attn / (attn.sum(dim=-1, keepdim=True) + 1e-8)
+        attn = attn / (attn.sum(dim=-1, keepdim=True) + EPSILON)
 
         # Add residual connection (identity) and multiply
         # R_i = (A_i + I) @ R_{i-1}
@@ -85,7 +86,7 @@ def attention_rollout(
 
         # Re-normalize
         attn_with_residual = attn_with_residual / (
-            attn_with_residual.sum(dim=-1, keepdim=True) + 1e-8
+            attn_with_residual.sum(dim=-1, keepdim=True) + EPSILON
         )
 
         # Matrix multiply
