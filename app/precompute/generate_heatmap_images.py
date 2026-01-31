@@ -224,7 +224,7 @@ def generate_original_with_bboxes(
     return stats
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Generate heatmap PNG images")
     parser.add_argument(
         "--models",

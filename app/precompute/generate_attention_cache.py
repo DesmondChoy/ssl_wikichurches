@@ -23,7 +23,7 @@ from tqdm import tqdm
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from ssl_attention.attention import extract_cls_attention, attention_to_heatmap
+from ssl_attention.attention import attention_to_heatmap, extract_cls_attention
 from ssl_attention.cache import AttentionCache
 from ssl_attention.config import CACHE_PATH, DATASET_PATH, MODELS
 from ssl_attention.data import AnnotatedSubset
@@ -132,7 +132,7 @@ def generate_attention_for_model(
     return stats
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Generate attention cache")
     parser.add_argument(
         "--models",

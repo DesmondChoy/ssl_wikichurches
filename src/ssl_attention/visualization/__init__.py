@@ -21,9 +21,9 @@ from ssl_attention.visualization.heatmaps import (
     render_heatmap_batch,
 )
 from ssl_attention.visualization.overlays import (
+    create_attention_overlay,
     create_overlay,
     draw_bboxes,
-    create_attention_overlay,
 )
 from ssl_attention.visualization.plots import (
     plot_iou_comparison,

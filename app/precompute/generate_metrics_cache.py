@@ -27,7 +27,6 @@ from ssl_attention.config import CACHE_PATH, DATASET_PATH, MODELS, STYLE_MAPPING
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.metrics import compute_image_iou
 
-
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
 
 
@@ -154,7 +153,7 @@ def compute_metrics_for_model(
         image_styles[image_id] = style_name
 
     # Collect all results first, then compute aggregates
-    all_results: dict[str, list] = {}  # (model, layer, percentile) -> list of IoUResults
+    all_results: dict[tuple[str, str, int], list] = {}  # (model, layer, percentile) -> list of IoUResults
 
     for layer in layers_to_process:
         layer_key = f"layer{layer}"
@@ -295,12 +294,12 @@ def compute_metrics_for_model(
 
 def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     """Export summary statistics to JSON for fast frontend loading."""
+    from typing import Any
+
     cursor = conn.cursor()
 
-    summary = {
-        "models": {},
-        "leaderboard": [],
-    }
+    models_data: dict[str, Any] = {}
+    leaderboard: list[dict[str, Any]] = []
 
     # Get leaderboard
     cursor.execute(
@@ -309,7 +308,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
            GROUP BY model ORDER BY best_iou DESC"""
     )
     for row in cursor.fetchall():
-        summary["leaderboard"].append({"model": row[0], "best_iou": row[1]})
+        leaderboard.append({"model": row[0], "best_iou": row[1]})
 
     # Get per-model summaries
     cursor.execute("SELECT DISTINCT model FROM aggregate_metrics")
@@ -334,11 +333,13 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         )
         layer_progression = {row[0]: row[1] for row in cursor.fetchall()}
 
-        summary["models"][model] = {
+        models_data[model] = {
             "best_layer": best_layer,
             "best_iou": best_iou,
             "layer_progression": layer_progression,
         }
+
+    summary = {"models": models_data, "leaderboard": leaderboard}
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
@@ -347,7 +348,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     print(f"Exported summary to {output_path}")
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Generate metrics cache")
     parser.add_argument(
         "--models",

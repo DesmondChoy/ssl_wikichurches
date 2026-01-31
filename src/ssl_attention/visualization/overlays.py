@@ -14,7 +14,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PIL import Image as PILImage, ImageDraw
+from PIL import Image as PILImage
+from PIL import ImageDraw
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
@@ -99,10 +100,7 @@ def draw_bboxes(
         >>> img_with_boxes = draw_bboxes(img, annotations["Q123.jpg"].bboxes)
     """
     # Copy and convert to RGBA
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
-    else:
-        image = image.copy()
+    image = image.convert("RGBA") if image.mode != "RGBA" else image.copy()
 
     draw = ImageDraw.Draw(image)
     img_width, img_height = image.size
@@ -158,10 +156,7 @@ def draw_bboxes_by_label(
         (0, 128, 255, 255),    # Sky blue
     ]
 
-    if image.mode != "RGBA":
-        image = image.convert("RGBA")
-    else:
-        image = image.copy()
+    image = image.convert("RGBA") if image.mode != "RGBA" else image.copy()
 
     draw = ImageDraw.Draw(image)
     img_width, img_height = image.size

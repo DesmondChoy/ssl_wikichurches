@@ -33,7 +33,7 @@ from ssl_attention.config import STYLE_MAPPING
 from ssl_attention.data.annotations import ImageAnnotation, load_annotations
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 
 class AnnotatedSubset(Dataset):
@@ -71,6 +71,11 @@ class AnnotatedSubset(Dataset):
 
     def __len__(self) -> int:
         return len(self._image_ids)
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        """Iterate over all samples in the dataset."""
+        for idx in range(len(self)):
+            yield self[idx]
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         image_id = self._image_ids[idx]
@@ -175,6 +180,11 @@ class FullDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self._image_paths)
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        """Iterate over all samples in the dataset."""
+        for idx in range(len(self)):
+            yield self[idx]
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         image_path = self._image_paths[idx]

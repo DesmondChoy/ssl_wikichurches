@@ -73,7 +73,8 @@ def plot_iou_comparison(
     x = np.arange(len(model_names))
     width = 0.8 / len(percentiles)
 
-    colors = plt.cm.viridis(np.linspace(0.2, 0.8, len(percentiles)))
+    cmap = matplotlib.colormaps.get_cmap("viridis")
+    colors = cmap(np.linspace(0.2, 0.8, len(percentiles)))
 
     for i, percentile in enumerate(percentiles):
         values = [iou_scores[model][i] if model in iou_scores else 0 for model in model_names]
@@ -81,7 +82,7 @@ def plot_iou_comparison(
         bars = ax.bar(x + offset, values, width, label=f"Top {100-percentile}%", color=colors[i])
 
         # Add value labels
-        for bar, val in zip(bars, values):
+        for bar, val in zip(bars, values, strict=True):
             ax.annotate(
                 f"{val:.2f}",
                 xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
@@ -139,12 +140,12 @@ def plot_layer_progression(
     ax.fill_between(layers, layer_ious, alpha=0.3)
 
     # Mark the best layer
-    best_layer = np.argmax(layer_ious)
+    best_layer = int(np.argmax(layer_ious))
     best_iou = layer_ious[best_layer]
     ax.annotate(
         f"Best: L{best_layer}\n{best_iou:.3f}",
-        xy=(best_layer, best_iou),
-        xytext=(best_layer + 1, best_iou + 0.05),
+        xy=(float(best_layer), best_iou),
+        xytext=(float(best_layer) + 1, best_iou + 0.05),
         arrowprops=dict(arrowstyle="->", color="gray"),
         fontsize=10,
     )
@@ -182,7 +183,7 @@ def plot_multi_model_layer_progression(
     """
     fig, ax = plt.subplots(figsize=figsize)
 
-    colors = plt.cm.tab10.colors
+    cmap = matplotlib.colormaps.get_cmap("tab10")
     markers = ["o", "s", "^", "D", "v"]
 
     for i, (model_name, layer_ious) in enumerate(model_layer_ious.items()):
@@ -191,7 +192,7 @@ def plot_multi_model_layer_progression(
             layers,
             layer_ious,
             marker=markers[i % len(markers)],
-            color=colors[i % len(colors)],
+            color=cmap(i % 10),
             linewidth=2,
             markersize=6,
             label=model_name,
@@ -245,7 +246,8 @@ def plot_model_leaderboard(
     fig, ax = plt.subplots(figsize=figsize)
 
     # Color gradient based on rank
-    colors = plt.cm.RdYlGn(np.linspace(0.8, 0.3, len(models)))
+    cmap = matplotlib.colormaps.get_cmap("RdYlGn")
+    colors = cmap(np.linspace(0.8, 0.3, len(models)))
 
     y_pos = np.arange(len(models))
     bars = ax.barh(y_pos, scores, color=colors)
@@ -258,7 +260,7 @@ def plot_model_leaderboard(
 
     # Add value labels
     if show_values:
-        for bar, score in zip(bars, scores):
+        for bar, score in zip(bars, scores, strict=True):
             ax.annotate(
                 f"{score:.3f}",
                 xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
@@ -270,7 +272,7 @@ def plot_model_leaderboard(
             )
 
     # Add rank indicators
-    for i, model in enumerate(models[:3]):
+    for i, _model in enumerate(models[:3]):
         rank = ["#1", "#2", "#3"][i]
         color = ["gold", "silver", "#CD7F32"][i]  # Gold, silver, bronze
         ax.annotate(
@@ -321,12 +323,13 @@ def plot_style_breakdown(
 
     # Color by IoU value
     norm = plt.Normalize(vmin=min(ious) * 0.9, vmax=max(ious) * 1.1)
-    colors = plt.cm.viridis(norm(ious))
+    cmap = matplotlib.colormaps.get_cmap("viridis")
+    colors = cmap(norm(ious))
 
     bars = ax.bar(styles, ious, color=colors)
 
     # Add value labels
-    for bar, iou in zip(bars, ious):
+    for bar, iou in zip(bars, ious, strict=True):
         ax.annotate(
             f"{iou:.3f}",
             xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
@@ -339,7 +342,7 @@ def plot_style_breakdown(
 
     # Add counts if provided
     if style_counts:
-        for i, (bar, style) in enumerate(zip(bars, styles)):
+        for bar, style in zip(bars, styles, strict=True):
             count = style_counts.get(style, 0)
             ax.annotate(
                 f"n={count}",
@@ -386,7 +389,8 @@ def plot_feature_breakdown(
     fig, ax = plt.subplots(figsize=figsize)
 
     y_pos = np.arange(len(features))
-    colors = plt.cm.viridis(np.linspace(0.8, 0.3, len(features)))
+    cmap = matplotlib.colormaps.get_cmap("viridis")
+    colors = cmap(np.linspace(0.8, 0.3, len(features)))
 
     bars = ax.barh(y_pos, ious, color=colors)
 
@@ -397,7 +401,7 @@ def plot_feature_breakdown(
     ax.set_title(title)
 
     # Add value labels
-    for bar, iou in zip(bars, ious):
+    for bar, iou in zip(bars, ious, strict=True):
         ax.annotate(
             f"{iou:.3f}",
             xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
@@ -444,7 +448,7 @@ def plot_coverage_vs_iou(
 
     # Add labels if provided
     if labels:
-        for cov, iou, label in zip(coverages, ious, labels):
+        for cov, iou, label in zip(coverages, ious, labels, strict=True):
             ax.annotate(label, (cov, iou), fontsize=8, alpha=0.7)
 
     ax.set_xlabel("Coverage (Energy)")

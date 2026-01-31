@@ -181,7 +181,8 @@ def create_colorbar(
     Returns:
         PIL Image of the colorbar.
     """
-    from PIL import Image as PILImage, ImageDraw, ImageFont
+    from PIL import Image as PILImage
+    from PIL import ImageDraw, ImageFont
 
     # Generate gradient
     if orientation == "vertical":

@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -81,7 +81,7 @@ async def health_check() -> dict:
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(request, exc):
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle uncaught exceptions."""
     return JSONResponse(
         status_code=500,
