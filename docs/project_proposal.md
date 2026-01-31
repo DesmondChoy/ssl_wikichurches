@@ -1,0 +1,198 @@
+# Project Proposal: Do Self-Supervised Vision Models Learn What Experts See?
+
+## Attention Alignment with Human-Annotated Architectural Features
+
+**Course:** ISY5004 Intelligent Sensing Systems Practice Module  
+**Team Size:** 3 members  
+**Duration:** 6 weeks
+
+---
+
+## 1\. Problem Statement
+
+Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?**
+
+Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features."
+
+---
+
+## 2\. Dataset
+
+**Primary Dataset:** WikiChurches (Barz & Denzler, 2021\)
+
+- 9,485 images of European church buildings  
+- Hierarchical architectural style labels (Gothic, Baroque, Romanesque, etc.)  
+- **631 bounding box annotations** identifying characteristic visual features across 139 churches in 4 style categories
+
+**Why WikiChurches:**
+
+- Expert bounding boxes provide rare ground truth for attention evaluation—most vision datasets lack this  
+- Fine-grained style distinctions require attending to specific structural elements (pointed arches, rose windows, flying buttresses)  
+- Manageable scale for 6-week timeline  
+- Hierarchical labels support secondary analysis of concept granularity
+
+**Preprocessing:**
+
+- Filter to the 139 churches with bounding box annotations for primary attention-alignment analysis  
+- Use full dataset (filtered to classes with ≥50 samples) for linear probe evaluation  
+- Standard augmentation (resize, normalize) without heavy augmentation to preserve architectural detail
+
+---
+
+## 3\. System Architecture
+
+### 3.1 Feature Extraction (Frozen Backbones)
+
+No training of SSL models—use pretrained weights from HuggingFace/timm:
+
+| Model | Parameters | Training Paradigm | Source |
+| :---- | :---- | :---- | :---- |
+| DINOv2 ViT-B/14 | 86M | Self-distillation (2023) | `facebook/dinov2-base` |
+| DINOv3 ViT-B/16 | 86M | Self-distillation \+ Gram Anchoring (2025) | `facebook/dinov3-vitb16-pretrain-lvd1689m` |
+| MAE ViT-B/16 | 86M | Masked autoencoding | `facebook/vit-mae-base` |
+| CLIP ViT-B/16 | 86M | Contrastive language-image (softmax) | `openai/clip-vit-base-patch16` |
+| SigLIP ViT-B/16 | 86M | Contrastive language-image (sigmoid) | `timm/ViT-B-16-SigLIP` |
+
+All models use ViT-B architecture for controlled comparison. Feature extraction runs on M4 Pro (MPS backend).
+
+**Model selection rationale:**
+
+- **DINOv2 vs DINOv3:** Direct comparison of Gram Anchoring's effect on attention quality  
+- **MAE:** Tests whether pixel-reconstruction objectives produce different attention than discriminative objectives  
+- **CLIP vs SigLIP:** Tests whether loss function (softmax vs sigmoid) and training scale affect attention alignment with experts
+
+### 3.2 Attention Extraction and Visualization
+
+Extract attention maps from each model using multiple methods:
+
+1. **CLS token attention:** Aggregate attention from \[CLS\] token to spatial patches across heads  
+2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies  
+3. **GradCAM (baseline):** Gradient-weighted activation maps for comparison with attention-based methods
+
+For each image with expert annotations, generate attention heatmaps at the original image resolution.
+
+### 3.3 Attention-Annotation Alignment (Primary Metric)
+
+Quantify whether high-attention regions overlap with expert-annotated characteristic features:
+
+1. **Threshold attention maps** at various percentiles (top 10%, 20%, 30% of attention mass)  
+2. **Compute IoU** between thresholded attention regions and expert bounding boxes  
+3. **Compare to baselines:**  
+   - Random baseline: IoU expected from uniform random attention  
+   - Center baseline: IoU from Gaussian-centered attention (common bias)  
+   - Saliency baseline: IoU from low-level saliency (e.g., Itti-Koch)
+
+**Key question:** Do SSL models achieve IoU significantly above these baselines?
+
+### 3.4 Linear Probe Evaluation (Sanity Check)
+
+Train lightweight linear classifiers on frozen features to verify representations are meaningful:
+
+- **Task:** Architectural style classification (4-class for annotated subset; full hierarchy for complete dataset)  
+- **Metrics:** Top-1 accuracy, per-class F1, confusion matrices  
+- **Purpose:** Confirm models have learned discriminative features before analyzing attention
+
+---
+
+## 4\. Ablation Studies
+
+| Ablation | Variable | Question Addressed |
+| :---- | :---- | :---- |
+| Model comparison | DINOv2 vs DINOv3 vs MAE vs CLIP vs SigLIP | Do different SSL paradigms produce different attention-expert alignment? |
+| Temporal comparison | DINOv2 (2023) vs DINOv3 (2025) | Does Gram Anchoring improve attention quality? |
+| Loss function | CLIP (softmax) vs SigLIP (sigmoid) | Does contrastive loss formulation affect attention patterns? |
+| Layer analysis | Early vs. middle vs. late ViT layers | At what depth does expert-aligned attention emerge? |
+| Attention method | CLS attention vs. rollout vs. GradCAM | Which extraction method best captures expert-relevant regions? |
+| Feature category | By annotated feature type (windows, arches, towers, etc.) | Which architectural elements do models attend to most/least? |
+
+**Hypotheses to test:**
+
+1. Self-distillation (DINO) should produce more globally coherent attention than reconstruction (MAE), potentially yielding higher alignment with expert-annotated structural features  
+2. Language-supervised models (CLIP, SigLIP) may attend to "nameable" features more than purely visual SSL models  
+3. DINOv3's Gram Anchoring may sharpen attention to semantically meaningful regions compared to DINOv2
+
+---
+
+## 5\. Evaluation Plan
+
+### Quantitative Metrics
+
+- **Primary:** Mean IoU between attention peaks and expert bounding boxes (per model, per layer)  
+- **Secondary:** Linear probe accuracy on style classification  
+- **Statistical:** Paired t-tests or Wilcoxon signed-rank comparing models; bootstrap confidence intervals for IoU
+
+### Qualitative Analysis
+
+- Attention visualization for representative images showing high/low alignment  
+- Failure case analysis: When models attend elsewhere, what do they attend to?  
+- Cross-model comparison: Overlay attention maps from all five models on same images
+
+### Baselines
+
+- Random attention baseline  
+- Center-biased attention baseline  
+- Low-level saliency baseline (non-learned)  
+- Supervised ResNet-50 (ImageNet pretrained) as non-SSL reference
+
+---
+
+## 6\. Alignment with ISY5004 Requirements
+
+| Requirement | How Addressed |
+| :---- | :---- |
+| Intelligent sensing technique | Self-supervised visual feature learning (DINOv2, DINOv3, MAE, CLIP, SigLIP) |
+| Image/video analytics | Image classification, attention extraction, feature attribution |
+| Dataset handling | Public dataset (WikiChurches) with documented preprocessing |
+| Experimental comparison | Ablation across 5 models, 3 attention methods, multiple layers |
+| Literature review | SSL methods, attention visualization, interpretability metrics |
+| Not NLP/App development | Pure computer vision; no UI required |
+
+---
+
+## 7\. Timeline (6 Weeks)
+
+| Week | Milestone |
+| :---- | :---- |
+| 1 | Dataset acquisition, preprocessing, bounding box parsing, feature extraction pipeline |
+| 2 | Attention extraction implementation (CLS, rollout, GradCAM), baseline computation |
+| 3 | IoU computation pipeline, linear probe training, initial results |
+| 4 | Ablation experiments (layers, models, feature categories) |
+| 5 | Statistical analysis, visualization refinement, qualitative analysis |
+| 6 | Report writing, recorded presentation |
+
+---
+
+## 8\. Risks and Mitigations
+
+| Risk | Mitigation |
+| :---- | :---- |
+| Small annotation sample (139 churches) limits statistical power | Report confidence intervals; use bootstrap resampling; acknowledge limitations |
+| Attention maps may not reflect true model reasoning | Include GradCAM as gradient-based alternative; triangulate with multiple methods |
+| Bounding boxes span only 4 style categories | Frame as focused study; note generalization limitations in discussion |
+| Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
+| IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
+| DINOv3/SigLIP documentation still sparse | Both have HuggingFace weights available; community examples exist |
+
+---
+
+## 9\. Expected Contributions
+
+1. **Quantitative benchmark** for SSL attention alignment with human expert annotations on fine-grained visual recognition  
+2. **Comparative analysis** of how training paradigm (self-distillation vs. reconstruction vs. contrastive) affects attention patterns  
+3. **Temporal analysis** comparing DINOv2 (2023) to DINOv3 (2025) on attention quality  
+4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge  
+5. **Reproducible codebase** for attention-annotation alignment evaluation
+
+---
+
+## References
+
+- Barz, B., & Denzler, J. (2021). WikiChurches: A Fine-Grained Dataset of Architectural Styles with Real-World Challenges. *NeurIPS Datasets and Benchmarks*.  
+- Chefer, H., Gur, S., & Wolf, L. (2021). Transformer Interpretability Beyond Attention Visualization. *CVPR*.  
+- Caron, M., et al. (2021). Emerging Properties in Self-Supervised Vision Transformers. *ICCV*.  
+- He, K., et al. (2022). Masked Autoencoders Are Scalable Vision Learners. *CVPR*.  
+- Oquab, M., et al. (2023). DINOv2: Learning Robust Visual Features without Supervision. *arXiv:2304.07193*.  
+- Radford, A., et al. (2021). Learning Transferable Visual Models From Natural Language Supervision. *ICML*.  
+- Simeoni, O., et al. (2025). DINOv3. *arXiv:2508.10104*.  
+- Zhai, X., et al. (2023). Sigmoid Loss for Language Image Pre-training. *ICCV*.
+
