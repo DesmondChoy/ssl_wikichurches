@@ -23,9 +23,18 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from ssl_attention.cache import AttentionCache
-from ssl_attention.config import CACHE_PATH, DATASET_PATH, MODELS, STYLE_MAPPING, STYLE_NAMES
+from ssl_attention.config import (
+    ANNOTATIONS_PATH,
+    CACHE_PATH,
+    DATASET_PATH,
+    MODELS,
+    STYLE_MAPPING,
+    STYLE_NAMES,
+)
 from ssl_attention.data import AnnotatedSubset
+from ssl_attention.data.annotations import load_annotations_with_features
 from ssl_attention.metrics import compute_image_iou
+from ssl_attention.metrics.iou import aggregate_by_feature_type, compute_per_bbox_iou
 
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
 
@@ -80,6 +89,25 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             UNIQUE(model, layer, style_name, percentile)
         )
     """)
+
+    # Feature breakdown table (per architectural feature type)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS feature_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            feature_label INTEGER NOT NULL,
+            feature_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_iou REAL NOT NULL,
+            std_iou REAL NOT NULL,
+            bbox_count INTEGER NOT NULL,
+            UNIQUE(model, layer, feature_label, percentile)
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_feature_model_layer ON feature_metrics(model, layer, percentile)"
+    )
 
     # Model leaderboard view (best layer per model)
     cursor.execute("""
@@ -286,6 +314,57 @@ def compute_metrics_for_model(
                            VALUES (?, ?, ?, ?, ?, ?)""",
                         (model_name, layer_key, style_name, percentile, row[0], row[1]),
                     )
+
+    conn.commit()
+
+    # Compute feature breakdown (per architectural feature type)
+    print(f"Computing feature breakdown for {model_name}...")
+    _, feature_types = load_annotations_with_features(ANNOTATIONS_PATH)
+    feature_names = [ft.name for ft in feature_types]
+
+    for layer in layers_to_process:
+        layer_key = f"layer{layer}"
+
+        for percentile in percentiles:
+            # Collect per-bbox IoU results for all images at this layer/percentile
+            per_bbox_results: list[list[tuple[int, float]]] = []
+
+            for sample in dataset:
+                image_id = sample["image_id"]
+                annotation = sample["annotation"]
+
+                try:
+                    attention = attention_cache.load(model_name, layer_key, image_id)
+                    bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
+                    per_bbox_results.append(bbox_ious)
+                except KeyError:
+                    # Skip images without cached attention
+                    continue
+
+            if not per_bbox_results:
+                continue
+
+            # Aggregate by feature type
+            feature_stats = aggregate_by_feature_type(per_bbox_results, feature_names)
+
+            # Insert into database
+            for label, stats_dict in feature_stats.items():
+                feature_name = stats_dict.get("name", f"feature_{label}")
+                cursor.execute(
+                    """INSERT OR REPLACE INTO feature_metrics
+                       (model, layer, feature_label, feature_name, percentile, mean_iou, std_iou, bbox_count)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        model_name,
+                        layer_key,
+                        label,
+                        feature_name,
+                        percentile,
+                        stats_dict["mean_iou"],
+                        stats_dict["std_iou"],
+                        int(stats_dict["count"]),
+                    ),
+                )
 
     conn.commit()
 

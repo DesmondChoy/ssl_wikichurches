@@ -128,3 +128,23 @@ class SimilarityResponse(BaseModel):
     bbox_patch_indices: list[int] = Field(
         ..., description="Indices of patches within the bbox"
     )
+
+
+class FeatureIoUEntry(BaseModel):
+    """IoU metrics for a single architectural feature type."""
+
+    feature_label: int = Field(..., description="Feature type index (0-105)")
+    feature_name: str = Field(..., description="Human-readable feature name")
+    mean_iou: float = Field(..., description="Mean IoU across all bboxes of this type")
+    std_iou: float = Field(..., description="Standard deviation of IoU")
+    bbox_count: int = Field(..., description="Number of bboxes of this type")
+
+
+class FeatureBreakdownSchema(BaseModel):
+    """IoU breakdown by architectural feature type."""
+
+    model: str
+    layer: str
+    percentile: int
+    features: list[FeatureIoUEntry]
+    total_feature_types: int = Field(..., description="Total number of feature types returned")

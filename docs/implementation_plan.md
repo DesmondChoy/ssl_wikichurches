@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion; Phase 6 items 7-8 pending)
+**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion; Phase 6 item 8 pending)
 
 ---
 
@@ -339,7 +339,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Add method parameter to `/api/attention` endpoints
    - Add method selector dropdown to ControlPanel.tsx
 
-7. **Per-Feature-Type Breakdown** ⬜
+7. **Per-Feature-Type Breakdown** ✅
    - Add `/api/metrics/model/{model}/feature_breakdown` endpoint
    - Create FeatureBreakdown.tsx component
    - Display IoU by 106 architectural feature types

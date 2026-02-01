@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { useViewStore } from '../store/viewStore';
 import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
+import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 
@@ -104,7 +105,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Style breakdown */}
+      {/* Style breakdown and Feature breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -132,12 +133,17 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Quick links */}
-        <Card>
-          <CardHeader>
-            <h3 className="font-semibold">Quick Actions</h3>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        {/* Feature breakdown */}
+        <FeatureBreakdown model={model} layer={layer} percentile={percentile} />
+      </div>
+
+      {/* Quick links */}
+      <Card>
+        <CardHeader>
+          <h3 className="font-semibold">Quick Actions</h3>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Link
               to="/"
               className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -164,9 +170,9 @@ export function DashboardPage() {
                 Run the pre-computation scripts to generate heatmaps and metrics
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

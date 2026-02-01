@@ -68,6 +68,22 @@ export interface StyleBreakdown {
   style_counts: Record<string, number>;
 }
 
+export interface FeatureIoUEntry {
+  feature_label: number;
+  feature_name: string;
+  mean_iou: number;
+  std_iou: number;
+  bbox_count: number;
+}
+
+export interface FeatureBreakdown {
+  model: string;
+  layer: string;
+  percentile: number;
+  features: FeatureIoUEntry[];
+  total_feature_types: number;
+}
+
 export interface ModelComparison {
   image_id: string;
   models: string[];

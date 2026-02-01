@@ -2,6 +2,8 @@
 
 from app.backend.schemas.models import (
     BoundingBoxSchema,
+    FeatureBreakdownSchema,
+    FeatureIoUEntry,
     ImageAnnotationSchema,
     ImageDetailSchema,
     ImageListItem,
@@ -15,6 +17,8 @@ from app.backend.schemas.models import (
 
 __all__ = [
     "BoundingBoxSchema",
+    "FeatureBreakdownSchema",
+    "FeatureIoUEntry",
     "ImageAnnotationSchema",
     "ImageDetailSchema",
     "ImageListItem",

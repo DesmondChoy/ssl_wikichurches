@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.backend.config import AVAILABLE_MODELS, NUM_LAYERS
 from app.backend.schemas import (
+    FeatureBreakdownSchema,
     IoUResultSchema,
     LayerProgressionSchema,
     LeaderboardEntry,
@@ -170,6 +171,34 @@ async def get_style_breakdown(
 
     data = metrics_service.get_style_breakdown(model, layer_key, percentile)
     return StyleBreakdownSchema(**data)
+
+
+@router.get("/model/{model}/feature_breakdown", response_model=FeatureBreakdownSchema)
+async def get_feature_breakdown(
+    model: str,
+    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    min_count: Annotated[int, Query(ge=0)] = 0,
+    sort_by: Annotated[str, Query(enum=["mean_iou", "bbox_count", "feature_name", "feature_label"])] = "mean_iou",
+) -> FeatureBreakdownSchema:
+    """Get IoU breakdown by architectural feature type.
+
+    Shows how well the model attends to different architectural features
+    (e.g., windows, doors, arches) across all 106 feature types.
+    """
+    validate_model(model)
+    layer_key = f"layer{layer}"
+
+    if not metrics_service.db_exists:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics database not available.",
+        )
+
+    data = metrics_service.get_feature_breakdown(
+        model, layer_key, percentile, sort_by=sort_by, min_count=min_count
+    )
+    return FeatureBreakdownSchema(**data)
 
 
 @router.get("/model/{model}/aggregate")

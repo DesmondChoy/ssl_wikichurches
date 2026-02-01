@@ -27,6 +27,19 @@ export function useStyleBreakdown(model: string, layer: number, percentile: numb
   });
 }
 
+export function useFeatureBreakdown(
+  model: string,
+  layer: number,
+  percentile: number,
+  sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
+  minCount = 0
+) {
+  return useQuery({
+    queryKey: ['featureBreakdown', model, layer, percentile, sortBy, minCount],
+    queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, sortBy, minCount),
+  });
+}
+
 export function useAggregateMetrics(model: string, layer: number, percentile: number) {
   return useQuery({
     queryKey: ['aggregate', model, layer, percentile],

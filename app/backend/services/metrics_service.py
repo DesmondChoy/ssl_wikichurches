@@ -266,6 +266,66 @@ class MetricsService:
             data: dict[str, Any] = json.load(f)
             return data
 
+    def get_feature_breakdown(
+        self,
+        model: str,
+        layer: str,
+        percentile: int = 90,
+        sort_by: str = "mean_iou",
+        min_count: int = 0,
+    ) -> dict:
+        """Get IoU breakdown by architectural feature type.
+
+        Args:
+            model: Model name.
+            layer: Layer key (e.g., "layer11").
+            percentile: Percentile threshold.
+            sort_by: Field to sort by ("mean_iou", "bbox_count", "feature_name").
+            min_count: Minimum bbox count to include a feature.
+
+        Returns:
+            Dict with model, layer, percentile, features list, total_feature_types.
+        """
+        db_model = resolve_model_name(model)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Determine sort order
+            order_clause = "mean_iou DESC"
+            if sort_by == "bbox_count":
+                order_clause = "bbox_count DESC"
+            elif sort_by == "feature_name":
+                order_clause = "feature_name ASC"
+            elif sort_by == "feature_label":
+                order_clause = "feature_label ASC"
+
+            cursor.execute(
+                f"""SELECT feature_label, feature_name, mean_iou, std_iou, bbox_count
+                   FROM feature_metrics
+                   WHERE model = ? AND layer = ? AND percentile = ? AND bbox_count >= ?
+                   ORDER BY {order_clause}""",
+                (db_model, layer, percentile, min_count),
+            )
+
+            features = [
+                {
+                    "feature_label": row["feature_label"],
+                    "feature_name": row["feature_name"],
+                    "mean_iou": row["mean_iou"],
+                    "std_iou": row["std_iou"],
+                    "bbox_count": row["bbox_count"],
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return {
+                "model": model,  # Return original name for display
+                "layer": layer,
+                "percentile": percentile,
+                "features": features,
+                "total_feature_types": len(features),
+            }
+
 
 # Global instance
 metrics_service = MetricsService()

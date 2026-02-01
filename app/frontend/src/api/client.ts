@@ -157,6 +157,17 @@ export const metricsAPI = {
       `/metrics/model/${model}/style_breakdown?layer=${layer}&percentile=${percentile}`
     ),
 
+  getFeatureBreakdown: (
+    model: string,
+    layer: number,
+    percentile = 90,
+    sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
+    minCount = 0
+  ) =>
+    fetchJSON<import('../types').FeatureBreakdown>(
+      `/metrics/model/${model}/feature_breakdown?layer=${layer}&percentile=${percentile}&sort_by=${sortBy}&min_count=${minCount}`
+    ),
+
   getAggregate: (model: string, layer: number, percentile = 90) =>
     fetchJSON<{
       model: string;
