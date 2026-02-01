@@ -99,6 +99,7 @@ export function ComparePage() {
           layer={layer}
           percentile={percentile}
           availableModels={imageDetail.available_models}
+          bboxes={imageDetail.annotation.bboxes}
         />
       )}
 
