@@ -127,6 +127,7 @@ class ImageService:
         model: str,
         layer: str,
         image_id: str,
+        method: str = "cls",
         variant: str = "overlay",
     ) -> Path:
         """Get path to pre-rendered heatmap PNG.
@@ -135,28 +136,31 @@ class ImageService:
             model: Model name.
             layer: Layer identifier.
             image_id: Image filename.
+            method: Attention method ("cls", "rollout", "mean", "gradcam").
             variant: "heatmap", "overlay", or "overlay_bbox".
 
         Returns:
             Path to PNG file.
         """
-        return HEATMAPS_PATH / model / layer / variant / f"{image_id}.png"
+        return HEATMAPS_PATH / model / layer / method / variant / f"{image_id}.png"
 
     def heatmap_exists(
         self,
         model: str,
         layer: str,
         image_id: str,
+        method: str = "cls",
         variant: str = "overlay",
     ) -> bool:
         """Check if pre-rendered heatmap exists."""
-        return self.get_heatmap_path(model, layer, image_id, variant).exists()
+        return self.get_heatmap_path(model, layer, image_id, method, variant).exists()
 
     def load_heatmap(
         self,
         model: str,
         layer: str,
         image_id: str,
+        method: str = "cls",
         variant: str = "overlay",
     ) -> PILImage.Image:
         """Load pre-rendered heatmap image.
@@ -165,6 +169,7 @@ class ImageService:
             model: Model name.
             layer: Layer identifier.
             image_id: Image filename.
+            method: Attention method ("cls", "rollout", "mean", "gradcam").
             variant: "heatmap", "overlay", or "overlay_bbox".
 
         Returns:
@@ -173,10 +178,10 @@ class ImageService:
         Raises:
             FileNotFoundError: If heatmap not pre-rendered.
         """
-        path = self.get_heatmap_path(model, layer, image_id, variant)
+        path = self.get_heatmap_path(model, layer, image_id, method, variant)
         if not path.exists():
             raise FileNotFoundError(
-                f"Heatmap not found: {model}/{layer}/{variant}/{image_id}"
+                f"Heatmap not found: {model}/{layer}/{method}/{variant}/{image_id}"
             )
         return PILImage.open(path)
 

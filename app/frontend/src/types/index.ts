@@ -97,7 +97,16 @@ export interface LayerComparison {
 export interface ViewSettings {
   model: string;
   layer: number;
+  method: string;
   percentile: number;
   showBboxes: boolean;
   heatmapOpacity: number;
+}
+
+// Models API Response
+export interface ModelsResponse {
+  models: string[];
+  num_layers: number;
+  methods: Record<string, string[]>;
+  default_methods: Record<string, string>;
 }

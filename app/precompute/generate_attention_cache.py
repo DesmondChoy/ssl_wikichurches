@@ -1,12 +1,18 @@
 """Generate attention cache for all models and layers.
 
-Extracts CLS-to-patch attention for all 139 annotated images across
-5 models and 12 layers, storing results in HDF5 format.
+Extracts attention maps for all 139 annotated images across
+multiple models, layers, and attention methods. Stores results in HDF5 format.
+
+Supported methods per model type:
+- ViTs with CLS (DINOv2, DINOv3, MAE, CLIP): cls, rollout
+- ViTs without CLS (SigLIP): mean
+- CNNs (ResNet50): gradcam
 
 Usage:
     python -m app.precompute.generate_attention_cache --models all
     python -m app.precompute.generate_attention_cache --models dinov2 clip
     python -m app.precompute.generate_attention_cache --models dinov2 --layers 10 11
+    python -m app.precompute.generate_attention_cache --models dinov2 --methods cls rollout
 """
 
 from __future__ import annotations
@@ -26,10 +32,18 @@ sys.path.insert(0, str(project_root / "src"))
 from ssl_attention.attention import (
     attention_to_heatmap,
     extract_cls_attention,
+    extract_cls_rollout,
     extract_mean_attention,
 )
 from ssl_attention.cache import AttentionCache
-from ssl_attention.config import CACHE_PATH, DATASET_PATH, MODELS
+from ssl_attention.config import (
+    CACHE_PATH,
+    DATASET_PATH,
+    MODELS,
+    AttentionMethod,
+    DEFAULT_METHOD,
+    MODEL_METHODS,
+)
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.models import create_model
 from ssl_attention.utils import get_device
@@ -40,6 +54,7 @@ def generate_attention_for_model(
     dataset: AnnotatedSubset,
     cache: AttentionCache,
     layers: list[int] | None = None,
+    methods: list[AttentionMethod] | None = None,
     device: torch.device | str = "cpu",
     skip_existing: bool = True,
 ) -> dict[str, int]:
@@ -50,6 +65,7 @@ def generate_attention_for_model(
         dataset: Annotated dataset.
         cache: AttentionCache instance.
         layers: Specific layers to process. None = all layers.
+        methods: Specific methods to process. None = all available for model.
         device: Compute device.
         skip_existing: Skip if already cached.
 
@@ -62,8 +78,20 @@ def generate_attention_for_model(
     num_layers = model_config.num_layers
     layers_to_process = layers if layers else list(range(num_layers))
 
+    # Determine which methods to process (filter by model compatibility)
+    available_methods = MODEL_METHODS.get(model_name, [DEFAULT_METHOD[model_name]])
+    if methods:
+        methods_to_process = [m for m in methods if m in available_methods]
+    else:
+        methods_to_process = available_methods
+
+    if not methods_to_process:
+        print(f"No compatible methods for {model_name}")
+        return stats
+
     print(f"\n{'='*60}")
-    print(f"Processing {model_name} ({len(layers_to_process)} layers)")
+    print(f"Processing {model_name} ({len(layers_to_process)} layers, "
+          f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
     print(f"{'='*60}")
 
     # Load model
@@ -79,14 +107,15 @@ def generate_attention_for_model(
             image = sample["image"]
 
             try:
-                # Check if all layers already cached for this image
+                # Check if all layer/method combos already cached
                 if skip_existing:
                     all_cached = all(
-                        cache.exists(model_name, f"layer{layer}", image_id)
+                        cache.exists(model_name, f"layer{layer}", image_id, variant=method.value)
                         for layer in layers_to_process
+                        for method in methods_to_process
                     )
                     if all_cached:
-                        stats["skipped"] += len(layers_to_process)
+                        stats["skipped"] += len(layers_to_process) * len(methods_to_process)
                         continue
 
                 # Run inference once
@@ -100,45 +129,75 @@ def generate_attention_for_model(
                         preprocessed = model.preprocess([image]).to(device)
                         output = model.forward(preprocessed)
 
-                # Extract attention for each layer
+                # Extract attention for each layer and method
                 for layer in layers_to_process:
                     layer_key = f"layer{layer}"
 
-                    if skip_existing and cache.exists(model_name, layer_key, image_id):
-                        stats["skipped"] += 1
-                        continue
+                    for method in methods_to_process:
+                        if skip_existing and cache.exists(
+                            model_name, layer_key, image_id, variant=method.value
+                        ):
+                            stats["skipped"] += 1
+                            continue
 
-                    # CNN models return pre-computed heatmaps via Grad-CAM
-                    if is_cnn:
-                        # Grad-CAM heatmaps are already in (B, H, W) format
-                        # For single image, shape is (1, H, W) - keep as-is for squeeze(0) below
-                        heatmap = output.attention_weights[layer]
-                    else:
-                        # Extract attention for this layer (ViT models)
-                        # Use CLS attention for models with CLS token, mean attention otherwise
-                        if model_config.has_cls_token:
+                        # Compute attention based on method
+                        if method == AttentionMethod.GRADCAM:
+                            # CNN models return pre-computed heatmaps via Grad-CAM
+                            heatmap = output.attention_weights[layer]
+
+                        elif method == AttentionMethod.CLS:
+                            # Direct CLS token attention
                             cls_attn = extract_cls_attention(
                                 output.attention_weights,
                                 layer=layer,
                                 num_registers=model.num_registers,
                             )
-                        else:
-                            # SigLIP and similar models without CLS token
+                            heatmap = attention_to_heatmap(
+                                cls_attn,
+                                image_size=224,
+                                patch_size=model.patch_size,
+                            )
+
+                        elif method == AttentionMethod.ROLLOUT:
+                            # Accumulated attention from layers 0→N
+                            # end_layer=layer+1 means "include layer N" (exclusive end)
+                            cls_attn = extract_cls_rollout(
+                                output.attention_weights,
+                                num_registers=model.num_registers,
+                                end_layer=layer + 1,
+                            )
+                            heatmap = attention_to_heatmap(
+                                cls_attn,
+                                image_size=224,
+                                patch_size=model.patch_size,
+                            )
+
+                        elif method == AttentionMethod.MEAN:
+                            # Mean attention (for models without CLS token)
                             cls_attn = extract_mean_attention(
                                 output.attention_weights,
                                 layer=layer,
                             )
+                            heatmap = attention_to_heatmap(
+                                cls_attn,
+                                image_size=224,
+                                patch_size=model.patch_size,
+                            )
 
-                        # Convert to 2D heatmap
-                        heatmap = attention_to_heatmap(
-                            cls_attn,
-                            image_size=224,
-                            patch_size=model.patch_size,
+                        else:
+                            print(f"Unknown method: {method}")
+                            stats["errors"] += 1
+                            continue
+
+                        # Store in cache with method as variant
+                        cache.store(
+                            model_name,
+                            layer_key,
+                            image_id,
+                            heatmap.squeeze(0),
+                            variant=method.value,
                         )
-
-                    # Store in cache
-                    cache.store(model_name, layer_key, image_id, heatmap.squeeze(0))
-                    stats["processed"] += 1
+                        stats["processed"] += 1
 
             except Exception as e:
                 print(f"\nError processing {image_id}: {e}")
@@ -172,6 +231,13 @@ def main() -> int:
         help="Specific layers to process (default: all 12)",
     )
     parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=["all"],
+        choices=["all", "cls", "rollout", "mean", "gradcam"],
+        help="Attention methods to compute (default: all available per model)",
+    )
+    parser.add_argument(
         "--cache-path",
         type=Path,
         default=CACHE_PATH / "attention_viz.h5",
@@ -189,6 +255,12 @@ def main() -> int:
         help="Device (auto-detected if not specified)",
     )
     args = parser.parse_args()
+
+    # Parse methods
+    if "all" in args.methods:
+        methods_to_use = None  # Will use all available per model
+    else:
+        methods_to_use = [AttentionMethod(m) for m in args.methods]
 
     # Determine models to process
     if "all" in args.models:
@@ -223,6 +295,7 @@ def main() -> int:
             dataset=dataset,
             cache=cache,
             layers=args.layers,
+            methods=methods_to_use,
             device=device,
             skip_existing=not args.no_skip,
         )

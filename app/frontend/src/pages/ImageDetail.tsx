@@ -18,7 +18,7 @@ export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
 
-  const { model, layer, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
+  const { model, layer, method, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
 
   const handleBboxSelect = useCallback((index: number | null) => {
     setSelectedBboxIndex(index);
@@ -90,6 +90,7 @@ export function ImageDetailPage() {
             imageId={decodedId}
             model={model}
             layer={layer}
+            method={method}
             showBboxes={showBboxes}
             bboxes={imageDetail?.annotation.bboxes}
             selectedBboxIndex={selectedBboxIndex}

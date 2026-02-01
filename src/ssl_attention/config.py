@@ -16,11 +16,37 @@ Usage:
     # Access data paths
     from ssl_attention.config import DATASET_PATH, STYLE_MAPPING
     print(DATASET_PATH)  # Path to WikiChurches dataset
+
+    # Access attention methods
+    from ssl_attention.config import AttentionMethod, MODEL_METHODS
+    print(MODEL_METHODS["dinov2"])  # [AttentionMethod.CLS, AttentionMethod.ROLLOUT]
 """
 
 import os
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+
+
+# =============================================================================
+# Attention Methods
+# =============================================================================
+
+
+class AttentionMethod(str, Enum):
+    """Available attention visualization methods.
+
+    Different models support different methods:
+    - CLS: Direct CLS token attention to patches (ViTs with CLS token)
+    - ROLLOUT: Accumulated attention across layers (ViTs)
+    - GRADCAM: Gradient-weighted class activation mapping (CNNs)
+    - MEAN: Mean attention across all tokens (ViTs without CLS)
+    """
+
+    CLS = "cls"
+    ROLLOUT = "rollout"
+    GRADCAM = "gradcam"
+    MEAN = "mean"
 
 
 @dataclass(frozen=True)
@@ -121,6 +147,34 @@ MODEL_ALIASES: dict[str, str] = {
     "vit-mae": "mae",
     "openai-clip": "clip",
     "siglip2": "siglip",
+}
+
+
+# =============================================================================
+# Attention Method Availability
+# =============================================================================
+# Maps each model to its supported attention methods.
+# - ViTs with CLS token: CLS (direct) + Rollout (accumulated)
+# - ViTs without CLS (SigLIP): Mean attention only
+# - CNNs (ResNet): Grad-CAM only
+
+MODEL_METHODS: dict[str, list[AttentionMethod]] = {
+    "dinov2": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
+    "dinov3": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
+    "mae": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
+    "clip": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
+    "siglip": [AttentionMethod.MEAN],
+    "resnet50": [AttentionMethod.GRADCAM],
+}
+
+# Default method for each model (first in list for ViTs, only option for others)
+DEFAULT_METHOD: dict[str, AttentionMethod] = {
+    "dinov2": AttentionMethod.CLS,
+    "dinov3": AttentionMethod.CLS,
+    "mae": AttentionMethod.CLS,
+    "clip": AttentionMethod.CLS,
+    "siglip": AttentionMethod.MEAN,
+    "resnet50": AttentionMethod.GRADCAM,
 }
 
 

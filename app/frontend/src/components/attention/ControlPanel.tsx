@@ -1,12 +1,21 @@
 /**
- * Control panel for selecting model, layer, and display options.
+ * Control panel for selecting model, layer, attention method, and display options.
  */
 
+import { useEffect } from 'react';
 import { useViewStore } from '../../store/viewStore';
 import { useModels } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Slider } from '../ui/Slider';
 import { Toggle } from '../ui/Toggle';
+
+// Human-readable labels for attention methods
+const METHOD_LABELS: Record<string, string> = {
+  cls: 'CLS Attention',
+  rollout: 'Attention Rollout',
+  gradcam: 'Grad-CAM',
+  mean: 'Mean Attention',
+};
 
 interface ControlPanelProps {
   className?: string;
@@ -16,17 +25,28 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
   const {
     model,
     layer,
+    method,
     percentile,
     showBboxes,
     heatmapOpacity,
+    availableMethods,
     setModel,
     setLayer,
+    setMethod,
     setPercentile,
     setShowBboxes,
     setHeatmapOpacity,
+    setMethodsConfig,
   } = useViewStore();
 
   const { data: modelsData, isLoading } = useModels();
+
+  // Update store with methods config when API data loads
+  useEffect(() => {
+    if (modelsData?.methods && modelsData?.default_methods) {
+      setMethodsConfig(modelsData.methods, modelsData.default_methods);
+    }
+  }, [modelsData, setMethodsConfig]);
 
   if (isLoading) {
     return (
@@ -45,6 +65,13 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
       value: m,
       label: m.charAt(0).toUpperCase() + m.slice(1),
     })) || [];
+
+  // Get available methods for current model
+  const currentModelMethods = availableMethods[model] || modelsData?.methods?.[model] || ['cls'];
+  const methodOptions = currentModelMethods.map((m) => ({
+    value: m,
+    label: METHOD_LABELS[m] || m,
+  }));
 
   const percentileOptions = [
     { value: 90, label: 'Top 10%' },
@@ -65,6 +92,16 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         options={modelOptions}
         label="Model"
       />
+
+      {/* Only show method selector if model has multiple methods */}
+      {currentModelMethods.length > 1 && (
+        <Select
+          value={method}
+          onChange={setMethod}
+          options={methodOptions}
+          label="Attention Method"
+        />
+      )}
 
       <Slider
         value={layer}

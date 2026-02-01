@@ -72,21 +72,38 @@ export interface SimilarityResponse {
 
 // Attention API
 export const attentionAPI = {
-  getHeatmapUrl: (imageId: string, model: string, layer: number) =>
-    `${API_BASE}/attention/${imageId}/heatmap?model=${model}&layer=${layer}`,
+  getHeatmapUrl: (imageId: string, model: string, layer: number, method?: string) => {
+    const params = new URLSearchParams({ model, layer: String(layer) });
+    if (method) params.set('method', method);
+    return `${API_BASE}/attention/${imageId}/heatmap?${params}`;
+  },
 
-  getOverlayUrl: (imageId: string, model: string, layer: number, showBboxes = false) =>
-    `${API_BASE}/attention/${imageId}/overlay?model=${model}&layer=${layer}&show_bboxes=${showBboxes}`,
+  getOverlayUrl: (imageId: string, model: string, layer: number, showBboxes = false, method?: string) => {
+    const params = new URLSearchParams({
+      model,
+      layer: String(layer),
+      show_bboxes: String(showBboxes),
+    });
+    if (method) params.set('method', method);
+    return `${API_BASE}/attention/${imageId}/overlay?${params}`;
+  },
 
-  getLayerUrls: (imageId: string, model: string, showBboxes = false) =>
-    fetchJSON<{
+  getLayerUrls: (imageId: string, model: string, showBboxes = false, method?: string) => {
+    const params = new URLSearchParams({
+      model,
+      show_bboxes: String(showBboxes),
+    });
+    if (method) params.set('method', method);
+    return fetchJSON<{
       image_id: string;
       model: string;
+      method: string;
       show_bboxes: boolean;
       layers: Record<string, string>;
-    }>(`/attention/${imageId}/layers?model=${model}&show_bboxes=${showBboxes}`),
+    }>(`/attention/${imageId}/layers?${params}`);
+  },
 
-  getModels: () => fetchJSON<{ models: string[]; num_layers: number }>('/attention/models'),
+  getModels: () => fetchJSON<import('../types').ModelsResponse>('/attention/models'),
 
   getSimilarity: (
     imageId: string,

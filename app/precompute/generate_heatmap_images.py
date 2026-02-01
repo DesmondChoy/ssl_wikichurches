@@ -3,9 +3,18 @@
 Creates overlay images combining original photos with attention heatmaps
 for fast serving without runtime model inference.
 
+Directory structure:
+    heatmaps/{model}/layer{N}/{method}/{variant}/{image_id}.png
+
+Where:
+    - model: dinov2, dinov3, mae, clip, siglip, resnet50
+    - method: cls, rollout, mean, gradcam
+    - variant: heatmap, overlay, overlay_bbox
+
 Usage:
     python -m app.precompute.generate_heatmap_images --colormap viridis
     python -m app.precompute.generate_heatmap_images --models dinov2 --alpha 0.5
+    python -m app.precompute.generate_heatmap_images --models dinov2 --methods cls rollout
 """
 
 from __future__ import annotations
@@ -22,7 +31,15 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from ssl_attention.cache import AttentionCache
-from ssl_attention.config import CACHE_PATH, DATASET_PATH, IMAGES_PATH, MODELS
+from ssl_attention.config import (
+    CACHE_PATH,
+    DATASET_PATH,
+    IMAGES_PATH,
+    MODELS,
+    AttentionMethod,
+    DEFAULT_METHOD,
+    MODEL_METHODS,
+)
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.visualization import (
     create_attention_overlay,
@@ -39,14 +56,17 @@ def generate_heatmaps_for_model(
     colormap: str = "viridis",
     alpha: float = 0.5,
     layers: list[int] | None = None,
+    methods: list[AttentionMethod] | None = None,
     skip_existing: bool = True,
 ) -> dict[str, int]:
     """Generate heatmap images for a single model.
 
-    Creates multiple versions:
+    Creates multiple versions per method:
     - Pure heatmap (no overlay)
     - Overlay without bboxes
     - Overlay with bboxes
+
+    Directory structure: {model}/layer{N}/{method}/{variant}/{image_id}.png
 
     Args:
         model_name: Name of model.
@@ -56,6 +76,7 @@ def generate_heatmaps_for_model(
         colormap: Matplotlib colormap name.
         alpha: Overlay transparency.
         layers: Specific layers to process. None = all.
+        methods: Specific methods to process. None = all available for model.
         skip_existing: Skip if PNG already exists.
 
     Returns:
@@ -67,14 +88,28 @@ def generate_heatmaps_for_model(
     num_layers = model_config.num_layers
     layers_to_process = layers if layers else list(range(num_layers))
 
-    print(f"\nProcessing {model_name} ({len(layers_to_process)} layers)")
+    # Determine which methods to process (filter by model compatibility)
+    available_methods = MODEL_METHODS.get(model_name, [DEFAULT_METHOD[model_name]])
+    if methods:
+        methods_to_process = [m for m in methods if m in available_methods]
+    else:
+        methods_to_process = available_methods
 
-    # Create output directories
+    if not methods_to_process:
+        print(f"No compatible methods for {model_name}")
+        return stats
+
+    print(f"\nProcessing {model_name} ({len(layers_to_process)} layers, "
+          f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
+
+    # Create output directories for each layer/method combo
     model_dir = output_dir / model_name
     for layer in layers_to_process:
-        (model_dir / f"layer{layer}" / "heatmap").mkdir(parents=True, exist_ok=True)
-        (model_dir / f"layer{layer}" / "overlay").mkdir(parents=True, exist_ok=True)
-        (model_dir / f"layer{layer}" / "overlay_bbox").mkdir(parents=True, exist_ok=True)
+        for method in methods_to_process:
+            method_dir = model_dir / f"layer{layer}" / method.value
+            (method_dir / "heatmap").mkdir(parents=True, exist_ok=True)
+            (method_dir / "overlay").mkdir(parents=True, exist_ok=True)
+            (method_dir / "overlay_bbox").mkdir(parents=True, exist_ok=True)
 
     # Process each image
     for sample in tqdm(dataset, desc=f"{model_name}"):
@@ -99,66 +134,71 @@ def generate_heatmaps_for_model(
         for layer in layers_to_process:
             layer_key = f"layer{layer}"
 
-            # Define output paths
-            heatmap_path = model_dir / layer_key / "heatmap" / f"{image_id}.png"
-            overlay_path = model_dir / layer_key / "overlay" / f"{image_id}.png"
-            bbox_path = model_dir / layer_key / "overlay_bbox" / f"{image_id}.png"
+            for method in methods_to_process:
+                method_dir = model_dir / layer_key / method.value
 
-            # Skip if all exist
-            if skip_existing and heatmap_path.exists() and overlay_path.exists() and bbox_path.exists():
-                stats["skipped"] += 3
-                continue
+                # Define output paths
+                heatmap_path = method_dir / "heatmap" / f"{image_id}.png"
+                overlay_path = method_dir / "overlay" / f"{image_id}.png"
+                bbox_path = method_dir / "overlay_bbox" / f"{image_id}.png"
 
-            # Load attention from cache
-            try:
-                attention = attention_cache.load(model_name, layer_key, image_id)
-            except KeyError:
-                # Attention not cached for this combination
-                stats["skipped"] += 3
-                continue
+                # Skip if all exist
+                if skip_existing and heatmap_path.exists() and overlay_path.exists() and bbox_path.exists():
+                    stats["skipped"] += 3
+                    continue
 
-            try:
-                # Generate heatmap image
-                heatmap_img = render_heatmap(attention, colormap=colormap, output_size=(224, 224))
-
-                # Save pure heatmap
-                if not skip_existing or not heatmap_path.exists():
-                    heatmap_img.save(heatmap_path)
-                    stats["processed"] += 1
-                else:
-                    stats["skipped"] += 1
-
-                # Save overlay without bboxes
-                if not skip_existing or not overlay_path.exists():
-                    overlay = create_attention_overlay(
-                        original_img,
-                        heatmap_img,
-                        annotation=None,
-                        alpha=alpha,
-                        show_bboxes=False,
+                # Load attention from cache (using method as variant)
+                try:
+                    attention = attention_cache.load(
+                        model_name, layer_key, image_id, variant=method.value
                     )
-                    overlay.save(overlay_path)
-                    stats["processed"] += 1
-                else:
-                    stats["skipped"] += 1
+                except KeyError:
+                    # Attention not cached for this combination
+                    stats["skipped"] += 3
+                    continue
 
-                # Save overlay with bboxes
-                if not skip_existing or not bbox_path.exists():
-                    overlay_bbox = create_attention_overlay(
-                        original_img,
-                        heatmap_img,
-                        annotation=annotation,
-                        alpha=alpha,
-                        show_bboxes=True,
-                    )
-                    overlay_bbox.save(bbox_path)
-                    stats["processed"] += 1
-                else:
-                    stats["skipped"] += 1
+                try:
+                    # Generate heatmap image
+                    heatmap_img = render_heatmap(attention, colormap=colormap, output_size=(224, 224))
 
-            except Exception as e:
-                print(f"\nError generating heatmaps for {image_id} layer{layer}: {e}")
-                stats["errors"] += 1
+                    # Save pure heatmap
+                    if not skip_existing or not heatmap_path.exists():
+                        heatmap_img.save(heatmap_path)
+                        stats["processed"] += 1
+                    else:
+                        stats["skipped"] += 1
+
+                    # Save overlay without bboxes
+                    if not skip_existing or not overlay_path.exists():
+                        overlay = create_attention_overlay(
+                            original_img,
+                            heatmap_img,
+                            annotation=None,
+                            alpha=alpha,
+                            show_bboxes=False,
+                        )
+                        overlay.save(overlay_path)
+                        stats["processed"] += 1
+                    else:
+                        stats["skipped"] += 1
+
+                    # Save overlay with bboxes
+                    if not skip_existing or not bbox_path.exists():
+                        overlay_bbox = create_attention_overlay(
+                            original_img,
+                            heatmap_img,
+                            annotation=annotation,
+                            alpha=alpha,
+                            show_bboxes=True,
+                        )
+                        overlay_bbox.save(bbox_path)
+                        stats["processed"] += 1
+                    else:
+                        stats["skipped"] += 1
+
+                except Exception as e:
+                    print(f"\nError generating heatmaps for {image_id} {layer_key}/{method.value}: {e}")
+                    stats["errors"] += 1
 
     return stats
 
@@ -240,6 +280,13 @@ def main() -> int:
         help="Specific layers to process (default: all 12)",
     )
     parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=["all"],
+        choices=["all", "cls", "rollout", "mean", "gradcam"],
+        help="Attention methods to process (default: all available per model)",
+    )
+    parser.add_argument(
         "--attention-cache",
         type=Path,
         default=CACHE_PATH / "attention_viz.h5",
@@ -270,6 +317,12 @@ def main() -> int:
         help="Don't skip existing files",
     )
     args = parser.parse_args()
+
+    # Parse methods
+    if "all" in args.methods:
+        methods_to_use = None  # Will use all available per model
+    else:
+        methods_to_use = [AttentionMethod(m) for m in args.methods]
 
     # Validate
     if not args.attention_cache.exists():
@@ -316,6 +369,7 @@ def main() -> int:
             colormap=args.colormap,
             alpha=args.alpha,
             layers=args.layers,
+            methods=methods_to_use,
             skip_existing=not args.no_skip,
         )
 

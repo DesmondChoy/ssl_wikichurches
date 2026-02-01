@@ -48,8 +48,13 @@ CORS_ORIGINS = [
 THUMBNAIL_SIZE = (128, 128)
 STANDARD_IMAGE_SIZE = (224, 224)
 
-# Model name resolution
-from ssl_attention.config import MODEL_ALIASES
+# Model name resolution and attention method configuration
+from ssl_attention.config import (
+    MODEL_ALIASES,
+    AttentionMethod,
+    DEFAULT_METHOD,
+    MODEL_METHODS,
+)
 
 
 def resolve_model_name(model: str) -> str:

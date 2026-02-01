@@ -14,6 +14,7 @@ interface AttentionViewerProps {
   imageId: string;
   model: string;
   layer: number;
+  method: string;
   showBboxes: boolean;
   bboxes?: BoundingBox[];
   selectedBboxIndex: number | null;
@@ -25,6 +26,7 @@ export function AttentionViewer({
   imageId,
   model,
   layer,
+  method,
   showBboxes,
   bboxes = [],
   selectedBboxIndex,
@@ -37,7 +39,7 @@ export function AttentionViewer({
   // Get heatmap settings from store
   const heatmapOpacity = useHeatmapOpacity();
 
-  const overlayUrl = attentionAPI.getOverlayUrl(imageId, model, layer, showBboxes);
+  const overlayUrl = attentionAPI.getOverlayUrl(imageId, model, layer, showBboxes, method);
   const originalUrl = imagesAPI.getImageUrl(imageId, 224);
 
   // Get selected bbox
@@ -181,7 +183,7 @@ export function AttentionViewer({
 
       {/* Info badge */}
       <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
-        {model} / Layer {layer}
+        {model} / {method} / Layer {layer}
         {selectedBbox && (
           <span className="ml-2 text-green-300">
             {selectedBbox.label_name || `Feature ${selectedBbox.label}`}
