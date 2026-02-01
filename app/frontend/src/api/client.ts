@@ -61,6 +61,15 @@ export const imagesAPI = {
     `${API_BASE}/images/${imageId}/with_bboxes`,
 };
 
+// Similarity response type
+export interface SimilarityResponse {
+  similarity: number[];
+  patch_grid: [number, number];
+  min_similarity: number;
+  max_similarity: number;
+  bbox_patch_indices: number[];
+}
+
 // Attention API
 export const attentionAPI = {
   getHeatmapUrl: (imageId: string, model: string, layer: number) =>
@@ -78,6 +87,20 @@ export const attentionAPI = {
     }>(`/attention/${imageId}/layers?model=${model}&show_bboxes=${showBboxes}`),
 
   getModels: () => fetchJSON<{ models: string[]; num_layers: number }>('/attention/models'),
+
+  getSimilarity: (
+    imageId: string,
+    bbox: { left: number; top: number; width: number; height: number; label?: string },
+    model: string,
+    layer: number
+  ) =>
+    fetchJSON<SimilarityResponse>(
+      `/attention/${imageId}/similarity?model=${model}&layer=${layer}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(bbox),
+      }
+    ),
 };
 
 // Metrics API

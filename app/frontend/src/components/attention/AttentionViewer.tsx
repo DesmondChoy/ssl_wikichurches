@@ -1,15 +1,22 @@
 /**
- * Main attention heatmap viewer with overlay controls.
+ * Main attention heatmap viewer with overlay controls and bbox similarity.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
+import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
+import { renderHeatmap, computeSimilarityStats } from '../../utils/renderHeatmap';
+import type { BoundingBox } from '../../types';
 
 interface AttentionViewerProps {
   imageId: string;
   model: string;
   layer: number;
   showBboxes: boolean;
+  bboxes?: BoundingBox[];
+  selectedBboxIndex: number | null;
+  onBboxSelect: (index: number | null) => void;
   className?: string;
 }
 
@@ -18,6 +25,9 @@ export function AttentionViewer({
   model,
   layer,
   showBboxes,
+  bboxes = [],
+  selectedBboxIndex,
+  onBboxSelect,
   className = '',
 }: AttentionViewerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
@@ -25,6 +35,72 @@ export function AttentionViewer({
 
   const overlayUrl = attentionAPI.getOverlayUrl(imageId, model, layer, showBboxes);
   const originalUrl = imagesAPI.getImageUrl(imageId, 224);
+
+  // Get selected bbox
+  const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
+
+  // Fetch similarity when a bbox is selected
+  const { data: similarityData, isLoading: similarityLoading } = useQuery({
+    queryKey: ['similarity', imageId, model, layer, selectedBbox],
+    queryFn: () => {
+      if (!selectedBbox) return null;
+      return attentionAPI.getSimilarity(
+        imageId,
+        {
+          left: selectedBbox.left,
+          top: selectedBbox.top,
+          width: selectedBbox.width,
+          height: selectedBbox.height,
+          label: selectedBbox.label_name || undefined,
+        },
+        model,
+        layer
+      );
+    },
+    enabled: !!selectedBbox,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Render heatmap when similarity data is available
+  const heatmapUrl = useMemo(() => {
+    if (!similarityData) return null;
+    try {
+      return renderHeatmap({
+        similarity: similarityData.similarity,
+        patchGrid: similarityData.patch_grid as [number, number],
+        opacity: 0.75,
+      });
+    } catch {
+      return null;
+    }
+  }, [similarityData]);
+
+  // Compute stats for display
+  const stats = useMemo(() => {
+    if (!similarityData) return null;
+    return computeSimilarityStats(similarityData.similarity);
+  }, [similarityData]);
+
+  // Reset selection when image changes
+  useEffect(() => {
+    onBboxSelect(null);
+  }, [imageId, onBboxSelect]);
+
+  const handleBboxClick = (_bbox: BoundingBox, index: number) => {
+    // Toggle selection if clicking the same bbox
+    if (selectedBboxIndex === index) {
+      onBboxSelect(null);
+    } else {
+      onBboxSelect(index);
+    }
+  };
+
+  const handleImageClick = () => {
+    // Deselect when clicking outside bboxes
+    if (selectedBboxIndex !== null) {
+      onBboxSelect(null);
+    }
+  };
 
   if (imageError) {
     return (
@@ -37,28 +113,81 @@ export function AttentionViewer({
     );
   }
 
+  // Determine which image to show
+  const showSimilarityHeatmap = selectedBbox && heatmapUrl && !similarityLoading;
+  const baseImageUrl = showOverlay ? overlayUrl : originalUrl;
+
   return (
     <div className={`relative group ${className}`}>
-      {/* Original image (visible when overlay is off) */}
+      {/* Base image (attention overlay or original) */}
       <img
-        src={showOverlay ? overlayUrl : originalUrl}
+        src={baseImageUrl}
         alt={`Attention for ${imageId}`}
         className="w-full h-auto rounded-lg"
         onError={() => setImageError(true)}
+        onClick={handleImageClick}
       />
+
+      {/* Similarity heatmap overlay */}
+      {showSimilarityHeatmap && (
+        <img
+          src={heatmapUrl}
+          alt="Similarity heatmap"
+          className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
+          style={{ mixBlendMode: 'normal' }}
+        />
+      )}
+
+      {/* Loading spinner for similarity computation */}
+      {similarityLoading && selectedBbox && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
+        </div>
+      )}
+
+      {/* Interactive bbox overlay */}
+      {showBboxes && bboxes.length > 0 && (
+        <InteractiveBboxOverlay
+          bboxes={bboxes}
+          selectedIndex={selectedBboxIndex}
+          onBboxClick={handleBboxClick}
+        />
+      )}
 
       {/* Toggle overlay button */}
       <button
         onClick={() => setShowOverlay(!showOverlay)}
         className="absolute top-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        {showOverlay ? 'Hide Overlay' : 'Show Overlay'}
+        {showOverlay ? 'Hide Attention' : 'Show Attention'}
       </button>
+
+      {/* Clear selection button (when bbox is selected) */}
+      {selectedBbox && (
+        <button
+          onClick={() => onBboxSelect(null)}
+          className="absolute top-2 right-24 px-2 py-1 text-xs bg-green-600/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          Clear Selection
+        </button>
+      )}
 
       {/* Info badge */}
       <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
         {model} / Layer {layer}
+        {selectedBbox && (
+          <span className="ml-2 text-green-300">
+            {selectedBbox.label_name || `Feature ${selectedBbox.label}`}
+          </span>
+        )}
       </div>
+
+      {/* Similarity stats badge */}
+      {stats && selectedBbox && (
+        <div className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
+          Sim: {stats.min.toFixed(2)} - {stats.max.toFixed(2)}
+        </div>
+      )}
     </div>
   );
 }

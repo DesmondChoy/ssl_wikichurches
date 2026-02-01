@@ -2,6 +2,7 @@
  * Image detail page with attention viewer and metrics.
  */
 
+import { useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
@@ -17,7 +18,11 @@ export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
 
-  const { model, layer, percentile, showBboxes, setLayer } = useViewStore();
+  const { model, layer, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
+
+  const handleBboxSelect = useCallback((index: number | null) => {
+    setSelectedBboxIndex(index);
+  }, [setSelectedBboxIndex]);
 
   // Fetch image details
   const { data: imageDetail, isLoading: detailLoading, error } = useQuery({
@@ -86,6 +91,9 @@ export function ImageDetailPage() {
             model={model}
             layer={layer}
             showBboxes={showBboxes}
+            bboxes={imageDetail?.annotation.bboxes}
+            selectedBboxIndex={selectedBboxIndex}
+            onBboxSelect={handleBboxSelect}
             className="aspect-square"
           />
 
@@ -143,9 +151,25 @@ export function ImageDetailPage() {
                   </span>
                 </div>
 
+                {showBboxes && (
+                  <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                    Click a bounding box to see feature similarity heatmap
+                  </div>
+                )}
+
                 <div className="text-xs text-gray-500 space-y-1 max-h-48 overflow-y-auto">
                   {imageDetail.annotation.bboxes.map((bbox, i) => (
-                    <div key={i} className="flex justify-between">
+                    <div
+                      key={i}
+                      className={`flex justify-between cursor-pointer hover:bg-gray-100 px-1 rounded ${
+                        selectedBboxIndex === i ? 'bg-green-100 text-green-700' : ''
+                      }`}
+                      onClick={() => {
+                        if (showBboxes) {
+                          handleBboxSelect(selectedBboxIndex === i ? null : i);
+                        }
+                      }}
+                    >
                       <span>{bbox.label_name || `Label ${bbox.label}`}</span>
                       <span className="text-gray-400">
                         {(bbox.width * 100).toFixed(0)}% x {(bbox.height * 100).toFixed(0)}%

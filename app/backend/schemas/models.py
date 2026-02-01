@@ -106,3 +106,25 @@ class ModelComparisonSchema(BaseModel):
     percentile: int
     results: list[IoUResultSchema]
     heatmap_urls: dict[str, str]  # model -> heatmap URL
+
+
+class BboxInput(BaseModel):
+    """Input for similarity computation - a single bounding box."""
+
+    left: float = Field(..., ge=0, le=1, description="Left edge (0-1)")
+    top: float = Field(..., ge=0, le=1, description="Top edge (0-1)")
+    width: float = Field(..., ge=0, le=1, description="Width (0-1)")
+    height: float = Field(..., ge=0, le=1, description="Height (0-1)")
+    label: str | None = Field(None, description="Optional label for the feature")
+
+
+class SimilarityResponse(BaseModel):
+    """Response containing cosine similarity values for all patches."""
+
+    similarity: list[float] = Field(..., description="Similarity values for each patch")
+    patch_grid: list[int] = Field(..., description="Grid dimensions [rows, cols]")
+    min_similarity: float = Field(..., description="Minimum similarity value")
+    max_similarity: float = Field(..., description="Maximum similarity value")
+    bbox_patch_indices: list[int] = Field(
+        ..., description="Indices of patches within the bbox"
+    )

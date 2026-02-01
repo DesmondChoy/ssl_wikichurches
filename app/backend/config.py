@@ -19,6 +19,7 @@ ANNOTATIONS_PATH = DATASET_PATH / "building_parts.json"
 # Cache paths (pre-computed data)
 CACHE_PATH = Path(os.environ.get("SSL_CACHE_PATH", PROJECT_ROOT / "outputs" / "cache"))
 ATTENTION_CACHE_PATH = CACHE_PATH / "attention_viz.h5"
+FEATURE_CACHE_PATH = CACHE_PATH / "features.h5"
 HEATMAPS_PATH = CACHE_PATH / "heatmaps"
 METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
