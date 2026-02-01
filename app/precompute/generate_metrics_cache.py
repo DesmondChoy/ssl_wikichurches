@@ -27,6 +27,7 @@ from ssl_attention.config import (
     ANNOTATIONS_PATH,
     CACHE_PATH,
     DATASET_PATH,
+    DEFAULT_METHOD,
     MODELS,
     STYLE_MAPPING,
     STYLE_NAMES,
@@ -164,6 +165,9 @@ def compute_metrics_for_model(
     num_layers = model_config.num_layers
     layers_to_process = layers if layers else list(range(num_layers))
 
+    # Get the variant for this model's attention method (e.g., "gradcam", "cls", "mean")
+    variant = DEFAULT_METHOD[model_name].value
+
     print(f"\nProcessing {model_name} ({len(layers_to_process)} layers)")
 
     cursor = conn.cursor()
@@ -200,7 +204,7 @@ def compute_metrics_for_model(
 
             # Load attention from cache
             try:
-                attention = attention_cache.load(model_name, layer_key, image_id)
+                attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
             except KeyError:
                 stats["skipped"] += len(percentiles)
                 continue
@@ -334,7 +338,7 @@ def compute_metrics_for_model(
                 annotation = sample["annotation"]
 
                 try:
-                    attention = attention_cache.load(model_name, layer_key, image_id)
+                    attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
                     bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
                     per_bbox_results.append(bbox_ious)
                 except KeyError:
