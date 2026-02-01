@@ -25,7 +25,7 @@ METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
 
 # Available models (must match ssl_attention.config.MODELS)
-AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip2"]
+AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip2", "resnet50"]
 
 # Number of transformer layers
 NUM_LAYERS = 12

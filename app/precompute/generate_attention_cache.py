@@ -90,9 +90,15 @@ def generate_attention_for_model(
                         continue
 
                 # Run inference once
-                with torch.no_grad():
+                # CNN models (like ResNet) need gradients for Grad-CAM
+                is_cnn = model_config.num_heads == 1
+                if is_cnn:
                     preprocessed = model.preprocess([image]).to(device)
                     output = model.forward(preprocessed)
+                else:
+                    with torch.no_grad():
+                        preprocessed = model.preprocess([image]).to(device)
+                        output = model.forward(preprocessed)
 
                 # Extract attention for each layer
                 for layer in layers_to_process:
@@ -102,27 +108,32 @@ def generate_attention_for_model(
                         stats["skipped"] += 1
                         continue
 
-                    # Extract attention for this layer
-                    # Use CLS attention for models with CLS token, mean attention otherwise
-                    if model_config.has_cls_token:
-                        cls_attn = extract_cls_attention(
-                            output.attention_weights,
-                            layer=layer,
-                            num_registers=model.num_registers,
-                        )
+                    # CNN models return pre-computed heatmaps via Grad-CAM
+                    if is_cnn:
+                        # Grad-CAM heatmaps are already in (B, H, W) format
+                        heatmap = output.attention_weights[layer].unsqueeze(0)
                     else:
-                        # SigLIP and similar models without CLS token
-                        cls_attn = extract_mean_attention(
-                            output.attention_weights,
-                            layer=layer,
-                        )
+                        # Extract attention for this layer (ViT models)
+                        # Use CLS attention for models with CLS token, mean attention otherwise
+                        if model_config.has_cls_token:
+                            cls_attn = extract_cls_attention(
+                                output.attention_weights,
+                                layer=layer,
+                                num_registers=model.num_registers,
+                            )
+                        else:
+                            # SigLIP and similar models without CLS token
+                            cls_attn = extract_mean_attention(
+                                output.attention_weights,
+                                layer=layer,
+                            )
 
-                    # Convert to 2D heatmap
-                    heatmap = attention_to_heatmap(
-                        cls_attn,
-                        image_size=224,
-                        patch_size=model.patch_size,
-                    )
+                        # Convert to 2D heatmap
+                        heatmap = attention_to_heatmap(
+                            cls_attn,
+                            image_size=224,
+                            patch_size=model.patch_size,
+                        )
 
                     # Store in cache
                     cache.store(model_name, layer_key, image_id, heatmap.squeeze(0))

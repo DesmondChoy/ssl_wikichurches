@@ -19,9 +19,11 @@ class ModelOutput:
         cls_token: CLS token embedding, shape (B, D) where D is embed_dim.
         patch_tokens: Patch token embeddings, shape (B, N, D) where N is num_patches.
             Note: This excludes CLS token and any register tokens.
+            For CNN models (like ResNet), this may be None.
         attention_weights: Per-layer attention weights.
-            List of L tensors, each with shape (B, H, seq_len, seq_len)
+            For ViTs: List of L tensors, each with shape (B, H, seq_len, seq_len)
             where H is num_heads and seq_len includes CLS + registers + patches.
+            For CNNs: List of L tensors, each with shape (B, H, W) - Grad-CAM heatmaps.
         hidden_states: Per-layer hidden states (optional).
             List of L tensors, each with shape (B, seq_len, D).
             Only populated when output_hidden_states=True in forward().
@@ -30,19 +32,22 @@ class ModelOutput:
     """
 
     cls_token: Tensor
-    patch_tokens: Tensor
+    patch_tokens: Tensor | None
     attention_weights: list[Tensor]
     hidden_states: list[Tensor] | None = None
 
     def __post_init__(self) -> None:
         """Validate tensor shapes are compatible."""
         batch_cls = self.cls_token.shape[0]
-        batch_patch = self.patch_tokens.shape[0]
-        if batch_cls != batch_patch:
-            raise ValueError(
-                f"Batch size mismatch: cls_token has {batch_cls}, "
-                f"patch_tokens has {batch_patch}"
-            )
+
+        # Validate patch_tokens if present (ViT models)
+        if self.patch_tokens is not None:
+            batch_patch = self.patch_tokens.shape[0]
+            if batch_cls != batch_patch:
+                raise ValueError(
+                    f"Batch size mismatch: cls_token has {batch_cls}, "
+                    f"patch_tokens has {batch_patch}"
+                )
 
         if self.attention_weights:
             batch_attn = self.attention_weights[0].shape[0]
@@ -63,9 +68,12 @@ class ModelOutput:
         return self.cls_token.shape[1]
 
     @property
-    def num_patches(self) -> int:
-        """Return the number of patches (excluding CLS and registers)."""
-        return self.patch_tokens.shape[1]
+    def num_patches(self) -> int | None:
+        """Return the number of patches (excluding CLS and registers).
+
+        Returns None for CNN models that don't have patch tokens.
+        """
+        return self.patch_tokens.shape[1] if self.patch_tokens is not None else None
 
     @property
     def num_layers(self) -> int:

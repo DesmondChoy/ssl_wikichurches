@@ -20,6 +20,7 @@ from ssl_attention.config import MODELS
 # Patch grid sizes per model (based on 224x224 input / patch_size)
 # DINOv2: 14px patch_size -> 224/14 = 16x16 grid (256 patches)
 # DINOv3, MAE, CLIP, SigLIP: 16px patch_size -> 224/16 = 14x14 grid (196 patches)
+# ResNet-50: 7x7 final feature map (49 spatial positions)
 # Note: Uses canonical model names (after alias resolution)
 MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "dinov2": (16, 16),  # 256 patches
@@ -27,6 +28,7 @@ MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "mae": (14, 14),     # 196 patches
     "clip": (14, 14),    # 196 patches
     "siglip": (14, 14),  # 196 patches
+    "resnet50": (7, 7),  # 49 feature positions
 }
 
 

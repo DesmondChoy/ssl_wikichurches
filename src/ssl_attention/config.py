@@ -98,6 +98,15 @@ MODELS: dict[str, ModelConfig] = {
         num_registers=0,
         has_cls_token=False,  # SigLIP uses mean pooling, no CLS token
     ),
+    "resnet50": ModelConfig(
+        model_id="torchvision",  # Flag for torchvision loading (not HuggingFace)
+        patch_size=32,  # 224 / 7 = 32 (7x7 final feature grid)
+        embed_dim=2048,  # Final layer channels
+        num_layers=4,  # 4 ResNet stages (layer1-4)
+        num_heads=1,  # Dummy value (CNN has no attention heads)
+        num_registers=0,
+        has_cls_token=False,  # Uses global average pooling, not CLS
+    ),
 }
 
 
