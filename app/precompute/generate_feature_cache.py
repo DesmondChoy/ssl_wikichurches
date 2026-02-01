@@ -87,22 +87,14 @@ def generate_features_for_model(
                         stats["skipped"] += len(layers_to_process)
                         continue
 
-                # Run inference once - we need intermediate layer outputs
+                # Run inference once with hidden states to get all layer outputs
                 with torch.no_grad():
                     preprocessed = model.preprocess([image]).to(device)
-                    output = model.forward(preprocessed)
-
-                # The model.forward() returns final layer output
-                # For intermediate layers, we need to access hidden states
-                # The patch_tokens in ModelOutput are from the final layer
-                # We'll use the attention extraction approach to get per-layer features
-
-                # For simplicity, we extract features from the output
-                # The patch_tokens represent the feature vectors we need
-                # For intermediate layers, we'd need to modify the model
-                # But for cosine similarity, using final layer is often sufficient
+                    output = model.forward(preprocessed, output_hidden_states=True)
 
                 # Extract features for each requested layer
+                # output.hidden_states contains per-layer outputs (after each transformer layer)
+                assert output.hidden_states is not None, "hidden_states should not be None"
                 for layer in layers_to_process:
                     layer_key = f"layer{layer}"
 
@@ -110,21 +102,31 @@ def generate_features_for_model(
                         stats["skipped"] += 1
                         continue
 
-                    # For now, we store features from the model's forward pass
-                    # Each layer would ideally have its own features, but
-                    # the standard approach uses final layer or specific layer hooks
+                    # Get hidden states for this specific layer
+                    # hidden_states[layer] is the output after transformer layer `layer`
+                    layer_hidden = output.hidden_states[layer]  # (B, seq_len, D)
 
-                    # Store CLS and patch tokens
-                    # Note: For a full implementation, we'd hook into specific layers
-                    # For the MVP, we'll store the final layer features
-                    # and can enhance later to support per-layer features
+                    # Extract CLS token and patch tokens from this layer's hidden state
+                    # Structure depends on model type:
+                    # - DINOv2/v3: [CLS] + [registers] + [patches]
+                    # - CLIP/MAE: [CLS] + [patches]
+                    # - SigLIP: [patches] only (no CLS in sequence)
+                    if model_name == "siglip":
+                        # SigLIP has no CLS token in sequence - compute mean pooling
+                        cls_token = layer_hidden.mean(dim=1)  # (B, D)
+                        patch_tokens = layer_hidden  # (B, 196, D)
+                    else:
+                        # All other models: CLS at position 0, patches after (+ registers)
+                        cls_token = layer_hidden[:, 0, :]  # (B, D)
+                        patch_start = 1 + model.num_registers
+                        patch_tokens = layer_hidden[:, patch_start:, :]  # (B, N, D)
 
                     cache.store(
                         model=model_name,
                         layer=layer_key,
                         image_id=image_id,
-                        cls_token=output.cls_token,
-                        patch_tokens=output.patch_tokens,
+                        cls_token=cls_token,
+                        patch_tokens=patch_tokens,
                     )
                     stats["processed"] += 1
 

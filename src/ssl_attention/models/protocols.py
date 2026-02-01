@@ -22,11 +22,16 @@ class ModelOutput:
         attention_weights: Per-layer attention weights.
             List of L tensors, each with shape (B, H, seq_len, seq_len)
             where H is num_heads and seq_len includes CLS + registers + patches.
+        hidden_states: Per-layer hidden states (optional).
+            List of L tensors, each with shape (B, seq_len, D).
+            Only populated when output_hidden_states=True in forward().
+            Index 0 is post-embedding, indices 1-L are post-transformer-layer outputs.
     """
 
     cls_token: Tensor
     patch_tokens: Tensor
     attention_weights: list[Tensor]
+    hidden_states: list[Tensor] | None = None
 
     def __post_init__(self) -> None:
         """Validate tensor shapes are compatible."""

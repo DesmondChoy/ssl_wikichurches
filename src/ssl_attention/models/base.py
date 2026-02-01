@@ -97,14 +97,18 @@ class BaseVisionModel(ABC, nn.Module):
         ...
 
     @abstractmethod
-    def _extract_output(self, model_output: Any) -> ModelOutput:
+    def _extract_output(
+        self, model_output: Any, include_hidden_states: bool = False
+    ) -> ModelOutput:
         """Extract standardized output from model-specific output.
 
         Args:
             model_output: Raw output from the model's forward pass.
+            include_hidden_states: Whether to include per-layer hidden states.
 
         Returns:
-            ModelOutput with cls_token, patch_tokens, and attention_weights.
+            ModelOutput with cls_token, patch_tokens, attention_weights,
+            and optionally hidden_states.
         """
         ...
 
@@ -139,22 +143,26 @@ class BaseVisionModel(ABC, nn.Module):
             if was_training:
                 self.model.train()
 
-    def forward(self, images: Tensor) -> ModelOutput:
+    def forward(
+        self, images: Tensor, output_hidden_states: bool = False
+    ) -> ModelOutput:
         """Process preprocessed images through the model.
 
         Args:
             images: Preprocessed images from preprocess(), shape (B, C, H, W).
+            output_hidden_states: If True, include per-layer hidden states in output.
 
         Returns:
-            ModelOutput with embeddings and attention weights.
+            ModelOutput with embeddings, attention weights, and optionally hidden_states.
         """
         with self.inference_context():
             # Most HuggingFace ViTs need output_attentions=True
             model_output = self.model(
                 pixel_values=images,
                 output_attentions=True,
+                output_hidden_states=output_hidden_states,
             )
-            return self._extract_output(model_output)
+            return self._extract_output(model_output, output_hidden_states)
 
     @property
     def image_size(self) -> int:

@@ -65,34 +65,45 @@ class DINOv3(BaseVisionModel):
         config = self._load_config()
         return AutoModel.from_pretrained(self.model_id, config=config, trust_remote_code=True)
 
-    def _extract_output(self, model_output: Any) -> ModelOutput:
+    def _extract_output(
+        self, model_output: Any, include_hidden_states: bool = False
+    ) -> ModelOutput:
         """Extract standardized output from DINOv3 output.
 
         DINOv3 returns:
         - last_hidden_state: (B, seq_len, D) where seq_len = 1 + 4 + 196 = 201
         - attentions: tuple of L tensors, each (B, H, seq, seq)
+        - hidden_states: tuple of L+1 tensors when output_hidden_states=True
 
         We extract:
         - CLS token: position 0
         - Patch tokens: positions 5 onwards (skip CLS + 4 registers)
         """
-        hidden_states = model_output.last_hidden_state  # (B, 201, 768)
+        last_hidden = model_output.last_hidden_state  # (B, 201, 768)
         attentions = model_output.attentions  # tuple of 12 tensors
 
         # CLS is always position 0
-        cls_token = hidden_states[:, 0, :]  # (B, 768)
+        cls_token = last_hidden[:, 0, :]  # (B, 768)
 
         # Patches start after CLS + registers
         patch_start = 1 + self.num_registers  # 5
-        patch_tokens = hidden_states[:, patch_start:, :]  # (B, 196, 768)
+        patch_tokens = last_hidden[:, patch_start:, :]  # (B, 196, 768)
 
         # Convert attention tuple to list
         attention_weights = list(attentions)
+
+        # Extract per-layer hidden states if requested
+        # hidden_states[0] is post-embedding, [1:] are post-transformer-layer
+        all_hidden_states = None
+        if include_hidden_states and model_output.hidden_states is not None:
+            # Skip embedding layer (index 0), keep transformer layer outputs
+            all_hidden_states = list(model_output.hidden_states[1:])
 
         return ModelOutput(
             cls_token=cls_token,
             patch_tokens=patch_tokens,
             attention_weights=attention_weights,
+            hidden_states=all_hidden_states,
         )
 
 
