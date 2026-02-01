@@ -2,6 +2,8 @@
  * Range slider component.
  */
 
+import { Tooltip } from './Tooltip';
+
 interface SliderProps {
   value: number;
   onChange: (value: number) => void;
@@ -9,6 +11,7 @@ interface SliderProps {
   max: number;
   step?: number;
   label?: string;
+  tooltip?: string;
   showValue?: boolean;
   className?: string;
 }
@@ -20,6 +23,7 @@ export function Slider({
   max,
   step = 1,
   label,
+  tooltip,
   showValue = true,
   className = '',
 }: SliderProps) {
@@ -28,7 +32,10 @@ export function Slider({
       {(label || showValue) && (
         <div className="flex justify-between items-center">
           {label && (
-            <label className="text-sm font-medium text-gray-700">{label}</label>
+            <div className="flex items-center">
+              <label className="text-sm font-medium text-gray-700">{label}</label>
+              {tooltip && <Tooltip content={tooltip} />}
+            </div>
           )}
           {showValue && (
             <span className="text-sm text-gray-500">{value}</span>

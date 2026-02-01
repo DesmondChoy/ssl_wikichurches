@@ -26,7 +26,12 @@ export function LayerSlider({
   useEffect(() => {
     if (isPlaying) {
       intervalRef.current = window.setInterval(() => {
-        onChange((currentLayer + 1) % maxLayers);
+        // Stop at last layer instead of looping
+        if (currentLayer >= maxLayers - 1) {
+          setIsPlaying(false);
+          return;
+        }
+        onChange(currentLayer + 1);
       }, playSpeed);
     } else {
       if (intervalRef.current) {
@@ -45,7 +50,13 @@ export function LayerSlider({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-4">
         <button
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={() => {
+            // Reset to layer 0 when at end and not playing
+            if (currentLayer >= maxLayers - 1 && !isPlaying) {
+              onChange(0);
+            }
+            setIsPlaying(!isPlaying);
+          }}
           className="px-3 py-1 text-sm font-medium bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
         >
           {isPlaying ? 'Pause' : 'Play'}

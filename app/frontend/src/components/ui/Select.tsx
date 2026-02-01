@@ -2,19 +2,25 @@
  * Select dropdown component.
  */
 
+import { Tooltip } from './Tooltip';
+
 interface SelectProps {
   value: string | number;
   onChange: (value: string) => void;
   options: Array<{ value: string | number; label: string }>;
   label?: string;
+  tooltip?: string;
   className?: string;
 }
 
-export function Select({ value, onChange, options, label, className = '' }: SelectProps) {
+export function Select({ value, onChange, options, label, tooltip, className = '' }: SelectProps) {
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
       {label && (
-        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <div className="flex items-center">
+          <label className="text-sm font-medium text-gray-700">{label}</label>
+          {tooltip && <Tooltip content={tooltip} />}
+        </div>
       )}
       <select
         value={value}

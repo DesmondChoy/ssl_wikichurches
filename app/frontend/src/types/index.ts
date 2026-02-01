@@ -94,6 +94,8 @@ export interface LayerComparison {
 
 // App State Types
 
+export type HeatmapStyle = 'smooth' | 'squares' | 'circles';
+
 export interface ViewSettings {
   model: string;
   layer: number;
@@ -101,6 +103,7 @@ export interface ViewSettings {
   percentile: number;
   showBboxes: boolean;
   heatmapOpacity: number;
+  heatmapStyle: HeatmapStyle;
 }
 
 // Models API Response

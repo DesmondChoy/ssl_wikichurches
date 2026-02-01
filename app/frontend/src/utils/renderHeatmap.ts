@@ -71,6 +71,8 @@ function turboColor(value: number): [number, number, number] {
   return TURBO[index];
 }
 
+export type HeatmapStyleType = 'smooth' | 'squares' | 'circles';
+
 export interface RenderHeatmapOptions {
   similarity: number[];
   patchGrid: [number, number];
@@ -79,6 +81,7 @@ export interface RenderHeatmapOptions {
   opacity?: number;
   minValue?: number;
   maxValue?: number;
+  style?: HeatmapStyleType;
 }
 
 /**
@@ -97,6 +100,7 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
     opacity = 0.7,
     minValue,
     maxValue,
+    style = 'smooth',
   } = options;
 
   const [gridRows, gridCols] = patchGrid;
@@ -106,30 +110,49 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
   const max = maxValue ?? Math.max(...similarity);
   const range = max - min || 1;
 
-  // Step 1: Create small canvas at patch grid resolution
-  const smallCanvas = document.createElement('canvas');
-  smallCanvas.width = gridCols;
-  smallCanvas.height = gridRows;
-  const smallCtx = smallCanvas.getContext('2d');
+  // For 'smooth' style: use small canvas + bilinear interpolation
+  if (style === 'smooth') {
+    // Step 1: Create small canvas at patch grid resolution
+    const smallCanvas = document.createElement('canvas');
+    smallCanvas.width = gridCols;
+    smallCanvas.height = gridRows;
+    const smallCtx = smallCanvas.getContext('2d');
 
-  if (!smallCtx) {
-    throw new Error('Could not get small canvas context');
+    if (!smallCtx) {
+      throw new Error('Could not get small canvas context');
+    }
+
+    // Step 2: Fill each pixel with color + opacity
+    const imageData = smallCtx.createImageData(gridCols, gridRows);
+    for (let i = 0; i < similarity.length; i++) {
+      const normalizedValue = (similarity[i] - min) / range;
+      const [r, g, b] = turboColor(normalizedValue);
+      const idx = i * 4;
+      imageData.data[idx] = r;
+      imageData.data[idx + 1] = g;
+      imageData.data[idx + 2] = b;
+      imageData.data[idx + 3] = Math.round(opacity * 255);
+    }
+    smallCtx.putImageData(imageData, 0, 0);
+
+    // Step 3: Scale up with bilinear interpolation
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Could not get canvas context');
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(smallCanvas, 0, 0, width, height);
+
+    return canvas.toDataURL('image/png');
   }
 
-  // Step 2: Fill each pixel with color + opacity
-  const imageData = smallCtx.createImageData(gridCols, gridRows);
-  for (let i = 0; i < similarity.length; i++) {
-    const normalizedValue = (similarity[i] - min) / range;
-    const [r, g, b] = turboColor(normalizedValue);
-    const idx = i * 4;
-    imageData.data[idx] = r;
-    imageData.data[idx + 1] = g;
-    imageData.data[idx + 2] = b;
-    imageData.data[idx + 3] = Math.round(opacity * 255);
-  }
-  smallCtx.putImageData(imageData, 0, 0);
-
-  // Step 3: Scale up with bilinear interpolation
+  // For 'squares' or 'circles' style: render discrete shapes at full resolution
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -139,9 +162,34 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
     throw new Error('Could not get canvas context');
   }
 
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(smallCanvas, 0, 0, width, height);
+  const patchWidth = width / gridCols;
+  const patchHeight = height / gridRows;
+
+  for (let i = 0; i < similarity.length; i++) {
+    const row = Math.floor(i / gridCols);
+    const col = i % gridCols;
+    const normalizedValue = (similarity[i] - min) / range;
+    const [r, g, b] = turboColor(normalizedValue);
+
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+
+    const x = col * patchWidth;
+    const y = row * patchHeight;
+
+    if (style === 'squares') {
+      // Draw filled rectangle for each patch
+      ctx.fillRect(x, y, patchWidth, patchHeight);
+    } else if (style === 'circles') {
+      // Draw filled circle centered in each patch
+      const centerX = x + patchWidth / 2;
+      const centerY = y + patchHeight / 2;
+      const radius = Math.min(patchWidth, patchHeight) / 2 * 0.85; // 85% of patch size
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   return canvas.toDataURL('image/png');
 }

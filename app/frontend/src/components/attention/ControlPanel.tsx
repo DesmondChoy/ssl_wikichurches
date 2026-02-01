@@ -8,6 +8,8 @@ import { useModels } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Slider } from '../ui/Slider';
 import { Toggle } from '../ui/Toggle';
+import { GLOSSARY } from '../../constants/glossary';
+import type { HeatmapStyle } from '../../types';
 
 // Human-readable labels for attention methods
 const METHOD_LABELS: Record<string, string> = {
@@ -29,6 +31,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     percentile,
     showBboxes,
     heatmapOpacity,
+    heatmapStyle,
     availableMethods,
     setModel,
     setLayer,
@@ -36,6 +39,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     setPercentile,
     setShowBboxes,
     setHeatmapOpacity,
+    setHeatmapStyle,
     setMethodsConfig,
   } = useViewStore();
 
@@ -94,6 +98,12 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     { value: 50, label: 'Top 50%' },
   ];
 
+  const heatmapStyleOptions = [
+    { value: 'smooth', label: 'Smooth Gradient' },
+    { value: 'squares', label: 'Squares' },
+    { value: 'circles', label: 'Circles' },
+  ];
+
   return (
     <div className={`p-4 bg-white rounded-lg shadow space-y-4 ${className}`}>
       <h3 className="font-semibold text-gray-900">View Settings</h3>
@@ -103,6 +113,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         onChange={setModel}
         options={modelOptions}
         label="Model"
+        tooltip={GLOSSARY['Model']}
       />
 
       {/* Only show method selector if model has multiple methods */}
@@ -112,6 +123,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
           onChange={setMethod}
           options={methodOptions}
           label="Attention Method"
+          tooltip={GLOSSARY['Attention Method']}
         />
       )}
 
@@ -121,6 +133,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         min={0}
         max={maxLayer}
         label={`Layer ${layer}`}
+        tooltip={GLOSSARY['Layer']}
       />
 
       <Select
@@ -128,6 +141,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         onChange={(v) => setPercentile(Number(v))}
         options={percentileOptions}
         label="Attention Threshold"
+        tooltip={GLOSSARY['Attention Threshold']}
       />
 
       <Toggle
@@ -136,8 +150,16 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         label="Show Bounding Boxes"
       />
 
-      <div className="border-t pt-4 mt-2">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Similarity Heatmap</h4>
+      <div className="border-t pt-4 mt-2 space-y-3">
+        <h4 className="text-sm font-medium text-gray-700">Similarity Heatmap</h4>
+
+        <Select
+          value={heatmapStyle}
+          onChange={(v) => setHeatmapStyle(v as HeatmapStyle)}
+          options={heatmapStyleOptions}
+          label="Heatmap Style"
+          tooltip={GLOSSARY['Heatmap Style']}
+        />
 
         <Slider
           value={heatmapOpacity}
@@ -146,6 +168,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
           max={0.9}
           step={0.1}
           label={`Opacity ${Math.round(heatmapOpacity * 100)}%`}
+          tooltip={GLOSSARY['Heatmap Opacity']}
           showValue={false}
         />
       </div>

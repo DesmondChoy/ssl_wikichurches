@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ViewSettings } from '../types';
+import type { ViewSettings, HeatmapStyle } from '../types';
 
 interface ViewStore extends ViewSettings {
   // Selection state for bbox similarity
@@ -20,6 +20,7 @@ interface ViewStore extends ViewSettings {
   setPercentile: (percentile: number) => void;
   setShowBboxes: (show: boolean) => void;
   setHeatmapOpacity: (opacity: number) => void;
+  setHeatmapStyle: (style: HeatmapStyle) => void;
   setSelectedBboxIndex: (index: number | null) => void;
   setMethodsConfig: (methods: Record<string, string[]>, defaults: Record<string, string>) => void;
   reset: () => void;
@@ -32,6 +33,7 @@ const DEFAULT_SETTINGS: ViewSettings = {
   percentile: 90,
   showBboxes: false,
   heatmapOpacity: 0.5,
+  heatmapStyle: 'smooth',
 };
 
 export const useViewStore = create<ViewStore>((set, get) => ({
@@ -51,6 +53,7 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   setPercentile: (percentile) => set({ percentile }),
   setShowBboxes: (showBboxes) => set({ showBboxes }),
   setHeatmapOpacity: (heatmapOpacity) => set({ heatmapOpacity }),
+  setHeatmapStyle: (heatmapStyle) => set({ heatmapStyle }),
   setSelectedBboxIndex: (selectedBboxIndex) => set({ selectedBboxIndex }),
   setMethodsConfig: (availableMethods, defaultMethods) => {
     const { model, method } = get();
@@ -69,5 +72,6 @@ export const useMethod = () => useViewStore((state) => state.method);
 export const usePercentile = () => useViewStore((state) => state.percentile);
 export const useShowBboxes = () => useViewStore((state) => state.showBboxes);
 export const useHeatmapOpacity = () => useViewStore((state) => state.heatmapOpacity);
+export const useHeatmapStyle = () => useViewStore((state) => state.heatmapStyle);
 export const useSelectedBboxIndex = () => useViewStore((state) => state.selectedBboxIndex);
 export const useAvailableMethods = () => useViewStore((state) => state.availableMethods);
