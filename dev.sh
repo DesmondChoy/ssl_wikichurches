@@ -13,6 +13,17 @@ NC='\033[0m' # No Color
 BACKEND_PID=""
 FRONTEND_PID=""
 
+# Kill any existing processes on our ports
+kill_existing() {
+    local port=$1
+    local pids=$(lsof -ti :$port 2>/dev/null)
+    if [ -n "$pids" ]; then
+        echo -e "${RED}[Cleanup]${NC} Killing existing processes on port $port (PIDs: $pids)"
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+}
+
 cleanup() {
     echo -e "\n${RED}Shutting down...${NC}"
 
@@ -34,6 +45,10 @@ cleanup() {
 trap cleanup SIGINT SIGTERM EXIT
 
 echo -e "${BLUE}Starting SSL Attention development servers...${NC}\n"
+
+# Kill any existing processes on our ports
+kill_existing 8000
+kill_existing 5173
 
 # Start backend
 echo -e "${GREEN}[Backend]${NC} Starting FastAPI on http://localhost:8000"
