@@ -50,7 +50,7 @@ tuner = FineTuner(FineTuningConfig(model_name="dinov2"))
 result = tuner.train(FineTunableModel("dinov2"), dataset)
 ```
 
-See `ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/checkpoints/`.
+See `src/ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/checkpoints/`.
 
 ## Visualization App
 
