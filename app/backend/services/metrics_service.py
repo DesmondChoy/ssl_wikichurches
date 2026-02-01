@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
+# Model name aliases for resolving display names to canonical database names
+MODEL_ALIASES: dict[str, str] = {
+    "siglip2": "siglip",  # siglip2 is the display name, siglip is the database key
+}
+
+
 class MetricsService:
     """Service for querying pre-computed IoU metrics from SQLite."""
 
@@ -27,6 +33,17 @@ class MetricsService:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+
+    def _resolve_model_name(self, model: str) -> str:
+        """Resolve model alias to canonical database name.
+
+        Args:
+            model: Model name (may be an alias like 'siglip2').
+
+        Returns:
+            Canonical model name for database lookups (e.g., 'siglip').
+        """
+        return MODEL_ALIASES.get(model, model)
 
     @property
     def db_path(self) -> Path:
@@ -63,20 +80,21 @@ class MetricsService:
         Returns:
             Dict with iou, coverage, attention_area, annotation_area or None.
         """
+        db_model = self._resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT iou, coverage, attention_area, annotation_area
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND layer = ? AND percentile = ?""",
-                (image_id, model, layer, percentile),
+                (image_id, db_model, layer, percentile),
             )
             row = cursor.fetchone()
 
             if row:
                 return {
                     "image_id": image_id,
-                    "model": model,
+                    "model": model,  # Return original name for display
                     "layer": layer,
                     "percentile": percentile,
                     "iou": row["iou"],
@@ -97,19 +115,20 @@ class MetricsService:
         Returns:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, num_images.
         """
+        db_model = self._resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT mean_iou, std_iou, median_iou, mean_coverage, num_images
                    FROM aggregate_metrics
                    WHERE model = ? AND layer = ? AND percentile = ?""",
-                (model, layer, percentile),
+                (db_model, layer, percentile),
             )
             row = cursor.fetchone()
 
             if row:
                 return {
-                    "model": model,
+                    "model": model,  # Return original name for display
                     "layer": layer,
                     "percentile": percentile,
                     "mean_iou": row["mean_iou"],
@@ -160,13 +179,14 @@ class MetricsService:
         Returns:
             Dict with model, percentile, layers, ious, best_layer, best_iou.
         """
+        db_model = self._resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT layer, mean_iou FROM aggregate_metrics
                    WHERE model = ? AND percentile = ?
                    ORDER BY layer""",
-                (model, percentile),
+                (db_model, percentile),
             )
             rows = cursor.fetchall()
 
@@ -178,7 +198,7 @@ class MetricsService:
             best_iou = ious[best_idx] if ious else 0.0
 
             return {
-                "model": model,
+                "model": model,  # Return original name for display
                 "percentile": percentile,
                 "layers": layers,
                 "ious": ious,
@@ -197,12 +217,13 @@ class MetricsService:
         Returns:
             Dict with model, layer, percentile, styles (name->iou), style_counts.
         """
+        db_model = self._resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT style_name, mean_iou, num_images FROM style_metrics
                    WHERE model = ? AND layer = ? AND percentile = ?""",
-                (model, layer, percentile),
+                (db_model, layer, percentile),
             )
 
             styles = {}
@@ -212,7 +233,7 @@ class MetricsService:
                 counts[row["style_name"]] = row["num_images"]
 
             return {
-                "model": model,
+                "model": model,  # Return original name for display
                 "layer": layer,
                 "percentile": percentile,
                 "styles": styles,
@@ -230,6 +251,7 @@ class MetricsService:
         Returns:
             List of dicts with image_id, iou, coverage.
         """
+        db_model = self._resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -237,7 +259,7 @@ class MetricsService:
                    FROM image_metrics
                    WHERE model = ? AND layer = ? AND percentile = ?
                    ORDER BY iou DESC""",
-                (model, layer, percentile),
+                (db_model, layer, percentile),
             )
 
             return [
