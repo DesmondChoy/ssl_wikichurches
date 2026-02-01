@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -12,15 +13,13 @@ import torch.nn.functional as F
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
+from app.backend.config import CACHE_PATH
 from ssl_attention.cache import FeatureCache
 from ssl_attention.config import MODELS
 
-from app.backend.config import CACHE_PATH
-
-
 # Patch grid sizes per model (based on 224x224 input / patch_size)
-# DINOv2: 14x14 patch_size -> 224/14 = 16x16 patches
-# DINOv3, MAE, CLIP, SigLIP: 16x16 patch_size -> 224/16 = 14x14 patches
+# DINOv2: 14px patch_size -> 224/14 = 16x16 grid (256 patches)
+# DINOv3, MAE, CLIP, SigLIP: 16px patch_size -> 224/16 = 14x14 grid (196 patches)
 MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "dinov2": (16, 16),  # 256 patches
     "dinov3": (14, 14),  # 196 patches
@@ -33,10 +32,10 @@ MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
 class SimilarityService:
     """Service for computing cosine similarity between bboxes and patches."""
 
-    _instance: "SimilarityService | None" = None
+    _instance: SimilarityService | None = None
     _cache: FeatureCache | None = None
 
-    def __new__(cls) -> "SimilarityService":
+    def __new__(cls) -> SimilarityService:
         """Singleton pattern for cache access."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -146,11 +145,11 @@ class SimilarityService:
         # Load cached features
         try:
             _, patch_tokens = self.cache.load(model, layer_key, image_id)
-        except KeyError:
+        except KeyError as e:
             raise ValueError(
                 f"Features not cached for {model}/{layer_key}/{image_id}. "
                 "Run generate_feature_cache.py first."
-            )
+            ) from e
 
         # Get patch grid dimensions
         grid_rows, grid_cols = self.get_patch_grid(model)
@@ -161,7 +160,6 @@ class SimilarityService:
             # Some models might have different patch counts
             # Adjust grid dimensions based on actual token count
             actual_count = patch_tokens.shape[0]
-            import math
             grid_size = int(math.sqrt(actual_count))
             if grid_size * grid_size == actual_count:
                 grid_rows = grid_cols = grid_size
