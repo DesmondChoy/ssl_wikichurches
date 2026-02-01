@@ -179,11 +179,22 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Changing model updates the attention visualization
 - [ ] Changing layer updates the attention visualization
 - [ ] Changing percentile updates the attention overlay
+- [ ] Tooltip help icons (?) appear next to each control label
+- [ ] Hovering tooltip icon shows educational explanation
+
+#### Similarity Heatmap Controls (Right Column - below Control Panel)
+- [ ] "Similarity Heatmap" section header is visible
+- [ ] Heatmap Style dropdown shows options: Smooth Gradient, Squares, Circles
+- [ ] Opacity slider allows adjusting heatmap transparency (20%-90%)
+- [ ] Changing heatmap style updates the similarity visualization when bbox selected
+- [ ] Tooltip help icons (?) appear next to Heatmap Style and Opacity controls
 
 #### Layer Animation Slider
 - [ ] Play/Pause button is visible
 - [ ] Navigation buttons: |< (first), < (prev), > (next), >| (last)
 - [ ] Play button auto-cycles through layers 0-11
+- [ ] Animation STOPS at last layer (does NOT loop back to 0)
+- [ ] Clicking Play when at last layer resets to layer 0 and starts playing
 - [ ] Pause button stops the animation
 - [ ] "Early layers" and "Late layers" labels are visible
 
@@ -254,11 +265,20 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Multiple colored lines render (one per model)
 - [ ] Legend identifies each model
 
-#### IoU by Architectural Style (Bottom Chart)
+#### IoU by Architectural Style (Bottom Left)
 - [ ] Bar chart is visible (not blank/missing)
 - [ ] Bars display IoU values per style
 - [ ] Style names are readable
 - [ ] "No style data available" message shows if no data
+
+#### Feature Type Breakdown (Bottom Right)
+- [ ] "Feature Type Breakdown" card is visible
+- [ ] Search box for filtering features is present
+- [ ] Sort controls (IoU, Count, Name) are visible and functional
+- [ ] Feature list shows feature name, IoU score (color-coded), bbox count
+- [ ] IoU scores are color-coded: green >= 0.6, yellow >= 0.4, orange >= 0.2, red < 0.2
+- [ ] "Show more" button appears when more features available
+- [ ] Clicking sort button changes list ordering
 
 #### Quick Actions Card
 - [ ] "Browse Images" link navigates to gallery
@@ -334,13 +354,17 @@ For rapid testing, verify these critical paths:
 3. [ ] Can click image to view detail page
 4. [ ] Image detail shows attention visualization overlay
 5. [ ] Control panel controls work (model, layer, percentile dropdowns)
-6. [ ] "Layer Analysis" link works (page renders, not blank)
-7. [ ] Compare page loads and allows image selection
-8. [ ] **Dashboard page renders content (NOT blank screen!)**
-9. [ ] Dashboard shows leaderboard and charts
-10. [ ] Navigation between all pages works
-11. [ ] No console errors throughout
-12. [ ] No blank pages anywhere in the app
+6. [ ] Tooltip help icons (?) appear next to control labels
+7. [ ] Layer Play button stops at last layer (doesn't loop)
+8. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
+9. [ ] "Layer Analysis" link works (page renders, not blank)
+10. [ ] Compare page loads and allows image selection
+11. [ ] **Dashboard page renders content (NOT blank screen!)**
+12. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
+13. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
+14. [ ] Navigation between all pages works
+15. [ ] No console errors throughout
+16. [ ] No blank pages anywhere in the app
 
 ---
 
@@ -388,8 +412,9 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Navigation (3 items)
    └── Layout (3 items)
    └── Attention Viewer (5 items)
-   └── Control Panel (7 items)
-   └── Layer Animation Slider (5 items)
+   └── Control Panel (9 items) - includes tooltips
+   └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
+   └── Layer Animation Slider (7 items) - includes stop-at-end behavior
    └── IoU Metrics Display (3 items)
    └── Bounding Box Interaction (5 items)
    └── Annotations Card (4 items)
@@ -405,6 +430,7 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Model Leaderboard (5 items)
    └── Layer Progression Chart (5 items)
    └── IoU by Architectural Style (4 items)
+   └── Feature Type Breakdown (7 items) - new component
    └── Quick Actions Card (3 items)
    └── Percentile Threshold Control (3 items)
 
@@ -424,4 +450,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~100 items
+**Total checklist items**: ~115 items
