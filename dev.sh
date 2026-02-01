@@ -45,7 +45,12 @@ sleep 2
 
 # Start frontend
 echo -e "${GREEN}[Frontend]${NC} Starting Vite on http://localhost:5173"
-cd app/frontend && npm run dev &
+cd app/frontend
+if [ ! -d "node_modules" ]; then
+    echo -e "${BLUE}[Frontend]${NC} Installing npm dependencies..."
+    npm install
+fi
+npm run dev &
 FRONTEND_PID=$!
 
 echo -e "\n${BLUE}Both servers running. Press Ctrl+C to stop.${NC}\n"
