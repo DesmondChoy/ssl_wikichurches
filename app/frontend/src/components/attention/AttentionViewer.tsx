@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
-import { renderHeatmap, computeSimilarityStats } from '../../utils/renderHeatmap';
+import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats } from '../../utils/renderHeatmap';
 import type { BoundingBox } from '../../types';
 
 interface AttentionViewerProps {
@@ -80,6 +80,9 @@ export function AttentionViewer({
     if (!similarityData) return null;
     return computeSimilarityStats(similarityData.similarity);
   }, [similarityData]);
+
+  // Generate legend URL (static, computed once)
+  const legendUrl = useMemo(() => renderHeatmapLegend(120, 12), []);
 
   // Reset selection when image changes
   useEffect(() => {
@@ -186,6 +189,15 @@ export function AttentionViewer({
       {stats && selectedBbox && (
         <div className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
           Sim: {stats.min.toFixed(2)} - {stats.max.toFixed(2)}
+        </div>
+      )}
+
+      {/* Colormap legend */}
+      {stats && selectedBbox && (
+        <div className="absolute bottom-8 right-2 flex items-center gap-1 px-2 py-1 bg-black/50 rounded text-xs text-white">
+          <span>0</span>
+          <img src={legendUrl} alt="Similarity scale" className="h-3 rounded-sm" />
+          <span>1</span>
         </div>
       )}
     </div>
