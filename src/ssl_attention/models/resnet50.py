@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 from PIL import Image
 from torch import Tensor, nn
-from torchvision import transforms  # type: ignore[import-untyped]
-from torchvision.models import ResNet50_Weights, resnet50  # type: ignore[import-untyped]
+from torchvision import transforms
+from torchvision.models import ResNet50_Weights, resnet50
 
 if TYPE_CHECKING:
     from torchvision.models import ResNet
@@ -277,19 +277,10 @@ class ResNet50(BaseVisionModel):
 
             # For CNN models, we don't have CLS/patch tokens in the ViT sense
             # Use the final GAP features as a pseudo-CLS token
-            # Extract features before the final FC layer
-            resnet: ResNet = self.model  # type: ignore[assignment,unused-ignore]
-            with torch.no_grad():
-                x = resnet.conv1(images)
-                x = resnet.bn1(x)
-                x = resnet.relu(x)
-                x = resnet.maxpool(x)
-                x = resnet.layer1(x)
-                x = resnet.layer2(x)
-                x = resnet.layer3(x)
-                x = resnet.layer4(x)
-                x = resnet.avgpool(x)
-                cls_features = x.flatten(1)  # (B, 2048)
+            # Reuse layer4 activations from Grad-CAM hooks (avoid redundant forward pass)
+            layer4_activations = self._activations["layer4"]  # (B, 2048, 7, 7)
+            # Apply global average pooling to match ResNet's avgpool layer
+            cls_features = layer4_activations.mean(dim=(2, 3))  # (B, 2048)
 
             return ModelOutput(
                 cls_token=cls_features,  # Global average pooled features
