@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion)
+**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion; Phase 6 items 7-8 pending)
 
 ---
 
@@ -334,7 +334,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
      - `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` - Clickable bbox overlay
      - `app/frontend/src/utils/renderHeatmap.ts` - Client-side viridis heatmap rendering
 
-6. **Attention Method Selection** ⬜
+6. **Attention Method Selection** ✅
    - Update precompute to generate CLS, rollout, and GradCAM heatmaps
    - Add method parameter to `/api/attention` endpoints
    - Add method selector dropdown to ControlPanel.tsx
@@ -343,6 +343,11 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Add `/api/metrics/model/{model}/feature_breakdown` endpoint
    - Create FeatureBreakdown.tsx component
    - Display IoU by 106 architectural feature types
+
+8. **Per-Model Layer Counts** ⬜
+   - Update `/api/models` endpoint to return `layer_counts` per model
+   - Adapt layer slider range based on selected model (ViTs have 12 layers, ResNet-50 has 4)
+   - Currently UI shows layers 0-11 for all models, causing 404s for ResNet-50 layers > 3
 
 ---
 
@@ -357,7 +362,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 5 | `src/ssl_attention/models/mae.py` | MAE wrapper | ✅ Done |
 | 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper | ✅ Done |
 | 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper | ✅ Done |
-| 21 | `src/ssl_attention/models/resnet50.py` | ResNet-50 supervised baseline | ⬜ Pending |
+| 21 | `src/ssl_attention/models/resnet50.py` | ResNet-50 supervised baseline | ✅ Done |
 | 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method | ✅ Done |
 | 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ✅ Done |
 | 10 | `src/ssl_attention/data/wikichurches.py` | Dataset classes | ✅ Done |
