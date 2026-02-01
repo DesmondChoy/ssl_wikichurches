@@ -25,7 +25,7 @@ METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
 
 # Available models (must match ssl_attention.config.MODELS)
-AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip"]
+AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip2"]
 
 # Number of transformer layers
 NUM_LAYERS = 12
@@ -38,8 +38,10 @@ API_PREFIX = "/api"
 CORS_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",  # Vite default
+    "http://localhost:5174",  # Vite fallback when 5173 is in use
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 
 # Image settings

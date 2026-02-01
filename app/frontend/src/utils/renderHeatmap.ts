@@ -3,6 +3,8 @@
  * Renders similarity values as a viridis colormap overlay.
  */
 
+import type { HeatmapShape } from '../types';
+
 // Viridis colormap (256 colors, R, G, B values 0-255)
 // This is a perceptually uniform colormap that works well for scientific visualization
 const VIRIDIS: [number, number, number][] = [
@@ -88,6 +90,7 @@ export interface RenderHeatmapOptions {
   opacity?: number;
   minValue?: number;
   maxValue?: number;
+  shape?: HeatmapShape;
 }
 
 /**
@@ -105,6 +108,7 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
     opacity = 0.7,
     minValue,
     maxValue,
+    shape = 'squares',
   } = options;
 
   const [gridRows, gridCols] = patchGrid;
@@ -129,7 +133,7 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
   // Clear canvas
   ctx.clearRect(0, 0, width, height);
 
-  // Draw each patch as a colored rectangle
+  // Draw each patch based on the selected shape
   for (let i = 0; i < similarity.length; i++) {
     const row = Math.floor(i / gridCols);
     const col = i % gridCols;
@@ -138,12 +142,24 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
     const [r, g, b] = viridisColor(normalizedValue);
 
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-    ctx.fillRect(
-      col * cellWidth,
-      row * cellHeight,
-      cellWidth + 0.5, // Small overlap to avoid gaps
-      cellHeight + 0.5
-    );
+
+    if (shape === 'circles') {
+      // Draw circles inscribed in each cell
+      const centerX = col * cellWidth + cellWidth / 2;
+      const centerY = row * cellHeight + cellHeight / 2;
+      const radius = Math.min(cellWidth, cellHeight) / 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Draw squares (default)
+      ctx.fillRect(
+        col * cellWidth,
+        row * cellHeight,
+        cellWidth + 0.5, // Small overlap to avoid gaps
+        cellHeight + 0.5
+      );
+    }
   }
 
   return canvas.toDataURL('image/png');
