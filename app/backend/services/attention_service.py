@@ -124,10 +124,7 @@ class AttentionService:
             # 1D tensor - try to infer square grid
             import math
             size = int(math.sqrt(len(attention_flat)))
-            if size * size == len(attention_flat):
-                shape = [size, size]
-            else:
-                shape = [grid_rows, grid_cols]
+            shape = [size, size] if size * size == len(attention_flat) else [grid_rows, grid_cols]
         else:
             shape = [grid_rows, grid_cols]
 
