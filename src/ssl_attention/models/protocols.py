@@ -25,7 +25,8 @@ class ModelOutput:
         hidden_states: Per-layer hidden states (optional).
             List of L tensors, each with shape (B, seq_len, D).
             Only populated when output_hidden_states=True in forward().
-            Index 0 is post-embedding, indices 1-L are post-transformer-layer outputs.
+            Index i contains the output after transformer layer i (0-indexed).
+            The embedding layer output is not included.
     """
 
     cls_token: Tensor
