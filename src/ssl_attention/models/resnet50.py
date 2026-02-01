@@ -14,7 +14,7 @@ Reference:
     https://arxiv.org/abs/1512.03385
 """
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
 
@@ -141,19 +141,33 @@ class ResNet50(BaseVisionModel):
 
         for name, layer in target_layers:
             # Forward hook: capture activations
-            def make_forward_hook(layer_name: str):
+            def make_forward_hook(
+                layer_name: str,
+            ) -> Callable[[nn.Module, Any, Tensor], None]:
                 def hook(module: nn.Module, input: Any, output: Tensor) -> None:
                     self._activations[layer_name] = output.detach()
                 return hook
 
             # Backward hook: capture gradients
-            def make_backward_hook(layer_name: str):
+            def make_backward_hook(
+                layer_name: str,
+            ) -> Callable[[nn.Module, Any, tuple[Tensor, ...]], None]:
                 def hook(module: nn.Module, grad_in: Any, grad_out: tuple[Tensor, ...]) -> None:
                     self._gradients[layer_name] = grad_out[0].detach()
                 return hook
 
             self._hooks.append(layer.register_forward_hook(make_forward_hook(name)))
             self._hooks.append(layer.register_full_backward_hook(make_backward_hook(name)))
+
+    def _remove_hooks(self) -> None:
+        """Remove all registered hooks to prevent memory leaks."""
+        for hook in self._hooks:
+            hook.remove()
+        self._hooks.clear()
+
+    def __del__(self) -> None:
+        """Cleanup hooks on deletion."""
+        self._remove_hooks()
 
     @contextmanager
     def inference_context(self) -> Generator[None, None, None]:

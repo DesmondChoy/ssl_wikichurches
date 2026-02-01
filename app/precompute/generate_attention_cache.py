@@ -111,7 +111,8 @@ def generate_attention_for_model(
                     # CNN models return pre-computed heatmaps via Grad-CAM
                     if is_cnn:
                         # Grad-CAM heatmaps are already in (B, H, W) format
-                        heatmap = output.attention_weights[layer].unsqueeze(0)
+                        # For single image, shape is (1, H, W) - keep as-is for squeeze(0) below
+                        heatmap = output.attention_weights[layer]
                     else:
                         # Extract attention for this layer (ViT models)
                         # Use CLS attention for models with CLS token, mean attention otherwise
