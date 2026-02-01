@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion; Phase 6 item 8 pending)
+**Last Updated:** 2026-02-02 (Phase 5 items 3-4 pending team discussion; Phase 6 item 8 pending)
 
 ---
 
@@ -349,6 +349,16 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Adapt layer slider range based on selected model (ViTs have 12 layers, ResNet-50 has 4)
    - Currently UI shows layers 0-11 for all models, causing 404s for ResNet-50 layers > 3
 
+9. **Interactive Bbox Similarity Comparison** ✅
+   - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
+   - Clicking a bbox shows similarity heatmaps for both models simultaneously
+   - Synchronized selection across both panels for direct comparison
+   - **Research question:** How do different models perceive the same architectural feature?
+   - **Files added:**
+     - `app/frontend/src/components/comparison/SimilarityViewer.tsx` - Bbox overlay + similarity heatmap viewer
+     - `app/frontend/src/components/comparison/ModelCompare.tsx` - Updated with synchronized selection
+     - Selection info bar, clear button, and colormap legend
+
 ---
 
 ## Critical Files to Create
@@ -441,6 +451,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `app/backend/schemas/models.py` | Added BboxInput, SimilarityResponse | ✅ Done |
 | `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` | Clickable bbox SVG overlay | ✅ Done |
 | `app/frontend/src/utils/renderHeatmap.ts` | Client-side viridis heatmap | ✅ Done |
+
+### Phase 6 Enhancement: Interactive Bbox Comparison
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `app/frontend/src/components/comparison/SimilarityViewer.tsx` | Bbox overlay + similarity heatmap viewer | ✅ Done |
+| `app/frontend/src/components/comparison/ModelCompare.tsx` | Synchronized bbox selection across panels | ✅ Done |
 
 ---
 
