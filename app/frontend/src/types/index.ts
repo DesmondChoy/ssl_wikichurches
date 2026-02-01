@@ -94,13 +94,10 @@ export interface LayerComparison {
 
 // App State Types
 
-export type HeatmapShape = 'squares' | 'circles';
-
 export interface ViewSettings {
   model: string;
   layer: number;
   percentile: number;
   showBboxes: boolean;
   heatmapOpacity: number;
-  heatmapShape: HeatmapShape;
 }

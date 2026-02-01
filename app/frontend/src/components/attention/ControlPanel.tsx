@@ -7,7 +7,6 @@ import { useModels } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Slider } from '../ui/Slider';
 import { Toggle } from '../ui/Toggle';
-import type { HeatmapShape } from '../../types';
 
 interface ControlPanelProps {
   className?: string;
@@ -20,13 +19,11 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     percentile,
     showBboxes,
     heatmapOpacity,
-    heatmapShape,
     setModel,
     setLayer,
     setPercentile,
     setShowBboxes,
     setHeatmapOpacity,
-    setHeatmapShape,
   } = useViewStore();
 
   const { data: modelsData, isLoading } = useModels();
@@ -56,11 +53,6 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     { value: 70, label: 'Top 30%' },
     { value: 60, label: 'Top 40%' },
     { value: 50, label: 'Top 50%' },
-  ];
-
-  const shapeOptions: { value: HeatmapShape; label: string }[] = [
-    { value: 'squares', label: 'Squares' },
-    { value: 'circles', label: 'Circles' },
   ];
 
   return (
@@ -106,13 +98,6 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
           step={0.1}
           label={`Opacity ${Math.round(heatmapOpacity * 100)}%`}
           showValue={false}
-        />
-
-        <Select
-          value={heatmapShape}
-          onChange={(v) => setHeatmapShape(v as HeatmapShape)}
-          options={shapeOptions}
-          label="Shape"
         />
       </div>
     </div>

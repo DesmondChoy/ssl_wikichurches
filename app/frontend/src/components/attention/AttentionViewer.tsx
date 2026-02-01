@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
 import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats } from '../../utils/renderHeatmap';
-import { useHeatmapOpacity, useHeatmapShape } from '../../store/viewStore';
+import { useHeatmapOpacity } from '../../store/viewStore';
 import type { BoundingBox } from '../../types';
 
 interface AttentionViewerProps {
@@ -36,7 +36,6 @@ export function AttentionViewer({
 
   // Get heatmap settings from store
   const heatmapOpacity = useHeatmapOpacity();
-  const heatmapShape = useHeatmapShape();
 
   const overlayUrl = attentionAPI.getOverlayUrl(imageId, model, layer, showBboxes);
   const originalUrl = imagesAPI.getImageUrl(imageId, 224);
@@ -74,12 +73,11 @@ export function AttentionViewer({
         similarity: similarityData.similarity,
         patchGrid: similarityData.patch_grid as [number, number],
         opacity: heatmapOpacity,
-        shape: heatmapShape,
       });
     } catch {
       return null;
     }
-  }, [similarityData, heatmapOpacity, heatmapShape]);
+  }, [similarityData, heatmapOpacity]);
 
   // Compute stats for display
   const stats = useMemo(() => {
