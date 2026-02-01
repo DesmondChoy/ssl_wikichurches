@@ -12,9 +12,19 @@
 
 Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?** Furthermore, when models are fine-tuned for a specific task, **does their attention shift toward expert-identified features, or do they discover alternative discriminative regions?**
 
+A related question emerges: **beyond where models attend, do the learned patch representations encode semantically coherent groupings?** If a model's features for "rose windows" are similar across different images, this suggests the representation has captured meaningful architectural concepts rather than low-level texture statistics.
+
 Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features."
 
 While existing tools like BertViz and Comet ML visualize transformer attention, they do not quantify whether attention aligns with domain expertise. This gap matters for practitioners fine-tuning foundation models: a model achieving high classification accuracy might exploit background correlations rather than attending to diagnostic features. We address this gap with both a quantitative benchmark and an interactive analysis tool.
+
+### Research Questions and Approaches
+
+| Research Question | Approach | Tool/Method |
+|-------------------|----------|-------------|
+| Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU between thresholded attention maps and expert bounding boxes across 5 models and 12 layers | Attention heatmap overlay, IoU metrics dashboard, model leaderboard |
+| Does fine-tuning shift attention toward expert-identified features? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images | Frozen vs fine-tuned comparison view, attention shift visualization |
+| Do learned representations encode semantically coherent groupings? | Compute cosine similarity between bbox patch features and all image patches | Click-to-compare similarity heatmap, cross-model feature coherence comparison |
 
 ---
 
@@ -143,6 +153,11 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 - Per-feature-type breakdown
 - Statistical comparison view
 
+**Representation Exploration (Enhancement):**
+- Click-to-compare: Select an annotated feature to see cosine similarity heatmap
+- Visualize which image regions share similar learned representations
+- Compare feature coherence across models and layers
+
 ---
 
 ## 4. Ablation Studies
@@ -244,6 +259,7 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge
 5. **Reproducible codebase** for attention-annotation alignment evaluation
 6. **Fine-tuning impact analysis** showing how task-specific training shifts attention patterns relative to expert annotations
+7. **Representation coherence analysis** showing whether patch features cluster around semantically similar architectural elements
 
 ---
 

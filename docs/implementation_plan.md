@@ -320,6 +320,18 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `/api/metrics` - IoU metrics, leaderboard, layer progression
    - `/api/compare` - Model comparison, frozen vs fine-tuned
 
+5. **Representation Similarity Exploration (Enhancement)** ✅
+   - Click on bounding box to compute cosine similarity with all image patches
+   - Visualize which regions share similar learned representations
+   - Compare feature coherence across models and layers
+   - **Research question:** Do patch features cluster around semantically similar architectural elements?
+   - **Files added:**
+     - `app/precompute/generate_feature_cache.py` - Cache patch tokens to HDF5
+     - `app/backend/services/similarity_service.py` - Bbox-to-patch similarity computation
+     - `POST /api/attention/{image_id}/similarity` - Similarity API endpoint
+     - `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` - Clickable bbox overlay
+     - `app/frontend/src/utils/renderHeatmap.ts` - Client-side viridis heatmap rendering
+
 ---
 
 ## Critical Files to Create
@@ -401,6 +413,16 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `app/backend/services/` | Business logic services | ✅ Done |
 | `app/precompute/` | Pre-computation scripts | ✅ Done |
 | `app/frontend/` | React + TypeScript frontend | ✅ Done |
+
+### Phase 6 Enhancement: Similarity Exploration
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `app/precompute/generate_feature_cache.py` | Cache CLS + patch tokens to HDF5 | ✅ Done |
+| `app/backend/services/similarity_service.py` | Bbox-to-patch cosine similarity | ✅ Done |
+| `app/backend/schemas/models.py` | Added BboxInput, SimilarityResponse | ✅ Done |
+| `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` | Clickable bbox SVG overlay | ✅ Done |
+| `app/frontend/src/utils/renderHeatmap.ts` | Client-side viridis heatmap | ✅ Done |
 
 ---
 
