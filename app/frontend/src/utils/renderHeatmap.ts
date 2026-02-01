@@ -194,6 +194,10 @@ export interface SimilarityStats {
  * Compute statistics for similarity values.
  */
 export function computeSimilarityStats(similarity: number[]): SimilarityStats {
+  if (similarity.length === 0) {
+    return { min: 0, max: 0, mean: 0, median: 0 };
+  }
+
   const sorted = [...similarity].sort((a, b) => a - b);
   const min = sorted[0];
   const max = sorted[sorted.length - 1];
