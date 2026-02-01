@@ -20,13 +20,13 @@ from ssl_attention.config import MODELS
 # Patch grid sizes per model (based on 224x224 input / patch_size)
 # DINOv2: 14px patch_size -> 224/14 = 16x16 grid (256 patches)
 # DINOv3, MAE, CLIP, SigLIP: 16px patch_size -> 224/16 = 14x14 grid (196 patches)
+# Note: Uses canonical model names (after alias resolution)
 MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "dinov2": (16, 16),  # 256 patches
     "dinov3": (14, 14),  # 196 patches
     "mae": (14, 14),     # 196 patches
     "clip": (14, 14),    # 196 patches
     "siglip": (14, 14),  # 196 patches
-    "siglip2": (14, 14), # 196 patches (alias for siglip)
 }
 
 
@@ -155,8 +155,8 @@ class SimilarityService:
                 "Run generate_feature_cache.py first."
             ) from e
 
-        # Get patch grid dimensions
-        grid_rows, grid_cols = self.get_patch_grid(model)
+        # Get patch grid dimensions (use resolved model name for consistency)
+        grid_rows, grid_cols = self.get_patch_grid(cache_model)
         total_patches = grid_rows * grid_cols
 
         # Verify patch count matches
