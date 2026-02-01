@@ -17,7 +17,8 @@ from app.backend.config import (
     get_model_num_layers,
     resolve_model_name,
 )
-from app.backend.schemas.models import BboxInput, SimilarityResponse
+from app.backend.schemas.models import BboxInput, RawAttentionResponse, SimilarityResponse
+from app.backend.services.attention_service import attention_service
 from app.backend.services.image_service import image_service
 from app.backend.services.similarity_service import similarity_service
 
@@ -177,6 +178,52 @@ async def get_overlay(
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
+
+
+@router.get("/{image_id}/raw", response_model=RawAttentionResponse)
+async def get_raw_attention(
+    image_id: str,
+    model: Annotated[str, Query(description="Model name")] = "dinov2",
+    layer: Annotated[int, Query(ge=0, description="Layer number")] = 11,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
+) -> RawAttentionResponse:
+    """Get raw attention values for client-side rendering.
+
+    Returns the attention map as a flat array of values with grid dimensions,
+    enabling client-side percentile thresholding and dynamic visualization.
+
+    Args:
+        image_id: Image filename.
+        model: Model name.
+        layer: Layer number (varies by model).
+        method: Attention method (cls, rollout, mean, gradcam). Default per model.
+    """
+    resolved_model = validate_model(model)
+    layer_key = validate_layer(layer, resolved_model)
+    resolved_method = validate_method(resolved_model, method)
+
+    # Check if attention is cached
+    if not attention_service.exists(resolved_model, layer_key, image_id, method=resolved_method):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Attention not cached for {resolved_model}/{layer_key}/{resolved_method}/{image_id}. "
+            "Run generate_attention_cache.py first.",
+        )
+
+    try:
+        result = attention_service.get_raw_attention(
+            image_id=image_id,
+            model=resolved_model,
+            layer=layer,
+            method=resolved_method,
+        )
+        return RawAttentionResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error loading attention: {e}"
+        ) from None
 
 
 @router.get("/{image_id}/layers")

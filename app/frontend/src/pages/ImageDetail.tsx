@@ -95,6 +95,7 @@ export function ImageDetailPage() {
             model={model}
             layer={layer}
             method={method}
+            percentile={percentile}
             showBboxes={showBboxes}
             bboxes={imageDetail?.annotation.bboxes}
             selectedBboxIndex={selectedBboxIndex}

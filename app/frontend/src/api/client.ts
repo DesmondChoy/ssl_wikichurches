@@ -105,6 +105,14 @@ export const attentionAPI = {
 
   getModels: () => fetchJSON<import('../types').ModelsResponse>('/attention/models'),
 
+  getRawAttention: (imageId: string, model: string, layer: number, method?: string) => {
+    const params = new URLSearchParams({ model, layer: String(layer) });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').RawAttentionResponse>(
+      `/attention/${imageId}/raw?${params}`
+    );
+  },
+
   getSimilarity: (
     imageId: string,
     bbox: { left: number; top: number; width: number; height: number; label?: string },

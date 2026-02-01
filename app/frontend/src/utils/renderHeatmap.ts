@@ -254,3 +254,72 @@ export function computeSimilarityStats(similarity: number[]): SimilarityStats {
 
   return { min, max, mean, median };
 }
+
+/**
+ * Apply percentile threshold to attention values.
+ * Values below the threshold are set to 0 (transparent).
+ *
+ * @param values - Raw attention values
+ * @param percentile - Percentile threshold (e.g., 90 means keep top 10%)
+ * @returns Thresholded values with same length
+ */
+export function applyPercentileThreshold(values: number[], percentile: number): number[] {
+  if (values.length === 0) return [];
+
+  // Sort to find percentile threshold
+  const sorted = [...values].sort((a, b) => a - b);
+  const thresholdIndex = Math.floor((percentile / 100) * (sorted.length - 1));
+  const threshold = sorted[thresholdIndex];
+
+  // Apply threshold: values below are zeroed out
+  return values.map(v => (v >= threshold ? v : 0));
+}
+
+export interface RenderAttentionHeatmapOptions {
+  attention: number[];
+  shape: [number, number];
+  percentile: number;
+  width?: number;
+  height?: number;
+  opacity?: number;
+  style?: HeatmapStyleType;
+}
+
+/**
+ * Render an attention heatmap with percentile thresholding.
+ * Combines threshold filtering with Turbo colormap visualization.
+ *
+ * @param options - Rendering options
+ * @returns Data URL of the rendered heatmap image
+ */
+export function renderAttentionHeatmap(options: RenderAttentionHeatmapOptions): string {
+  const {
+    attention,
+    shape,
+    percentile,
+    width = 224,
+    height = 224,
+    opacity = 0.7,
+    style = 'smooth',
+  } = options;
+
+  // Apply percentile threshold
+  const thresholded = applyPercentileThreshold(attention, percentile);
+
+  // Find min/max of non-zero values for normalization
+  const nonZero = thresholded.filter(v => v > 0);
+  const minValue = nonZero.length > 0 ? Math.min(...nonZero) : 0;
+  const maxValue = nonZero.length > 0 ? Math.max(...nonZero) : 1;
+
+  // Use existing renderHeatmap with thresholded values
+  return renderHeatmap({
+    similarity: thresholded,
+    patchGrid: shape,
+    width,
+    height,
+    opacity,
+    minValue,
+    maxValue,
+    style,
+  });
+}

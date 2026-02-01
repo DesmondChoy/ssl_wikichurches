@@ -148,3 +148,12 @@ class FeatureBreakdownSchema(BaseModel):
     percentile: int
     features: list[FeatureIoUEntry]
     total_feature_types: int = Field(..., description="Total number of feature types returned")
+
+
+class RawAttentionResponse(BaseModel):
+    """Raw attention values for client-side rendering."""
+
+    attention: list[float] = Field(..., description="Flattened attention values (row-major order)")
+    shape: list[int] = Field(..., description="Grid dimensions [rows, cols]")
+    min_value: float = Field(..., description="Minimum attention value")
+    max_value: float = Field(..., description="Maximum attention value")

@@ -1,12 +1,13 @@
 /**
  * Main attention heatmap viewer with overlay controls and bbox similarity.
+ * Supports dynamic percentile thresholding via client-side Canvas rendering.
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
-import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats } from '../../utils/renderHeatmap';
+import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats, renderAttentionHeatmap } from '../../utils/renderHeatmap';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
 import type { BoundingBox } from '../../types';
 
@@ -15,6 +16,7 @@ interface AttentionViewerProps {
   model: string;
   layer: number;
   method: string;
+  percentile: number;
   showBboxes: boolean;
   bboxes?: BoundingBox[];
   selectedBboxIndex: number | null;
@@ -27,6 +29,7 @@ export function AttentionViewer({
   model,
   layer,
   method,
+  percentile,
   showBboxes,
   bboxes = [],
   selectedBboxIndex,
@@ -45,11 +48,33 @@ export function AttentionViewer({
   const heatmapOpacity = useHeatmapOpacity();
   const heatmapStyle = useHeatmapStyle();
 
-  const overlayUrl = attentionAPI.getOverlayUrl(imageId, model, layer, showBboxes, method);
   const originalUrl = imagesAPI.getImageUrl(imageId, 224);
 
   // Get selected bbox
   const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
+
+  // Fetch raw attention data for dynamic rendering
+  const { data: rawAttentionData, isLoading: attentionLoading, error: attentionError } = useQuery({
+    queryKey: ['rawAttention', imageId, model, layer, method],
+    queryFn: () => attentionAPI.getRawAttention(imageId, model, layer, method),
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Render thresholded attention heatmap
+  const attentionHeatmapUrl = useMemo(() => {
+    if (!rawAttentionData) return null;
+    try {
+      return renderAttentionHeatmap({
+        attention: rawAttentionData.attention,
+        shape: rawAttentionData.shape,
+        percentile,
+        opacity: heatmapOpacity,
+        style: heatmapStyle,
+      });
+    } catch {
+      return null;
+    }
+  }, [rawAttentionData, percentile, heatmapOpacity, heatmapStyle]);
 
   // Fetch similarity when a bbox is selected
   const { data: similarityData, isLoading: similarityLoading } = useQuery({
@@ -74,7 +99,7 @@ export function AttentionViewer({
   });
 
   // Render heatmap when similarity data is available
-  const heatmapUrl = useMemo(() => {
+  const similarityHeatmapUrl = useMemo(() => {
     if (!similarityData) return null;
     try {
       return renderHeatmap({
@@ -118,7 +143,7 @@ export function AttentionViewer({
     }
   };
 
-  if (imageError) {
+  if (imageError || attentionError) {
     return (
       <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`}>
         <div className="text-center text-gray-500">
@@ -130,28 +155,44 @@ export function AttentionViewer({
   }
 
   // Determine which image to show
-  const showSimilarityHeatmap = selectedBbox && heatmapUrl && !similarityLoading;
-  const baseImageUrl = showOverlay ? overlayUrl : originalUrl;
+  const showSimilarityHeatmap = selectedBbox && similarityHeatmapUrl && !similarityLoading;
 
   return (
     <div className={`relative group ${className}`}>
-      {/* Base image (attention overlay or original) */}
+      {/* Base image (always the original) */}
       <img
-        src={baseImageUrl}
-        alt={`Attention for ${imageId}`}
+        src={originalUrl}
+        alt={`${imageId}`}
         className="w-full h-auto rounded-lg"
         onError={() => setImageError(true)}
         onClick={handleImageClick}
       />
 
-      {/* Similarity heatmap overlay */}
+      {/* Dynamic attention heatmap overlay */}
+      {showOverlay && attentionHeatmapUrl && !showSimilarityHeatmap && (
+        <img
+          src={attentionHeatmapUrl}
+          alt="Attention heatmap"
+          className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
+          style={{ mixBlendMode: 'normal' }}
+        />
+      )}
+
+      {/* Similarity heatmap overlay (when bbox selected) */}
       {showSimilarityHeatmap && (
         <img
-          src={heatmapUrl}
+          src={similarityHeatmapUrl}
           alt="Similarity heatmap"
           className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
           style={{ mixBlendMode: 'normal' }}
         />
+      )}
+
+      {/* Loading spinner for attention data */}
+      {attentionLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
+        </div>
       )}
 
       {/* Loading spinner for similarity computation */}
@@ -190,7 +231,7 @@ export function AttentionViewer({
 
       {/* Info badge */}
       <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
-        {model} / {method} / Layer {layer}
+        {model} / {method} / Layer {layer} / Top {100 - percentile}%
         {selectedBbox && (
           <span className="ml-2 text-green-300">
             {selectedBbox.label_name || `Feature ${selectedBbox.label}`}

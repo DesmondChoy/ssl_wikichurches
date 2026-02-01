@@ -130,3 +130,11 @@ export interface ModelsResponse {
   methods: Record<string, string[]>;
   default_methods: Record<string, string>;
 }
+
+// Raw attention response for client-side rendering
+export interface RawAttentionResponse {
+  attention: number[];
+  shape: [number, number];
+  min_value: number;
+  max_value: number;
+}
