@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.backend.config import AVAILABLE_MODELS, NUM_LAYERS
+from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
 from app.backend.schemas import IoUResultSchema, ModelComparisonSchema
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
@@ -14,11 +14,29 @@ from app.backend.services.metrics_service import metrics_service
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
 
+def validate_layer_for_model(layer: int, model: str) -> None:
+    """Validate layer is within bounds for the given model.
+
+    Args:
+        layer: Layer index (0-based).
+        model: Model name (may be alias).
+
+    Raises:
+        HTTPException: If layer is out of bounds for the model.
+    """
+    num_layers = get_model_num_layers(resolve_model_name(model))
+    if not 0 <= layer < num_layers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid layer: {layer}. Model '{model}' has {num_layers} layers (0-{num_layers - 1}).",
+        )
+
+
 @router.get("/models", response_model=ModelComparisonSchema)
 async def compare_models(
     image_id: str,
     models: Annotated[list[str] | None, Query(description="Models to compare")] = None,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> ModelComparisonSchema:
     """Compare multiple models on a single image.
@@ -36,6 +54,10 @@ async def compare_models(
             status_code=400,
             detail=f"Invalid models: {invalid}. Available: {AVAILABLE_MODELS}",
         )
+
+    # Validate layer for all requested models
+    for model in models:
+        validate_layer_for_model(layer, model)
 
     # Check image exists
     if not image_service.get_annotation(image_id):
@@ -81,7 +103,7 @@ async def compare_models(
 async def compare_frozen_vs_finetuned(
     image_id: str,
     model: Annotated[str, Query()] = "dinov2",
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:
     """Compare frozen (pretrained) vs fine-tuned model attention.
 
@@ -93,6 +115,8 @@ async def compare_frozen_vs_finetuned(
             status_code=400,
             detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
         )
+
+    validate_layer_for_model(layer, model)
 
     if not image_service.get_annotation(image_id):
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
@@ -147,8 +171,11 @@ async def compare_layers(
             detail="Metrics database not available.",
         )
 
+    # Get per-model layer count
+    num_layers = get_model_num_layers(resolve_model_name(model))
+
     layers_data = []
-    for layer in range(NUM_LAYERS):
+    for layer in range(num_layers):
         layer_key = f"layer{layer}"
         metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
 

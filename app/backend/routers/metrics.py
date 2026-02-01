@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.backend.config import AVAILABLE_MODELS, NUM_LAYERS
+from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
 from app.backend.schemas import (
     FeatureBreakdownSchema,
     IoUResultSchema,
@@ -25,6 +25,24 @@ def validate_model(model: str) -> None:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
+        )
+
+
+def validate_layer_for_model(layer: int, model: str) -> None:
+    """Validate layer is within bounds for the given model.
+
+    Args:
+        layer: Layer index (0-based).
+        model: Model name (may be alias).
+
+    Raises:
+        HTTPException: If layer is out of bounds for the model.
+    """
+    num_layers = get_model_num_layers(resolve_model_name(model))
+    if not 0 <= layer < num_layers:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid layer: {layer}. Model '{model}' has {num_layers} layers (0-{num_layers - 1}).",
         )
 
 
@@ -65,7 +83,7 @@ async def get_summary() -> dict:
 async def get_image_metrics(
     image_id: str,
     model: Annotated[str, Query()] = "dinov2",
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> IoUResultSchema:
     """Get IoU metrics for a specific image.
@@ -73,6 +91,7 @@ async def get_image_metrics(
     Returns IoU, coverage, and area statistics.
     """
     validate_model(model)
+    validate_layer_for_model(layer, model)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -94,12 +113,13 @@ async def get_image_metrics(
 @router.get("/{image_id}/all_models")
 async def get_image_metrics_all_models(
     image_id: str,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> dict:
     """Get metrics for an image across all models.
 
     Useful for model comparison on a single image.
+    Note: Layer validation is done per-model in the loop since models have different layer counts.
     """
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -111,6 +131,11 @@ async def get_image_metrics_all_models(
     results = {}
 
     for model in AVAILABLE_MODELS:
+        # Skip models that don't have this layer
+        num_layers = get_model_num_layers(resolve_model_name(model))
+        if layer >= num_layers:
+            continue
+
         result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
         if result:
             results[model] = result
@@ -153,7 +178,7 @@ async def get_layer_progression(
 @router.get("/model/{model}/style_breakdown", response_model=StyleBreakdownSchema)
 async def get_style_breakdown(
     model: str,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> StyleBreakdownSchema:
     """Get IoU breakdown by architectural style.
@@ -161,6 +186,7 @@ async def get_style_breakdown(
     Shows how well the model attends to different architectural styles.
     """
     validate_model(model)
+    validate_layer_for_model(layer, model)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -176,7 +202,7 @@ async def get_style_breakdown(
 @router.get("/model/{model}/feature_breakdown", response_model=FeatureBreakdownSchema)
 async def get_feature_breakdown(
     model: str,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     min_count: Annotated[int, Query(ge=0)] = 0,
     sort_by: Annotated[str, Query(enum=["mean_iou", "bbox_count", "feature_name", "feature_label"])] = "mean_iou",
@@ -187,6 +213,7 @@ async def get_feature_breakdown(
     (e.g., windows, doors, arches) across all 106 feature types.
     """
     validate_model(model)
+    validate_layer_for_model(layer, model)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -204,7 +231,7 @@ async def get_feature_breakdown(
 @router.get("/model/{model}/aggregate")
 async def get_aggregate_metrics(
     model: str,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
 ) -> dict:
     """Get aggregate metrics for a model/layer combination.
@@ -212,6 +239,7 @@ async def get_aggregate_metrics(
     Returns mean, std, median IoU across all images.
     """
     validate_model(model)
+    validate_layer_for_model(layer, model)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -233,7 +261,7 @@ async def get_aggregate_metrics(
 @router.get("/model/{model}/all_images")
 async def get_all_images_metrics(
     model: str,
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS)] = 11,
+    layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     sort_by: Annotated[str, Query(enum=["iou", "coverage"])] = "iou",
     limit: Annotated[int, Query(ge=1, le=200)] = 139,
@@ -243,6 +271,7 @@ async def get_all_images_metrics(
     Returns list of images sorted by IoU or coverage.
     """
     validate_model(model)
+    validate_layer_for_model(layer, model)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:

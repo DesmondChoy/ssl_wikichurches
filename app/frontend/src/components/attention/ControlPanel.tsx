@@ -41,6 +41,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     setHeatmapOpacity,
     setHeatmapStyle,
     setMethodsConfig,
+    setNumLayersPerModel,
   } = useViewStore();
 
   const { data: modelsData, isLoading } = useModels();
@@ -52,17 +53,20 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     }
   }, [modelsData, setMethodsConfig]);
 
+  // Update store with num_layers_per_model when API data loads
+  useEffect(() => {
+    if (modelsData?.num_layers_per_model) {
+      setNumLayersPerModel(modelsData.num_layers_per_model);
+    }
+  }, [modelsData, setNumLayersPerModel]);
+
   // Get max layer for current model (0-indexed, so subtract 1)
   const maxLayer = modelsData?.num_layers_per_model?.[model]
     ? modelsData.num_layers_per_model[model] - 1
     : (modelsData?.num_layers || 12) - 1;
 
-  // Clamp layer when model changes (if current layer exceeds new model's max)
-  useEffect(() => {
-    if (layer > maxLayer) {
-      setLayer(maxLayer);
-    }
-  }, [model, maxLayer, layer, setLayer]);
+  // Note: Layer clamping now happens synchronously in viewStore.setModel()
+  // This prevents race conditions where API calls fire before the useEffect runs
 
   if (isLoading) {
     return (

@@ -63,7 +63,7 @@ class MetricsQueryParams(BaseModel):
     """Query parameters for metrics endpoints."""
 
     model: str = "dinov2"
-    layer: str = "layer11"
+    layer: str = "layer0"  # Safe default for all models (some have only 4 layers)
     percentile: int = 90
 
 

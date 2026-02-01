@@ -22,20 +22,33 @@ export function DashboardPage() {
   const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile);
 
+  // Collect all unique layers from API response (handles models with different layer counts)
+  const allLayers = new Set<string>();
+  if (summary?.models) {
+    for (const modelData of Object.values(summary.models)) {
+      for (const layerKey of Object.keys(modelData.layer_progression)) {
+        allLayers.add(layerKey);
+      }
+    }
+  }
+  // Sort layers numerically (layer0, layer1, ..., layer11)
+  const sortedLayers = Array.from(allLayers).sort((a, b) =>
+    parseInt(a.replace('layer', '')) - parseInt(b.replace('layer', ''))
+  );
+
   // Merge into single array by layer
-  const chartData: Record<string, number | string>[] = [];
-  for (let i = 0; i < 12; i++) {
-    const layerData: Record<string, number | string> = { layer: `L${i}` };
+  const chartData: Record<string, number | string>[] = sortedLayers.map((layerKey) => {
+    const layerNum = parseInt(layerKey.replace('layer', ''));
+    const layerData: Record<string, number | string> = { layer: `L${layerNum}` };
     if (summary?.models) {
       for (const [modelName, modelData] of Object.entries(summary.models)) {
-        const layerKey = `layer${i}`;
         if (modelData.layer_progression[layerKey] !== undefined) {
           layerData[modelName] = modelData.layer_progression[layerKey];
         }
       }
     }
-    chartData.push(layerData);
-  }
+    return layerData;
+  });
 
   // Style breakdown data
   const styleData = styleBreakdown

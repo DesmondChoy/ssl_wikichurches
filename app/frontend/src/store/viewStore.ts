@@ -13,6 +13,9 @@ interface ViewStore extends ViewSettings {
   availableMethods: Record<string, string[]>;
   defaultMethods: Record<string, string>;
 
+  // Number of layers per model (populated from API)
+  numLayersPerModel: Record<string, number>;
+
   // Actions
   setModel: (model: string) => void;
   setLayer: (layer: number) => void;
@@ -23,12 +26,13 @@ interface ViewStore extends ViewSettings {
   setHeatmapStyle: (style: HeatmapStyle) => void;
   setSelectedBboxIndex: (index: number | null) => void;
   setMethodsConfig: (methods: Record<string, string[]>, defaults: Record<string, string>) => void;
+  setNumLayersPerModel: (numLayers: Record<string, number>) => void;
   reset: () => void;
 }
 
 const DEFAULT_SETTINGS: ViewSettings = {
   model: 'dinov2',
-  layer: 11,
+  layer: 0,  // Safe default for all models (including ResNet-50 which has only 4 layers)
   method: 'cls',
   percentile: 90,
   showBboxes: false,
@@ -41,12 +45,16 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   selectedBboxIndex: null,
   availableMethods: {},
   defaultMethods: {},
+  numLayersPerModel: {},
 
   setModel: (model) => {
-    const { defaultMethods } = get();
+    const { defaultMethods, numLayersPerModel, layer } = get();
     // Reset method to default for new model
     const newMethod = defaultMethods[model] || 'cls';
-    set({ model, method: newMethod, selectedBboxIndex: null });
+    // Clamp layer synchronously to prevent 404s from invalid layer requests
+    const maxLayer = (numLayersPerModel[model] || 12) - 1;
+    const clampedLayer = Math.min(layer, maxLayer);
+    set({ model, method: newMethod, layer: clampedLayer, selectedBboxIndex: null });
   },
   setLayer: (layer) => set({ layer }), // Keep selection on layer change to compare
   setMethod: (method) => set({ method }),
@@ -62,6 +70,13 @@ export const useViewStore = create<ViewStore>((set, get) => ({
     const newMethod = available.includes(method) ? method : (defaultMethods[model] || 'cls');
     set({ availableMethods, defaultMethods, method: newMethod });
   },
+  setNumLayersPerModel: (numLayersPerModel) => {
+    const { model, layer } = get();
+    // Clamp current layer if it exceeds new model's layer count
+    const maxLayer = (numLayersPerModel[model] || 12) - 1;
+    const clampedLayer = Math.min(layer, maxLayer);
+    set({ numLayersPerModel, layer: clampedLayer });
+  },
   reset: () => set({ ...DEFAULT_SETTINGS, selectedBboxIndex: null }),
 }));
 
@@ -75,3 +90,4 @@ export const useHeatmapOpacity = () => useViewStore((state) => state.heatmapOpac
 export const useHeatmapStyle = () => useViewStore((state) => state.heatmapStyle);
 export const useSelectedBboxIndex = () => useViewStore((state) => state.selectedBboxIndex);
 export const useAvailableMethods = () => useViewStore((state) => state.availableMethods);
+export const useNumLayersPerModel = () => useViewStore((state) => state.numLayersPerModel);

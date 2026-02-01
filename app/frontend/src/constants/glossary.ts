@@ -14,7 +14,7 @@ export const GLOSSARY: Record<string, string> = {
   'Heatmap Style':
     'Visual style: Smooth uses interpolation, Squares/Circles show discrete patch values.',
   Layer:
-    'Network depth. Early layers (0-3) capture edges/textures. Late layers (9-11) capture semantic concepts.',
+    'Network depth. Early layers capture edges/textures. Later layers capture semantic concepts. Layer count varies by model.',
   Model: 'Vision model for feature extraction. Each has different architecture and training.',
   'Show Bounding Boxes': 'Toggle visibility of annotated bounding boxes on the image.',
 };
