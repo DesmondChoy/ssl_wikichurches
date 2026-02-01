@@ -16,15 +16,18 @@ Reference:
 
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 from PIL import Image
 from torch import Tensor, nn
-from torchvision import transforms
-from torchvision.models import ResNet50_Weights, resnet50
+from torchvision import transforms  # type: ignore[import-untyped]
+from torchvision.models import ResNet50_Weights, resnet50  # type: ignore[import-untyped]
 
-from ssl_attention.config import DEFAULT_IMAGE_SIZE, MODELS
+if TYPE_CHECKING:
+    from torchvision.models import ResNet
+
+from ssl_attention.config import DEFAULT_IMAGE_SIZE, EPSILON, MODELS
 from ssl_attention.models.base import BaseVisionModel
 from ssl_attention.models.protocols import ModelOutput
 
@@ -128,15 +131,18 @@ class ResNet50(BaseVisionModel):
         Returns:
             ResNet-50 model with pretrained weights.
         """
-        return resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        model: nn.Module = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        return model
 
     def _register_gradcam_hooks(self) -> None:
         """Register forward/backward hooks on all ResNet stages."""
-        target_layers = [
-            ("layer1", self.model.layer1),
-            ("layer2", self.model.layer2),
-            ("layer3", self.model.layer3),
-            ("layer4", self.model.layer4),
+        # Cast to ResNet for attribute access (base class types as nn.Module)
+        resnet: ResNet = self.model  # type: ignore[assignment,unused-ignore]
+        target_layers: list[tuple[str, nn.Module]] = [
+            ("layer1", resnet.layer1),
+            ("layer2", resnet.layer2),
+            ("layer3", resnet.layer3),
+            ("layer4", resnet.layer4),
         ]
 
         for name, layer in target_layers:
@@ -151,9 +157,20 @@ class ResNet50(BaseVisionModel):
             # Backward hook: capture gradients
             def make_backward_hook(
                 layer_name: str,
-            ) -> Callable[[nn.Module, Any, tuple[Tensor, ...]], None]:
-                def hook(module: nn.Module, grad_in: Any, grad_out: tuple[Tensor, ...]) -> None:
-                    self._gradients[layer_name] = grad_out[0].detach()
+            ) -> Callable[
+                [nn.Module, tuple[Tensor, ...] | Tensor, tuple[Tensor, ...] | Tensor],
+                tuple[Tensor, ...] | Tensor | None,
+            ]:
+                def hook(
+                    module: nn.Module,
+                    grad_in: tuple[Tensor, ...] | Tensor,
+                    grad_out: tuple[Tensor, ...] | Tensor,
+                ) -> None:
+                    # grad_out is a tuple; first element is the gradient we want
+                    if isinstance(grad_out, tuple):
+                        self._gradients[layer_name] = grad_out[0].detach()
+                    else:
+                        self._gradients[layer_name] = grad_out.detach()
                 return hook
 
             self._hooks.append(layer.register_forward_hook(make_forward_hook(name)))
@@ -222,8 +239,7 @@ class ResNet50(BaseVisionModel):
         flat = cam.view(batch_size, -1)
         min_val = flat.min(dim=1, keepdim=True).values.view(batch_size, 1, 1)
         max_val = flat.max(dim=1, keepdim=True).values.view(batch_size, 1, 1)
-        eps = 1e-8
-        cam = (cam - min_val) / (max_val - min_val + eps)
+        cam = (cam - min_val) / (max_val - min_val + EPSILON)
 
         return cam
 
@@ -262,16 +278,17 @@ class ResNet50(BaseVisionModel):
             # For CNN models, we don't have CLS/patch tokens in the ViT sense
             # Use the final GAP features as a pseudo-CLS token
             # Extract features before the final FC layer
+            resnet: ResNet = self.model  # type: ignore[assignment,unused-ignore]
             with torch.no_grad():
-                x = self.model.conv1(images)
-                x = self.model.bn1(x)
-                x = self.model.relu(x)
-                x = self.model.maxpool(x)
-                x = self.model.layer1(x)
-                x = self.model.layer2(x)
-                x = self.model.layer3(x)
-                x = self.model.layer4(x)
-                x = self.model.avgpool(x)
+                x = resnet.conv1(images)
+                x = resnet.bn1(x)
+                x = resnet.relu(x)
+                x = resnet.maxpool(x)
+                x = resnet.layer1(x)
+                x = resnet.layer2(x)
+                x = resnet.layer3(x)
+                x = resnet.layer4(x)
+                x = resnet.avgpool(x)
                 cls_features = x.flatten(1)  # (B, 2048)
 
             return ModelOutput(

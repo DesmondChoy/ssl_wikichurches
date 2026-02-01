@@ -39,10 +39,10 @@ from ssl_attention.cache import AttentionCache
 from ssl_attention.config import (
     CACHE_PATH,
     DATASET_PATH,
-    MODELS,
-    AttentionMethod,
     DEFAULT_METHOD,
     MODEL_METHODS,
+    MODELS,
+    AttentionMethod,
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.models import create_model
@@ -256,11 +256,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Parse methods
-    if "all" in args.methods:
-        methods_to_use = None  # Will use all available per model
-    else:
-        methods_to_use = [AttentionMethod(m) for m in args.methods]
+    # Parse methods (None = all available per model)
+    methods_to_use = (
+        None if "all" in args.methods else [AttentionMethod(m) for m in args.methods]
+    )
 
     # Determine models to process
     if "all" in args.models:
