@@ -245,6 +245,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Stratified k-fold cross-validation
    - Accuracy, F1, per-class accuracy, confusion matrix
 
+> **Note:** `compute_corloc()` is implemented but not yet integrated into the precompute pipeline or API. Integration is optional—CorLoc@50 is primarily for literature comparison with DINO papers.
+
 ### Phase 4: Visualization & Analysis ✅ COMPLETE
 
 1. **Heatmaps** (`visualization/heatmaps.py`) ✅
@@ -332,6 +334,16 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
      - `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` - Clickable bbox overlay
      - `app/frontend/src/utils/renderHeatmap.ts` - Client-side viridis heatmap rendering
 
+6. **Attention Method Selection** ⬜
+   - Update precompute to generate CLS, rollout, and GradCAM heatmaps
+   - Add method parameter to `/api/attention` endpoints
+   - Add method selector dropdown to ControlPanel.tsx
+
+7. **Per-Feature-Type Breakdown** ⬜
+   - Add `/api/metrics/model/{model}/feature_breakdown` endpoint
+   - Create FeatureBreakdown.tsx component
+   - Display IoU by 106 architectural feature types
+
 ---
 
 ## Critical Files to Create
@@ -345,6 +357,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 5 | `src/ssl_attention/models/mae.py` | MAE wrapper | ✅ Done |
 | 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper | ✅ Done |
 | 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper | ✅ Done |
+| 21 | `src/ssl_attention/models/resnet50.py` | ResNet-50 supervised baseline | ⬜ Pending |
 | 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method | ✅ Done |
 | 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ✅ Done |
 | 10 | `src/ssl_attention/data/wikichurches.py` | Dataset classes | ✅ Done |

@@ -100,7 +100,9 @@ Quantify whether high-attention regions overlap with expert-annotated characteri
 3. **Compare to baselines:**  
    - Random baseline: IoU expected from uniform random attention  
    - Center baseline: IoU from Gaussian-centered attention (common bias)  
-   - Saliency baseline: IoU from low-level saliency (e.g., Itti-Koch)
+   - Saliency baseline: IoU from low-level saliency (Sobel edge detection)
+
+4. **Pointing game accuracy** - Binary hit metric testing if attention maximum falls within expert bounding box (complementary to IoU)
 
 **Key question:** Do SSL models achieve IoU significantly above these baselines?
 
@@ -186,6 +188,7 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 ### Quantitative Metrics
 
 - **Primary:** Mean IoU between attention peaks and expert bounding boxes (per model, per layer)
+- **Pointing game:** Binary hit accuracy (max attention in bbox) per model/layer
 - **Secondary:** Linear probe accuracy on style classification
 - **Fine-tuning effect:** Δ IoU (fine-tuned - frozen) with paired statistical tests
 - **Statistical:** Paired t-tests or Wilcoxon signed-rank comparing models; bootstrap confidence intervals for IoU
