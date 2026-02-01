@@ -34,11 +34,11 @@ from ssl_attention.cache import AttentionCache
 from ssl_attention.config import (
     CACHE_PATH,
     DATASET_PATH,
+    DEFAULT_METHOD,
     IMAGES_PATH,
+    MODEL_METHODS,
     MODELS,
     AttentionMethod,
-    DEFAULT_METHOD,
-    MODEL_METHODS,
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.visualization import (

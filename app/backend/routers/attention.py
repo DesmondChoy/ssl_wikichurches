@@ -61,7 +61,8 @@ def validate_method(model: str, method: str | None) -> str:
 
     if method is None:
         # Return default method for this model
-        return DEFAULT_METHOD.get(resolved_model, AttentionMethod.CLS).value
+        default: AttentionMethod = DEFAULT_METHOD.get(resolved_model, AttentionMethod.CLS)
+        return str(default.value)
 
     # Validate requested method
     try:
@@ -71,7 +72,7 @@ def validate_method(model: str, method: str | None) -> str:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid method: '{method}'. Valid methods: {valid_methods}",
-        )
+        ) from None
 
     if method_enum not in available:
         available_str = [m.value for m in available]
