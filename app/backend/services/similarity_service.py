@@ -13,7 +13,7 @@ import torch.nn.functional as F
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from app.backend.config import CACHE_PATH
+from app.backend.config import CACHE_PATH, resolve_model_name
 from ssl_attention.cache import FeatureCache
 from ssl_attention.config import MODELS
 
@@ -27,11 +27,6 @@ MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "clip": (14, 14),    # 196 patches
     "siglip": (14, 14),  # 196 patches
     "siglip2": (14, 14), # 196 patches (alias for siglip)
-}
-
-# Model name aliases for resolving display names to canonical cache names
-MODEL_ALIASES: dict[str, str] = {
-    "siglip2": "siglip",  # siglip2 is the display name, siglip is the cache key
 }
 
 
@@ -117,17 +112,6 @@ class SimilarityService:
 
         return indices
 
-    def _resolve_model_name(self, model: str) -> str:
-        """Resolve model alias to canonical cache name.
-
-        Args:
-            model: Model name (may be an alias like 'siglip2').
-
-        Returns:
-            Canonical model name for cache lookups (e.g., 'siglip').
-        """
-        return MODEL_ALIASES.get(model, model)
-
     def compute_similarity(
         self,
         image_id: str,
@@ -160,7 +144,7 @@ class SimilarityService:
         layer_key = f"layer{layer}"
 
         # Resolve model alias to canonical name for cache lookup
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
 
         # Load cached features
         try:
@@ -238,7 +222,7 @@ class SimilarityService:
     def features_exist(self, model: str, layer: int, image_id: str) -> bool:
         """Check if features are cached for given parameters."""
         layer_key = f"layer{layer}"
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
         result: bool = self.cache.exists(cache_model, layer_key, image_id)
         return result
 

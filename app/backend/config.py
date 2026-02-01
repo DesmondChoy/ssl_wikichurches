@@ -47,3 +47,19 @@ CORS_ORIGINS = [
 # Image settings
 THUMBNAIL_SIZE = (128, 128)
 STANDARD_IMAGE_SIZE = (224, 224)
+
+# Model name resolution
+from ssl_attention.config import MODEL_ALIASES
+
+
+def resolve_model_name(model: str) -> str:
+    """Resolve model alias to canonical name.
+
+    Args:
+        model: Model name (may be an alias like 'siglip2').
+
+    Returns:
+        Canonical model name (e.g., 'siglip').
+    """
+    resolved: str = MODEL_ALIASES.get(model, model)
+    return resolved

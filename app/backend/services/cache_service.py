@@ -10,17 +10,11 @@ from typing import TYPE_CHECKING
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from app.backend.config import ATTENTION_CACHE_PATH
+from app.backend.config import ATTENTION_CACHE_PATH, resolve_model_name
 from ssl_attention.cache import AttentionCache
 
 if TYPE_CHECKING:
     import torch
-
-
-# Model name aliases for resolving display names to canonical cache names
-MODEL_ALIASES: dict[str, str] = {
-    "siglip2": "siglip",  # siglip2 is the display name, siglip is the cache key
-}
 
 
 class CacheService:
@@ -43,20 +37,9 @@ class CacheService:
             self._cache = AttentionCache(ATTENTION_CACHE_PATH)
         return self._cache
 
-    def _resolve_model_name(self, model: str) -> str:
-        """Resolve model alias to canonical cache name.
-
-        Args:
-            model: Model name (may be an alias like 'siglip2').
-
-        Returns:
-            Canonical model name for cache lookups (e.g., 'siglip').
-        """
-        return MODEL_ALIASES.get(model, model)
-
     def exists(self, model: str, layer: str, image_id: str) -> bool:
         """Check if attention is cached for given combination."""
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
         result: bool = self.cache.exists(cache_model, layer, image_id)
         return result
 
@@ -74,19 +57,19 @@ class CacheService:
         Raises:
             KeyError: If attention not cached.
         """
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
         result: torch.Tensor = self.cache.load(cache_model, layer, image_id)
         return result
 
     def list_cached_images(self, model: str, layer: str) -> list[str]:
         """List all image IDs cached for a model/layer combination."""
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
         keys = self.cache.list_cached(cache_model)
         return [k.image_id for k in keys if k.layer == layer]
 
     def get_available_layers(self, model: str, image_id: str) -> list[str]:
         """Get all layers with cached attention for an image."""
-        cache_model = self._resolve_model_name(model)
+        cache_model = resolve_model_name(model)
         keys = self.cache.list_cached(cache_model)
         return sorted(set(k.layer for k in keys if k.image_id == image_id))
 

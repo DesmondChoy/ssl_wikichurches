@@ -11,16 +11,11 @@ from typing import TYPE_CHECKING, Any
 from app.backend.config import (
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
+    resolve_model_name,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-
-
-# Model name aliases for resolving display names to canonical database names
-MODEL_ALIASES: dict[str, str] = {
-    "siglip2": "siglip",  # siglip2 is the display name, siglip is the database key
-}
 
 
 class MetricsService:
@@ -33,17 +28,6 @@ class MetricsService:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-
-    def _resolve_model_name(self, model: str) -> str:
-        """Resolve model alias to canonical database name.
-
-        Args:
-            model: Model name (may be an alias like 'siglip2').
-
-        Returns:
-            Canonical model name for database lookups (e.g., 'siglip').
-        """
-        return MODEL_ALIASES.get(model, model)
 
     @property
     def db_path(self) -> Path:
@@ -80,7 +64,7 @@ class MetricsService:
         Returns:
             Dict with iou, coverage, attention_area, annotation_area or None.
         """
-        db_model = self._resolve_model_name(model)
+        db_model = resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -115,7 +99,7 @@ class MetricsService:
         Returns:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, num_images.
         """
-        db_model = self._resolve_model_name(model)
+        db_model = resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -179,7 +163,7 @@ class MetricsService:
         Returns:
             Dict with model, percentile, layers, ious, best_layer, best_iou.
         """
-        db_model = self._resolve_model_name(model)
+        db_model = resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -217,7 +201,7 @@ class MetricsService:
         Returns:
             Dict with model, layer, percentile, styles (name->iou), style_counts.
         """
-        db_model = self._resolve_model_name(model)
+        db_model = resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -251,7 +235,7 @@ class MetricsService:
         Returns:
             List of dicts with image_id, iou, coverage.
         """
-        db_model = self._resolve_model_name(model)
+        db_model = resolve_model_name(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
