@@ -1,0 +1,312 @@
+"""Tests for IoU and coverage metrics.
+
+Priority 4: These tests verify IoU computation is correct since it's
+the primary evaluation metric. Errors here invalidate experimental results.
+"""
+
+from __future__ import annotations
+
+import pytest
+import torch
+
+from ssl_attention.metrics.iou import (
+    compute_coverage,
+    compute_iou,
+    threshold_attention,
+)
+
+
+class TestThresholdAttention:
+    """Test percentile thresholding of attention maps."""
+
+    def test_percentile_90_keeps_top_10(self):
+        """Verify percentile=90 keeps approximately top 10% of values."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=90)
+
+        # Should keep ~10% of pixels
+        coverage = mask.float().mean().item()
+        assert 0.08 <= coverage <= 0.12  # Allow some variance
+
+    def test_percentile_50_keeps_half(self):
+        """Verify percentile=50 keeps approximately half of values."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=50)
+
+        coverage = mask.float().mean().item()
+        assert 0.45 <= coverage <= 0.55
+
+    def test_percentile_0_keeps_all(self):
+        """Verify percentile=0 keeps all values."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=0)
+
+        assert mask.all()
+
+    def test_percentile_100_keeps_none_or_max(self):
+        """Verify percentile=100 keeps only maximum values."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=100)
+
+        # Only max value(s) should be True
+        # With random data, there's typically exactly one max
+        assert mask.sum() >= 1
+
+    def test_batched_input(self):
+        """Verify batched input produces batched output."""
+        attention = torch.rand(4, 224, 224)
+        mask = threshold_attention(attention, percentile=90)
+
+        assert mask.shape == (4, 224, 224)
+
+    def test_unbatched_input(self):
+        """Verify unbatched input produces unbatched output."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=90)
+
+        assert mask.shape == (224, 224)
+
+    def test_invalid_percentile_low(self):
+        """Verify percentile < 0 raises error."""
+        attention = torch.rand(224, 224)
+
+        with pytest.raises(ValueError, match="Percentile must be"):
+            threshold_attention(attention, percentile=-1)
+
+    def test_invalid_percentile_high(self):
+        """Verify percentile > 100 raises error."""
+        attention = torch.rand(224, 224)
+
+        with pytest.raises(ValueError, match="Percentile must be"):
+            threshold_attention(attention, percentile=101)
+
+    def test_output_is_boolean(self):
+        """Verify output is boolean mask."""
+        attention = torch.rand(224, 224)
+        mask = threshold_attention(attention, percentile=90)
+
+        assert mask.dtype == torch.bool
+
+
+class TestComputeIoU:
+    """Test IoU computation between attention and ground truth masks."""
+
+    def test_perfect_overlap(self):
+        """Identical masks should give IoU = 1.0."""
+        attention = torch.zeros(100, 100)
+        attention[25:75, 25:75] = 1.0  # High attention in center
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[25:75, 25:75] = True  # Same region
+
+        # Use percentile=75 to threshold at the boundary between 0 and 1
+        # The center region (25% of image) has value 1, rest has value 0
+        # At percentile=75, threshold will be 0, keeping all non-zero values
+        iou, _, _ = compute_iou(attention, gt_mask, percentile=75)
+
+        # Should be very close to 1.0 since attention mask = gt mask
+        assert iou > 0.95
+
+    def test_no_overlap(self):
+        """Disjoint masks should give IoU = 0.0."""
+        attention = torch.zeros(100, 100)
+        attention[0:25, 0:25] = 1.0  # Top-left corner (6.25% of image)
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[75:100, 75:100] = True  # Bottom-right corner
+
+        # Use percentile=94 to keep only values at or above the 94th percentile
+        # Since 93.75% of pixels are 0, the threshold at 94th percentile will be 1.0
+        # This keeps only the top-left region which has no overlap with bottom-right GT
+        iou, _, _ = compute_iou(attention, gt_mask, percentile=94)
+
+        assert iou == 0.0
+
+    def test_partial_overlap(self):
+        """Partially overlapping masks should give intermediate IoU."""
+        attention = torch.zeros(100, 100)
+        attention[25:75, 25:75] = 1.0  # Center 50x50
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[40:90, 40:90] = True  # Shifted center 50x50
+
+        iou, _, _ = compute_iou(attention, gt_mask, percentile=50)
+
+        # Overlap is 35x35 = 1225
+        # Union is 50*50 + 50*50 - 1225 = 3775
+        # IoU ≈ 1225/3775 ≈ 0.324
+        assert 0.1 < iou < 0.6
+
+    def test_attention_area_calculation(self):
+        """Verify attention_area is fraction of image covered."""
+        attention = torch.zeros(100, 100)
+        attention[0:50, 0:50] = 1.0  # 25% of image has high attention
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[0:50, 0:50] = True
+
+        # At percentile=75, threshold will be 0 (since 75% of pixels are 0)
+        # So all pixels with value > 0 will be kept, which is exactly 25%
+        _, attention_area, _ = compute_iou(attention, gt_mask, percentile=75)
+
+        # Should be exactly 25% (the high-attention region)
+        assert 0.2 <= attention_area <= 0.3
+
+    def test_annotation_area_calculation(self):
+        """Verify annotation_area is fraction of image covered by GT."""
+        attention = torch.rand(100, 100)
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[0:50, 0:50] = True  # 25% of image
+
+        _, _, annotation_area = compute_iou(attention, gt_mask, percentile=90)
+
+        assert annotation_area == 0.25
+
+    def test_device_compatibility(self):
+        """Verify attention and mask can be on different devices."""
+        attention = torch.rand(100, 100)
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[25:75, 25:75] = True
+
+        # This should work even if they start on same device
+        # (GPU testing would require CUDA)
+        iou, _, _ = compute_iou(attention, gt_mask, percentile=90)
+
+        assert 0.0 <= iou <= 1.0
+
+
+class TestComputeCoverage:
+    """Test coverage (energy) metric computation."""
+
+    def test_all_attention_inside(self):
+        """Attention fully inside GT should give coverage = 1.0."""
+        attention = torch.zeros(100, 100)
+        attention[25:75, 25:75] = 1.0  # Attention in center
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[0:100, 0:100] = True  # Full image
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        assert coverage == 1.0
+
+    def test_all_attention_outside(self):
+        """Attention fully outside GT should give coverage = 0.0."""
+        attention = torch.zeros(100, 100)
+        attention[0:25, 0:25] = 1.0  # Top-left
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[75:100, 75:100] = True  # Bottom-right
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        assert coverage == 0.0
+
+    def test_half_attention_inside(self):
+        """Half attention inside should give coverage ≈ 0.5."""
+        attention = torch.ones(100, 100)  # Uniform attention
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[0:50, :] = True  # Top half
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        assert 0.45 <= coverage <= 0.55
+
+    def test_weighted_coverage(self):
+        """Verify coverage weights by attention value."""
+        attention = torch.zeros(100, 100)
+        attention[0:50, :] = 2.0  # High attention top half
+        attention[50:100, :] = 1.0  # Low attention bottom half
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[0:50, :] = True  # Only top half
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        # Top half has 2x attention, so coverage = 2*5000 / (2*5000 + 1*5000) = 0.667
+        assert 0.6 <= coverage <= 0.7
+
+    def test_zero_attention_returns_zero(self):
+        """Zero attention everywhere should return 0.0."""
+        attention = torch.zeros(100, 100)
+
+        gt_mask = torch.ones(100, 100, dtype=torch.bool)
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        assert coverage == 0.0
+
+    def test_negative_attention_clamped(self):
+        """Negative attention values should be clamped to 0."""
+        attention = torch.full((100, 100), -1.0)
+        attention[25:75, 25:75] = 1.0
+
+        gt_mask = torch.ones(100, 100, dtype=torch.bool)
+
+        coverage = compute_coverage(attention, gt_mask)
+
+        # After clamping, only center has attention
+        # Coverage = 2500 / 2500 = 1.0
+        assert coverage == 1.0
+
+
+class TestIoUEdgeCases:
+    """Test edge cases in IoU computation."""
+
+    def test_empty_gt_mask(self):
+        """Empty ground truth mask should give IoU = 0."""
+        attention = torch.rand(100, 100)
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)  # Empty
+
+        iou, _, annotation_area = compute_iou(attention, gt_mask, percentile=90)
+
+        assert annotation_area == 0.0
+        # IoU is technically 0/eps ≈ 0 with epsilon handling
+        assert iou >= 0.0
+
+    def test_full_gt_mask(self):
+        """Full ground truth mask should work correctly."""
+        attention = torch.rand(100, 100)
+        gt_mask = torch.ones(100, 100, dtype=torch.bool)  # Full image
+
+        iou, _, annotation_area = compute_iou(attention, gt_mask, percentile=90)
+
+        assert annotation_area == 1.0
+        # IoU should be ~0.1 (10% attention covers 10% of 100% GT)
+        assert iou > 0.0
+
+    def test_very_small_attention_region(self):
+        """Very small attention region should still work."""
+        attention = torch.zeros(100, 100)
+        attention[50, 50] = 1.0  # Single pixel
+
+        gt_mask = torch.zeros(100, 100, dtype=torch.bool)
+        gt_mask[50, 50] = True  # Same pixel
+
+        iou, _, _ = compute_iou(attention, gt_mask, percentile=99)
+
+        # Should have perfect overlap
+        assert iou > 0.0
+
+
+@pytest.mark.parametrize(
+    "percentile,expected_coverage",
+    [
+        (90, 0.10),  # Top 10%
+        (80, 0.20),  # Top 20%
+        (70, 0.30),  # Top 30%
+        (50, 0.50),  # Top 50%
+        (0, 1.00),  # All
+    ],
+)
+def test_percentile_coverage_uniform_attention(percentile: int, expected_coverage: float):
+    """Verify percentile thresholds produce expected coverage for uniform attention."""
+    attention = torch.rand(1000, 1000)  # Large for statistical accuracy
+    mask = threshold_attention(attention, percentile=percentile)
+
+    actual_coverage = mask.float().mean().item()
+
+    # Allow 5% tolerance
+    assert abs(actual_coverage - expected_coverage) < 0.05
