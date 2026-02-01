@@ -30,13 +30,17 @@ This notebook loads all 4 data sources (churches, feature types, annotations, st
 
 ## Models
 
-| Model | HuggingFace ID | Training |
-|-------|----------------|----------|
-| DINOv2 | `facebook/dinov2-with-registers-base` | Self-distillation |
-| DINOv3 | `facebook/dinov3-vitb16-pretrain-lvd1689m` | Self-distillation + Gram |
-| MAE | `facebook/vit-mae-base` | Masked autoencoding |
-| CLIP | `openai/clip-vit-base-patch16` | Contrastive |
-| SigLIP 2 | `google/siglip2-base-patch16-224` | Contrastive (sigmoid) |
+All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attention heads).
+
+| Model | HuggingFace ID | Architecture | Training |
+|-------|----------------|--------------|----------|
+| DINOv2 | `facebook/dinov2-with-registers-base` | ViT-B/14 | Self-distillation |
+| DINOv3 | `facebook/dinov3-vitb16-pretrain-lvd1689m` | ViT-B/16 | Self-distillation + Gram |
+| MAE | `facebook/vit-mae-base` | ViT-B/16 | Masked autoencoding |
+| CLIP | `openai/clip-vit-base-patch16` | ViT-B/16 | Contrastive |
+| SigLIP 2 | `google/siglip2-base-patch16-224` | ViT-B/16 | Contrastive (sigmoid) |
+
+**Note on patch sizes**: DINOv2 uses 14×14 patches (256 tokens for 224×224 images) while other models use 16×16 patches (196 tokens). No official DINOv2 ViT-B/16 variant exists. For visualization, all attention maps are upsampled to image resolution, making cross-model comparison valid despite the different native resolutions.
 
 ## Fine-Tuning
 
@@ -67,13 +71,13 @@ Interactive web app to explore attention patterns across models and layers.
 Before running the app, pre-compute attention maps and metrics. This extracts attention from all 5 models × 12 layers × 139 images, then renders heatmaps and computes IoU metrics. Run once; results are cached.
 
 ```bash
-# Extract attention maps (~90 min on M4 Pro with MPS)
+# Extract attention maps
 python -m app.precompute.generate_attention_cache --models all
 
-# Render heatmap overlays (~10 min)
+# Render heatmap overlays
 python -m app.precompute.generate_heatmap_images --colormap viridis
 
-# Compute IoU metrics (~5 min)
+# Compute IoU metrics
 python -m app.precompute.generate_metrics_cache
 ```
 

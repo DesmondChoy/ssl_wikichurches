@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-01-31 (Phase 5 fine-tuning module quality reviewed)
+**Last Updated:** 2026-02-01 (Phase 5 items 3-4 pending team discussion)
 
 ---
 
@@ -291,6 +291,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 4. **Visualization** ⬜
    - Side-by-side heatmaps (frozen vs fine-tuned)
    - Attention shift maps (where did attention move?)
+
+> **Note:** Items 3-4 are pending team discussion on fine-tuning strategy (what type of fine-tuning to pursue, evaluation approach, and next steps).
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
