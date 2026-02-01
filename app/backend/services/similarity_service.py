@@ -239,7 +239,8 @@ class SimilarityService:
         """Check if features are cached for given parameters."""
         layer_key = f"layer{layer}"
         cache_model = self._resolve_model_name(model)
-        return self.cache.exists(cache_model, layer_key, image_id)
+        result: bool = self.cache.exists(cache_model, layer_key, image_id)
+        return result
 
 
 # Global instance

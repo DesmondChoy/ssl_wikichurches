@@ -57,7 +57,8 @@ class CacheService:
     def exists(self, model: str, layer: str, image_id: str) -> bool:
         """Check if attention is cached for given combination."""
         cache_model = self._resolve_model_name(model)
-        return self.cache.exists(cache_model, layer, image_id)
+        result: bool = self.cache.exists(cache_model, layer, image_id)
+        return result
 
     def load(self, model: str, layer: str, image_id: str) -> torch.Tensor:
         """Load cached attention map.
@@ -74,7 +75,8 @@ class CacheService:
             KeyError: If attention not cached.
         """
         cache_model = self._resolve_model_name(model)
-        return self.cache.load(cache_model, layer, image_id)
+        result: torch.Tensor = self.cache.load(cache_model, layer, image_id)
+        return result
 
     def list_cached_images(self, model: str, layer: str) -> list[str]:
         """List all image IDs cached for a model/layer combination."""

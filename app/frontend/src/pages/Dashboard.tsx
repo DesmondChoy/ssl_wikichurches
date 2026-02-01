@@ -15,8 +15,6 @@ import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 
-const COLORS = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'];
-
 export function DashboardPage() {
   const { model, layer, percentile, setModel, setPercentile } = useViewStore();
 
