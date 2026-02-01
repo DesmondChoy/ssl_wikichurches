@@ -165,21 +165,56 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] URL shows correct pattern: /image/:imageId
 - [ ] Back navigation returns to gallery
 
-#### Content Display
-- [ ] Full-size image displays correctly
-- [ ] Image metadata/details are visible
-- [ ] Attention visualization overlay displays (if applicable)
+#### Layout
+- [ ] Two-column layout: visualization (left), controls (right)
+- [ ] Left column displays the main image with attention overlay
+- [ ] Right column contains control panel and annotations
 
-#### Attention Visualization
-- [ ] Attention heatmap/overlay renders correctly
-- [ ] Legend or color scale is visible (if applicable)
-- [ ] Controls for toggling visualization work
-- [ ] Different attention heads/layers can be selected (if applicable)
+#### Attention Viewer (Left Column)
+- [ ] Main image displays with attention heatmap overlay
+- [ ] Overlay toggle button appears on hover (top-right of image)
+- [ ] Clicking toggle switches between attention overlay and original image
+- [ ] Info badges display: current model, layer number
+- [ ] Colormap legend is visible below the image
 
-#### Annotations
-- [ ] Expert annotations display correctly
-- [ ] Annotation regions are highlighted
-- [ ] Annotation labels/descriptions are readable
+#### Control Panel (Right Column)
+- [ ] Model selector dropdown shows available models (dinov2, dino, mae, clip)
+- [ ] Layer slider allows selection from 0-11
+- [ ] Percentile threshold selector shows options: 90%, 85%, 80%, 70%, 60%, 50%
+- [ ] "Show Bounding Boxes" toggle is present
+- [ ] Changing model updates the attention visualization
+- [ ] Changing layer updates the attention visualization
+- [ ] Changing percentile updates the attention overlay
+
+#### Layer Animation Slider
+- [ ] Play/Pause button is visible
+- [ ] Navigation buttons: |< (first), < (prev), > (next), >| (last)
+- [ ] Play button auto-cycles through layers 0-11
+- [ ] Pause button stops the animation
+- [ ] "Early layers" and "Late layers" labels are visible
+
+#### IoU Metrics Display
+- [ ] IoU Score is displayed with value
+- [ ] Coverage percentage is shown
+- [ ] Metrics update when model/layer/percentile changes
+
+#### Bounding Box Interaction
+- [ ] Enabling "Show Bounding Boxes" displays bbox overlays on image
+- [ ] Clicking a bbox in the annotations list selects it
+- [ ] Selected bbox is highlighted (different color)
+- [ ] Feature similarity heatmap loads when bbox is selected
+- [ ] Clicking outside deselects the bbox
+
+#### Annotations Card
+- [ ] Architectural styles are listed
+- [ ] Number of bounding boxes is shown
+- [ ] Scrollable list of bboxes with dimensions
+- [ ] Clicking bbox in list selects it
+
+#### Navigation Links (CRITICAL - verify these work!)
+- [ ] "Compare Models" link navigates to /compare with current image pre-selected
+- [ ] "Layer Analysis" link navigates to a valid page (NOT blank screen)
+- [ ] Verify Layer Analysis page actually renders content
 
 ---
 
@@ -205,57 +240,82 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 
 ### Phase 5: Dashboard Page
 
-#### Layout
+#### Initial Load (CRITICAL - check for blank screen!)
 - [ ] Dashboard page loads at "/dashboard"
-- [ ] Page has clear structure/sections
-- [ ] Loading states show while data fetches
+- [ ] Page is NOT blank - verify actual content renders
+- [ ] "Dashboard" heading is visible
+- [ ] Loading states show while data fetches (not indefinite spinner)
 
-#### Statistics/Metrics
-- [ ] Key metrics display correctly
-- [ ] Numbers/values are formatted properly
-- [ ] Charts/visualizations render (if applicable)
+#### Model Leaderboard (Left Sidebar)
+- [ ] Leaderboard card is visible with heading
+- [ ] Ranked list of models displays (not empty)
+- [ ] Top 3 models have medal badges (gold #1, silver #2, bronze #3)
+- [ ] Each row shows: model name, best layer, IoU score
+- [ ] Clicking a model row selects it
 
-#### Data Visualization
-- [ ] Graphs/charts are readable
-- [ ] Axis labels and legends are present
-- [ ] Interactive tooltips work (if applicable)
-- [ ] Data appears consistent with expectations
+#### Layer Progression Chart (Main Area)
+- [ ] Line chart is visible (not blank/missing)
+- [ ] X-axis shows layers (L0-L11)
+- [ ] Y-axis shows IoU range (0-1)
+- [ ] Multiple colored lines render (one per model)
+- [ ] Legend identifies each model
+
+#### IoU by Architectural Style (Bottom Chart)
+- [ ] Bar chart is visible (not blank/missing)
+- [ ] Bars display IoU values per style
+- [ ] Style names are readable
+- [ ] "No style data available" message shows if no data
+
+#### Quick Actions Card
+- [ ] "Browse Images" link navigates to gallery
+- [ ] "Compare Models" link navigates to compare page
+- [ ] Pre-computation notice is visible (yellow alert)
+
+#### Percentile Threshold Control
+- [ ] Dropdown at top shows percentile options
+- [ ] Changing percentile updates leaderboard
+- [ ] Changing percentile updates charts
 
 ---
 
-### Phase 6: Responsive Design
+### Phase 6: Desktop Layout Verification
 
-#### Mobile Viewport (375px width)
-- [ ] Navigation collapses to mobile menu (if applicable)
-- [ ] Content remains readable and not cut off
-- [ ] Images scale appropriately
-- [ ] Touch targets are adequately sized
-
-#### Tablet Viewport (768px width)
-- [ ] Layout adapts appropriately
-- [ ] Grid adjusts column count
-- [ ] No horizontal scrolling required
-
-#### Desktop Viewport (1280px width)
-- [ ] Full layout displays correctly
+#### Standard Desktop (1280px width)
+- [ ] Full multi-column layouts display correctly
+- [ ] Gallery shows proper column grid
+- [ ] Image detail shows side-by-side layout (visualization + controls)
+- [ ] Dashboard shows leaderboard + charts side-by-side
 - [ ] Maximum content width is respected
 - [ ] Adequate whitespace and spacing
+
+#### Wide Desktop (1920px width)
+- [ ] Layout remains centered and readable
+- [ ] No excessive stretching of content
+- [ ] Charts and visualizations scale appropriately
 
 ---
 
 ### Phase 7: Error Handling
 
 #### Network Errors
-- [ ] Disconnecting backend shows appropriate error state
+- [ ] Stopping backend shows appropriate error state (not blank page)
 - [ ] Error messages are user-friendly
-- [ ] Retry mechanisms work (if applicable)
+- [ ] Retry or refresh guidance is provided
 
 #### Invalid Routes
-- [ ] Navigating to /invalid-route shows 404 or redirects
-- [ ] Invalid image IDs handled gracefully
+- [ ] Navigating to /invalid-route shows 404 or redirects to home
+- [ ] Navigating to /layers (Layer Analysis) works or shows appropriate fallback
+- [ ] Invalid image ID (/image/nonexistent) handled gracefully
+
+#### Broken Links (CRITICAL - catch links to undefined routes!)
+- [ ] All navigation links in the app lead to valid, rendering pages
+- [ ] "Layer Analysis" link from Image Detail page works
+- [ ] No internal links result in blank screens
+- [ ] Check console for React Router warnings about unmatched routes
 
 #### Edge Cases
-- [ ] Empty states display when no data
+- [ ] Empty states display when no data (not blank)
+- [ ] Missing API data shows fallback UI (not crash)
 - [ ] Very long text doesn't break layout
 - [ ] Special characters render correctly
 
@@ -276,13 +336,17 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 For rapid testing, verify these critical paths:
 
 1. [ ] App loads at localhost:5173
-2. [ ] Gallery page shows images
+2. [ ] Gallery page shows images (grid is populated)
 3. [ ] Can click image to view detail page
-4. [ ] Image detail shows attention visualization
-5. [ ] Compare page allows side-by-side view
-6. [ ] Dashboard shows statistics/metrics
-7. [ ] Navigation between all pages works
-8. [ ] No console errors throughout
+4. [ ] Image detail shows attention visualization overlay
+5. [ ] Control panel controls work (model, layer, percentile dropdowns)
+6. [ ] "Layer Analysis" link works (page renders, not blank)
+7. [ ] Compare page loads and allows image selection
+8. [ ] **Dashboard page renders content (NOT blank screen!)**
+9. [ ] Dashboard shows leaderboard and charts
+10. [ ] Navigation between all pages works
+11. [ ] No console errors throughout
+12. [ ] No blank pages anywhere in the app
 
 ---
 
@@ -328,29 +392,37 @@ When instructed to perform Playwright testing, follow this workflow:
 
    PHASE 3: Image Detail Page
    └── Navigation (3 items)
-   └── Content Display (3 items)
-   └── Attention Visualization (4 items)
-   └── Annotations (3 items)
+   └── Layout (3 items)
+   └── Attention Viewer (5 items)
+   └── Control Panel (7 items)
+   └── Layer Animation Slider (5 items)
+   └── IoU Metrics Display (3 items)
+   └── Bounding Box Interaction (5 items)
+   └── Annotations Card (4 items)
+   └── Navigation Links - CRITICAL (3 items)
 
    PHASE 4: Compare Page
    └── Layout (3 items)
    └── Image Selection (3 items)
    └── Comparison Features (4 items)
 
-   PHASE 5: Dashboard Page
-   └── Layout (3 items)
-   └── Statistics/Metrics (3 items)
-   └── Data Visualization (4 items)
+   PHASE 5: Dashboard Page - CRITICAL (check for blank screen!)
+   └── Initial Load (4 items)
+   └── Model Leaderboard (5 items)
+   └── Layer Progression Chart (5 items)
+   └── IoU by Architectural Style (4 items)
+   └── Quick Actions Card (3 items)
+   └── Percentile Threshold Control (3 items)
 
-   PHASE 6: Responsive Design
-   └── Mobile (4 items)
-   └── Tablet (3 items)
-   └── Desktop (3 items)
+   PHASE 6: Desktop Layout Verification
+   └── Standard Desktop 1280px (6 items)
+   └── Wide Desktop 1920px (3 items)
 
    PHASE 7: Error Handling
    └── Network Errors (3 items)
-   └── Invalid Routes (2 items)
-   └── Edge Cases (3 items)
+   └── Invalid Routes (3 items)
+   └── Broken Links - CRITICAL (4 items)
+   └── Edge Cases (4 items)
 
    PHASE 8: Performance (5 items)
 
@@ -358,4 +430,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~70 items
+**Total checklist items**: ~100 items
