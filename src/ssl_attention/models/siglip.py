@@ -10,13 +10,17 @@ Sequence structure: [196 patches] (NO CLS token in sequence)
 - Patch size: 16 (so 224/16 = 14 patches per side = 196 total)
 - No register tokens
 - Pooler output is derived separately, not from a CLS token
+
+Note: SigLIP 2's default image processor uses dynamic aspect-ratio-preserving
+resizing (NaFlex-style), which can produce non-square patch grids. We override
+this to force fixed 224x224 preprocessing for consistent 14x14 patch grids.
 """
 
 from typing import Any
 
 import torch
 from torch import nn
-from transformers import SiglipVisionConfig, SiglipVisionModel
+from transformers import AutoImageProcessor, SiglipVisionConfig, SiglipVisionModel
 
 from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
@@ -58,6 +62,22 @@ class SigLIP(BaseVisionModel):
     num_layers = _config.num_layers
     num_heads = _config.num_heads
     num_registers = _config.num_registers
+
+    def _load_processor(self) -> Any:
+        """Load SigLIP processor with fixed 224x224 resolution.
+
+        SigLIP 2's default processor uses dynamic aspect-ratio-preserving
+        resizing (NaFlex-style), which can produce non-square patch grids
+        (e.g., 13x15 = 195 patches instead of 14x14 = 196).
+
+        We override the default to force fixed 224x224 output for consistent
+        14x14 patch grids compatible with attention visualization.
+        """
+        processor = AutoImageProcessor.from_pretrained(self.model_id)
+        # Force fixed 224x224 output to get exactly 196 patches (14x14)
+        processor.size = {"height": 224, "width": 224}
+        processor.do_resize = True
+        return processor
 
     def _load_config(self) -> SiglipVisionConfig:
         """Load SigLIP vision config with attention output enabled.

@@ -23,7 +23,11 @@ from tqdm import tqdm
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from ssl_attention.attention import attention_to_heatmap, extract_cls_attention
+from ssl_attention.attention import (
+    attention_to_heatmap,
+    extract_cls_attention,
+    extract_mean_attention,
+)
 from ssl_attention.cache import AttentionCache
 from ssl_attention.config import CACHE_PATH, DATASET_PATH, MODELS
 from ssl_attention.data import AnnotatedSubset
@@ -98,12 +102,20 @@ def generate_attention_for_model(
                         stats["skipped"] += 1
                         continue
 
-                    # Extract CLS attention for this layer
-                    cls_attn = extract_cls_attention(
-                        output.attention_weights,
-                        layer=layer,
-                        num_registers=model.num_registers,
-                    )
+                    # Extract attention for this layer
+                    # Use CLS attention for models with CLS token, mean attention otherwise
+                    if model_config.has_cls_token:
+                        cls_attn = extract_cls_attention(
+                            output.attention_weights,
+                            layer=layer,
+                            num_registers=model.num_registers,
+                        )
+                    else:
+                        # SigLIP and similar models without CLS token
+                        cls_attn = extract_mean_attention(
+                            output.attention_weights,
+                            layer=layer,
+                        )
 
                     # Convert to 2D heatmap
                     heatmap = attention_to_heatmap(

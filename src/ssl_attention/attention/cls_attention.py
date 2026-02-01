@@ -186,6 +186,14 @@ def attention_to_heatmap(
     num_patches = attention.shape[1]
     patches_per_side = int(math.sqrt(num_patches))
 
+    # Validate square patch grid
+    if patches_per_side * patches_per_side != num_patches:
+        raise ValueError(
+            f"attention_to_heatmap requires square patch grid, got {num_patches} patches "
+            f"(sqrt={math.sqrt(num_patches):.2f}). Check image preprocessing - "
+            f"ensure fixed 224x224 resolution for consistent 14x14 or 16x16 patch grids."
+        )
+
     # Reshape to 2D grid
     attn_2d = attention.view(batch_size, patches_per_side, patches_per_side)
 
