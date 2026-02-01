@@ -154,15 +154,11 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
  *
  * @param width - Legend width
  * @param height - Legend height
- * @param _minLabel - Label for minimum value (reserved for future use)
- * @param _maxLabel - Label for maximum value (reserved for future use)
  * @returns Data URL of the legend image
  */
 export function renderHeatmapLegend(
   width = 200,
-  height = 20,
-  _minLabel = '0',
-  _maxLabel = '1'
+  height = 20
 ): string {
   const canvas = document.createElement('canvas');
   canvas.width = width;
