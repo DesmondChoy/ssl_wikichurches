@@ -1,12 +1,6 @@
 ---
 name: playwright-testing
-description: Systematic Playwright MCP testing workflow for SSL Attention Visualization app with detailed checklists
-triggers:
-  - test the app
-  - playwright testing
-  - visual testing
-  - run playwright
-  - test frontend
+description: Systematic Playwright MCP testing workflow for SSL Attention Visualization app. Use when testing the frontend, running visual tests, verifying UI changes, or when asked to "test the app". Provides detailed checklists for all app pages and features.
 ---
 
 # Playwright MCP Testing Guide

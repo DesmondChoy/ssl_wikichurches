@@ -1,5 +1,6 @@
 ---
-description: Review recent code changes with "fresh eyes" and fix any issues found. Use before commits to catch bugs that accumulate during implementation.
+name: quality
+description: Review recent code changes with "fresh eyes" and fix any issues found. Use before commits to catch bugs. Trigger with /quality or before git commit, bd sync, or bd close.
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(uv run ruff *), Bash(uv run mypy *), Read, Edit, Glob, Grep
 ---
 
@@ -92,9 +93,3 @@ After reviewing all files, provide:
 
 **Confidence:** <High/Medium/Low> - <brief explanation>
 ```
-
-## When to Run
-
-- Before any `git commit`
-- Before any `bd sync` or `bd close`
-- When requested with `/quality`
