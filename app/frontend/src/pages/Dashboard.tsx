@@ -3,18 +3,12 @@
  */
 
 import { Link } from 'react-router-dom';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from 'recharts';
+// TODO: recharts has SVG animation bugs with current React version
+// Re-enable when recharts releases a fix
+// import {
+//   LineChart, Line, XAxis, YAxis, CartesianGrid,
+//   Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
+// } from 'recharts';
 import { useViewStore } from '../store/viewStore';
 import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
@@ -99,25 +93,13 @@ export function DashboardPage() {
               {summaryLoading ? (
                 <div className="h-64 animate-pulse bg-gray-100 rounded" />
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="layer" />
-                    <YAxis domain={[0, 1]} tickFormatter={(v) => v.toFixed(2)} />
-                    <Tooltip formatter={(value: number) => value.toFixed(3)} />
-                    <Legend />
-                    {summary?.leaderboard.map((entry, i) => (
-                      <Line
-                        key={entry.model}
-                        type="monotone"
-                        dataKey={entry.model}
-                        stroke={COLORS[i % COLORS.length]}
-                        strokeWidth={entry.model === model ? 3 : 1}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded border-2 border-dashed border-gray-200">
+                  <div className="text-center text-gray-500">
+                    <p className="font-medium">Layer Progression Chart</p>
+                    <p className="text-sm">{chartData.length} layers × {summary?.leaderboard.length || 0} models</p>
+                    <p className="text-xs mt-2 text-gray-400">Charts temporarily disabled</p>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -137,20 +119,13 @@ export function DashboardPage() {
             {styleLoading ? (
               <div className="h-48 animate-pulse bg-gray-100 rounded" />
             ) : styleData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={styleData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" domain={[0, 1]} tickFormatter={(v) => v.toFixed(2)} />
-                  <YAxis type="category" dataKey="style" width={100} />
-                  <Tooltip
-                    formatter={(value: number, _name, props) => [
-                      `${value.toFixed(3)} (n=${props.payload.count})`,
-                      'IoU',
-                    ]}
-                  />
-                  <Bar dataKey="iou" fill="#0ea5e9" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[200px] flex items-center justify-center bg-gray-50 rounded border-2 border-dashed border-gray-200">
+                <div className="text-center text-gray-500">
+                  <p className="font-medium">Style Breakdown Chart</p>
+                  <p className="text-sm">{styleData.length} architectural styles</p>
+                  <p className="text-xs mt-2 text-gray-400">Charts temporarily disabled</p>
+                </div>
+              </div>
             ) : (
               <div className="h-48 flex items-center justify-center text-gray-500">
                 No style data available

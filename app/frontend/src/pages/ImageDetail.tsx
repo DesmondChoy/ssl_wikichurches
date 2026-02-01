@@ -189,12 +189,6 @@ export function ImageDetailPage() {
             >
               Compare Models
             </Link>
-            <Link
-              to={`/layers?image=${encodeURIComponent(decodedId)}&model=${model}`}
-              className="flex-1 py-2 text-center bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Layer Analysis
-            </Link>
           </div>
         </div>
       </div>

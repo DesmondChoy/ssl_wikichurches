@@ -31,3 +31,5 @@ outputs/
 experiments/outputs/
 experiments/results/
 experiments/logs/
+
+.playwright-mcp
