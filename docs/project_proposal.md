@@ -72,14 +72,16 @@ Use pretrained weights from HuggingFace/timm. Models are evaluated both **frozen
 | MAE ViT-B/16 | 86M | Masked autoencoding | `facebook/vit-mae-base` |
 | CLIP ViT-B/16 | 86M | Contrastive language-image (softmax) | `openai/clip-vit-base-patch16` |
 | SigLIP 2 ViT-B/16 | 86M | Contrastive language-image (sigmoid) + dense features | `google/siglip2-base-patch16-224` |
+| ResNet-50 | 23M | Supervised (ImageNet) | `torchvision` |
 
-All models use ViT-B architecture for controlled comparison. Feature extraction runs on M4 Pro (MPS backend).
+All models use ViT-B architecture for controlled comparison (ResNet-50 included as supervised baseline). Feature extraction runs on M4 Pro (MPS backend).
 
 **Model selection rationale:**
 
 - **DINOv2 vs DINOv3:** Direct comparison of Gram Anchoring's effect on attention quality  
 - **MAE:** Tests whether pixel-reconstruction objectives produce different attention than discriminative objectives  
 - **CLIP vs SigLIP 2:** Tests whether loss function (softmax vs sigmoid) and improved dense features affect attention alignment with experts
+- **ResNet-50:** ImageNet-supervised baseline to validate that attention alignment findings are specific to SSL training paradigms
 
 ### 3.2 Attention Extraction and Visualization
 
@@ -123,7 +125,7 @@ After evaluating frozen models, fine-tune each backbone on the style classificat
 - Task: 4-class architectural style classification
 - Strategy: Freeze backbone initially, then unfreeze last N layers
 - Epochs: ~10-20 with early stopping
-- Learning rate: 1e-5 to 1e-4 with warmup
+- Learning rate: Differential rates (backbone: 1e-5, classification head: 1e-3)
 
 **Post-fine-tuning evaluation:**
 - Extract attention from fine-tuned models on same 139 annotated images
@@ -152,7 +154,7 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 
 **Metrics Features:**
 - Model leaderboard by IoU
-- Per-feature-type breakdown
+- Per-feature-type breakdown *(backend implemented, UI pending)*
 - Statistical comparison view
 
 **Representation Exploration (Enhancement):**
@@ -250,7 +252,7 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
 | DINOv3/SigLIP 2 documentation still sparse | Both have HuggingFace weights available; community examples exist |
-| Fine-tuning may overfit on small style subset | Use validation split, early stopping, monitor attention maps for degeneration |
+| Fine-tuning may overfit on small style subset | Use validation split, early stopping, monitor attention maps for degeneration. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
 
 ---
 
@@ -281,6 +283,68 @@ These tools visualize attention but do not quantify alignment with domain expert
 - Chefer et al. (2021): Transformer interpretability beyond attention visualization
 
 **Knowledge Gap:** No existing work benchmarks multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. We fill this gap with a quantitative benchmark and interactive tool.
+
+---
+
+## 11. Future Extensions
+
+### 11.1 Dataset Expansion: Leveraging Unused Styles
+
+The current implementation uses only 4 architectural styles (Romanesque, Gothic, Renaissance, Baroque), covering 4,790 of 9,346 images (51.3%). The remaining 4,556 images have style labels but are excluded from training. This presents opportunities for future work:
+
+**Current Dataset Utilization:**
+
+| Subset | Images | Purpose |
+|--------|--------|---------|
+| Annotated (building_parts.json) | 139 | IoU evaluation with expert bounding boxes |
+| 4-class labeled (filter_labeled=True) | 4,790 | Fine-tuning and linear probe |
+| Other labeled styles | 4,556 | Currently unused |
+
+**Top Unused Styles:**
+
+| Style | Wikidata ID | Images | Notes |
+|-------|-------------|--------|-------|
+| Neoclassical | Q186363 | 1,587 | Second largest style in dataset |
+| Neo-Gothic | Q245188 | 496 | Gothic revival variant |
+| Brick Gothic | Q744373 | 486 | Regional Gothic variant |
+| Neoclassicism | Q54111 | 350 | Overlaps with Q186363 |
+| Baroque Classicism | Q695863 | 272 | Baroque variant |
+| Historicism | Q750752 | 215 | 19th century eclectic style |
+| Late Gothic | Q930314 | 124 | Temporal Gothic variant |
+| Art Nouveau | Q136693 | 122 | Early modern style |
+
+**Expansion Options:**
+
+1. **Add Neoclassical as 5th class** — Instant +1,587 training images with minimal code changes. Neoclassical emerged after Baroque (18th century) and has distinctive visual features (columns, symmetry, pediments).
+
+2. **Merge Gothic variants** — Combine Neo-Gothic, Brick Gothic, and Late Gothic into the Gothic class for +1,106 additional images. Requires careful consideration of whether visual features are sufficiently similar.
+
+3. **Hierarchical classification** — Implement two-level classification (major style → substyle). This would leverage the full dataset while preserving fine-grained distinctions.
+
+4. **Semi-supervised learning** — Use all 9,346 images regardless of style mapping. Unlabeled images could improve learned representations through consistency regularization or pseudo-labeling.
+
+**Implementation Considerations:**
+
+- The annotated subset (139 images) only covers the current 4 styles, so IoU evaluation cannot extend to new classes without additional expert annotations
+- Expanding to more classes increases classification difficulty but provides richer evaluation of model capabilities
+- Some style boundaries are fuzzy (e.g., Neoclassicism vs Baroque Classicism), which may affect label quality
+
+**Code Changes Required:**
+
+To add Neoclassical as a 5th class, modify `src/ssl_attention/config.py`:
+
+```python
+STYLE_MAPPING: dict[str, int] = {
+    "Q46261": 0,   # Romanesque
+    "Q176483": 1,  # Gothic
+    "Q236122": 2,  # Renaissance
+    "Q840829": 3,  # Baroque
+    "Q186363": 4,  # Neoclassical (NEW)
+}
+
+STYLE_NAMES: tuple[str, ...] = ("Romanesque", "Gothic", "Renaissance", "Baroque", "Neoclassical")
+NUM_STYLES: int = len(STYLE_MAPPING)
+```
 
 ---
 
