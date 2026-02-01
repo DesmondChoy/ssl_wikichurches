@@ -53,6 +53,7 @@ STANDARD_IMAGE_SIZE = (224, 224)
 from ssl_attention.config import DEFAULT_METHOD as DEFAULT_METHOD
 from ssl_attention.config import MODEL_ALIASES
 from ssl_attention.config import MODEL_METHODS as MODEL_METHODS
+from ssl_attention.config import MODELS as MODELS
 from ssl_attention.config import AttentionMethod as AttentionMethod
 
 
@@ -67,3 +68,17 @@ def resolve_model_name(model: str) -> str:
     """
     resolved: str = MODEL_ALIASES.get(model, model)
     return resolved
+
+
+def get_model_num_layers(model: str) -> int:
+    """Get number of layers for a model.
+
+    Args:
+        model: Canonical model name.
+
+    Returns:
+        Number of layers for the model.
+    """
+    if model in MODELS:
+        return MODELS[model].num_layers
+    return NUM_LAYERS  # Fallback to default

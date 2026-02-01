@@ -7,7 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
 import { useViewStore } from '../store/viewStore';
-import { useImageMetrics } from '../hooks/useAttention';
+import { useImageMetrics, useModels } from '../hooks/useAttention';
 import { AttentionViewer } from '../components/attention/AttentionViewer';
 import { ControlPanel } from '../components/attention/ControlPanel';
 import { LayerSlider } from '../components/attention/LayerSlider';
@@ -19,6 +19,10 @@ export function ImageDetailPage() {
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
 
   const { model, layer, method, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
+
+  // Get models config for per-model layer counts
+  const { data: modelsData } = useModels();
+  const maxLayers = modelsData?.num_layers_per_model?.[model] ?? modelsData?.num_layers ?? 12;
 
   const handleBboxSelect = useCallback((index: number | null) => {
     setSelectedBboxIndex(index);
@@ -103,6 +107,7 @@ export function ImageDetailPage() {
             <CardContent>
               <LayerSlider
                 currentLayer={layer}
+                maxLayers={maxLayers}
                 onChange={setLayer}
                 playSpeed={400}
               />

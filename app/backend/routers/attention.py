@@ -14,6 +14,7 @@ from app.backend.config import (
     MODEL_METHODS,
     NUM_LAYERS,
     AttentionMethod,
+    get_model_num_layers,
     resolve_model_name,
 )
 from app.backend.schemas.models import BboxInput, SimilarityResponse
@@ -33,12 +34,24 @@ def validate_model(model: str) -> str:
     return resolve_model_name(model)
 
 
-def validate_layer(layer: int) -> str:
-    """Validate layer number and return layer key."""
-    if not 0 <= layer < NUM_LAYERS:
+def validate_layer(layer: int, model: str) -> str:
+    """Validate layer number for a specific model and return layer key.
+
+    Args:
+        layer: Layer number to validate.
+        model: Canonical model name.
+
+    Returns:
+        Layer key string (e.g., "layer0").
+
+    Raises:
+        HTTPException: If layer is out of range for the model.
+    """
+    num_layers = get_model_num_layers(model)
+    if not 0 <= layer < num_layers:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid layer: {layer}. Must be 0-{NUM_LAYERS - 1}",
+            detail=f"Invalid layer: {layer}. Model '{model}' has {num_layers} layers (0-{num_layers - 1}).",
         )
     return f"layer{layer}"
 
@@ -88,7 +101,7 @@ def validate_method(model: str, method: str | None) -> str:
 async def get_heatmap(
     image_id: str,
     model: Annotated[str, Query(description="Model name")] = "dinov2",
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS, description="Layer number")] = 11,
+    layer: Annotated[int, Query(ge=0, description="Layer number")] = 11,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> StreamingResponse:
     """Get pure attention heatmap (no overlay).
@@ -96,7 +109,7 @@ async def get_heatmap(
     Returns the attention map rendered with the configured colormap.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer(layer)
+    layer_key = validate_layer(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
 
     if not image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant="heatmap"):
@@ -125,7 +138,7 @@ async def get_heatmap(
 async def get_overlay(
     image_id: str,
     model: Annotated[str, Query(description="Model name")] = "dinov2",
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS, description="Layer number")] = 11,
+    layer: Annotated[int, Query(ge=0, description="Layer number")] = 11,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
     show_bboxes: Annotated[bool, Query(description="Include bounding boxes")] = False,
 ) -> StreamingResponse:
@@ -134,12 +147,12 @@ async def get_overlay(
     Args:
         image_id: Image filename.
         model: Model name.
-        layer: Layer number (0-11).
+        layer: Layer number (varies by model).
         method: Attention method (cls, rollout, mean, gradcam). Default per model.
         show_bboxes: If True, also draw bounding box annotations.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer(layer)
+    layer_key = validate_layer(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
 
     variant = "overlay_bbox" if show_bboxes else "overlay"
@@ -179,11 +192,12 @@ async def get_all_layer_overlays(
     """
     resolved_model = validate_model(model)
     resolved_method = validate_method(resolved_model, method)
+    num_layers = get_model_num_layers(resolved_model)
 
     variant = "overlay_bbox" if show_bboxes else "overlay"
 
     layers = {}
-    for layer in range(NUM_LAYERS):
+    for layer in range(num_layers):
         layer_key = f"layer{layer}"
         if image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant=variant):
             layers[layer_key] = (
@@ -209,15 +223,21 @@ async def get_all_layer_overlays(
 @router.get("/models")
 async def list_models() -> dict:
     """List available models and their configurations including attention methods."""
+    # Use original model names as keys (e.g., 'siglip2' not 'siglip')
+    # so frontend can look up by the name it uses
     return {
         "models": AVAILABLE_MODELS,
-        "num_layers": NUM_LAYERS,
+        "num_layers": NUM_LAYERS,  # Legacy: global default for backwards compatibility
+        "num_layers_per_model": {
+            m: get_model_num_layers(resolve_model_name(m))
+            for m in AVAILABLE_MODELS
+        },
         "methods": {
-            resolve_model_name(m): [method.value for method in MODEL_METHODS.get(resolve_model_name(m), [])]
+            m: [method.value for method in MODEL_METHODS.get(resolve_model_name(m), [])]
             for m in AVAILABLE_MODELS
         },
         "default_methods": {
-            resolve_model_name(m): DEFAULT_METHOD.get(resolve_model_name(m), AttentionMethod.CLS).value
+            m: DEFAULT_METHOD.get(resolve_model_name(m), AttentionMethod.CLS).value
             for m in AVAILABLE_MODELS
         },
     }
@@ -228,7 +248,7 @@ async def compute_bbox_similarity(
     image_id: str,
     bbox: BboxInput,
     model: Annotated[str, Query(description="Model name")] = "dinov2",
-    layer: Annotated[int, Query(ge=0, lt=NUM_LAYERS, description="Layer number")] = 11,
+    layer: Annotated[int, Query(ge=0, description="Layer number")] = 11,
 ) -> SimilarityResponse:
     """Compute cosine similarity between a bounding box and all image patches.
 
@@ -239,13 +259,13 @@ async def compute_bbox_similarity(
         image_id: Image filename.
         bbox: Bounding box coordinates (normalized 0-1).
         model: Model name.
-        layer: Layer number (0-11).
+        layer: Layer number (varies by model).
 
     Returns:
         SimilarityResponse with similarity values for each patch.
     """
     resolved_model = validate_model(model)
-    validate_layer(layer)
+    validate_layer(layer, resolved_model)
 
     # Check if features are cached
     if not similarity_service.features_exist(resolved_model, layer, image_id):

@@ -36,6 +36,11 @@ export function AttentionViewer({
   const [showOverlay, setShowOverlay] = useState(true);
   const [imageError, setImageError] = useState(false);
 
+  // Reset error state when model/layer/method changes
+  useEffect(() => {
+    setImageError(false);
+  }, [imageId, model, layer, method]);
+
   // Get heatmap settings from store
   const heatmapOpacity = useHeatmapOpacity();
 

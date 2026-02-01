@@ -48,6 +48,18 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     }
   }, [modelsData, setMethodsConfig]);
 
+  // Get max layer for current model (0-indexed, so subtract 1)
+  const maxLayer = modelsData?.num_layers_per_model?.[model]
+    ? modelsData.num_layers_per_model[model] - 1
+    : (modelsData?.num_layers || 12) - 1;
+
+  // Clamp layer when model changes (if current layer exceeds new model's max)
+  useEffect(() => {
+    if (layer > maxLayer) {
+      setLayer(maxLayer);
+    }
+  }, [model, maxLayer, layer, setLayer]);
+
   if (isLoading) {
     return (
       <div className={`p-4 bg-white rounded-lg shadow ${className}`}>
@@ -107,7 +119,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         value={layer}
         onChange={setLayer}
         min={0}
-        max={(modelsData?.num_layers || 12) - 1}
+        max={maxLayer}
         label={`Layer ${layer}`}
       />
 

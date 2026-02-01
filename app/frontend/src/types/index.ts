@@ -106,7 +106,8 @@ export interface ViewSettings {
 // Models API Response
 export interface ModelsResponse {
   models: string[];
-  num_layers: number;
+  num_layers: number;  // Legacy: global default
+  num_layers_per_model: Record<string, number>;  // Per-model layer counts
   methods: Record<string, string[]>;
   default_methods: Record<string, string>;
 }
