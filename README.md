@@ -68,11 +68,14 @@ Interactive web app to explore attention patterns across models and layers.
 
 ### Pre-computation (one-time)
 
-Before running the app, pre-compute attention maps and metrics. This extracts attention from all 5 models × 12 layers × 139 images, then renders heatmaps and computes IoU metrics. Run once; results are cached.
+Before running the app, pre-compute attention maps, feature embeddings, and metrics. This extracts attention and per-layer features from all 5 models × 12 layers × 139 images, then renders heatmaps and computes IoU metrics. Run once; results are cached.
 
 ```bash
 # Extract attention maps
 python -m app.precompute.generate_attention_cache --models all
+
+# Extract per-layer feature embeddings (for similarity analysis)
+python -m app.precompute.generate_feature_cache --models all
 
 # Render heatmap overlays
 python -m app.precompute.generate_heatmap_images --colormap viridis
@@ -84,6 +87,7 @@ python -m app.precompute.generate_metrics_cache
 To test with a subset first:
 ```bash
 python -m app.precompute.generate_attention_cache --models dinov2 --layers 11
+python -m app.precompute.generate_feature_cache --models dinov2 --layers 11
 ```
 
 ### Run the App
