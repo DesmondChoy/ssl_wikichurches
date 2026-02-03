@@ -1,3 +1,6 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 # Agent Instructions
 
@@ -47,3 +50,38 @@ pytest                # Run tests
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+---
+
+## Architecture Overview
+
+SSL attention visualization platform comparing 6 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes).
+
+### Data Flow
+
+```
+Precompute (one-time) → HDF5/PNG cache → FastAPI backend → React frontend
+```
+
+### Key Directories
+
+| Directory | Purpose |
+|-----------|---------|
+| `src/ssl_attention/` | Core library: models, attention extraction, metrics, cache, visualization |
+| `app/backend/` | FastAPI server (routers: images, attention, metrics, comparison) |
+| `app/frontend/` | React + Vite + Tailwind |
+| `app/precompute/` | Batch cache generation scripts |
+
+### Models & Attention Methods
+
+| Model | Methods | Notes |
+|-------|---------|-------|
+| DINOv2 | CLS, Rollout | 14×14 patches, 4 register tokens |
+| DINOv3, MAE, CLIP | CLS, Rollout | 16×16 patches |
+| SigLIP | Mean | No CLS token |
+| ResNet-50 | Grad-CAM | CNN baseline |
+
+### Key Patterns
+
+- **Lazy loading**: Models loaded via `get_model()` with LRU cache (max 2 in GPU memory)
+- **Protocol-based**: All models implement `VisionBackbone` protocol returning `ModelOutput`
+- **Precompute + serve**: Heavy inference offline, fast cache reads at runtime

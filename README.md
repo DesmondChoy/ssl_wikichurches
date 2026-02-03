@@ -44,12 +44,12 @@ This installs all dependencies including PyTorch, Transformers, and FastAPI. Mod
 
 Download the dataset from Google Drive and extract to `dataset/`:
 
-**[Download Dataset (Google Drive)](https://drive.google.com/drive/folders/TODO_REPLACE_WITH_ACTUAL_LINK)**
+**[Download Dataset (Google Drive)](https://drive.google.com/drive/folders/1fsf0k71ADeYCBAwo-dIPntUmpibaoGBr)**
 
 The download contains:
 | File/Folder | Size | Purpose |
 |-------------|------|---------|
-| `images/` | ~50 MB | 139 annotated church images |
+| `images/` | ~180 MB | 139 annotated church images |
 | `building_parts.json` | 304 KB | Expert bounding box annotations |
 
 Your `dataset/` directory should look like:
