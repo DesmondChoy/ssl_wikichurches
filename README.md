@@ -8,51 +8,30 @@ This project investigates whether SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP 
 
 ## Quick Start
 
-```bash
-# 1. Install Python dependencies
-uv sync
+**Requirements:** Python 3.12+, [uv](https://github.com/astral-sh/uv) (`brew install uv`), Node.js 18+
 
-# 2. Download dataset (see Dataset section below)
-
-# 3. Pre-compute attention maps and metrics (run once)
-python -m app.precompute.generate_attention_cache --models all
-python -m app.precompute.generate_feature_cache --models all
-python -m app.precompute.generate_heatmap_images --colormap viridis
-python -m app.precompute.generate_metrics_cache
-
-# 4. Start the app
-./dev.sh
-```
-
-## Requirements
-
-- **Python 3.12+** — Required for type hints and modern features
-- **[uv](https://github.com/astral-sh/uv)** — Fast Python package manager (`brew install uv` or `pip install uv`)
-- **Node.js 18+** — For the frontend (check with `node --version`)
-
-## Setup
-
-### 1. Install Python Dependencies
+### 1. Install Dependencies
 
 ```bash
 uv sync
 ```
 
-This installs all dependencies including PyTorch, Transformers, and FastAPI. Model weights (~400MB each) download automatically from HuggingFace Hub on first use.
+This installs PyTorch, Transformers, FastAPI, and all other dependencies. Model weights (~400MB each) download automatically from HuggingFace Hub on first use.
 
 ### 2. Download Dataset
 
-Download the dataset from Google Drive and extract to `dataset/`:
+Download from Google Drive and extract to `dataset/`:
 
 **[Download Dataset (Google Drive)](https://drive.google.com/drive/folders/1fsf0k71ADeYCBAwo-dIPntUmpibaoGBr)**
 
-The download contains:
-| File/Folder | Size | Purpose |
-|-------------|------|---------|
+| File/Folder | Size | Contents |
+|-------------|------|----------|
 | `images/` | ~180 MB | 139 annotated church images |
 | `building_parts.json` | 304 KB | Expert bounding box annotations |
 
-Your `dataset/` directory should look like:
+<details>
+<summary>Expected directory structure</summary>
+
 ```
 dataset/
 ├── images/
@@ -61,50 +40,38 @@ dataset/
 │   └── ... (139 images)
 └── building_parts.json
 ```
+</details>
 
 > **Note**: The full WikiChurches dataset (9,502 images) is available on [Zenodo](https://zenodo.org/records/5166987), but this app only uses the 139 images with expert annotations.
 
-### 3. Pre-compute Attention Data
+### 3. Pre-compute Caches
 
-Pre-compute attention maps, feature embeddings, heatmaps, and metrics. This takes 10-30 minutes depending on hardware:
+Generate attention maps, feature embeddings, heatmaps, and metrics (10-30 min):
 
 ```bash
-# Generate attention maps for all models and layers
 python -m app.precompute.generate_attention_cache --models all
-
-# Generate feature embeddings
 python -m app.precompute.generate_feature_cache --models all
-
-# Generate heatmap images
 python -m app.precompute.generate_heatmap_images --colormap viridis
-
-# Calculate IoU metrics
 python -m app.precompute.generate_metrics_cache
 ```
 
-**Tip:** Test with a subset first: `--models dinov2 --layers 11`
+> **Tip:** Test with a subset first: `--models dinov2 --layers 11`
 
-### 4. Install Frontend Dependencies
-
-The frontend uses React + Vite + Tailwind. Dependencies are installed automatically when you run `./dev.sh`, but you can also install manually:
+### 4. Run the App
 
 ```bash
-cd app/frontend
-npm install
-```
-
-### 5. Run the App
-
-```bash
-./dev.sh  # Starts backend on :8000 + frontend on :5173
+./dev.sh  # Starts backend :8000 + frontend :5173
 ```
 
 Open http://localhost:5173 in your browser.
 
-**Alternative (Docker):**
+<details>
+<summary>Alternative: Docker</summary>
+
 ```bash
 docker compose up
 ```
+</details>
 
 ## Models
 
