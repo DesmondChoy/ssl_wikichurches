@@ -4,7 +4,6 @@ This project investigates whether SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP 
 
 1. **Attention alignment** — IoU between model attention and expert annotations
 2. **Fine-tuning effects** — Does task-specific training shift attention toward expert features?
-3. **Representation coherence** — Do patch embeddings cluster around semantic concepts?
 
 ## Quick Start
 

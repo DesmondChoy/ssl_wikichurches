@@ -322,11 +322,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `/api/metrics` - IoU metrics, leaderboard, layer progression
    - `/api/compare` - Model comparison, frozen vs fine-tuned
 
-5. **Representation Similarity Exploration (Enhancement)** ✅
+5. **Representation Similarity Exploration (Utility Feature)** ✅
    - Click on bounding box to compute cosine similarity with all image patches
    - Visualize which regions share similar learned representations
-   - Compare feature coherence across models and layers
-   - **Research question:** Do patch features cluster around semantically similar architectural elements?
+   - Compare feature similarity across models and layers
    - **Files added:**
      - `app/precompute/generate_feature_cache.py` - Cache patch tokens to HDF5
      - `app/backend/services/similarity_service.py` - Bbox-to-patch similarity computation
@@ -353,7 +352,6 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
    - Clicking a bbox shows similarity heatmaps for both models simultaneously
    - Synchronized selection across both panels for direct comparison
-   - **Research question:** How do different models perceive the same architectural feature?
    - **Files added:**
      - `app/frontend/src/components/comparison/SimilarityViewer.tsx` - Bbox overlay + similarity heatmap viewer
      - `app/frontend/src/components/comparison/ModelCompare.tsx` - Updated with synchronized selection

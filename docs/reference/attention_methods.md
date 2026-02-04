@@ -16,12 +16,11 @@ This document explains how attention visualization works in this application and
    - [Mean Attention](#3-mean-attention)
    - [Grad-CAM](#4-grad-cam-gradient-weighted-class-activation-mapping)
 4. [How We Measure Alignment](#how-we-measure-alignment)
-5. [The Similarity Heatmap](#the-similarity-heatmap)
-6. [Model-Specific Considerations](#model-specific-considerations)
-7. [Interpreting the Visualizations](#interpreting-the-visualizations)
-8. [Technical Reference](#technical-reference)
-9. [Academic Foundations](#academic-foundations)
-10. [References](#references)
+5. [Model-Specific Considerations](#model-specific-considerations)
+6. [Interpreting the Visualizations](#interpreting-the-visualizations)
+7. [Technical Reference](#technical-reference)
+8. [Academic Foundations](#academic-foundations)
+9. [References](#references)
 
 ---
 
@@ -43,15 +42,14 @@ The [WikiChurches dataset](../core/project_proposal.md#2-dataset) (Barz & Denzle
 
 This app visualizes these attention patterns and computes the overlap (IoU) between model attention and expert annotations.
 
-### The Three Research Questions
+### The Two Research Questions
 
-This application helps answer three interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
+This application helps answer two interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
 
 | # | Research Question | How This App Helps |
 |---|-------------------|-------------------|
 | 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + IoU metrics |
 | 2 | Does fine-tuning shift attention toward expert-identified features? | Frozen vs. fine-tuned comparison |
-| 3 | Do learned representations encode semantically coherent groupings? | Click-to-compare similarity heatmap |
 
 ---
 
@@ -226,44 +224,6 @@ In the metrics dashboard, you can see:
 - **Model leaderboard:** Ranked by mean IoU across all images
 - **Layer progression:** How IoU changes across transformer layers
 - **Per-feature breakdown:** Which architectural elements (windows, arches, towers) each model attends to best
-
----
-
-## The Similarity Heatmap
-
-> **See also:** [Project Proposal §3.6 - Representation Exploration Enhancement](../core/project_proposal.md#36-interactive-analysis-tool)
-
-Beyond attention, this app also visualizes **representation similarity**—a different but complementary view that addresses our [third research question](../core/project_proposal.md#research-questions-and-approaches): *Do learned representations encode semantically coherent groupings?*
-
-### What It Shows
-
-When you click on a bounding box, the app computes:
-- How similar each patch's learned representation is to the patches inside your selected box
-- Displayed as a heatmap where bright colors = similar representations
-
-### How It Works
-
-1. Extract patch-level features from the model (the intermediate representations, not attention)
-2. Compute the mean feature vector for patches inside the selected bounding box
-3. Compute cosine similarity between this mean and every other patch
-4. Display as a heatmap
-
-### Research Relevance
-
-This answers our third research question: **Do learned representations encode semantically coherent groupings?**
-
-If you select a "rose window" bounding box and see high similarity to other decorative circular elements, it suggests the model has learned a meaningful "rose window" concept, not just low-level texture patterns.
-
-**Academic basis:** [Amir et al. (2022)](https://arxiv.org/abs/2112.05814) demonstrated that DINO-ViT features encode "powerful, well-localized semantic information at high spatial granularity, including object parts" and that this information is "shared across related yet different object categories." Our similarity heatmap feature directly tests this claim in the architectural domain.
-
-### CLS Attention vs. Similarity Heatmap
-
-| Aspect | Attention Heatmap | Similarity Heatmap |
-|--------|-------------------|-------------------|
-| **Shows** | Where model "looks" | What model considers "similar" |
-| **Computed from** | Attention weights | Patch feature vectors |
-| **Interaction** | Automatic (no selection needed) | Requires clicking a bounding box |
-| **Research question** | Do models attend to expert features? | Are representations semantically coherent? |
 
 ---
 
@@ -526,12 +486,6 @@ Our evaluation approach draws from established metrics in the literature:
 
 The ERASER benchmark (DeYoung et al., 2020) established that evaluation should include both **plausibility** (alignment with human rationales) and **faithfulness** (whether highlighted regions actually matter to the model). Our IoU metric measures plausibility; future work could add perturbation-based faithfulness tests.
 
-### DINO Features as Dense Descriptors
-
-Amir et al. (2022) showed that DINO-ViT features encode "powerful, well-localized semantic information at high spatial granularity, including object parts" and that this information is "shared across related yet different object categories."
-
-This directly supports our similarity heatmap feature: when users click a bounding box (e.g., "rose window"), we compute cosine similarity between that region's features and all other patches. The literature predicts this should reveal semantically related regions—exactly what we observe.
-
 ---
 
 ## References
@@ -547,7 +501,6 @@ This directly supports our similarity heatmap feature: when users click a boundi
 | **Transformer Interpretability** | Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. *CVPR*. [arXiv:2012.09838](https://arxiv.org/abs/2012.09838) | Compares methods; shows Grad-CAM limitations |
 | **Grad-CAM** | Selvaraju, R.R., et al. (2017). Grad-CAM: Visual Explanations from Deep Networks. *ICCV*. [arXiv:1610.02391](https://arxiv.org/abs/1610.02391) | Gradient-based baseline for CNNs |
 | **CAM** | Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. *CVPR*. [arXiv:1512.04150](https://arxiv.org/abs/1512.04150) | Introduced pointing game evaluation |
-| **Deep ViT Features** | Amir, S., et al. (2022). Deep ViT Features as Dense Visual Descriptors. *ECCVW*. [arXiv:2112.05814](https://arxiv.org/abs/2112.05814) | Shows DINO features capture object parts |
 
 ### The Attention Debate (Plausibility vs. Faithfulness)
 
