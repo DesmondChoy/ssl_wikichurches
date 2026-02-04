@@ -73,16 +73,9 @@ Use pretrained weights from HuggingFace/timm. Models are evaluated both **frozen
 | SigLIP 2 ViT-B/16 | 86M | Contrastive language-image (sigmoid) + dense features | `google/siglip2-base-patch16-224` |
 | ResNet-50 | 23M | Supervised (ImageNet) | `torchvision` |
 
-All models use ViT-B architecture for controlled comparison (ResNet-50 included as supervised baseline). Feature extraction runs on M4 Pro (MPS backend).
+All models use ViT-B architecture for controlled comparison (ResNet-50 included as supervised baseline).
 
-**Model selection rationale:**
-
-- **DINOv2 vs DINOv3:** Direct comparison of Gram Anchoring's effect on attention quality  
-- **MAE:** Tests whether pixel-reconstruction objectives produce different attention than discriminative objectives  
-- **CLIP vs SigLIP 2:** Tests whether loss function (softmax vs sigmoid) and improved dense features affect attention alignment with experts
-- **ResNet-50:** ImageNet-supervised baseline to validate that attention alignment findings are specific to SSL training paradigms
-
-### 3.2 Attention Extraction and Visualization
+### 3.2 Attention Extraction
 
 Extract attention maps from each model using multiple methods:
 
@@ -92,127 +85,68 @@ Extract attention maps from each model using multiple methods:
 
 For each image with expert annotations, generate attention heatmaps at the original image resolution.
 
-### 3.3 Attention-Annotation Alignment (Primary Metric)
+### 3.3 Attention-Annotation Alignment
 
-Quantify whether high-attention regions overlap with expert-annotated characteristic features:
+1. Threshold attention maps at top 10%, 20%, 30% of attention mass
+2. Compute IoU between thresholded regions and expert bounding boxes
+3. Compare to baselines (random, center-biased, saliency) — see Section 5
 
-1. **Threshold attention maps** at various percentiles (top 10%, 20%, 30% of attention mass)  
-2. **Compute IoU** between thresholded attention regions and expert bounding boxes  
-3. **Compare to baselines:**  
-   - Random baseline: IoU expected from uniform random attention  
-   - Center baseline: IoU from Gaussian-centered attention (common bias)  
-   - Saliency baseline: IoU from low-level saliency (Sobel edge detection)
+### 3.4 Linear Probe (Sanity Check)
 
-4. **Pointing game accuracy** - Binary hit metric testing if attention maximum falls within expert bounding box (complementary to IoU)
+Train linear classifiers on frozen features for 4-class style classification. Confirms models learned discriminative features before analyzing attention.
 
-**Key question:** Do SSL models achieve IoU significantly above these baselines?
+### 3.5 Fine-Tuning Analysis
 
-### 3.4 Linear Probe Evaluation (Sanity Check)
+Fine-tune each backbone on 4-class style classification (9,485 images), then re-extract attention on the 139 annotated images. Compare Δ IoU (fine-tuned − frozen) per model.
 
-Train lightweight linear classifiers on frozen features to verify representations are meaningful:
-
-- **Task:** Architectural style classification (4-class for annotated subset; full hierarchy for complete dataset)
-- **Metrics:** Top-1 accuracy, per-class F1, confusion matrices
-- **Purpose:** Confirm models have learned discriminative features before analyzing attention
-
-### 3.5 Fine-Tuning Analysis (Second Pass)
-
-After evaluating frozen models, fine-tune each backbone on the style classification task:
-
-**Training setup:**
-- Dataset: Full 9,485 images with style labels
-- Task: 4-class architectural style classification
-- Strategy: Freeze backbone initially, then unfreeze last N layers
-- Epochs: ~10-20 with early stopping
-- Learning rate: Differential rates (backbone: 1e-5, classification head: 1e-3)
-
-**Post-fine-tuning evaluation:**
-- Extract attention from fine-tuned models on same 139 annotated images
-- Compute IoU with expert bounding boxes
-- Compare Δ IoU (fine-tuned - frozen) per model
-
-**Key questions:**
-1. Does fine-tuning increase attention-expert alignment?
-2. Which SSL paradigm benefits most from task-specific training?
-3. Do fine-tuned models attend to features experts didn't annotate?
+| Parameter | Value |
+|:----------|:------|
+| Strategy | Unfreeze last N layers |
+| Epochs | 10-20 with early stopping |
+| Learning rate | Backbone: 1e-5, Head: 1e-3 |
 
 ### 3.6 Interactive Analysis Tool
 
-The primary deliverable is a web-based dashboard for exploring attention-annotation alignment.
+Web-based dashboard for exploring attention-annotation alignment:
 
-**Core Features:**
-- Image browser with 139 annotated churches
-- Model/method/layer/fine-tuning-state selectors
-- Attention heatmap overlay with expert bounding boxes
-- IoU score display for current configuration
-
-**Comparison Features:**
-- Side-by-side model comparison
-- Frozen vs fine-tuned comparison
-- Attention shift highlighting
-
-**Metrics Features:**
-- Model leaderboard by IoU
-- Per-feature-type breakdown *(backend implemented, UI pending)*
-- Statistical comparison view
+- **Browser:** 139 annotated churches with model/layer/method selectors
+- **Visualization:** Attention heatmap overlay with expert bounding boxes and IoU scores
+- **Comparison:** Side-by-side frozen vs fine-tuned, cross-model comparison
+- **Metrics:** Model leaderboard by IoU, per-feature breakdown
 
 ---
 
-## 4. Ablation Studies
+## 4. Ablations
 
-| Ablation | Variable | Question Addressed |
-| :---- | :---- | :---- |
-| Model comparison | DINOv2 vs DINOv3 vs MAE vs CLIP vs SigLIP 2 | Do different SSL paradigms produce different attention-expert alignment? |
-| Temporal comparison | DINOv2 (2023) vs DINOv3 (2025) | Does Gram Anchoring improve attention quality? |
-| Loss function | CLIP (softmax) vs SigLIP 2 (sigmoid) | Does contrastive loss formulation affect attention patterns? |
-| Layer analysis | Early vs. middle vs. late ViT layers | At what depth does expert-aligned attention emerge? |
-| Attention method | CLS attention vs. rollout vs. GradCAM | Which extraction method best captures expert-relevant regions? |
-| Feature category | By annotated feature type (windows, arches, towers, etc.) | Which architectural elements do models attend to most/least? |
-| Fine-tuning effect | Frozen vs fine-tuned (same model) | Does task-specific training improve attention-expert alignment? |
-| Head analysis | Individual attention heads (0-11) | Which heads specialize for expert-annotated features? |
-| Fine-tuning method | Linear Probe vs LoRA (r=8) vs Full | Does parameter-efficient fine-tuning preserve attention quality while improving alignment? |
+To verify findings are robust to methodological choices:
 
-**Hypotheses to test:**
-
-1. Self-distillation (DINO) should produce more globally coherent attention than reconstruction (MAE), potentially yielding higher alignment with expert-annotated structural features
-2. Language-supervised models (CLIP, SigLIP 2) may attend to "nameable" features more than purely visual SSL models
-3. DINOv3's Gram Anchoring may sharpen attention to semantically meaningful regions compared to DINOv2
-4. Fine-tuning on style classification will increase IoU with expert bboxes, as experts annotated style-diagnostic features
-5. Individual attention heads will show varying degrees of alignment with expert annotations; heads in later layers will show stronger specialization for semantic features (Voita et al., 2019)
-6. LoRA fine-tuning will achieve comparable Δ IoU to full fine-tuning while exhibiting less catastrophic forgetting of general visual representations (Biderman et al., 2024)
+| Ablation | Variable | Purpose |
+|:---------|:---------|:--------|
+| Threshold sensitivity | Top 10%, 20%, 30% of attention mass | Verify IoU rankings are stable across thresholds |
+| Attention method | CLS vs rollout vs GradCAM | Verify findings are not artifacts of extraction method |
 
 ---
 
 ## 5. Evaluation Plan
 
-### Quantitative Metrics
+### Metrics by Research Question
 
-- **Primary:** Mean IoU between attention peaks and expert bounding boxes (per model, per layer)
-- **Pointing game:** Binary hit accuracy (max attention in bbox) per model/layer
-- **Secondary:** Linear probe accuracy on style classification
-- **Fine-tuning effect:** Δ IoU (fine-tuned - frozen) with paired statistical tests
-- **Statistical:** Paired t-tests or Wilcoxon signed-rank comparing models; bootstrap confidence intervals for IoU
-- **Per-head IoU:** IoU computed separately for each of 12 attention heads; ranked to identify most-aligned heads
-- **Head specialization index:** Variance of per-head IoU across feature types (high variance = specialized heads)
-- **Fine-tuning method Δ IoU:** Δ IoU by method (Linear Probe, LoRA r=8, Full) with paired t-tests and Holm correction
-- **Forgetting ratio:** IoU retention on general features after fine-tuning (lower = more forgetting)
+| RQ | Primary Metric | Statistical Test | Visualization |
+|:---|:---------------|:-----------------|:--------------|
+| Q1 | Mean IoU (per model, per layer) | Paired t-test across models; bootstrap CIs | Attention heatmaps with bbox overlay |
+| Q2 | Δ IoU (fine-tuned − frozen) | Paired t-test (same images) | Side-by-side frozen vs fine-tuned |
+| Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
+| Q4 | Δ IoU by method; forgetting ratio | Paired t-test with Holm correction | Bar chart by fine-tuning method |
 
-### Qualitative Analysis
-
-- Attention visualization for representative images showing high/low alignment
-- Failure case analysis: When models attend elsewhere, what do they attend to?
-- Cross-model comparison: Overlay attention maps from all five models on same images
-- Attention shift visualization: Side-by-side frozen vs fine-tuned heatmaps
-- Discovery analysis: Do fine-tuned models attend to unannotated-but-relevant features?
-
-**Interactive Demo:** The analysis tool allows users to explore attention across models, layers, and fine-tuning states. Users can compare how different SSL models attend to architectural features, observe attention shift after fine-tuning, and identify which models best align with expert annotations.
+**Secondary metric:** Pointing game accuracy (binary hit: does attention maximum fall within bbox?)
 
 ### Baselines
 
-- Random attention baseline  
-- Center-biased attention baseline  
-- Low-level saliency baseline (non-learned)  
-- Supervised ResNet-50 (ImageNet pretrained) as non-SSL reference
+All models compared against:
+- Random attention (uniform distribution)
+- Center-biased attention (Gaussian prior)
+- Low-level saliency (Sobel edges)
+- Supervised ResNet-50 (non-SSL reference)
 
 ---
 
@@ -260,14 +194,12 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 
 ## 9. Expected Contributions
 
-1. **Quantitative benchmark** for SSL attention alignment with human expert annotations on fine-grained visual recognition
-2. **Comparative analysis** of how training paradigm (self-distillation vs. reconstruction vs. contrastive) affects attention patterns
-3. **Temporal analysis** comparing DINOv2 (2023) to DINOv3 (2025) on attention quality
-4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge
-5. **Reproducible codebase** for attention-annotation alignment evaluation
-6. **Fine-tuning impact analysis** showing how task-specific training shifts attention patterns relative to expert annotations
-7. **Per-head attention analysis** revealing which transformer attention heads specialize for architectural feature recognition
-8. **Fine-tuning method comparison** showing trade-offs between Linear Probe, LoRA, and Full fine-tuning for attention alignment
+1. **Benchmark:** Quantitative attention-alignment evaluation on expert-annotated architectural features
+2. **Q1:** Empirical comparison of SSL paradigms on expert attention alignment
+3. **Q2:** Analysis of how fine-tuning shifts attention toward expert features
+4. **Q3:** Identification of attention heads specialized for architectural recognition
+5. **Q4:** Trade-off analysis of fine-tuning methods (Linear Probe vs LoRA vs Full)
+6. **Deliverable:** Reproducible codebase and interactive analysis tool
 
 ---
 
