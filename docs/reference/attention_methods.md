@@ -42,14 +42,44 @@ The [WikiChurches dataset](../core/project_proposal.md#2-dataset) (Barz & Denzle
 
 This app visualizes these attention patterns and computes the overlap (IoU) between model attention and expert annotations.
 
-### The Two Research Questions
+### The Four Research Questions
 
-This application helps answer two interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
+This application helps answer four interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
 
 | # | Research Question | How This App Helps |
 |---|-------------------|-------------------|
 | 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + IoU metrics |
 | 2 | Does fine-tuning shift attention toward expert-identified features? | Frozen vs. fine-tuned comparison |
+| 3 | Do individual attention heads specialize for different architectural features? | Per-head attention selector + per-head IoU analysis |
+| 4 | Does the fine-tuning strategy affect how much attention shifts toward expert features? | Fine-tuning method comparison + Δ IoU by method |
+
+### Per-Head Attention Analysis (Research Question 3)
+
+Rather than fusing all 12 attention heads via averaging, Q3 examines each head individually to understand **which heads develop alignment with expert annotations**.
+
+**Key metrics:**
+- **Per-head IoU:** Compute IoU for each head separately (head 0, head 1, ..., head 11)
+- **Head ranking:** Identify which heads consistently achieve highest IoU across all images
+- **Head × feature type matrix:** Analyze whether specific heads specialize for specific architectural features
+
+**Academic foundation:**
+- Voita et al. (2019) showed that "a small subset of heads" performs most of the work in transformers
+- Caron et al. (2021) demonstrated that DINO heads exhibit diverse specialization patterns
+- This analysis extends these findings to measure alignment with domain expertise
+
+### Fine-Tuning Method Comparison (Research Question 4)
+
+Q4 compares three fine-tuning strategies to understand how training approach affects attention shift:
+
+| Method | Trainable Params | Expected Behavior |
+|--------|------------------|-------------------|
+| **Linear Probe** | ~3K (head only) | No attention change (baseline) |
+| **LoRA (r=8)** | ~300K | Moderate attention shift with preserved pre-training |
+| **Full Fine-tuning** | ~86M | Maximum attention shift, risk of catastrophic forgetting |
+
+**Academic foundation:**
+- Hu et al. (2022) introduced LoRA for parameter-efficient adaptation
+- Biderman et al. (2024) showed "LoRA learns less and forgets less" compared to full fine-tuning
 
 ---
 
@@ -501,6 +531,9 @@ The ERASER benchmark (DeYoung et al., 2020) established that evaluation should i
 | **Transformer Interpretability** | Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. *CVPR*. [arXiv:2012.09838](https://arxiv.org/abs/2012.09838) | Compares methods; shows Grad-CAM limitations |
 | **Grad-CAM** | Selvaraju, R.R., et al. (2017). Grad-CAM: Visual Explanations from Deep Networks. *ICCV*. [arXiv:1610.02391](https://arxiv.org/abs/1610.02391) | Gradient-based baseline for CNNs |
 | **CAM** | Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. *CVPR*. [arXiv:1512.04150](https://arxiv.org/abs/1512.04150) | Introduced pointing game evaluation |
+| **Specialized Heads** | Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention. *ACL*. [arXiv:1905.09418](https://arxiv.org/abs/1905.09418) | Shows head specialization in transformers |
+| **LoRA** | Hu, E.J., et al. (2022). LoRA: Low-Rank Adaptation. *ICLR*. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) | Parameter-efficient fine-tuning method |
+| **LoRA Forgetting** | Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. *TMLR*. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673) | Forgetting analysis for fine-tuning methods |
 
 ### The Attention Debate (Plausibility vs. Faithfulness)
 

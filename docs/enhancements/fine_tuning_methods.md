@@ -5,7 +5,9 @@
 
 ## Executive Summary
 
-This document outlines fine-tuning methods suitable for the SSL WikiChurches project's Research Question 3: *Does fine-tuning on architectural style classification shift model attention toward expert-annotated diagnostic features?*
+This document outlines fine-tuning methods suitable for the SSL WikiChurches project. It supports:
+- **Research Question 2**: Does fine-tuning shift attention toward expert-identified features?
+- **Research Question 4**: Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect how much attention shifts toward expert features?
 
 **Key insight:** The Δ IoU metric (post-fine-tuning IoU − pre-fine-tuning IoU) directly measures whether fine-tuning improves alignment between model attention and human expert annotations.
 

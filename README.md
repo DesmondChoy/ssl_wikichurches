@@ -4,6 +4,8 @@ This project investigates whether SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP 
 
 1. **Attention alignment** — IoU between model attention and expert annotations
 2. **Fine-tuning effects** — Does task-specific training shift attention toward expert features?
+3. **Head specialization** — Do individual attention heads specialize for different architectural features?
+4. **Fine-tuning methods** — Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect attention shift?
 
 ## Quick Start
 

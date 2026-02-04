@@ -20,8 +20,10 @@ While existing tools like BertViz and Comet ML visualize transformer attention, 
 
 | Research Question | Approach | Tool/Method |
 |-------------------|----------|-------------|
-| Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU between thresholded attention maps and expert bounding boxes across 5 models and 12 layers | Attention heatmap overlay, IoU metrics dashboard, model leaderboard |
-| Does fine-tuning shift attention toward expert-identified features? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images | Frozen vs fine-tuned comparison view, attention shift visualization |
+| **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU between thresholded attention maps and expert bounding boxes across 6 models and 12 layers | Attention heatmap overlay, IoU metrics dashboard, model leaderboard |
+| **Q2:** Does fine-tuning shift attention toward expert-identified features? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images | Frozen vs fine-tuned comparison view, attention shift visualization |
+| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Per-head attention selector, head IoU heatmap (head × feature type), head specialization dashboard |
+| **Q4:** Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect how much attention shifts toward expert features? | Compare Δ IoU across three fine-tuning methods using paired tests; compute Cohen's d effect sizes; analyze catastrophic forgetting via pre-training IoU retention | Fine-tuning method comparison view, Δ IoU bar charts by method, forgetting metrics |
 
 ---
 
@@ -167,6 +169,8 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 | Attention method | CLS attention vs. rollout vs. GradCAM | Which extraction method best captures expert-relevant regions? |
 | Feature category | By annotated feature type (windows, arches, towers, etc.) | Which architectural elements do models attend to most/least? |
 | Fine-tuning effect | Frozen vs fine-tuned (same model) | Does task-specific training improve attention-expert alignment? |
+| Head analysis | Individual attention heads (0-11) | Which heads specialize for expert-annotated features? |
+| Fine-tuning method | Linear Probe vs LoRA (r=8) vs Full | Does parameter-efficient fine-tuning preserve attention quality while improving alignment? |
 
 **Hypotheses to test:**
 
@@ -174,6 +178,8 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 2. Language-supervised models (CLIP, SigLIP 2) may attend to "nameable" features more than purely visual SSL models
 3. DINOv3's Gram Anchoring may sharpen attention to semantically meaningful regions compared to DINOv2
 4. Fine-tuning on style classification will increase IoU with expert bboxes, as experts annotated style-diagnostic features
+5. Individual attention heads will show varying degrees of alignment with expert annotations; heads in later layers will show stronger specialization for semantic features (Voita et al., 2019)
+6. LoRA fine-tuning will achieve comparable Δ IoU to full fine-tuning while exhibiting less catastrophic forgetting of general visual representations (Biderman et al., 2024)
 
 ---
 
@@ -186,6 +192,10 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 - **Secondary:** Linear probe accuracy on style classification
 - **Fine-tuning effect:** Δ IoU (fine-tuned - frozen) with paired statistical tests
 - **Statistical:** Paired t-tests or Wilcoxon signed-rank comparing models; bootstrap confidence intervals for IoU
+- **Per-head IoU:** IoU computed separately for each of 12 attention heads; ranked to identify most-aligned heads
+- **Head specialization index:** Variance of per-head IoU across feature types (high variance = specialized heads)
+- **Fine-tuning method Δ IoU:** Δ IoU by method (Linear Probe, LoRA r=8, Full) with paired t-tests and Holm correction
+- **Forgetting ratio:** IoU retention on general features after fine-tuning (lower = more forgetting)
 
 ### Qualitative Analysis
 
@@ -256,6 +266,8 @@ The primary deliverable is a web-based dashboard for exploring attention-annotat
 4. **Layer-wise analysis** revealing at what depth expert-relevant features emerge
 5. **Reproducible codebase** for attention-annotation alignment evaluation
 6. **Fine-tuning impact analysis** showing how task-specific training shifts attention patterns relative to expert annotations
+7. **Per-head attention analysis** revealing which transformer attention heads specialize for architectural feature recognition
+8. **Fine-tuning method comparison** showing trade-offs between Linear Probe, LoRA, and Full fine-tuning for attention alignment
 
 ---
 
@@ -347,7 +359,10 @@ NUM_STYLES: int = len(STYLE_MAPPING)
 - He, K., et al. (2022). Masked Autoencoders Are Scalable Vision Learners. *CVPR*.  
 - Oquab, M., et al. (2023). DINOv2: Learning Robust Visual Features without Supervision. *arXiv:2304.07193*.  
 - Radford, A., et al. (2021). Learning Transferable Visual Models From Natural Language Supervision. *ICML*.  
-- Simeoni, O., et al. (2025). DINOv3. *arXiv:2508.10104*.  
+- Simeoni, O., et al. (2025). DINOv3. *arXiv:2508.10104*.
 - Zhai, X., et al. (2023). Sigmoid Loss for Language Image Pre-training. *ICCV*.
 - Tschannen, M., et al. (2025). SigLIP 2: A Better Multilingual Vision Language Encoder. *arXiv*.
+- Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention: Specialized Heads Do the Heavy Lifting. *ACL*. [arXiv:1905.09418](https://arxiv.org/abs/1905.09418)
+- Hu, E.J., et al. (2022). LoRA: Low-Rank Adaptation of Large Language Models. *ICLR*. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685)
+- Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. *TMLR*. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673)
 
