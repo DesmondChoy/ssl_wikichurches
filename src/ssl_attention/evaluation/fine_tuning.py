@@ -353,7 +353,7 @@ class FineTunableModel(nn.Module):
             bias="none",
         )
 
-        self.backbone = get_peft_model(self.backbone, lora_config)
+        self.backbone = get_peft_model(self.backbone, lora_config)  # type: ignore[arg-type]
 
         # Log trainable parameter count
         trainable = sum(p.numel() for p in self.backbone.parameters() if p.requires_grad)
