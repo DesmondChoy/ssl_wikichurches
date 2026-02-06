@@ -2,7 +2,7 @@
  * React Query hooks for attention data.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { attentionAPI, metricsAPI, comparisonAPI } from '../api/client';
 
 export function useModels() {
@@ -32,6 +32,7 @@ export function useImageMetrics(
     queryKey: ['imageMetrics', imageId, model, layer, percentile, method],
     queryFn: () => metricsAPI.getImageMetrics(imageId!, model, layer, percentile, method),
     enabled: !!imageId,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -47,6 +48,7 @@ export function useBboxMetrics(
     queryKey: ['bboxMetrics', imageId, model, layer, bboxIndex, percentile, method],
     queryFn: () => metricsAPI.getBboxMetrics(imageId!, model, layer, bboxIndex!, percentile, method),
     enabled: !!imageId && bboxIndex !== null,
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
 import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats, renderAttentionHeatmap } from '../../utils/renderHeatmap';
@@ -58,6 +58,7 @@ export function AttentionViewer({
     queryKey: ['rawAttention', imageId, model, layer, method],
     queryFn: () => attentionAPI.getRawAttention(imageId, model, layer, method),
     staleTime: 60000, // Cache for 1 minute
+    placeholderData: keepPreviousData,
   });
 
   // Render thresholded attention heatmap
@@ -96,6 +97,7 @@ export function AttentionViewer({
     },
     enabled: !!selectedBbox,
     staleTime: 60000, // Cache for 1 minute
+    placeholderData: keepPreviousData,
   });
 
   // Render heatmap when similarity data is available
