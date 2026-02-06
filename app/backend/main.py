@@ -6,6 +6,7 @@ Run with:
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -17,13 +18,15 @@ from fastapi.responses import JSONResponse
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from app.backend.config import API_PREFIX, CORS_ORIGINS
+from app.backend.config import API_PREFIX, CORS_ORIGINS, DEBUG
 from app.backend.routers import (
     attention_router,
     comparison_router,
     images_router,
     metrics_router,
 )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="SSL Attention Visualization API",
@@ -83,9 +86,11 @@ async def health_check() -> dict:
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle uncaught exceptions."""
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    detail = str(exc) if DEBUG else "Internal server error"
     return JSONResponse(
         status_code=500,
-        content={"detail": str(exc)},
+        content={"detail": detail},
     )
 
 

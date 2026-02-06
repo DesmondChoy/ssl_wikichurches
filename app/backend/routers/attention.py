@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from io import BytesIO
 from typing import Annotated
 
@@ -10,6 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from app.backend.config import (
     AVAILABLE_MODELS,
+    DEBUG,
     DEFAULT_METHOD,
     MODEL_METHODS,
     NUM_LAYERS,
@@ -22,6 +24,8 @@ from app.backend.services.attention_service import attention_service
 from app.backend.services.image_service import image_service
 from app.backend.services.similarity_service import similarity_service
 from app.backend.validators import validate_method
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/attention", tags=["attention"])
 
@@ -181,9 +185,9 @@ async def get_raw_attention(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error loading attention: {e}"
-        ) from None
+        logger.exception("Error loading attention")
+        detail = f"Error loading attention: {e}" if DEBUG else "Error loading attention"
+        raise HTTPException(status_code=500, detail=detail) from None
 
 
 @router.get("/{image_id}/layers")
@@ -296,6 +300,6 @@ async def compute_bbox_similarity(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error computing similarity: {e}"
-        ) from None
+        logger.exception("Error computing similarity")
+        detail = f"Error computing similarity: {e}" if DEBUG else "Error computing similarity"
+        raise HTTPException(status_code=500, detail=detail) from None
