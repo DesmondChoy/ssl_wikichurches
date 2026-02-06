@@ -371,41 +371,36 @@ eval_transforms = transforms.Compose([
 
 ## 9. Codebase Integration
 
-### New Files to Create
+### Implementation
 
-```
-src/ssl_attention/
-├── finetune/
-│   ├── __init__.py
-│   ├── trainer.py          # Training loop with logging
-│   ├── lora_adapter.py     # LoRA wrapper for models
-│   ├── losses.py           # Classification + attention losses
-│   └── schedulers.py       # Learning rate schedulers
-├── data/
-│   └── style_dataset.py    # Dataset for style classification
-```
+Fine-tuning is implemented as a single module rather than the multi-file structure originally proposed:
 
-### Modifications to Existing Code
+| Component | Location |
+|-----------|----------|
+| All fine-tuning logic | `src/ssl_attention/evaluation/fine_tuning.py` |
+| Training orchestration | `FineTuner` class |
+| Model wrapping + LoRA | `FineTunableModel` class (uses HuggingFace PEFT) |
+| Classification head | `ClassificationHead` class |
+| Config & results | `FineTuningConfig` / `FineTuningResult` dataclasses |
+| Checkpoint loading | `load_finetuned_model()` function |
+| Dataset | Reuses existing `FullDataset` with augmentation transforms |
 
-1. **`VisionBackbone` protocol** — Add `.train()` and `.eval()` mode support
-2. **`get_model()` factory** — Support loading fine-tuned checkpoints
-3. **Metrics pipeline** — Add Δ IoU computation
+**Implemented methods:** Linear Probe, LoRA (via HF PEFT), Full Fine-tuning
+
+**Not implemented:** Attention-supervised fine-tuning (Section 3), Core-tuning, COIN, Block expansion (Section 4) — these remain research directions.
 
 ### Checkpoint Storage
 
+Checkpoints are saved to `outputs/checkpoints/` with a flat naming convention:
+
 ```
-checkpoints/
-├── linear_probe/
-│   ├── dinov2_linear.pt
-│   ├── clip_linear.pt
-│   └── ...
-├── lora/
-│   ├── dinov2_lora_r8.pt
-│   └── ...
-└── full_ft/
-    ├── dinov2_full.pt
-    └── ...
+outputs/checkpoints/
+├── {model_name}_finetuned.pt           # Linear probe or full fine-tuning
+├── {model_name}_lora_finetuned.pt      # LoRA fine-tuning
+└── {model_name}_training_results.json  # Per-epoch training history
 ```
+
+Linear probe and full fine-tuning share the same checkpoint path — the difference is whether the backbone was frozen during training, which is recorded in the training results JSON.
 
 ---
 
