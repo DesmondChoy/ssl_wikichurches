@@ -182,6 +182,27 @@ class TestByFeatureTolerance:
         assert results_tolerant[1] is True  # Within 10px tolerance
         assert results_tolerant[2] is False  # Still too far
 
+    def test_duplicate_labels_any_hit_semantics(self):
+        """When multiple bboxes share a label, result is True if any is hit."""
+        attention = torch.zeros(100, 100)
+        attention[50, 50] = 1.0  # Max attention at center
+
+        # Two bboxes with the same label: one hit, one miss
+        bbox_hit = BoundingBox(
+            left=0.25, top=0.25, width=0.50, height=0.50, label=1, group_label=0
+        )  # Covers center -> hit
+        bbox_miss = BoundingBox(
+            left=0.0, top=0.0, width=0.10, height=0.10, label=1, group_label=0
+        )  # Top-left corner -> miss
+
+        # Test both orderings to ensure result doesn't depend on bbox order
+        for bboxes in [(bbox_hit, bbox_miss), (bbox_miss, bbox_hit)]:
+            annotation = ImageAnnotation(
+                image_id="test.jpg", styles=(), bboxes=bboxes
+            )
+            results = pointing_game_by_feature(attention, annotation, tolerance=0)
+            assert results[1] is True, f"Failed with order {[b.left for b in bboxes]}"
+
     def test_by_feature_tolerance_zero_matches_default(self):
         """tolerance=0 produces identical results to the no-tolerance call."""
         attention = torch.rand(100, 100)

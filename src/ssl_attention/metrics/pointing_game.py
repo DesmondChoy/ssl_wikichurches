@@ -255,7 +255,7 @@ def pointing_game_by_feature(
         tolerance: Pixel margin to dilate each bbox before checking hit.
 
     Returns:
-        Dict mapping feature label to whether max attention hits that bbox.
+        Dict mapping feature label to whether max attention hits **any** bbox with that label.
     """
     h, w = attention.shape[-2:]
 
@@ -282,8 +282,7 @@ def pointing_game_by_feature(
             ).squeeze().bool()
 
         hit = mask[max_y, max_x].item()
-        # Use label as key, but note multiple bboxes can have same label
-        # This will just keep the last result for each label
-        results[bbox.label] = bool(hit)
+        # OR semantics: if any bbox with this label is hit, result is True
+        results[bbox.label] = results.get(bbox.label, False) or bool(hit)
 
     return results
