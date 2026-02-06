@@ -91,8 +91,8 @@ def center_gaussian_baseline(
         sigma = max(height, width) / 4.0
 
     # Create coordinate grids
-    y = torch.arange(height, dtype=torch.float32) - height / 2
-    x = torch.arange(width, dtype=torch.float32) - width / 2
+    y = torch.arange(height, dtype=torch.float32) - (height - 1) / 2
+    x = torch.arange(width, dtype=torch.float32) - (width - 1) / 2
 
     # Compute Gaussian
     yy, xx = torch.meshgrid(y, x, indexing="ij")
@@ -197,8 +197,8 @@ def saliency_prior_baseline(
     x = torch.arange(width, dtype=torch.float32)
 
     # Distance from nearest border
-    y_dist = torch.minimum(y, height - 1 - y) / (height / 2)
-    x_dist = torch.minimum(x, width - 1 - x) / (width / 2)
+    y_dist = torch.minimum(y, height - 1 - y) / ((height - 1) / 2)
+    x_dist = torch.minimum(x, width - 1 - x) / ((width - 1) / 2)
 
     yy, xx = torch.meshgrid(y_dist, x_dist, indexing="ij")
     border_mask = torch.minimum(yy, xx).clamp(0, 1)
