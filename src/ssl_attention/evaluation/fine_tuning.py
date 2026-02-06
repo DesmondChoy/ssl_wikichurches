@@ -44,6 +44,7 @@ from torchvision import transforms as T
 from transformers import AutoImageProcessor, get_cosine_schedule_with_warmup
 
 from ssl_attention.config import (
+    ANNOTATIONS_PATH,
     MODELS,
     NUM_STYLES,
 )
@@ -561,20 +562,27 @@ class FineTuner:
         self,
         dataset: FullDataset,
         val_split: float,
-    ) -> tuple[Subset, Subset]:
+        exclude_image_ids: set[str] | None = None,
+    ) -> tuple[Subset, Subset, int]:
         """Split dataset into train/val with stratification.
 
         Args:
             dataset: Full dataset with style_label in samples.
             val_split: Fraction for validation.
+            exclude_image_ids: Image IDs to exclude from both splits (e.g.,
+                bbox-annotated evaluation images to prevent data leakage).
 
         Returns:
-            Tuple of (train_subset, val_subset).
+            Tuple of (train_subset, val_subset, n_excluded).
         """
-        # Get all labels
+        # Get all labels, skipping excluded images
         all_labels = []
+        n_excluded = 0
         for i in range(len(dataset)):
             sample = dataset[i]
+            if exclude_image_ids and sample.get("image_id") in exclude_image_ids:
+                n_excluded += 1
+                continue
             label = sample.get("style_label")
             if label is not None:
                 all_labels.append((i, label))
@@ -596,7 +604,7 @@ class FineTuner:
             val_indices.extend(indices[:n_val])
             train_indices.extend(indices[n_val:])
 
-        return Subset(dataset, train_indices), Subset(dataset, val_indices)
+        return Subset(dataset, train_indices), Subset(dataset, val_indices), n_excluded
 
     def _collate_fn(self, batch: list[dict]) -> dict[str, Any]:
         """Collate function for DataLoader.
@@ -656,8 +664,17 @@ class FineTuner:
         CHECKPOINTS_PATH.mkdir(parents=True, exist_ok=True)
         RESULTS_PATH.mkdir(parents=True, exist_ok=True)
 
-        # Split data
-        train_subset, val_subset = self._stratified_split(dataset, self.config.val_split)
+        # Load bbox-annotated image IDs to exclude from training (avoid data leakage)
+        from ssl_attention.data import load_annotations
+
+        annotations = load_annotations(ANNOTATIONS_PATH)
+        eval_image_ids = set(annotations.keys())
+
+        # Split data (excluding bbox-annotated evaluation images)
+        train_subset, val_subset, n_excluded = self._stratified_split(
+            dataset, self.config.val_split, exclude_image_ids=eval_image_ids
+        )
+        print(f"Excluded {n_excluded} bbox-annotated eval images from training")
         print(f"Train size: {len(train_subset)}, Val size: {len(val_subset)}")
 
         # Build augmentation transform
