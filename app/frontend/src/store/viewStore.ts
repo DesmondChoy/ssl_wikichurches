@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: ViewSettings = {
   layer: 0,  // Safe default for all models (including ResNet-50 which has only 4 layers)
   method: 'cls',
   percentile: 90,
-  showBboxes: false,
+  showBboxes: true,
   heatmapOpacity: 0.5,
   heatmapStyle: 'smooth',
 };

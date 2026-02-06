@@ -65,9 +65,12 @@ export function ImageDetailPage() {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 bg-gray-200 rounded w-1/4" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 aspect-square bg-gray-200 rounded-lg" />
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+          <div className="lg:col-span-2">
+            <div className="h-64 bg-gray-200 rounded-lg" />
+          </div>
+          <div className="lg:col-span-5 aspect-square bg-gray-200 rounded-lg" />
+          <div className="lg:col-span-3 space-y-4">
             <div className="h-40 bg-gray-200 rounded-lg" />
             <div className="h-32 bg-gray-200 rounded-lg" />
           </div>
@@ -88,50 +91,9 @@ export function ImageDetailPage() {
       </div>
 
       {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Attention viewer */}
-        <div className="lg:col-span-2 space-y-4">
-          <AttentionViewer
-            imageId={decodedId}
-            model={model}
-            layer={layer}
-            method={method}
-            percentile={percentile}
-            showBboxes={showBboxes}
-            bboxes={imageDetail?.annotation.bboxes}
-            selectedBboxIndex={selectedBboxIndex}
-            onBboxSelect={handleBboxSelect}
-            className="aspect-square"
-          />
-
-          {/* Layer slider */}
-          <Card>
-            <CardContent>
-              <LayerSlider
-                currentLayer={layer}
-                maxLayers={maxLayers}
-                onChange={setLayer}
-                playSpeed={400}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right: Controls and info */}
-        <div className="space-y-4">
-          <ControlPanel />
-
-          {/* Metrics */}
-          <Card>
-            <CardHeader>
-              <h3 className="font-semibold">Metrics</h3>
-            </CardHeader>
-            <CardContent>
-              <IoUDisplay metrics={metrics} isLoading={metricsLoading} />
-            </CardContent>
-          </Card>
-
-          {/* Annotation info */}
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+        {/* Left: Annotations */}
+        <div className="lg:col-span-2">
           {imageDetail && (
             <Card>
               <CardHeader>
@@ -188,6 +150,49 @@ export function ImageDetailPage() {
               </CardContent>
             </Card>
           )}
+        </div>
+
+        {/* Center: Attention viewer */}
+        <div className="lg:col-span-5 space-y-4">
+          <AttentionViewer
+            imageId={decodedId}
+            model={model}
+            layer={layer}
+            method={method}
+            percentile={percentile}
+            showBboxes={showBboxes}
+            bboxes={imageDetail?.annotation.bboxes}
+            selectedBboxIndex={selectedBboxIndex}
+            onBboxSelect={handleBboxSelect}
+            className="aspect-square"
+          />
+
+          {/* Layer slider */}
+          <Card>
+            <CardContent>
+              <LayerSlider
+                currentLayer={layer}
+                maxLayers={maxLayers}
+                onChange={setLayer}
+                playSpeed={400}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right: Controls and metrics */}
+        <div className="lg:col-span-3 space-y-4">
+          <ControlPanel />
+
+          {/* Metrics */}
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold">Metrics</h3>
+            </CardHeader>
+            <CardContent>
+              <IoUDisplay metrics={metrics} isLoading={metricsLoading} />
+            </CardContent>
+          </Card>
 
           {/* Navigation */}
           <div className="flex gap-2">
