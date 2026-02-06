@@ -81,15 +81,16 @@ All models use ViT-B architecture for controlled comparison (ResNet-50 included 
 
 Extract attention maps from each model using multiple methods:
 
-1. **CLS token attention:** Aggregate attention from [CLS] token to spatial patches across heads  
-2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies  
-3. **GradCAM (baseline):** Gradient-weighted activation maps for comparison with attention-based methods
+1. **CLS token attention:** Aggregate attention from [CLS] token to spatial patches across heads (DINOv2, DINOv3, MAE, CLIP)
+2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies (DINOv2, DINOv3, MAE, CLIP)
+3. **Mean attention:** Average attention across patches for models without [CLS] token (SigLIP)
+4. **Grad-CAM (baseline):** Gradient-weighted activation maps for ResNet-50 CNN baseline
 
 For each image with expert annotations, generate attention heatmaps at the original image resolution.
 
 ### 3.3 Attention-Annotation Alignment
 
-1. Threshold attention maps at top 10%, 20%, 30% of attention mass
+1. Threshold attention maps at 7 percentile levels (top 10%–50% of attention mass)
 2. Compute IoU between thresholded regions and expert bounding boxes
 3. Compare to baselines (random, center-biased, saliency) — see Section 5
 
@@ -101,11 +102,20 @@ Train linear classifiers on frozen features for 4-class style classification. Co
 
 Fine-tune each backbone on 4-class style classification (9,485 images), then re-extract attention on the 139 annotated images. Compare Δ IoU (fine-tuned − frozen) per model.
 
+Three fine-tuning strategies are compared (addressing Q4):
+
+| Strategy | Description | Key Parameters |
+|:---------|:-----------|:---------------|
+| Full fine-tuning | Unfreeze last N backbone layers + classification head | Backbone LR: 1e-5, Head LR: 1e-3 |
+| LoRA | Low-rank adapters on backbone attention layers (via HuggingFace PEFT) | rank=8, alpha=32, dropout=0.1 |
+| Linear Probe | Freeze backbone, train classification head only | Head LR: 1e-3 |
+
 | Parameter | Value |
 |:----------|:------|
-| Strategy | Unfreeze last N layers |
 | Epochs | 10-20 with early stopping |
-| Learning rate | Backbone: 1e-5, Head: 1e-3 |
+| LR schedule | Cosine decay with linear warmup (warmup_ratio=0.1) |
+| Gradient clipping | Max norm 1.0 |
+| Eval holdout | 139 bbox-annotated images excluded from training split |
 
 ### 3.6 Interactive Analysis Tool
 
@@ -124,8 +134,8 @@ To verify findings are robust to methodological choices:
 
 | Ablation | Variable | Purpose |
 |:---------|:---------|:--------|
-| Threshold sensitivity | Top 10%, 20%, 30% of attention mass | Verify IoU rankings are stable across thresholds |
-| Attention method | CLS vs rollout vs GradCAM | Verify findings are not artifacts of extraction method |
+| Threshold sensitivity | 7 percentile thresholds: top 10%, 15%, 20%, 25%, 30%, 40%, 50% of attention mass | Verify IoU rankings are stable across thresholds |
+| Attention method | CLS vs rollout vs mean vs Grad-CAM (per-model where applicable) | Verify findings are not artifacts of extraction method |
 
 ---
 
@@ -140,7 +150,7 @@ To verify findings are robust to methodological choices:
 | Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
 | Q4 | Δ IoU by method; forgetting ratio | Paired t-test with Holm correction | Bar chart by fine-tuning method |
 
-**Secondary metric:** Pointing game accuracy (binary hit: does attention maximum fall within bbox?)
+**Secondary metric:** Pointing game accuracy (binary hit: does attention maximum fall within bbox?) with optional 15-pixel tolerance margin per Zhang et al. (2016)
 
 ### Baselines
 
@@ -159,7 +169,7 @@ All models compared against:
 | Intelligent sensing technique | Self-supervised visual feature learning (DINOv2, DINOv3, MAE, CLIP, SigLIP 2) |
 | Image/video analytics | Image classification, attention extraction, feature attribution |
 | Dataset handling | Public dataset (WikiChurches) with documented preprocessing |
-| Experimental comparison | Ablation across 5 models, 3 attention methods, multiple layers |
+| Experimental comparison | Ablation across 6 models, 4 attention methods, 7 thresholds, multiple layers |
 | Literature review | SSL methods, attention visualization, interpretability metrics |
 | Practical application | Interactive attention analysis tool for evaluating domain-adapted vision models |
 | Final developed system | Web-based dashboard with heatmap explorer, model comparison, and metrics views |
@@ -189,8 +199,8 @@ All models compared against:
 | Bounding boxes span only 4 style categories | Frame as focused study; note generalization limitations in discussion |
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
-| DINOv3/SigLIP 2 documentation still sparse | Both have HuggingFace weights available; community examples exist |
-| Fine-tuning may overfit on small style subset | Use validation split, early stopping, monitor attention maps for degeneration. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
+| DINOv3/SigLIP 2 documentation still sparse | Resolved: both models fully integrated with proper HuggingFace classes (SigLIP using `Siglip2VisionModel`) |
+| Fine-tuning may overfit on small style subset | Validation split, early stopping, cosine LR schedule with warmup, gradient clipping, LoRA as parameter-efficient alternative, 139 eval images held out from training. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
 
 ---
 
