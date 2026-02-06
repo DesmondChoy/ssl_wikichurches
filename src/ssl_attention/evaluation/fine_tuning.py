@@ -278,8 +278,8 @@ class FineTunableModel(nn.Module):
             AutoModel,
             CLIPVisionConfig,
             CLIPVisionModel,
-            SiglipVisionConfig,
-            SiglipVisionModel,
+            Siglip2VisionConfig,
+            Siglip2VisionModel,
             ViTMAEConfig,
             ViTMAEModel,
         )
@@ -298,9 +298,9 @@ class FineTunableModel(nn.Module):
             return CLIPVisionModel.from_pretrained(model_id, config=clip_config)
 
         elif self.model_name == "siglip":
-            siglip_config = SiglipVisionConfig.from_pretrained(model_id)
+            siglip_config = Siglip2VisionConfig.from_pretrained(model_id)
             siglip_config.output_attentions = True
-            return SiglipVisionModel.from_pretrained(model_id, config=siglip_config)
+            return Siglip2VisionModel.from_pretrained(model_id, config=siglip_config)
 
         else:  # dinov2, dinov3
             auto_config = AutoConfig.from_pretrained(model_id)

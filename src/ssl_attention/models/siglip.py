@@ -20,7 +20,7 @@ from typing import Any
 
 import torch
 from torch import nn
-from transformers import AutoImageProcessor, SiglipVisionConfig, SiglipVisionModel
+from transformers import AutoImageProcessor, Siglip2VisionConfig, Siglip2VisionModel
 
 from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
@@ -79,19 +79,19 @@ class SigLIP(BaseVisionModel):
         processor.do_resize = True
         return processor
 
-    def _load_config(self) -> SiglipVisionConfig:
+    def _load_config(self) -> Siglip2VisionConfig:
         """Load SigLIP vision config with attention output enabled.
 
-        SigLIP uses SiglipVisionConfig, not AutoConfig, for the vision encoder.
+        SigLIP uses Siglip2VisionConfig, not AutoConfig, for the vision encoder.
         """
-        config = SiglipVisionConfig.from_pretrained(self.model_id)
+        config = Siglip2VisionConfig.from_pretrained(self.model_id)
         config.output_attentions = True
         return config
 
     def _load_model(self) -> nn.Module:
         """Load SigLIP 2 vision encoder from HuggingFace with attention output enabled."""
         config = self._load_config()
-        return SiglipVisionModel.from_pretrained(self.model_id, config=config)
+        return Siglip2VisionModel.from_pretrained(self.model_id, config=config)
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False
