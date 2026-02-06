@@ -17,4 +17,8 @@ export const GLOSSARY: Record<string, string> = {
     'Network depth. Early layers capture edges/textures. Later layers capture semantic concepts. Layer count varies by model.',
   Model: 'Vision model for feature extraction. Each has different architecture and training.',
   'Show Bounding Boxes': 'Toggle visibility of annotated bounding boxes on the image.',
+  'IoU Score':
+    'Overlap between thresholded attention and annotations. Only the top N% of attention patches are treated as "active," then compared against bounding boxes using intersection / union. Sensitive to threshold choice — there is an optimal threshold that maximizes IoU.',
+  Coverage:
+    'Fraction of total attention energy falling inside annotated regions. Unlike IoU, this is threshold-free — it uses raw attention values directly. Higher = more attention focused on annotated features.',
 };

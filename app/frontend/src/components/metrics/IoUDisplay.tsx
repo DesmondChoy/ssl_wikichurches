@@ -3,6 +3,8 @@
  */
 
 import type { IoUResult } from '../../types';
+import { Tooltip } from '../ui/Tooltip';
+import { GLOSSARY } from '../../constants/glossary';
 
 interface IoUDisplayProps {
   metrics: IoUResult | null | undefined;
@@ -51,12 +53,14 @@ export function IoUDisplay({ metrics, isLoading, compact = false }: IoUDisplayPr
           value={metrics.iou.toFixed(3)}
           description="Intersection over Union"
           color={getIoUColor(metrics.iou)}
+          tooltip={GLOSSARY['IoU Score']}
         />
         <MetricCard
           label="Coverage"
           value={`${(metrics.coverage * 100).toFixed(1)}%`}
           description="Attention in annotated regions"
           color={getIoUColor(metrics.coverage)}
+          tooltip={GLOSSARY['Coverage']}
         />
       </div>
 
@@ -79,12 +83,16 @@ interface MetricCardProps {
   value: string;
   description?: string;
   color: string;
+  tooltip?: string;
 }
 
-function MetricCard({ label, value, description, color }: MetricCardProps) {
+function MetricCard({ label, value, description, color, tooltip }: MetricCardProps) {
   return (
     <div className={`p-3 rounded-lg ${color}`}>
-      <div className="text-xs text-gray-600">{label}</div>
+      <div className="text-xs text-gray-600">
+        {label}
+        {tooltip && <Tooltip content={tooltip} />}
+      </div>
       <div className="text-2xl font-bold">{value}</div>
       {description && (
         <div className="text-xs text-gray-500 mt-1">{description}</div>
