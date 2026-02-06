@@ -35,6 +35,21 @@ export function useImageMetrics(
   });
 }
 
+export function useBboxMetrics(
+  imageId: string | undefined,
+  model: string,
+  layer: number,
+  bboxIndex: number | null,
+  percentile: number,
+  method?: string
+) {
+  return useQuery({
+    queryKey: ['bboxMetrics', imageId, model, layer, bboxIndex, percentile, method],
+    queryFn: () => metricsAPI.getBboxMetrics(imageId!, model, layer, bboxIndex!, percentile, method),
+    enabled: !!imageId && bboxIndex !== null,
+  });
+}
+
 export function useLayerProgression(model: string, percentile: number, method?: string) {
   return useQuery({
     queryKey: ['layerProgression', model, percentile, method],

@@ -7,7 +7,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
 import { useViewStore } from '../store/viewStore';
-import { useImageMetrics, useModels } from '../hooks/useAttention';
+import { useImageMetrics, useBboxMetrics, useModels } from '../hooks/useAttention';
 import { AttentionViewer } from '../components/attention/AttentionViewer';
 import { ControlPanel } from '../components/attention/ControlPanel';
 import { LayerSlider } from '../components/attention/LayerSlider';
@@ -35,7 +35,7 @@ export function ImageDetailPage() {
     enabled: !!decodedId,
   });
 
-  // Fetch metrics
+  // Fetch metrics (union of all bboxes — always running for instant fallback)
   const { data: metrics, isLoading: metricsLoading } = useImageMetrics(
     decodedId,
     model,
@@ -43,6 +43,18 @@ export function ImageDetailPage() {
     percentile,
     method
   );
+
+  // Fetch per-bbox metrics (only when a bbox is selected)
+  const { data: bboxMetrics, isLoading: bboxMetricsLoading } = useBboxMetrics(
+    decodedId, model, layer, selectedBboxIndex, percentile, method
+  );
+
+  // Choose which metrics to display based on bbox selection
+  const effectiveMetrics = selectedBboxIndex !== null ? bboxMetrics : metrics;
+  const effectiveLoading = selectedBboxIndex !== null ? bboxMetricsLoading : metricsLoading;
+  const metricsContext = selectedBboxIndex !== null && imageDetail
+    ? (imageDetail.annotation.bboxes[selectedBboxIndex]?.label_name || `Bbox #${selectedBboxIndex + 1}`)
+    : null;
 
   if (!decodedId) {
     return <div>Invalid image ID</div>;
@@ -190,7 +202,7 @@ export function ImageDetailPage() {
               <h3 className="font-semibold">Metrics</h3>
             </CardHeader>
             <CardContent>
-              <IoUDisplay metrics={metrics} isLoading={metricsLoading} />
+              <IoUDisplay metrics={effectiveMetrics} isLoading={effectiveLoading} bboxLabel={metricsContext} />
             </CardContent>
           </Card>
 

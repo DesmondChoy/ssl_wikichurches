@@ -14,8 +14,11 @@ from app.backend.schemas import (
     LeaderboardEntry,
     StyleBreakdownSchema,
 )
+from app.backend.services.attention_service import attention_service
+from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import validate_layer_for_model, validate_method, validate_model
+from ssl_attention.metrics.iou import compute_coverage, compute_iou
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -137,6 +140,76 @@ async def get_image_metrics_all_models(
         "percentile": percentile,
         "models": results,
     }
+
+
+@router.get("/{image_id}/bbox/{bbox_index}", response_model=IoUResultSchema)
+async def get_bbox_metrics(
+    image_id: str,
+    bbox_index: int,
+    model: Annotated[str, Query()] = "dinov2",
+    layer: Annotated[int, Query(ge=0)] = 0,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
+) -> IoUResultSchema:
+    """Get IoU metrics for a specific bounding box.
+
+    Computes IoU and coverage on-the-fly for a single bbox
+    against the attention map (rather than the union of all bboxes).
+    """
+    validate_model(model)
+    validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
+    layer_key = f"layer{layer}"
+    cache_model = resolve_model_name(model)
+
+    # Load annotation
+    annotation = image_service.get_annotation(image_id)
+    if not annotation:
+        raise HTTPException(status_code=404, detail=f"Annotation not found for {image_id}")
+
+    # Validate bbox index
+    if not 0 <= bbox_index < len(annotation.bboxes):
+        raise HTTPException(
+            status_code=400,
+            detail=f"bbox_index {bbox_index} out of range. Image has {len(annotation.bboxes)} bboxes (0-{len(annotation.bboxes) - 1}).",
+        )
+
+    # Load attention tensor from HDF5 cache
+    try:
+        attention_tensor = attention_service.cache.load(
+            cache_model, layer_key, image_id, variant=resolved_method
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Attention not cached for {model}/{layer_key}/{resolved_method}/{image_id}. Run precompute first.",
+        )
+
+    # Reshape 1D tensors to 2D grid
+    if attention_tensor.dim() == 1:
+        grid_rows, grid_cols = attention_service.get_attention_grid(cache_model)
+        attention_tensor = attention_tensor.reshape(grid_rows, grid_cols)
+
+    # Generate mask for the specific bbox
+    h, w = attention_tensor.shape[-2:]
+    bbox = annotation.bboxes[bbox_index]
+    bbox_mask = bbox.to_mask(h, w)
+
+    # Compute metrics
+    iou, attention_area, annotation_area = compute_iou(attention_tensor, bbox_mask, percentile)
+    coverage = compute_coverage(attention_tensor, bbox_mask)
+
+    return IoUResultSchema(
+        image_id=image_id,
+        model=model,
+        layer=layer_key,
+        percentile=percentile,
+        iou=iou,
+        coverage=coverage,
+        attention_area=attention_area,
+        annotation_area=annotation_area,
+        method=resolved_method,
+    )
 
 
 @router.get("/model/{model}/progression", response_model=LayerProgressionSchema)

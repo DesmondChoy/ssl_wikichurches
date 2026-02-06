@@ -11,9 +11,10 @@ interface IoUDisplayProps {
   metrics: IoUResult | null | undefined;
   isLoading?: boolean;
   compact?: boolean;
+  bboxLabel?: string | null;
 }
 
-export function IoUDisplay({ metrics, isLoading, compact = false }: IoUDisplayProps) {
+export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: IoUDisplayProps) {
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-2">
@@ -48,6 +49,11 @@ export function IoUDisplay({ metrics, isLoading, compact = false }: IoUDisplayPr
 
   return (
     <div className="space-y-3">
+      {bboxLabel && (
+        <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+          Showing metrics for: <span className="font-semibold">{bboxLabel}</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <MetricCard
           label="IoU Score"

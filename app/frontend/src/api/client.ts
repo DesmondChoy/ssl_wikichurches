@@ -148,6 +148,12 @@ export const metricsAPI = {
     return fetchJSON<import('../types').IoUResult>(`/metrics/${imageId}?${params}`);
   },
 
+  getBboxMetrics: (imageId: string, model: string, layer: number, bboxIndex: number, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ model, layer: String(layer), percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').IoUResult>(`/metrics/${imageId}/bbox/${bboxIndex}?${params}`);
+  },
+
   getImageMetricsAllModels: (imageId: string, layer: number, percentile = 90, method?: string) => {
     const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
     if (method) params.set('method', method);
