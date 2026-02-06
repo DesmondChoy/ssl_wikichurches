@@ -102,6 +102,7 @@ def train_linear_probe_sklearn(
         f1_score,
     )
     from sklearn.model_selection import StratifiedKFold, cross_val_score
+    from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
 
     # Convert to numpy
@@ -126,25 +127,23 @@ def train_linear_probe_sklearn(
     if class_names is None:
         class_names = tuple(str(i) for i in range(n_classes))
 
-    # Standardize features
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
-
-    # Create classifier
-    # Note: multi_class="multinomial" is now the default for lbfgs solver in sklearn 1.0+
-    clf = LogisticRegression(
-        max_iter=max_iter,
-        random_state=random_state,
-        solver="lbfgs",
-    )
+    # Pipeline ensures scaling is fit only on each CV train fold (no data leakage)
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("classifier", LogisticRegression(
+            max_iter=max_iter,
+            random_state=random_state,
+            solver="lbfgs",
+        )),
+    ])
 
     # Cross-validation
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    cv_scores = cross_val_score(clf, features_scaled, labels, cv=cv, scoring="accuracy")
+    cv_scores = cross_val_score(pipeline, features, labels, cv=cv, scoring="accuracy")
 
     # Train on full data for final metrics
-    clf.fit(features_scaled, labels)
-    predictions = clf.predict(features_scaled)
+    pipeline.fit(features, labels)
+    predictions = pipeline.predict(features)
 
     # Compute metrics
     accuracy = accuracy_score(labels, predictions)
