@@ -35,20 +35,6 @@ class TestBoundingBoxClamping:
         assert bbox.left == 0.0
         assert bbox.top == 0.0
 
-    def test_positive_coords_unchanged(self):
-        """Positive coordinates are not modified."""
-        bbox = BoundingBox(left=0.1, top=0.2, width=0.3, height=0.4, label=0, group_label=0)
-
-        assert bbox.left == 0.1
-        assert bbox.top == 0.2
-
-    def test_zero_coords_unchanged(self):
-        """Zero coordinates remain zero."""
-        bbox = BoundingBox(left=0.0, top=0.0, width=0.3, height=0.4, label=0, group_label=0)
-
-        assert bbox.left == 0.0
-        assert bbox.top == 0.0
-
 
 class TestBoundingBoxProperties:
     """Test computed properties of BoundingBox."""

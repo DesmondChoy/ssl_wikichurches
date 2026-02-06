@@ -48,24 +48,21 @@ class TestFineTuningConfigLoRA:
                 freeze_backbone=True,
             )
 
-    def test_lora_auto_adjusts_backbone_lr(self) -> None:
-        """use_lora=True should auto-adjust backbone LR from 1e-5 to 1e-4."""
-        config = FineTuningConfig(model_name="dinov2", use_lora=True)
-        assert config.learning_rate_backbone == 1e-4
-
-    def test_lora_preserves_explicit_lr(self) -> None:
-        """Explicit backbone LR should not be overridden by LoRA auto-adjust."""
-        config = FineTuningConfig(
-            model_name="dinov2",
-            use_lora=True,
-            learning_rate_backbone=5e-6,
-        )
-        assert config.learning_rate_backbone == 5e-6
-
-    def test_non_lora_keeps_default_lr(self) -> None:
-        """Without LoRA, backbone LR should remain at default 1e-5."""
-        config = FineTuningConfig(model_name="dinov2")
-        assert config.learning_rate_backbone == 1e-5
+    @pytest.mark.parametrize(
+        "use_lora,explicit_lr,expected_lr",
+        [
+            (True, None, 1e-4),      # LoRA auto-adjusts default
+            (True, 5e-6, 5e-6),      # Explicit LR preserved
+            (False, None, 1e-5),     # Non-LoRA keeps default
+        ],
+    )
+    def test_backbone_lr_adjustment(self, use_lora, explicit_lr, expected_lr) -> None:
+        """Verify backbone LR is set correctly based on LoRA and explicit override."""
+        kwargs: dict = {"model_name": "dinov2", "use_lora": use_lora}
+        if explicit_lr is not None:
+            kwargs["learning_rate_backbone"] = explicit_lr
+        config = FineTuningConfig(**kwargs)
+        assert config.learning_rate_backbone == expected_lr
 
     def test_asdict_roundtrip_includes_lora_fields(self) -> None:
         """asdict() should include all LoRA fields for checkpoint serialization."""
