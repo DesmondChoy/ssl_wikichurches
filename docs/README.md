@@ -27,6 +27,7 @@ Technical implementation details and model-specific considerations.
 | Document | Description |
 |----------|-------------|
 | [attention_heatmap_implementation.md](reference/attention_heatmap_implementation.md) | Heatmap implementation architecture, model appropriateness, and two-phase design |
+| [api_reference.md](reference/api_reference.md) | Complete REST API documentation for all 25 endpoints |
 
 ### [`enhancements/`](enhancements/) — Proposed Features
 Future improvements not yet implemented. Documents here may be promoted to `core/` or merged into `reference/` once complete.
