@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import warnings
 from pathlib import Path
 
 import pytest
 
-from ssl_attention.config import MODELS
-
-# Import the module under test
 from app.precompute.generate_attention_cache import (
     FINETUNE_MODELS,
     discover_checkpoints,
 )
+from ssl_attention.config import MODELS
 
 
 class TestDiscoverCheckpoints:
@@ -106,7 +103,7 @@ class TestFineTuneModelsConstant:
     def test_includes_all_vits(self) -> None:
         """All ViT models should be in FINETUNE_MODELS."""
         expected_vits = {"dinov2", "dinov3", "mae", "clip", "siglip"}
-        assert FINETUNE_MODELS == expected_vits
+        assert expected_vits == FINETUNE_MODELS
 
     def test_all_finetune_models_exist_in_config(self) -> None:
         """Every model in FINETUNE_MODELS must exist in MODELS config."""
