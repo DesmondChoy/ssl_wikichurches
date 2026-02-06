@@ -45,7 +45,7 @@ class SigLIP(BaseVisionModel):
     the learned attention patterns (tends to be more distributed).
 
     Unlike CLIP/DINOv2/MAE, SigLIP doesn't have a CLS token in the sequence.
-    The cls_token output is the pooler_output (mean pooling over patches).
+    The cls_token output is the pooler_output (MAP attention pooling).
 
     Example:
         >>> model = SigLIP()
@@ -100,7 +100,7 @@ class SigLIP(BaseVisionModel):
 
         SigLIP vision encoder returns:
         - last_hidden_state: (B, 196, D) - NO CLS token in sequence
-        - pooler_output: (B, D) - pooled representation (mean over patches)
+        - pooler_output: (B, D) - pooled representation (MAP attention pooling)
         - attentions: tuple of L tensors, each (B, H, 196, 196)
         - hidden_states: tuple of L+1 tensors when output_hidden_states=True
 
