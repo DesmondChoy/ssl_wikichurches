@@ -22,8 +22,7 @@ Example:
     labels = [sample["style_label"] for sample in dataset]
 
     result = train_linear_probe_sklearn(features, labels)
-    print(f"Accuracy: {result.accuracy:.1%}")
-    print(f"CV: {result.cv_mean:.1%} ± {result.cv_std:.1%}")
+    print(f"CV accuracy: {result.cv_mean:.1%} ± {result.cv_std:.1%}")
 """
 
 from __future__ import annotations
@@ -45,20 +44,24 @@ class ProbeResult:
     """Result of linear probe evaluation.
 
     Attributes:
-        accuracy: Overall classification accuracy on test fold.
-        per_class_accuracy: Accuracy for each class.
-        confusion_matrix: Confusion matrix (true x predicted).
-        f1_macro: Macro-averaged F1 score.
+        train_accuracy: Accuracy computed on full training data (not a
+            generalization estimate); use ``cv_mean`` for generalization.
+        train_per_class_accuracy: Per-class accuracy computed on full training
+            data (not a generalization estimate); use ``cv_mean`` for
+            generalization.
+        confusion_matrix: Confusion matrix (true x predicted) from full refit.
+        train_f1_macro: Macro-averaged F1 computed on full training data (not a
+            generalization estimate); use ``cv_mean`` for generalization.
         cv_scores: Accuracy scores for each CV fold.
         cv_mean: Mean accuracy across CV folds.
         cv_std: Std deviation of accuracy across CV folds.
         class_names: Names of the classes.
     """
 
-    accuracy: float
-    per_class_accuracy: dict[int, float]
+    train_accuracy: float
+    train_per_class_accuracy: dict[int, float]
     confusion_matrix: np.ndarray
-    f1_macro: float
+    train_f1_macro: float
     cv_scores: list[float]
     cv_mean: float
     cv_std: float
@@ -158,10 +161,10 @@ def train_linear_probe_sklearn(
             per_class_acc[i] = 0.0
 
     return ProbeResult(
-        accuracy=float(accuracy),
-        per_class_accuracy=per_class_acc,
+        train_accuracy=float(accuracy),
+        train_per_class_accuracy=per_class_acc,
         confusion_matrix=cm,
-        f1_macro=float(f1),
+        train_f1_macro=float(f1),
         cv_scores=cv_scores.tolist(),
         cv_mean=float(cv_scores.mean()),
         cv_std=float(cv_scores.std()),
@@ -297,11 +300,11 @@ def print_probe_summary(result: ProbeResult, model_name: str = "") -> None:
     print(f"Cross-validation: {result.cv_mean:.1%} ± {result.cv_std:.1%}")
     print(f"  Fold scores: {[f'{s:.1%}' for s in result.cv_scores]}")
 
-    print(f"\nOverall accuracy: {result.accuracy:.1%}")
-    print(f"Macro F1: {result.f1_macro:.3f}")
+    print(f"\nTrain accuracy (full refit): {result.train_accuracy:.1%}")
+    print(f"Train F1 (full refit): {result.train_f1_macro:.3f}")
 
-    print("\nPer-class accuracy:")
-    for class_idx, acc in sorted(result.per_class_accuracy.items()):
+    print("\nTrain per-class accuracy (full refit):")
+    for class_idx, acc in sorted(result.train_per_class_accuracy.items()):
         name = (
             result.class_names[class_idx]
             if class_idx < len(result.class_names)
