@@ -31,6 +31,7 @@ Fine-tuning example:
 """
 
 from ssl_attention.evaluation.fine_tuning import (
+    LORA_TARGET_MODULES,
     ClassificationHead,
     FineTunableModel,
     FineTuner,
@@ -55,6 +56,7 @@ __all__ = [
     "compare_model_features",
     "print_probe_summary",
     # Fine-tuning
+    "LORA_TARGET_MODULES",
     "FineTuningConfig",
     "FineTuningResult",
     "ClassificationHead",

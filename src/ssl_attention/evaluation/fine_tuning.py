@@ -40,7 +40,8 @@ import torch
 from torch import Tensor, nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Subset
-from transformers import AutoImageProcessor
+from torchvision import transforms as T
+from transformers import AutoImageProcessor, get_cosine_schedule_with_warmup
 
 from ssl_attention.config import (
     MODELS,
@@ -60,6 +61,15 @@ if TYPE_CHECKING:
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 CHECKPOINTS_PATH = _PROJECT_ROOT / "outputs" / "checkpoints"
 RESULTS_PATH = _PROJECT_ROOT / "outputs" / "results"
+
+# LoRA target modules per model (HF attention projection names differ)
+LORA_TARGET_MODULES: dict[str, list[str]] = {
+    "dinov2": ["query", "value"],
+    "dinov3": ["q_proj", "v_proj"],
+    "mae": ["query", "value"],
+    "clip": ["q_proj", "v_proj"],
+    "siglip": ["q_proj", "v_proj"],
+}
 
 
 # =============================================================================
@@ -81,6 +91,14 @@ class FineTuningConfig:
         freeze_backbone: If True, only train classification head (linear probe).
         val_split: Fraction of data to use for validation.
         seed: Random seed for reproducibility.
+        warmup_ratio: Fraction of total training steps for linear LR warmup.
+        max_grad_norm: Maximum gradient norm for clipping (0 disables clipping).
+        use_augmentation: Whether to apply training data augmentations.
+        use_lora: If True, apply LoRA adapters to backbone attention layers.
+        lora_rank: Rank of LoRA decomposition matrices.
+        lora_alpha: Scaling factor for LoRA (effective scale = alpha / rank).
+        lora_dropout: Dropout probability for LoRA layers.
+        lora_target_modules: Attention modules to adapt. Auto-resolved per model if None.
     """
 
     model_name: str
@@ -92,6 +110,24 @@ class FineTuningConfig:
     freeze_backbone: bool = False
     val_split: float = 0.2
     seed: int = 42
+    warmup_ratio: float = 0.1
+    max_grad_norm: float = 1.0
+    use_augmentation: bool = True
+    use_lora: bool = False
+    lora_rank: int = 8
+    lora_alpha: int = 32
+    lora_dropout: float = 0.1
+    lora_target_modules: list[str] | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.use_lora and self.freeze_backbone:
+            raise ValueError(
+                "use_lora=True and freeze_backbone=True are conflicting strategies. "
+                "LoRA fine-tunes backbone adapters; freeze_backbone disables all backbone training."
+            )
+        # Auto-adjust backbone LR for LoRA when user hasn't changed the default
+        if self.use_lora and self.learning_rate_backbone == 1e-5:
+            self.learning_rate_backbone = 1e-4
 
 
 @dataclass
@@ -184,6 +220,11 @@ class FineTunableModel(nn.Module):
         freeze_backbone: bool = False,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
+        use_lora: bool = False,
+        lora_rank: int = 8,
+        lora_alpha: int = 32,
+        lora_dropout: float = 0.1,
+        lora_target_modules: list[str] | None = None,
     ) -> None:
         super().__init__()
 
@@ -193,6 +234,11 @@ class FineTunableModel(nn.Module):
         self.device = device or get_device()
         # MPS compatibility: use float32
         self.dtype = dtype or torch.float32
+        self.use_lora = use_lora
+        self.lora_rank = lora_rank
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+        self.lora_target_modules = lora_target_modules
 
         # Load model configuration
         if model_name not in MODELS:
@@ -202,6 +248,10 @@ class FineTunableModel(nn.Module):
         # Load backbone and processor
         self.backbone = self._load_backbone()
         self.processor = AutoImageProcessor.from_pretrained(self._config.model_id)
+
+        # Apply LoRA adapters before moving to device
+        if use_lora:
+            self._apply_lora()
 
         # Create classification head
         self.classifier = ClassificationHead(
@@ -269,6 +319,49 @@ class FineTunableModel(nn.Module):
         """Unfreeze all backbone parameters."""
         for param in self.backbone.parameters():
             param.requires_grad = True
+
+    def _apply_lora(self) -> None:
+        """Apply LoRA adapters to backbone attention layers.
+
+        Uses HuggingFace PEFT to wrap the backbone with low-rank adapters.
+        PEFT auto-freezes non-LoRA backbone params, so get_optimizer_param_groups()
+        (which filters by requires_grad) picks up only LoRA + head params.
+        """
+        try:
+            from peft import LoraConfig, get_peft_model
+        except ImportError:
+            raise ImportError(
+                "LoRA requires the 'peft' package. Install it with: pip install peft>=0.7.0"
+            ) from None
+
+        # Resolve target modules
+        target_modules = self.lora_target_modules
+        if target_modules is None:
+            if self.model_name not in LORA_TARGET_MODULES:
+                raise ValueError(
+                    f"No default LoRA target modules for '{self.model_name}'. "
+                    f"Available: {list(LORA_TARGET_MODULES.keys())}. "
+                    f"Provide lora_target_modules explicitly."
+                )
+            target_modules = LORA_TARGET_MODULES[self.model_name]
+
+        lora_config = LoraConfig(
+            r=self.lora_rank,
+            lora_alpha=self.lora_alpha,
+            lora_dropout=self.lora_dropout,
+            target_modules=target_modules,
+            bias="none",
+        )
+
+        self.backbone = get_peft_model(self.backbone, lora_config)
+
+        # Log trainable parameter count
+        trainable = sum(p.numel() for p in self.backbone.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in self.backbone.parameters())
+        print(
+            f"LoRA applied: {trainable:,} trainable params / {total:,} total "
+            f"({trainable / total:.2%})"
+        )
 
     def _extract_features(self, model_output: Any) -> tuple[Tensor, list[Tensor]]:
         """Extract CLS features and attention weights from backbone output.
@@ -417,7 +510,10 @@ class FineTuner:
     Handles the full training loop including:
     - Train/validation split (stratified)
     - Class-weighted loss for imbalanced data
-    - Checkpoint saving
+    - Cosine LR schedule with linear warmup
+    - Gradient clipping for training stability
+    - Data augmentation (crop, flip, color jitter)
+    - Checkpoint saving (model, optimizer, scheduler)
     - Training history logging
 
     Args:
@@ -520,12 +616,34 @@ class FineTuner:
             ),
         }
 
+    def _build_train_transform(self) -> T.Compose:
+        """Build data augmentation transform for training images.
+
+        Returns a transform that applies random crop, flip, and color jitter.
+        Outputs PIL images — model.preprocess() handles ToTensor/Normalize.
+        """
+        return T.Compose([
+            T.RandomResizedCrop(224, scale=(0.8, 1.0)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.ColorJitter(brightness=0.2, contrast=0.2),
+        ])
+
+    @staticmethod
+    def _augment_train_images(
+        images: list, transform: T.Compose
+    ) -> list:
+        """Apply augmentation transform to a list of PIL images."""
+        return [transform(img) for img in images]
+
     def train(
         self,
         model: FineTunableModel,
         dataset: FullDataset,
     ) -> FineTuningResult:
         """Train the model on the dataset.
+
+        Uses cosine LR schedule with linear warmup, gradient clipping,
+        and optional data augmentation for training stability.
 
         Args:
             model: FineTunableModel to train.
@@ -541,6 +659,9 @@ class FineTuner:
         # Split data
         train_subset, val_subset = self._stratified_split(dataset, self.config.val_split)
         print(f"Train size: {len(train_subset)}, Val size: {len(val_subset)}")
+
+        # Build augmentation transform
+        train_transform = self._build_train_transform() if self.config.use_augmentation else None
 
         # Create data loaders (num_workers=0 for MPS compatibility)
         train_loader = DataLoader(
@@ -578,11 +699,23 @@ class FineTuner:
         )
         optimizer = AdamW(param_groups)
 
+        # LR scheduler: cosine decay with linear warmup
+        num_training_steps = self.config.num_epochs * len(train_loader)
+        num_warmup_steps = int(self.config.warmup_ratio * num_training_steps)
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=num_warmup_steps,
+            num_training_steps=num_training_steps,
+        )
+
         # Training loop
         train_history: list[dict[str, float]] = []
         best_val_acc = 0.0
         best_epoch = 0
-        checkpoint_path = CHECKPOINTS_PATH / f"{self.config.model_name}_finetuned.pt"
+        if self.config.use_lora:
+            checkpoint_path = CHECKPOINTS_PATH / f"{self.config.model_name}_lora_finetuned.pt"
+        else:
+            checkpoint_path = CHECKPOINTS_PATH / f"{self.config.model_name}_finetuned.pt"
 
         for epoch in range(self.config.num_epochs):
             # Train
@@ -595,15 +728,25 @@ class FineTuner:
                 if len(batch["images"]) == 0:
                     continue
 
+                # Apply augmentation (training only)
+                images = batch["images"]
+                if train_transform is not None:
+                    images = self._augment_train_images(images, train_transform)
+
                 # Preprocess and forward
-                pixel_values = model.preprocess(batch["images"])
+                pixel_values = model.preprocess(images)
                 labels = batch["labels"].to(self.device)
 
                 optimizer.zero_grad()
                 logits, _, _ = model(pixel_values)
                 loss = criterion(logits, labels)
                 loss.backward()
+                if self.config.max_grad_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), max_norm=self.config.max_grad_norm
+                    )
                 optimizer.step()
+                scheduler.step()
 
                 train_loss += loss.item() * len(labels)
                 train_correct += (logits.argmax(dim=1) == labels).sum().item()
@@ -641,19 +784,22 @@ class FineTuner:
             val_acc = val_correct / max(val_total, 1)
 
             # Log epoch
+            current_lr = optimizer.param_groups[0]["lr"]
             epoch_metrics = {
                 "epoch": epoch + 1,
                 "train_loss": train_loss,
                 "train_acc": train_acc,
                 "val_loss": val_loss,
                 "val_acc": val_acc,
+                "lr": current_lr,
             }
             train_history.append(epoch_metrics)
 
             print(
                 f"Epoch {epoch + 1}/{self.config.num_epochs}: "
                 f"train_loss={train_loss:.4f}, train_acc={train_acc:.1%}, "
-                f"val_loss={val_loss:.4f}, val_acc={val_acc:.1%}"
+                f"val_loss={val_loss:.4f}, val_acc={val_acc:.1%}, "
+                f"lr={current_lr:.2e}"
             )
 
             # Save best checkpoint
@@ -661,7 +807,7 @@ class FineTuner:
                 best_val_acc = val_acc
                 best_epoch = epoch + 1
                 self._save_checkpoint(
-                    model, optimizer, epoch + 1, val_acc, checkpoint_path
+                    model, optimizer, scheduler, epoch + 1, val_acc, checkpoint_path
                 )
                 print(f"  -> New best! Saved checkpoint to {checkpoint_path}")
 
@@ -681,6 +827,7 @@ class FineTuner:
         self,
         model: FineTunableModel,
         optimizer: AdamW,
+        scheduler: Any,
         epoch: int,
         val_acc: float,
         path: Path,
@@ -690,6 +837,7 @@ class FineTuner:
         Args:
             model: Model to save.
             optimizer: Optimizer state to save.
+            scheduler: LR scheduler state to save.
             epoch: Current epoch number.
             val_acc: Validation accuracy at this checkpoint.
             path: Path to save checkpoint.
@@ -699,6 +847,7 @@ class FineTuner:
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
             "val_accuracy": val_acc,
             "config": asdict(self.config),
         }
@@ -737,16 +886,22 @@ def load_finetuned_model(
     # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
-    # Determine freeze_backbone from config
+    # Reconstruct config from checkpoint
     config = checkpoint.get("config", {})
     freeze_backbone = config.get("freeze_backbone", False)
+    use_lora = config.get("use_lora", False)
 
-    # Create model
+    # Create model (LoRA wrapper must be applied before load_state_dict)
     model = FineTunableModel(
         model_name=model_name,
         num_classes=NUM_STYLES,
         freeze_backbone=freeze_backbone,
         device=device,
+        use_lora=use_lora,
+        lora_rank=config.get("lora_rank", 8),
+        lora_alpha=config.get("lora_alpha", 32),
+        lora_dropout=config.get("lora_dropout", 0.1),
+        lora_target_modules=config.get("lora_target_modules"),
     )
 
     # Load weights

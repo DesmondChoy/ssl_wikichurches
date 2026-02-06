@@ -18,6 +18,12 @@ Usage:
     # Head-only training (freeze backbone)
     uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-backbone
 
+    # LoRA fine-tuning
+    uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora
+
+    # LoRA with custom rank
+    uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora --lora-rank 16
+
     # Quick smoke test
     uv run python experiments/scripts/fine_tune_models.py --model dinov2 --epochs 1
 
@@ -107,6 +113,31 @@ def parse_args() -> argparse.Namespace:
         help="Freeze backbone weights (head-only training)",
     )
 
+    # LoRA settings
+    parser.add_argument(
+        "--lora",
+        action="store_true",
+        help="Enable LoRA adapters on backbone attention layers",
+    )
+    parser.add_argument(
+        "--lora-rank",
+        type=int,
+        default=8,
+        help="LoRA rank (default: 8)",
+    )
+    parser.add_argument(
+        "--lora-alpha",
+        type=int,
+        default=32,
+        help="LoRA alpha scaling factor (default: 32)",
+    )
+    parser.add_argument(
+        "--lora-dropout",
+        type=float,
+        default=0.1,
+        help="LoRA dropout probability (default: 0.1)",
+    )
+
     # Other settings
     parser.add_argument(
         "--seed",
@@ -153,6 +184,10 @@ def train_single_model(
         freeze_backbone=args.freeze_backbone,
         val_split=args.val_split,
         seed=args.seed,
+        use_lora=args.lora,
+        lora_rank=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
     )
 
     print(f"Config: {config}")
@@ -162,6 +197,10 @@ def train_single_model(
     model = FineTunableModel(
         model_name=model_name,
         freeze_backbone=args.freeze_backbone,
+        use_lora=args.lora,
+        lora_rank=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
     )
 
     # Create trainer and train
