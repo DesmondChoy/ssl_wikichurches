@@ -141,7 +141,8 @@ Source: src/ssl_attention/attention/cls_attention.py
 **Mathematical formulation:**
 ```
 R₀ = I (identity matrix)
-Rᵢ = normalize((Aᵢ + I) @ Rᵢ₋₁)
+Ãᵢ = normalize(Aᵢ)
+Rᵢ = normalize(Ãᵢ + I) @ Rᵢ₋₁
 ```
 
 **Interpretation:**
@@ -416,7 +417,8 @@ Abnar & Zuidema (2020) demonstrated a critical insight: raw single-layer attenti
 Our implementation follows their formulation:
 ```
 R₀ = I (identity matrix)
-Rᵢ = normalize((Aᵢ + I) @ Rᵢ₋₁)
+Ãᵢ = normalize(Aᵢ)
+Rᵢ = normalize(Ãᵢ + I) @ Rᵢ₋₁
 ```
 
 **Validation from the literature:**

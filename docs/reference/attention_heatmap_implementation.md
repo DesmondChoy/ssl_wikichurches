@@ -211,10 +211,13 @@ Several design choices in the implementation affect the resulting heatmaps:
 
 **Bilinear interpolation for upsampling:** Attention maps are computed at patch resolution (e.g., 16×16 for DINOv2) and upsampled to image resolution (224×224) using bilinear interpolation (configured in `config.py` as `INTERPOLATION_MODE = "bilinear"`). This produces smooth heatmaps but blurs patch boundaries. An alternative like nearest-neighbor interpolation would preserve sharp patch boundaries, making individual patch contributions clearer, but at the cost of visual smoothness. The choice of bilinear interpolation may slightly affect IoU computation at bounding box boundaries where sub-patch precision matters.
 
-**Attention rollout normalization:** Our rollout implementation includes a **re-normalization step** after adding the residual identity matrix. From `rollout.py`:
+**Attention rollout normalization:** Our rollout implementation includes **two normalization steps**: first on the raw attention, then again after adding the residual identity matrix. From `rollout.py`:
 
 ```python
-# Add residual connection (identity) and multiply
+# Pre-normalize attention to valid distribution
+attn = attn / (attn.sum(dim=-1, keepdim=True) + EPSILON)
+
+# Add residual connection (identity)
 attn_with_residual = attn + identity
 
 # Re-normalize to maintain valid probability distribution
@@ -225,7 +228,7 @@ attn_with_residual = attn_with_residual / (
 rollout = torch.bmm(attn_with_residual, rollout)
 ```
 
-This re-normalization ensures the rolled-out matrix remains a valid probability distribution at each layer. Some implementations omit this step, which causes the rollout matrix values to grow unboundedly. Our choice follows the spirit of [Abnar & Zuidema (2020)](https://arxiv.org/abs/2005.00928) who discuss normalization as necessary for interpretability.
+The first normalization ensures the attention matrix is a valid probability distribution after head fusion (and optional low-value discarding). The second re-normalization is needed because adding the identity matrix doubles the row sums, so we re-normalize to keep the rolled-out matrix as a valid probability distribution. Some implementations omit these steps, which causes the rollout matrix values to grow unboundedly. Our choice follows the spirit of [Abnar & Zuidema (2020)](https://arxiv.org/abs/2005.00928) who discuss normalization as necessary for interpretability.
 
 **Known limitation of attention rollout:** Rollout models information flow only through attention connections, completely ignoring the MLP (feed-forward) blocks between attention layers. Since MLPs also transform and route information, rollout is an approximation of the true information flow. [Chefer et al. (2021)](https://arxiv.org/abs/2012.09838) proposed "Generic Attention" which incorporates gradient information to account for MLP contributions. We use standard rollout for simplicity and computational efficiency, but this limitation should be considered when interpreting rollout heatmaps.
 

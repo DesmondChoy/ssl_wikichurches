@@ -29,9 +29,11 @@ def attention_rollout(
 
     Rollout recursively multiplies attention matrices:
         R_0 = I (identity)
-        R_i = (A_i + I) @ R_{i-1}
+        Ã_i = normalize(A_i)
+        R_i = normalize(Ã_i + I) @ R_{i-1}
 
     Adding identity (I) accounts for the residual connection.
+    Normalization ensures rows remain valid probability distributions.
 
     Args:
         attention_weights: List of per-layer attention tensors.
@@ -79,8 +81,8 @@ def attention_rollout(
         # Re-normalize after potential discarding
         attn = attn / (attn.sum(dim=-1, keepdim=True) + EPSILON)
 
-        # Add residual connection (identity) and multiply
-        # R_i = (A_i + I) @ R_{i-1}
+        # Add residual connection (identity) and re-normalize
+        # R_i = normalize(normalize(A_i) + I) @ R_{i-1}
         identity = torch.eye(seq_len, device=attn.device).unsqueeze(0)
         attn_with_residual = attn + identity
 
