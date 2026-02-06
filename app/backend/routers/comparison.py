@@ -10,7 +10,7 @@ from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_m
 from app.backend.schemas import IoUResultSchema, ModelComparisonSchema
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
-from app.backend.validators import validate_layer_for_model
+from app.backend.validators import resolve_default_method, validate_layer_for_model
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
@@ -57,13 +57,16 @@ async def compare_models(
     heatmap_urls = {}
 
     for model in models:
+        resolved_model = resolve_model_name(model)
+        method = resolve_default_method(model)
+
         # Get metrics
         metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
         if metrics:
             results.append(IoUResultSchema(**metrics))
 
         # Get heatmap URL
-        if image_service.heatmap_exists(model, layer_key, image_id, variant="overlay"):
+        if image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay"):
             heatmap_urls[model] = f"/api/attention/{image_id}/overlay?model={model}&layer={layer}"
 
     if not results:
@@ -105,13 +108,15 @@ async def compare_frozen_vs_finetuned(
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
 
     layer_key = f"layer{layer}"
+    resolved_model = resolve_model_name(model)
+    method = resolve_default_method(model)
 
     # Frozen model (always available after pre-computation)
-    frozen_available = image_service.heatmap_exists(model, layer_key, image_id, variant="overlay")
+    frozen_available = image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay")
 
     # Fine-tuned model (placeholder - will be available after Phase 5)
     finetuned_model = f"{model}_finetuned"
-    finetuned_available = image_service.heatmap_exists(finetuned_model, layer_key, image_id, variant="overlay")
+    finetuned_available = image_service.heatmap_exists(finetuned_model, layer_key, image_id, method=method, variant="overlay")
 
     return {
         "image_id": image_id,
@@ -155,7 +160,9 @@ async def compare_layers(
         )
 
     # Get per-model layer count
-    num_layers = get_model_num_layers(resolve_model_name(model))
+    resolved_model = resolve_model_name(model)
+    num_layers = get_model_num_layers(resolved_model)
+    method = resolve_default_method(model)
 
     layers_data = []
     for layer in range(num_layers):
@@ -163,7 +170,7 @@ async def compare_layers(
         metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
 
         if metrics:
-            has_heatmap = image_service.heatmap_exists(model, layer_key, image_id, variant="overlay")
+            has_heatmap = image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay")
             layers_data.append({
                 "layer": layer,
                 "layer_key": layer_key,

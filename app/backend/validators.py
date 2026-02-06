@@ -4,7 +4,21 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
+from app.backend.config import AVAILABLE_MODELS, DEFAULT_METHOD, get_model_num_layers, resolve_model_name
+from ssl_attention.config import AttentionMethod
+
+
+def resolve_default_method(model: str) -> str:
+    """Resolve the default attention method for a model.
+
+    Args:
+        model: Model name (may be alias like 'siglip2').
+
+    Returns:
+        Default method string (e.g., 'cls', 'mean', 'gradcam').
+    """
+    resolved = resolve_model_name(model)
+    return DEFAULT_METHOD.get(resolved, AttentionMethod.CLS).value
 
 
 def validate_model(model: str) -> None:
