@@ -25,6 +25,8 @@ While existing tools like BertViz and Comet ML visualize transformer attention, 
 | **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Per-head attention selector, head IoU heatmap (head × feature type), head specialization dashboard |
 | **Q4:** Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect how much attention shifts toward expert features? | Compare Δ IoU across three fine-tuning methods using paired tests; compute Cohen's d effect sizes; analyze catastrophic forgetting via pre-training IoU retention | Fine-tuning method comparison view, Δ IoU bar charts by method, forgetting metrics |
 
+> **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2/Q4 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
+
 ---
 
 ## 2. Dataset

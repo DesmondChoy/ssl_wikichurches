@@ -99,11 +99,11 @@ Transformers have multiple **attention heads** operating in parallel, each poten
 
 ## Attention Methods in This App
 
-> **See also:** [Project Proposal §3.2 - Attention Extraction and Visualization](../core/project_proposal.md#32-attention-extraction-and-visualization)
+> **See also:** [Project Proposal §3.2 - Attention Extraction and Visualization](../core/project_proposal.md#32-attention-extraction)
 
 Different methods extract attention information in different ways, each with strengths and limitations. Not all methods work with all models.
 
-The [ablation studies](../core/project_proposal.md#4-ablation-studies) compare these methods to determine which extraction approach best captures expert-relevant regions.
+The [ablation studies](../core/project_proposal.md#4-ablations) compare these methods to determine which extraction approach best captures expert-relevant regions.
 
 ### 1. CLS Token Attention
 
@@ -210,7 +210,7 @@ Source: src/ssl_attention/attention/gradcam.py
 
 ## How We Measure Alignment
 
-> **See also:** [Project Proposal §3.3 - Attention-Annotation Alignment](../core/project_proposal.md#33-attention-annotation-alignment-primary-metric) and [§5 - Evaluation Plan](../core/project_proposal.md#5-evaluation-plan)
+> **See also:** [Project Proposal §3.3 - Attention-Annotation Alignment](../core/project_proposal.md#33-attention-annotation-alignment) and [§5 - Evaluation Plan](../core/project_proposal.md#5-evaluation-plan)
 
 Visualizations are informative but subjective. We need **quantitative metrics** to systematically compare models and answer our research questions.
 
@@ -238,7 +238,7 @@ IoU = (Area of Overlap) / (Area of Union)
 
 ### Baselines
 
-To know if models perform well, we compare against [naive baselines](../core/project_proposal.md#33-attention-annotation-alignment-primary-metric):
+To know if models perform well, we compare against [naive baselines](../core/project_proposal.md#33-attention-annotation-alignment):
 
 | Baseline | Description | Expected IoU |
 |----------|-------------|--------------|
@@ -261,7 +261,7 @@ In the metrics dashboard, you can see:
 
 > **See also:** [Project Proposal §3.1 - Feature Extraction Pipeline](../core/project_proposal.md#31-feature-extraction-pipeline) for model selection rationale
 
-Each model was chosen to test specific hypotheses about how [training paradigms affect attention](../core/project_proposal.md#4-ablation-studies):
+Each model was chosen to test specific hypotheses about how [training paradigms affect attention](../core/project_proposal.md#4-ablations):
 - **DINOv2 vs DINOv3:** Does Gram Anchoring improve attention quality?
 - **MAE:** Does reconstruction-based learning produce different attention than discriminative objectives?
 - **CLIP vs SigLIP:** Does loss function (softmax vs sigmoid) affect attention alignment?
@@ -285,7 +285,7 @@ These models include 4 **register tokens** in addition to the CLS token. Registe
 
 You may see references to DINOv3 using "Self-distillation + Gram Anchoring" in the [model table](../core/project_proposal.md#31-feature-extraction-pipeline). This refers to **DINOv3's training objective**, not an attention visualization method available in this app.
 
-Gram Anchoring uses Gram matrix matching during pretraining to encourage consistent style/texture representations. One of our [hypotheses](../core/project_proposal.md#4-ablation-studies) is that this may sharpen attention to semantically meaningful regions compared to DINOv2. We test this by comparing their CLS Attention and Rollout patterns—there is no separate "Gram" attention extraction method.
+Gram Anchoring uses Gram matrix matching during pretraining to encourage consistent style/texture representations. One of our [hypotheses](../core/project_proposal.md#4-ablations) is that this may sharpen attention to semantically meaningful regions compared to DINOv2. We test this by comparing their CLS Attention and Rollout patterns—there is no separate "Gram" attention extraction method.
 
 ### DINOv2 vs. DINOv3: Patch Size Difference
 
@@ -313,11 +313,11 @@ ResNet is a CNN (Convolutional Neural Network), not a transformer. It has no att
 
 ## Interpreting the Visualizations
 
-> **See also:** [Project Proposal §4 - Ablation Studies](../core/project_proposal.md#4-ablation-studies) for the hypotheses we're testing
+> **See also:** [Project Proposal §4 - Ablation Studies](../core/project_proposal.md#4-ablations) for the hypotheses we're testing
 
 ### Layer Progression
 
-The [layer analysis ablation](../core/project_proposal.md#4-ablation-studies) investigates at what depth expert-aligned attention emerges. Attention patterns change dramatically across layers:
+The [layer analysis ablation](../core/project_proposal.md#4-ablations) investigates at what depth expert-aligned attention emerges. Attention patterns change dramatically across layers:
 
 | Layer Depth | Typical Pattern | What It Captures |
 |-------------|-----------------|------------------|
@@ -337,7 +337,7 @@ The app uses the **Turbo colormap** (perceptually uniform rainbow):
 
 ### Comparing Models
 
-When comparing models side-by-side, look for patterns that test our [hypotheses](../core/project_proposal.md#4-ablation-studies):
+When comparing models side-by-side, look for patterns that test our [hypotheses](../core/project_proposal.md#4-ablations):
 
 - **Consistency:** Do all models attend to similar regions?
 - **Specificity:** Which model's attention best matches the expert bounding boxes?
@@ -561,8 +561,8 @@ The ERASER benchmark (DeYoung et al., 2020) established that evaluation should i
 | ↳ [§1 Problem Statement](../core/project_proposal.md#1-problem-statement) | The research questions this app helps answer |
 | ↳ [§2 Dataset](../core/project_proposal.md#2-dataset) | WikiChurches dataset details and preprocessing |
 | ↳ [§3.1 Models](../core/project_proposal.md#31-feature-extraction-pipeline) | Model selection rationale and training paradigms |
-| ↳ [§3.3 IoU Methodology](../core/project_proposal.md#33-attention-annotation-alignment-primary-metric) | How attention-annotation alignment is measured |
-| ↳ [§4 Ablation Studies](../core/project_proposal.md#4-ablation-studies) | Hypotheses about model and layer differences |
+| ↳ [§3.3 IoU Methodology](../core/project_proposal.md#33-attention-annotation-alignment) | How attention-annotation alignment is measured |
+| ↳ [§4 Ablation Studies](../core/project_proposal.md#4-ablations) | Hypotheses about model and layer differences |
 | ↳ [§9 Expected Contributions](../core/project_proposal.md#9-expected-contributions) | What this research aims to contribute |
 | [Implementation Plan](../core/implementation_plan.md) | Technical architecture and phase breakdown |
 

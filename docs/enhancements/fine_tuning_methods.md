@@ -3,6 +3,10 @@
 > **Research compiled:** February 2026
 > **Purpose:** Evaluate fine-tuning strategies to study whether task-specific training redirects SSL model attention toward expert-annotated architectural features
 
+> **Related documents:**
+> - [Project Proposal — Q2 & Q4: Fine-Tuning](../core/project_proposal.md#research-questions-and-approaches)
+> - [Implementation Plan — Phase 5: Fine-Tuning Analysis](../core/implementation_plan.md#phase-5-fine-tuning-analysis--in-progress)
+
 ## Executive Summary
 
 This document outlines fine-tuning methods suitable for the SSL WikiChurches project. It supports:

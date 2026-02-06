@@ -43,10 +43,7 @@ ssl_wikichurches/
 │
 ├── src/ssl_attention/
 │   ├── __init__.py
-│   ├── config/
-│   │   ├── __init__.py
-│   │   ├── base.py              # ExperimentConfig dataclass
-│   │   └── models.py            # Model-specific configs
+│   ├── config.py                  # Centralized configuration
 │   │
 │   ├── models/
 │   │   ├── __init__.py
@@ -57,14 +54,14 @@ ssl_wikichurches/
 │   │   ├── dinov3.py            # DINOv3 wrapper (facebook/dinov3-vitb16-pretrain-lvd1689m)
 │   │   ├── mae.py               # MAE wrapper (facebook/vit-mae-base)
 │   │   ├── clip_model.py        # CLIP wrapper (openai/clip-vit-base-patch16)
-│   │   └── siglip.py            # SigLIP 2 wrapper (google/siglip2-base-patch16-224)
+│   │   ├── siglip.py            # SigLIP 2 wrapper (google/siglip2-base-patch16-224)
+│   │   └── resnet50.py          # ResNet-50 supervised baseline (Grad-CAM)
 │   │
 │   ├── attention/
 │   │   ├── __init__.py
 │   │   ├── cls_attention.py     # CLS token attention extraction
 │   │   ├── rollout.py           # Attention rollout implementation
-│   │   ├── gradcam.py           # GradCAM for transformers
-│   │   └── utils.py             # Upsampling, normalization
+│   │   └── gradcam.py           # GradCAM for CNNs
 │   │
 │   ├── data/
 │   │   ├── __init__.py
@@ -75,14 +72,14 @@ ssl_wikichurches/
 │   ├── metrics/
 │   │   ├── __init__.py
 │   │   ├── iou.py               # IoU computation (attention vs bbox)
+│   │   ├── pointing_game.py     # Pointing game metric
 │   │   ├── baselines.py         # Random, center, saliency baselines
 │   │   └── statistics.py        # t-tests, bootstrap CIs, effect sizes
 │   │
 │   ├── evaluation/
 │   │   ├── __init__.py
 │   │   ├── linear_probe.py      # Linear classifier training
-│   │   ├── fine_tuning.py       # Full backbone fine-tuning
-│   │   └── ablations.py         # Layer analysis, model comparison
+│   │   └── fine_tuning.py       # Full backbone fine-tuning
 │   │
 │   ├── visualization/
 │   │   ├── __init__.py
@@ -96,8 +93,7 @@ ssl_wikichurches/
 │   │
 │   └── utils/
 │       ├── __init__.py
-│       ├── device.py            # MPS/CUDA/CPU handling
-│       └── logging.py           # Structured logging
+│       └── device.py            # MPS/CUDA/CPU handling
 │
 ├── experiments/
 │   ├── configs/
@@ -294,7 +290,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Side-by-side heatmaps (frozen vs fine-tuned)
    - Attention shift maps (where did attention move?)
 
-> **Note:** Items 3-4 are pending team discussion on fine-tuning strategy (what type of fine-tuning to pursue, evaluation approach, and next steps).
+> **Note:** Items 3-4 are pending team discussion on fine-tuning strategy (what type of fine-tuning to pursue, evaluation approach, and next steps). See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 

@@ -4,6 +4,11 @@
 > **Status:** Planned
 > **Purpose:** Reveal attention head specialization patterns documented in DINO literature
 
+> **Related documents:**
+> - [Project Proposal — Q3: Head Specialization](../core/project_proposal.md#research-questions-and-approaches)
+> - [Attention Methods — Head Fusion Strategies](../research/attention_methods.md#head-fusion-strategies)
+> - [Implementation Plan](../core/implementation_plan.md)
+
 ## Executive Summary
 
 This enhancement adds UI controls to visualize attention from individual transformer heads (0-11) instead of only the current "fused" (averaged) view. Research shows that different attention heads in Vision Transformers specialize for different visual patterns—some focus on texture, others on object boundaries, and others on semantic regions.

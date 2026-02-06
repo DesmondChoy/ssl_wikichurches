@@ -3,7 +3,7 @@
 This document explains what attention heatmaps are, why they matter for this project, and how they are implemented in this codebase. It also discusses model-specific considerations and potential limitations.
 
 > **Related documents:**
-> - [Attention Methods](./attention_methods.md) — Detailed explanation of CLS attention, rollout, mean attention, and Grad-CAM
+> - [Attention Methods](../research/attention_methods.md) — Detailed explanation of CLS attention, rollout, mean attention, and Grad-CAM
 > - [Project Proposal](../core/project_proposal.md) — Full research design and hypotheses
 
 ---
