@@ -4,6 +4,7 @@
 
 import type { IoUResult } from '../../types';
 import { Tooltip } from '../ui/Tooltip';
+import type { ComponentProps } from 'react';
 import { GLOSSARY } from '../../constants/glossary';
 
 interface IoUDisplayProps {
@@ -54,6 +55,7 @@ export function IoUDisplay({ metrics, isLoading, compact = false }: IoUDisplayPr
           description="Intersection over Union"
           color={getIoUColor(metrics.iou)}
           tooltip={GLOSSARY['IoU Score']}
+          tooltipAlign="left"
         />
         <MetricCard
           label="Coverage"
@@ -61,6 +63,7 @@ export function IoUDisplay({ metrics, isLoading, compact = false }: IoUDisplayPr
           description="Attention in annotated regions"
           color={getIoUColor(metrics.coverage)}
           tooltip={GLOSSARY['Coverage']}
+          tooltipAlign="right"
         />
       </div>
 
@@ -84,14 +87,15 @@ interface MetricCardProps {
   description?: string;
   color: string;
   tooltip?: string;
+  tooltipAlign?: ComponentProps<typeof Tooltip>['align'];
 }
 
-function MetricCard({ label, value, description, color, tooltip }: MetricCardProps) {
+function MetricCard({ label, value, description, color, tooltip, tooltipAlign }: MetricCardProps) {
   return (
     <div className={`p-3 rounded-lg ${color}`}>
       <div className="text-xs text-gray-600">
         {label}
-        {tooltip && <Tooltip content={tooltip} />}
+        {tooltip && <Tooltip content={tooltip} align={tooltipAlign} />}
       </div>
       <div className="text-2xl font-bold">{value}</div>
       {description && (

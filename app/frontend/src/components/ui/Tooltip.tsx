@@ -6,9 +6,23 @@ import { useState } from 'react';
 
 interface TooltipProps {
   content: string;
+  /** Horizontal alignment of the popup relative to the "?" button. */
+  align?: 'center' | 'left' | 'right';
 }
 
-export function Tooltip({ content }: TooltipProps) {
+const popupAlign = {
+  center: 'left-1/2 -translate-x-1/2',
+  left: 'left-0',
+  right: 'right-0',
+} as const;
+
+const arrowAlign = {
+  center: 'left-1/2 -translate-x-1/2',
+  left: 'left-2',
+  right: 'right-2',
+} as const;
+
+export function Tooltip({ content, align = 'center' }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   return (
@@ -25,9 +39,9 @@ export function Tooltip({ content }: TooltipProps) {
         ?
       </button>
       {isVisible && (
-        <div className="absolute z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded-lg bottom-full left-1/2 -translate-x-1/2 mb-2 shadow-lg">
+        <div className={`absolute z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded-lg bottom-full ${popupAlign[align]} mb-2 shadow-lg`}>
           {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+          <div className={`absolute top-full ${arrowAlign[align]} border-4 border-transparent border-t-gray-900`} />
         </div>
       )}
     </span>
