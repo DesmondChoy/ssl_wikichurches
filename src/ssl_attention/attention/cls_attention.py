@@ -154,7 +154,6 @@ def extract_cls_attention_all_layers(
 def attention_to_heatmap(
     attention: Tensor,
     image_size: int = DEFAULT_IMAGE_SIZE,
-    patch_size: int = 16,
     normalize: bool = True,
 ) -> Tensor:
     """Upsample patch attention to full image size.
@@ -165,7 +164,6 @@ def attention_to_heatmap(
     Args:
         attention: CLS-to-patch attention of shape (B, N) or (N,).
         image_size: Target image size (assumes square).
-        patch_size: Size of each patch in pixels.
         normalize: If True, normalize to [0, 1] range.
 
     Returns:
@@ -173,7 +171,7 @@ def attention_to_heatmap(
 
     Example:
         >>> attn = torch.randn(1, 256)  # 16x16 patches
-        >>> heatmap = attention_to_heatmap(attn, image_size=224, patch_size=14)
+        >>> heatmap = attention_to_heatmap(attn, image_size=224)
         >>> heatmap.shape
         torch.Size([1, 224, 224])
     """

@@ -253,14 +253,14 @@ class TestAttentionToHeatmap:
     def test_16x16_patches(self):
         """Verify 16x16 patch grid (DINOv2) works correctly."""
         attention = torch.randn(1, 256)  # 16x16 patches
-        heatmap = attention_to_heatmap(attention, image_size=224, patch_size=14)
+        heatmap = attention_to_heatmap(attention, image_size=224)
 
         assert heatmap.shape == (1, 224, 224)
 
     def test_14x14_patches(self):
         """Verify 14x14 patch grid works correctly."""
         attention = torch.randn(1, 196)  # 14x14 patches
-        heatmap = attention_to_heatmap(attention, image_size=224, patch_size=16)
+        heatmap = attention_to_heatmap(attention, image_size=224)
 
         assert heatmap.shape == (1, 224, 224)
 

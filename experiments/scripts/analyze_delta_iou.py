@@ -230,7 +230,6 @@ def extract_attention_heatmap(
     heatmap = attention_to_heatmap(
         attn,
         image_size=224,
-        patch_size=config.patch_size,
         normalize=True,
     )
 

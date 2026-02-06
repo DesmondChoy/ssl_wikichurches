@@ -155,7 +155,6 @@ def generate_attention_for_model(
                             heatmap = attention_to_heatmap(
                                 cls_attn,
                                 image_size=224,
-                                patch_size=model.patch_size,
                             )
 
                         elif method == AttentionMethod.ROLLOUT:
@@ -169,7 +168,6 @@ def generate_attention_for_model(
                             heatmap = attention_to_heatmap(
                                 cls_attn,
                                 image_size=224,
-                                patch_size=model.patch_size,
                             )
 
                         elif method == AttentionMethod.MEAN:
@@ -181,7 +179,6 @@ def generate_attention_for_model(
                             heatmap = attention_to_heatmap(
                                 cls_attn,
                                 image_size=224,
-                                patch_size=model.patch_size,
                             )
 
                         else:
