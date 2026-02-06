@@ -5,7 +5,7 @@ from vision transformer models:
 
 - CLS Attention: Direct attention from CLS token to patches
 - Attention Rollout: Accumulated attention across layers
-- Grad-CAM: Gradient-based visualization (baseline comparison)
+- Grad-CAM: See models/resnet50.py for CNN-based Grad-CAM baseline
 
 Usage:
     >>> from ssl_attention.attention import extract_cls_attention, HeadFusion
@@ -25,7 +25,6 @@ from ssl_attention.attention.cls_attention import (
     fuse_heads,
     get_per_head_attention,
 )
-from ssl_attention.attention.gradcam import GradCAM, compute_gradcam
 from ssl_attention.attention.rollout import (
     attention_rollout,
     compare_rollout_depths,
@@ -45,7 +44,4 @@ __all__ = [
     "attention_rollout",
     "extract_cls_rollout",
     "compare_rollout_depths",
-    # Grad-CAM
-    "GradCAM",
-    "compute_gradcam",
 ]
