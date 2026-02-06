@@ -172,8 +172,8 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Colormap legend is visible below the image
 
 #### Control Panel (Right Column)
-- [ ] Model selector dropdown shows available models (dinov2, dino, mae, clip)
-- [ ] Layer slider allows selection from 0-11
+- [ ] Model selector dropdown shows all 6 models (dinov2, dinov3, mae, clip, siglip2, resnet50)
+- [ ] Layer slider range adjusts per model (e.g., 0-11 for ViTs, 0-3 for ResNet-50)
 - [ ] Percentile threshold selector shows options: 90%, 85%, 80%, 70%, 60%, 50%
 - [ ] "Show Bounding Boxes" toggle is present
 - [ ] Changing model updates the attention visualization
@@ -181,6 +181,9 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Changing percentile updates the attention overlay
 - [ ] Tooltip help icons (?) appear next to each control label
 - [ ] Hovering tooltip icon shows educational explanation
+- [ ] Attention Method dropdown appears for models with multiple methods (e.g., DINOv2: CLS Attention, Attention Rollout)
+- [ ] Attention Method dropdown is hidden for single-method models (e.g., SigLIP shows only Mean Attention)
+- [ ] Changing attention method updates the attention visualization and metrics
 
 #### Similarity Heatmap Controls (Right Column - below Control Panel)
 - [ ] "Similarity Heatmap" section header is visible
@@ -240,6 +243,8 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Attention patterns can be compared visually
 - [ ] Sync/lock view controls work (if applicable)
 - [ ] Difference visualization renders (if applicable)
+- [ ] SigLIP heatmaps render correctly (not 404 errors)
+- [ ] ResNet-50 heatmaps render correctly (not 404 errors)
 
 ---
 
@@ -253,7 +258,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 
 #### Model Leaderboard (Left Sidebar)
 - [ ] Leaderboard card is visible with heading
-- [ ] Ranked list of models displays (not empty)
+- [ ] Ranked list shows all 6 models (dinov2, dinov3, mae, clip, siglip2, resnet50)
 - [ ] Top 3 models have medal badges (gold #1, silver #2, bronze #3)
 - [ ] Each row shows: model name, best layer, IoU score
 - [ ] Clicking a model row selects it
@@ -355,16 +360,17 @@ For rapid testing, verify these critical paths:
 4. [ ] Image detail shows attention visualization overlay
 5. [ ] Control panel controls work (model, layer, percentile dropdowns)
 6. [ ] Tooltip help icons (?) appear next to control labels
-7. [ ] Layer Play button stops at last layer (doesn't loop)
-8. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
-9. [ ] "Layer Analysis" link works (page renders, not blank)
-10. [ ] Compare page loads and allows image selection
-11. [ ] **Dashboard page renders content (NOT blank screen!)**
-12. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
-13. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
-14. [ ] Navigation between all pages works
-15. [ ] No console errors throughout
-16. [ ] No blank pages anywhere in the app
+7. [ ] Attention Method dropdown appears for DINOv2 (CLS Attention / Attention Rollout)
+8. [ ] Layer Play button stops at last layer (doesn't loop)
+9. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
+10. [ ] "Layer Analysis" link works (page renders, not blank)
+11. [ ] Compare page loads and allows image selection
+12. [ ] **Dashboard page renders content (NOT blank screen!)**
+13. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
+14. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
+15. [ ] Navigation between all pages works
+16. [ ] No console errors throughout
+17. [ ] No blank pages anywhere in the app
 
 ---
 
@@ -412,7 +418,7 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Navigation (3 items)
    └── Layout (3 items)
    └── Attention Viewer (5 items)
-   └── Control Panel (9 items) - includes tooltips
+   └── Control Panel (12 items) - includes tooltips, attention method
    └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
    └── Layer Animation Slider (7 items) - includes stop-at-end behavior
    └── IoU Metrics Display (3 items)
@@ -423,7 +429,7 @@ When instructed to perform Playwright testing, follow this workflow:
    PHASE 4: Compare Page
    └── Layout (3 items)
    └── Image Selection (3 items)
-   └── Comparison Features (4 items)
+   └── Comparison Features (6 items) - includes SigLIP/ResNet-50 verification
 
    PHASE 5: Dashboard Page - CRITICAL (check for blank screen!)
    └── Initial Load (4 items)
@@ -450,4 +456,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~115 items
+**Total checklist items**: ~121 items

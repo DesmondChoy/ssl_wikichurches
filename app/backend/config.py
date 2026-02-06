@@ -70,6 +70,23 @@ def resolve_model_name(model: str) -> str:
     return resolved
 
 
+# Reverse mapping: canonical DB name → frontend display name
+# e.g., 'siglip' → 'siglip2' (only differs for aliased models)
+_CANONICAL_TO_DISPLAY = {resolve_model_name(m): m for m in AVAILABLE_MODELS}
+
+
+def display_model_name(canonical: str) -> str:
+    """Map canonical DB model name back to frontend display name.
+
+    Args:
+        canonical: Canonical model name from DB (e.g., 'siglip').
+
+    Returns:
+        Display name matching AVAILABLE_MODELS (e.g., 'siglip2').
+    """
+    return _CANONICAL_TO_DISPLAY.get(canonical, canonical)
+
+
 def get_model_num_layers(model: str) -> int:
     """Get number of layers for a model.
 

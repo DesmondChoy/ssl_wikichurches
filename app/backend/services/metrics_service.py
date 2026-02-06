@@ -12,6 +12,7 @@ from app.backend.config import (
     DEFAULT_METHOD,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
+    display_model_name,
     resolve_model_name,
 )
 from app.backend.validators import resolve_default_method
@@ -168,7 +169,7 @@ class MetricsService:
             return [
                 {
                     "rank": i + 1,
-                    "model": row["model"],
+                    "model": display_model_name(row["model"]),
                     "best_iou": row["best_iou"],
                     "best_layer": row["best_layer"],
                 }

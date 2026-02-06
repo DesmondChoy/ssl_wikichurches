@@ -2,6 +2,7 @@
  * Dashboard page with overall metrics and leaderboard.
  */
 
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 // TODO: recharts has SVG animation bugs with current React version
 // Re-enable when recharts releases a fix
@@ -11,13 +12,29 @@ import { Link } from 'react-router-dom';
 // } from 'recharts';
 import { useViewStore } from '../store/viewStore';
 import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
+import { useModels } from '../hooks/useAttention';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 
 export function DashboardPage() {
-  const { model, layer, method, percentile, setModel, setPercentile } = useViewStore();
+  const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
+  const { data: modelsData } = useModels();
+
+  // Populate store with model config (methods, layer counts) so setModel
+  // resolves the correct default method (e.g. gradcam for ResNet-50)
+  useEffect(() => {
+    if (modelsData?.methods && modelsData?.default_methods) {
+      setMethodsConfig(modelsData.methods, modelsData.default_methods);
+    }
+  }, [modelsData, setMethodsConfig]);
+
+  useEffect(() => {
+    if (modelsData?.num_layers_per_model) {
+      setNumLayersPerModel(modelsData.num_layers_per_model);
+    }
+  }, [modelsData, setNumLayersPerModel]);
 
   const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
