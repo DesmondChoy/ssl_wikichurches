@@ -153,10 +153,10 @@ When a user clicks on an expert-annotated bounding box, the system computes a **
 │   Source: features.h5 (HDF5 cache)                              │
 │                                                                 │
 │   Data shape varies by model:                                   │
-│     DINOv2:           (256, 768)  = 16×16 patches × 768-dim    │
-│     DINOv3/MAE/CLIP:  (196, 768)  = 14×14 patches × 768-dim   │
-│     SigLIP:           (196, 768)  = 14×14 patches × 768-dim    │
-│     ResNet-50:        (49, 2048)  = 7×7 positions × 2048-dim   │
+│     DINOv2:           (256, 768)  = 16×16 grid × 768-dim       │
+│     DINOv3/MAE/CLIP:  (196, 768)  = 14×14 grid × 768-dim      │
+│     SigLIP:           (196, 768)  = 14×14 grid × 768-dim       │
+│     ResNet-50:        (49, 2048)  = 7×7 grid × 2048-dim        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -209,7 +209,7 @@ When a user clicks on an expert-annotated bounding box, the system computes a **
 
 Several design choices in the implementation affect the resulting heatmaps:
 
-**Bilinear interpolation for upsampling:** Attention maps are computed at patch resolution (e.g., 16×16 for DINOv2) and upsampled to image resolution (224×224) using bilinear interpolation (configured in `config.py` as `INTERPOLATION_MODE = "bilinear"`). This produces smooth heatmaps but blurs patch boundaries. An alternative like nearest-neighbor interpolation would preserve sharp patch boundaries, making individual patch contributions clearer, but at the cost of visual smoothness. The choice of bilinear interpolation may slightly affect IoU computation at bounding box boundaries where sub-patch precision matters.
+**Bilinear interpolation for upsampling:** Attention maps are computed at patch grid resolution (e.g., 16×16 grid for DINOv2) and upsampled to image resolution (224×224) using bilinear interpolation (configured in `config.py` as `INTERPOLATION_MODE = "bilinear"`). This produces smooth heatmaps but blurs patch boundaries. An alternative like nearest-neighbor interpolation would preserve sharp patch boundaries, making individual patch contributions clearer, but at the cost of visual smoothness. The choice of bilinear interpolation may slightly affect IoU computation at bounding box boundaries where sub-patch precision matters.
 
 **Attention rollout normalization:** Our rollout implementation includes **two normalization steps**: first on the raw attention, then again after adding the residual identity matrix. From `rollout.py`:
 
@@ -388,12 +388,12 @@ def _compute_gradcam_heatmap(self, layer_name: str, image_size: int) -> Tensor:
 
 | Model | Attention Method | CLS Token? | Patch Grid | Implementation | Appropriateness | Notes |
 |-------|------------------|------------|------------|----------------|-----------------|-------|
-| **DINOv2** | CLS + Rollout | Yes + 4 registers | 16×16 (256) | Correct | **Excellent** | Gold standard; emergent segmentation |
-| **DINOv3** | CLS + Rollout | Yes + 4 registers | 14×14 (196) | Correct | **Excellent** | RoPE positional encoding; 10× training data |
-| **CLIP** | CLS + Rollout | Yes | 14×14 (196) | Correct | **Good** | Text-alignment training affects patterns |
-| **MAE** | CLS + Rollout | Yes (no training signal) | 14×14 (196) | Correct | **Questionable** | CLS wasn't trained for semantic aggregation |
-| **SigLIP** | Mean attention | No (uses pooler) | 14×14 (196) | Approximation | **Acceptable** | Mean received attention ≠ pooler attention |
-| **ResNet-50** | Grad-CAM | N/A (CNN) | 7×7 (49) | Correct | **Correct** | Class-agnostic; standard for CNNs |
+| **DINOv2** | CLS + Rollout | Yes + 4 registers | 14px → 16×16 (256) | Correct | **Excellent** | Gold standard; emergent segmentation |
+| **DINOv3** | CLS + Rollout | Yes + 4 registers | 16px → 14×14 (196) | Correct | **Excellent** | RoPE positional encoding; 10× training data |
+| **CLIP** | CLS + Rollout | Yes | 16px → 14×14 (196) | Correct | **Good** | Text-alignment training affects patterns |
+| **MAE** | CLS + Rollout | Yes (no training signal) | 16px → 14×14 (196) | Correct | **Questionable** | CLS wasn't trained for semantic aggregation |
+| **SigLIP** | Mean attention | No (uses pooler) | 16px → 14×14 (196) | Approximation | **Acceptable** | Mean received attention ≠ pooler attention |
+| **ResNet-50** | Grad-CAM | N/A (CNN) | N/A → 7×7 (49) | Correct | **Correct** | Class-agnostic; standard for CNNs |
 
 ### Recommendations for Interpretation
 
