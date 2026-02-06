@@ -512,7 +512,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 - DINOv2 sequence: 1 CLS + 4 registers + 256 patches (patch 14, 224px)
 - DINOv3 sequence: 1 CLS + 4 registers + 196 patches (patch 16, 224px)
 - MAE sequence: 1 CLS + 196 patches (with mask_ratio=0)
-- CLIP/SigLIP 2: 1 CLS + 196 patches
+- CLIP: 1 CLS + 196 patches
+- SigLIP 2: 196 patches (no CLS token; uses mean pooling)
 
 ### Dataset Details (Verified)
 

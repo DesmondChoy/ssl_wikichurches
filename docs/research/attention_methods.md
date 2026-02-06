@@ -235,7 +235,7 @@ IoU = (Area of Overlap) / (Area of Union)
 - Lower percentiles (e.g., 50th = "top 50%") are more permissive
 - The app lets you adjust this to see how IoU changes
 
-**Academic basis:** IoU for attention evaluation was established by [Zhou et al. (2016)](https://arxiv.org/abs/1512.04150) in the original CAM paper, which introduced both IoU and the Pointing Game for evaluating localization. The [ERASER benchmark](https://arxiv.org/abs/1911.03429) (DeYoung et al., 2020) later formalized this as measuring **plausibility**—how well model explanations align with human rationales.
+**Academic basis:** IoU for attention evaluation was established by [Zhou et al. (2016)](https://arxiv.org/abs/1512.04150) in the original CAM paper, which introduced IoU for evaluating localization. The Pointing Game was separately introduced by [Zhang et al. (2016)](https://arxiv.org/abs/1511.02668). The [ERASER benchmark](https://arxiv.org/abs/1911.03429) (DeYoung et al., 2020) later formalized this as measuring **plausibility**—how well model explanations align with human rationales.
 
 ### Baselines
 
@@ -532,7 +532,8 @@ The ERASER benchmark (DeYoung et al., 2020) established that evaluation should i
 | **Attention Rollout** | Abnar, S. & Zuidema, W. (2020). Quantifying Attention Flow in Transformers. *ACL*. [arXiv:2005.00928](https://arxiv.org/abs/2005.00928) | Our rollout implementation follows this |
 | **Transformer Interpretability** | Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. *CVPR*. [arXiv:2012.09838](https://arxiv.org/abs/2012.09838) | Compares methods; shows Grad-CAM limitations |
 | **Grad-CAM** | Selvaraju, R.R., et al. (2017). Grad-CAM: Visual Explanations from Deep Networks. *ICCV*. [arXiv:1610.02391](https://arxiv.org/abs/1610.02391) | Gradient-based baseline for CNNs |
-| **CAM** | Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. *CVPR*. [arXiv:1512.04150](https://arxiv.org/abs/1512.04150) | Introduced pointing game evaluation |
+| **CAM** | Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. *CVPR*. [arXiv:1512.04150](https://arxiv.org/abs/1512.04150) | Introduced IoU-based localization evaluation |
+| **Pointing Game** | Zhang, J., et al. (2016). Top-Down Neural Attention by Excitation Backprop. *ECCV*. [arXiv:1511.02668](https://arxiv.org/abs/1511.02668) | Introduced the Pointing Game evaluation metric |
 | **Specialized Heads** | Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention. *ACL*. [arXiv:1905.09418](https://arxiv.org/abs/1905.09418) | Shows head specialization in transformers |
 | **LoRA** | Hu, E.J., et al. (2022). LoRA: Low-Rank Adaptation. *ICLR*. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) | Parameter-efficient fine-tuning method |
 | **LoRA Forgetting** | Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. *TMLR*. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673) | Forgetting analysis for fine-tuning methods |
