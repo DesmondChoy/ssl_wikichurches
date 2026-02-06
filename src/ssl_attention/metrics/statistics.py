@@ -128,8 +128,17 @@ def wilcoxon_signed_rank(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
 def cohens_d(a: np.ndarray, b: np.ndarray, paired: bool = True) -> float:
     """Compute Cohen's d effect size.
 
-    For paired samples, uses the standard deviation of differences.
-    Interpretation: |d| < 0.2 small, 0.2-0.8 medium, > 0.8 large.
+    When paired=True, computes d_z = mean(diff) / SD(diff), which reflects
+    the standardized mean difference relative to within-subject variability.
+    This tends to be larger than unpaired d for the same raw effect because
+    between-subject variance is removed from the denominator.
+
+    When paired=False, computes standard (unpaired) Cohen's d using pooled SD.
+    Unpaired benchmarks (Cohen 1988): |d| < 0.2 small, 0.2-0.8 medium, > 0.8 large.
+
+    Note: These benchmarks do NOT apply to paired d_z, which has no widely
+    accepted threshold conventions. Compare d_z values across conditions
+    rather than interpreting absolute magnitudes.
 
     Args:
         a: Scores for model A.
@@ -137,7 +146,7 @@ def cohens_d(a: np.ndarray, b: np.ndarray, paired: bool = True) -> float:
         paired: Whether samples are paired (same images).
 
     Returns:
-        Cohen's d effect size (positive = A > B).
+        Effect size (positive = A > B). d_z if paired, Cohen's d if unpaired.
     """
     if paired:
         # Paired Cohen's d uses SD of differences
