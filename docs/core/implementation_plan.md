@@ -61,7 +61,6 @@ ssl_wikichurches/
 │   │   ├── __init__.py
 │   │   ├── cls_attention.py     # CLS token attention extraction
 │   │   ├── rollout.py           # Attention rollout implementation
-│   │   └── gradcam.py           # GradCAM for CNNs
 │   │
 │   ├── data/
 │   │   ├── __init__.py
@@ -192,7 +191,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 4. **Implement attention extractors**: ✅
    - `cls_attention.py` - CLS to patch attention with head fusion ✅
    - `rollout.py` - Attention rollout through layers ✅
-   - `gradcam.py` - Gradient-based baseline ✅
+   - Grad-CAM (in `models/resnet50.py`) - Gradient-based baseline ✅
 
 ### Phase 2: Data Pipeline ✅ COMPLETE
 
@@ -388,7 +387,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `src/ssl_attention/models/base.py` | BaseVisionModel ABC | ✅ Done |
 | `src/ssl_attention/models/registry.py` | Model registry with lazy loading | ✅ Done |
 | `src/ssl_attention/attention/rollout.py` | Attention rollout implementation | ✅ Done |
-| `src/ssl_attention/attention/gradcam.py` | GradCAM for transformers | ✅ Done |
+| `src/ssl_attention/models/resnet50.py` | Grad-CAM for CNNs (ResNet-50) | ✅ Done |
 | `src/ssl_attention/config.py` | Centralized configuration | ✅ Done |
 | `src/ssl_attention/utils/device.py` | MPS/CUDA/CPU handling | ✅ Done |
 

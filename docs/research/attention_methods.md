@@ -204,7 +204,7 @@ Source: src/ssl_attention/attention/cls_attention.py (extract_mean_attention)
 **Academic basis:** [Selvaraju et al. (2017)](https://arxiv.org/abs/1610.02391) introduced Grad-CAM for CNN interpretability. However, [Chefer et al. (2021)](https://arxiv.org/abs/2012.09838) showed that "Grad-CAM is significantly outperformed by attention maps" for Vision Transformers. This is why we use Grad-CAM only for ResNet-50 (a CNN) and attention-based methods for transformers.
 
 ```
-Source: src/ssl_attention/attention/gradcam.py
+Source: src/ssl_attention/models/resnet50.py
 ```
 
 ---
@@ -367,7 +367,7 @@ When comparing models side-by-side, look for patterns that test our [hypotheses]
 |------|-------------|
 | `src/ssl_attention/attention/cls_attention.py` | CLS token and mean attention extraction |
 | `src/ssl_attention/attention/rollout.py` | Attention rollout implementation |
-| `src/ssl_attention/attention/gradcam.py` | Grad-CAM for CNNs |
+| `src/ssl_attention/models/resnet50.py` | Grad-CAM for CNNs (ResNet-50) |
 | `src/ssl_attention/config.py` | Model configurations and method mappings |
 | `app/frontend/src/utils/renderHeatmap.ts` | Client-side heatmap rendering |
 
