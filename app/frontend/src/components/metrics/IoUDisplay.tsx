@@ -55,14 +55,38 @@ export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: I
         </div>
       )}
       <div className="grid grid-cols-2 gap-4">
-        <MetricCard
-          label="IoU Score"
-          value={metrics.iou.toFixed(3)}
-          description="Intersection over Union"
-          color={getIoUColor(metrics.iou)}
-          tooltip={GLOSSARY['IoU Score']}
-          tooltipAlign="left"
-        />
+        {(() => {
+          const maxIoU = computeMaxIoU(metrics.attention_area, metrics.annotation_area);
+          const ratio = computeIoURatio(metrics.iou, maxIoU);
+          const colors = getRelativeIoUColor(ratio);
+          return (
+            <div className={`p-3 rounded-lg ${colors.bg}`}>
+              <div className="text-xs text-gray-600">
+                IoU Score
+                <Tooltip content={GLOSSARY['IoU Score']} align="left" />
+              </div>
+              <div className="mt-1">
+                <span className="text-2xl font-bold">{metrics.iou.toFixed(3)}</span>
+                {maxIoU > 0 && (
+                  <span className="text-sm text-gray-400 ml-1">/ {maxIoU.toFixed(3)} max</span>
+                )}
+              </div>
+              {maxIoU > 0 && (
+                <>
+                  <div className="mt-2 h-2 bg-gray-200 rounded-full">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${colors.bar}`}
+                      style={{ width: `${ratio * 100}%` }}
+                    />
+                  </div>
+                  <div className={`text-xs mt-1 ${colors.text}`}>
+                    {(ratio * 100).toFixed(1)}% of theoretical max
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
         <MetricCard
           label="Coverage"
           value={`${(metrics.coverage * 100).toFixed(1)}%`}
@@ -116,4 +140,21 @@ function getIoUColor(value: number): string {
   if (value >= 0.4) return 'bg-yellow-100';
   if (value >= 0.2) return 'bg-orange-100';
   return 'bg-red-100';
+}
+
+function computeMaxIoU(attentionArea: number, annotationArea: number): number {
+  if (attentionArea === 0 || annotationArea === 0) return 0;
+  return Math.min(attentionArea, annotationArea) / Math.max(attentionArea, annotationArea);
+}
+
+function computeIoURatio(iou: number, maxIoU: number): number {
+  if (maxIoU === 0) return 0;
+  return Math.min(iou / maxIoU, 1); // clamp for float imprecision
+}
+
+function getRelativeIoUColor(ratio: number): { bg: string; bar: string; text: string } {
+  if (ratio >= 0.75) return { bg: 'bg-green-50',  bar: 'bg-green-500',  text: 'text-green-700' };
+  if (ratio >= 0.50) return { bg: 'bg-yellow-50', bar: 'bg-yellow-500', text: 'text-yellow-700' };
+  if (ratio >= 0.25) return { bg: 'bg-orange-50', bar: 'bg-orange-500', text: 'text-orange-700' };
+  return                    { bg: 'bg-red-50',    bar: 'bg-red-500',    text: 'text-red-700' };
 }

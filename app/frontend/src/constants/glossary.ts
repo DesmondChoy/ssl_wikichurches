@@ -18,7 +18,10 @@ export const GLOSSARY: Record<string, string> = {
   Model: 'Vision model for feature extraction. Each has different architecture and training.',
   'Show Bounding Boxes': 'Toggle visibility of annotated bounding boxes on the image.',
   'IoU Score':
-    'Overlap between thresholded attention and annotations. Only the top N% of attention patches are treated as "active," then compared against bounding boxes using intersection / union. Sensitive to threshold choice — there is an optimal threshold that maximizes IoU.',
+    'Overlap between thresholded attention and annotations. '
+    + 'The bar shows observed IoU relative to the theoretical maximum — '
+    + 'the best possible overlap given the size difference between attention and annotation regions. '
+    + 'Color reflects relative performance: green ≥75%, yellow ≥50%, orange ≥25%, red <25% of max.',
   Coverage:
     'Fraction of total attention energy falling inside annotated regions. Unlike IoU, this is threshold-free — it uses raw attention values directly. Higher = more attention focused on annotated features.',
 };
