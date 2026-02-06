@@ -53,16 +53,20 @@ class PointingResult:
 def pointing_game_hit(
     attention: Tensor,
     annotation: ImageAnnotation,
+    tolerance: int = 0,
 ) -> tuple[bool, int, int]:
     """Check if maximum attention point falls inside any annotated bbox.
 
     Args:
         attention: Attention map of shape (H, W).
         annotation: ImageAnnotation with bounding boxes.
+        tolerance: Pixel margin to dilate bboxes before checking hit.
+            The standard Pointing Game protocol (Zhang et al. 2016) uses 15.
+            Default 0 preserves strict containment behavior.
 
     Returns:
         Tuple of (hit, max_y, max_x):
-        - hit: True if max attention is inside any bbox
+        - hit: True if max attention is inside any bbox (after dilation)
         - max_y: Y-coordinate of maximum attention
         - max_x: X-coordinate of maximum attention
     """
@@ -77,6 +81,16 @@ def pointing_game_hit(
     gt_mask = annotation.get_union_mask(h, w)
     gt_mask = gt_mask.to(attention.device)
 
+    # Dilate mask by tolerance pixels using max-pooling
+    if tolerance > 0:
+        kernel = 2 * tolerance + 1
+        gt_mask = torch.nn.functional.max_pool2d(
+            gt_mask.unsqueeze(0).unsqueeze(0).float(),
+            kernel_size=kernel,
+            stride=1,
+            padding=tolerance,
+        ).squeeze().bool()
+
     # Check if max point is inside mask
     hit = gt_mask[max_y, max_x].item()
 
@@ -87,6 +101,7 @@ def compute_pointing_accuracy(
     attention_maps: list[Tensor] | Tensor,
     annotations: list[ImageAnnotation],
     image_ids: list[str],
+    tolerance: int = 0,
 ) -> tuple[float, list[PointingResult]]:
     """Compute pointing game accuracy across multiple images.
 
@@ -94,6 +109,7 @@ def compute_pointing_accuracy(
         attention_maps: List of attention maps (H, W) or batched tensor (B, H, W).
         annotations: List of ImageAnnotation objects.
         image_ids: List of image filenames.
+        tolerance: Pixel margin to dilate bboxes before checking hit.
 
     Returns:
         Tuple of (accuracy, results):
@@ -116,7 +132,7 @@ def compute_pointing_accuracy(
     for attention, annotation, image_id in zip(
         attention_maps, annotations, image_ids, strict=True
     ):
-        hit, max_y, max_x = pointing_game_hit(attention, annotation)
+        hit, max_y, max_x = pointing_game_hit(attention, annotation, tolerance=tolerance)
 
         results.append(
             PointingResult(
@@ -139,6 +155,7 @@ def top_k_pointing_accuracy(
     attention: Tensor,
     annotation: ImageAnnotation,
     k: int = 5,
+    tolerance: int = 0,
 ) -> int:
     """Softer pointing game: how many of top-k attention points hit bboxes?
 
@@ -150,6 +167,7 @@ def top_k_pointing_accuracy(
         attention: Attention map of shape (H, W).
         annotation: ImageAnnotation with bounding boxes.
         k: Number of top attention points to check.
+        tolerance: Pixel margin to dilate bboxes before checking hits.
 
     Returns:
         Number of top-k points that fall inside bboxes (0 to k).
@@ -168,6 +186,16 @@ def top_k_pointing_accuracy(
     gt_mask = annotation.get_union_mask(h, w)
     gt_mask = gt_mask.to(attention.device)
 
+    # Dilate mask by tolerance pixels using max-pooling
+    if tolerance > 0:
+        kernel = 2 * tolerance + 1
+        gt_mask = torch.nn.functional.max_pool2d(
+            gt_mask.unsqueeze(0).unsqueeze(0).float(),
+            kernel_size=kernel,
+            stride=1,
+            padding=tolerance,
+        ).squeeze().bool()
+
     # Count hits
     hits = 0
     for y, x in zip(top_y.tolist(), top_x.tolist(), strict=True):
@@ -181,6 +209,7 @@ def compute_top_k_accuracy(
     attention_maps: list[Tensor] | Tensor,
     annotations: list[ImageAnnotation],
     k: int = 5,
+    tolerance: int = 0,
 ) -> float:
     """Compute mean top-k pointing accuracy across images.
 
@@ -188,6 +217,7 @@ def compute_top_k_accuracy(
         attention_maps: List of attention maps (H, W) or batched tensor (B, H, W).
         annotations: List of ImageAnnotation objects.
         k: Number of top attention points to check per image.
+        tolerance: Pixel margin to dilate bboxes before checking hits.
 
     Returns:
         Mean fraction of top-k points hitting bboxes [0, 1].
@@ -203,7 +233,7 @@ def compute_top_k_accuracy(
     total_k = 0
 
     for attention, annotation in zip(attention_maps, annotations, strict=True):
-        hits = top_k_pointing_accuracy(attention, annotation, k=k)
+        hits = top_k_pointing_accuracy(attention, annotation, k=k, tolerance=tolerance)
         total_hits += hits
         total_k += k
 
@@ -213,6 +243,7 @@ def compute_top_k_accuracy(
 def pointing_game_by_feature(
     attention: Tensor,
     annotation: ImageAnnotation,
+    tolerance: int = 0,
 ) -> dict[int, bool]:
     """Check pointing game result for each individual bbox.
 
@@ -221,6 +252,7 @@ def pointing_game_by_feature(
     Args:
         attention: Attention map of shape (H, W).
         annotation: ImageAnnotation with bounding boxes.
+        tolerance: Pixel margin to dilate each bbox before checking hit.
 
     Returns:
         Dict mapping feature label to whether max attention hits that bbox.
@@ -238,6 +270,17 @@ def pointing_game_by_feature(
     for bbox in annotation.bboxes:
         mask = bbox.to_mask(h, w)
         mask = mask.to(attention.device)
+
+        # Dilate mask by tolerance pixels using max-pooling
+        if tolerance > 0:
+            kernel = 2 * tolerance + 1
+            mask = torch.nn.functional.max_pool2d(
+                mask.unsqueeze(0).unsqueeze(0).float(),
+                kernel_size=kernel,
+                stride=1,
+                padding=tolerance,
+            ).squeeze().bool()
+
         hit = mask[max_y, max_x].item()
         # Use label as key, but note multiple bboxes can have same label
         # This will just keep the last result for each label

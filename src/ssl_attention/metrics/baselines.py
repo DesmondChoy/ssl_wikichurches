@@ -303,6 +303,7 @@ def compute_baseline_pointing(
     images: list[Image.Image] | None = None,
     n_random_trials: int = 100,
     include_sobel: bool = True,
+    tolerance: int = 0,
 ) -> dict[str, float]:
     """Compute pointing game accuracy for all baselines.
 
@@ -312,6 +313,7 @@ def compute_baseline_pointing(
         images: List of PIL Images (required for Sobel baseline).
         n_random_trials: Number of random trials for averaging.
         include_sobel: Whether to compute Sobel baseline (requires images).
+        tolerance: Pixel margin to dilate bboxes before checking hit.
 
     Returns:
         Dict mapping baseline name to pointing accuracy.
@@ -326,7 +328,7 @@ def compute_baseline_pointing(
         trial_hits = 0
         for annotation in annotations:
             attn = random_baseline(seed=trial * 1000 + hash(annotation.image_id) % 1000)
-            hit, _, _ = pointing_game_hit(attn, annotation)
+            hit, _, _ = pointing_game_hit(attn, annotation, tolerance=tolerance)
             if hit:
                 trial_hits += 1
         random_hits.append(trial_hits / len(annotations))
@@ -336,7 +338,7 @@ def compute_baseline_pointing(
     center_attn = center_gaussian_baseline()
     center_hits = 0
     for annotation in annotations:
-        hit, _, _ = pointing_game_hit(center_attn, annotation)
+        hit, _, _ = pointing_game_hit(center_attn, annotation, tolerance=tolerance)
         if hit:
             center_hits += 1
     results["center_gaussian"] = center_hits / len(annotations)
@@ -345,7 +347,7 @@ def compute_baseline_pointing(
     saliency_attn = saliency_prior_baseline()
     saliency_hits = 0
     for annotation in annotations:
-        hit, _, _ = pointing_game_hit(saliency_attn, annotation)
+        hit, _, _ = pointing_game_hit(saliency_attn, annotation, tolerance=tolerance)
         if hit:
             saliency_hits += 1
     results["saliency_prior"] = saliency_hits / len(annotations)
@@ -355,7 +357,7 @@ def compute_baseline_pointing(
         sobel_hits = 0
         for image, annotation in zip(images, annotations, strict=True):
             sobel_attn = sobel_edge_baseline(image)
-            hit, _, _ = pointing_game_hit(sobel_attn, annotation)
+            hit, _, _ = pointing_game_hit(sobel_attn, annotation, tolerance=tolerance)
             if hit:
                 sobel_hits += 1
         results["sobel_edge"] = sobel_hits / len(annotations)
