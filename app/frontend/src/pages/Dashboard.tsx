@@ -17,10 +17,10 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 
 export function DashboardPage() {
-  const { model, layer, percentile, setModel, setPercentile } = useViewStore();
+  const { model, layer, method, percentile, setModel, setPercentile } = useViewStore();
 
   const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
-  const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile);
+  const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
 
   // Collect all unique layers from API response (handles models with different layer counts)
   const allLayers = new Set<string>();
@@ -147,7 +147,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Feature breakdown */}
-        <FeatureBreakdown model={model} layer={layer} percentile={percentile} />
+        <FeatureBreakdown model={model} layer={layer} percentile={percentile} method={method} />
       </div>
 
       {/* Quick links */}

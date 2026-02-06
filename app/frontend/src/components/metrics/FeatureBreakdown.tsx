@@ -11,6 +11,7 @@ interface FeatureBreakdownProps {
   model: string;
   layer: number;
   percentile: number;
+  method?: string;
 }
 
 type SortField = 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label';
@@ -28,12 +29,12 @@ function getIoUColorClass(iou: number): string {
   return 'text-red-600 bg-red-50';
 }
 
-export function FeatureBreakdown({ model, layer, percentile }: FeatureBreakdownProps) {
+export function FeatureBreakdown({ model, layer, percentile, method }: FeatureBreakdownProps) {
   const [sortBy, setSortBy] = useState<SortField>('mean_iou');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCount, setShowCount] = useState(ITEMS_PER_PAGE);
 
-  const { data, isLoading, error } = useFeatureBreakdown(model, layer, percentile, sortBy);
+  const { data, isLoading, error } = useFeatureBreakdown(model, layer, percentile, sortBy, 0, method);
 
   // Filter features by search query
   const filteredFeatures = useMemo(() => {

@@ -20,10 +20,10 @@ export function useMetricsSummary() {
   });
 }
 
-export function useStyleBreakdown(model: string, layer: number, percentile: number) {
+export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
-    queryKey: ['styleBreakdown', model, layer, percentile],
-    queryFn: () => metricsAPI.getStyleBreakdown(model, layer, percentile),
+    queryKey: ['styleBreakdown', model, layer, percentile, method],
+    queryFn: () => metricsAPI.getStyleBreakdown(model, layer, percentile, method),
   });
 }
 
@@ -32,18 +32,19 @@ export function useFeatureBreakdown(
   layer: number,
   percentile: number,
   sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
-  minCount = 0
+  minCount = 0,
+  method?: string
 ) {
   return useQuery({
-    queryKey: ['featureBreakdown', model, layer, percentile, sortBy, minCount],
-    queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, sortBy, minCount),
+    queryKey: ['featureBreakdown', model, layer, percentile, sortBy, minCount, method],
+    queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, sortBy, minCount, method),
   });
 }
 
-export function useAggregateMetrics(model: string, layer: number, percentile: number) {
+export function useAggregateMetrics(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
-    queryKey: ['aggregate', model, layer, percentile],
-    queryFn: () => metricsAPI.getAggregate(model, layer, percentile),
+    queryKey: ['aggregate', model, layer, percentile, method],
+    queryFn: () => metricsAPI.getAggregate(model, layer, percentile, method),
   });
 }
 

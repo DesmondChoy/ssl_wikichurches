@@ -40,7 +40,8 @@ export function ImageDetailPage() {
     decodedId,
     model,
     layer,
-    percentile
+    percentile,
+    method
   );
 
   if (!decodedId) {

@@ -25,19 +25,20 @@ export function useImageMetrics(
   imageId: string | undefined,
   model: string,
   layer: number,
-  percentile: number
+  percentile: number,
+  method?: string
 ) {
   return useQuery({
-    queryKey: ['imageMetrics', imageId, model, layer, percentile],
-    queryFn: () => metricsAPI.getImageMetrics(imageId!, model, layer, percentile),
+    queryKey: ['imageMetrics', imageId, model, layer, percentile, method],
+    queryFn: () => metricsAPI.getImageMetrics(imageId!, model, layer, percentile, method),
     enabled: !!imageId,
   });
 }
 
-export function useLayerProgression(model: string, percentile: number) {
+export function useLayerProgression(model: string, percentile: number, method?: string) {
   return useQuery({
-    queryKey: ['layerProgression', model, percentile],
-    queryFn: () => metricsAPI.getLayerProgression(model, percentile),
+    queryKey: ['layerProgression', model, percentile, method],
+    queryFn: () => metricsAPI.getLayerProgression(model, percentile, method),
   });
 }
 

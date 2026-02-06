@@ -142,42 +142,63 @@ export const metricsAPI = {
     leaderboard: Array<{ model: string; best_iou: number }>;
   }>('/metrics/summary'),
 
-  getImageMetrics: (imageId: string, model: string, layer: number, percentile = 90) =>
-    fetchJSON<import('../types').IoUResult>(
-      `/metrics/${imageId}?model=${model}&layer=${layer}&percentile=${percentile}`
-    ),
+  getImageMetrics: (imageId: string, model: string, layer: number, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ model, layer: String(layer), percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').IoUResult>(`/metrics/${imageId}?${params}`);
+  },
 
-  getImageMetricsAllModels: (imageId: string, layer: number, percentile = 90) =>
-    fetchJSON<{
+  getImageMetricsAllModels: (imageId: string, layer: number, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<{
       image_id: string;
       layer: string;
       percentile: number;
       models: Record<string, import('../types').IoUResult>;
-    }>(`/metrics/${imageId}/all_models?layer=${layer}&percentile=${percentile}`),
+    }>(`/metrics/${imageId}/all_models?${params}`);
+  },
 
-  getLayerProgression: (model: string, percentile = 90) =>
-    fetchJSON<import('../types').LayerProgression>(
-      `/metrics/model/${model}/progression?percentile=${percentile}`
-    ),
+  getLayerProgression: (model: string, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').LayerProgression>(
+      `/metrics/model/${model}/progression?${params}`
+    );
+  },
 
-  getStyleBreakdown: (model: string, layer: number, percentile = 90) =>
-    fetchJSON<import('../types').StyleBreakdown>(
-      `/metrics/model/${model}/style_breakdown?layer=${layer}&percentile=${percentile}`
-    ),
+  getStyleBreakdown: (model: string, layer: number, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').StyleBreakdown>(
+      `/metrics/model/${model}/style_breakdown?${params}`
+    );
+  },
 
   getFeatureBreakdown: (
     model: string,
     layer: number,
     percentile = 90,
     sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
-    minCount = 0
-  ) =>
-    fetchJSON<import('../types').FeatureBreakdown>(
-      `/metrics/model/${model}/feature_breakdown?layer=${layer}&percentile=${percentile}&sort_by=${sortBy}&min_count=${minCount}`
-    ),
+    minCount = 0,
+    method?: string
+  ) => {
+    const params = new URLSearchParams({
+      layer: String(layer),
+      percentile: String(percentile),
+      sort_by: sortBy,
+      min_count: String(minCount),
+    });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').FeatureBreakdown>(
+      `/metrics/model/${model}/feature_breakdown?${params}`
+    );
+  },
 
-  getAggregate: (model: string, layer: number, percentile = 90) =>
-    fetchJSON<{
+  getAggregate: (model: string, layer: number, percentile = 90, method?: string) => {
+    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
+    if (method) params.set('method', method);
+    return fetchJSON<{
       model: string;
       layer: string;
       percentile: number;
@@ -186,7 +207,8 @@ export const metricsAPI = {
       median_iou: number;
       mean_coverage: number;
       num_images: number;
-    }>(`/metrics/model/${model}/aggregate?layer=${layer}&percentile=${percentile}`),
+    }>(`/metrics/model/${model}/aggregate?${params}`);
+  },
 };
 
 // Comparison API

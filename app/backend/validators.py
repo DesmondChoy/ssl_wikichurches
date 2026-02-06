@@ -7,10 +7,11 @@ from fastapi import HTTPException
 from app.backend.config import (
     AVAILABLE_MODELS,
     DEFAULT_METHOD,
+    MODEL_METHODS,
+    AttentionMethod,
     get_model_num_layers,
     resolve_model_name,
 )
-from ssl_attention.config import AttentionMethod
 
 
 def resolve_default_method(model: str) -> str:
@@ -24,6 +25,46 @@ def resolve_default_method(model: str) -> str:
     """
     resolved = resolve_model_name(model)
     method: str = DEFAULT_METHOD.get(resolved, AttentionMethod.CLS).value
+    return method
+
+
+def validate_method(model: str, method: str | None) -> str:
+    """Validate and resolve attention method for a model.
+
+    Args:
+        model: Model name (may be alias like 'siglip2').
+        method: Requested method, or None for default.
+
+    Returns:
+        Valid method string.
+
+    Raises:
+        HTTPException: If method not available for model.
+    """
+    resolved_model = resolve_model_name(model)
+    available = MODEL_METHODS.get(resolved_model, [])
+
+    if method is None:
+        default: AttentionMethod = DEFAULT_METHOD.get(resolved_model, AttentionMethod.CLS)
+        return str(default.value)
+
+    # Validate requested method
+    try:
+        method_enum = AttentionMethod(method)
+    except ValueError:
+        valid_methods = [m.value for m in AttentionMethod]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid method: '{method}'. Valid methods: {valid_methods}",
+        ) from None
+
+    if method_enum not in available:
+        available_str = [m.value for m in available]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Method '{method}' not available for '{model}'. Available: {available_str}",
+        )
+
     return method
 
 

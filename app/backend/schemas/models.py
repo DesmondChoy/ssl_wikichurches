@@ -57,6 +57,7 @@ class IoUResultSchema(BaseModel):
     coverage: float
     attention_area: float
     annotation_area: float
+    method: str | None = None
 
 
 class MetricsQueryParams(BaseModel):
@@ -85,6 +86,7 @@ class LayerProgressionSchema(BaseModel):
     ious: list[float]
     best_layer: str
     best_iou: float
+    method: str | None = None
 
 
 class StyleBreakdownSchema(BaseModel):
@@ -95,6 +97,7 @@ class StyleBreakdownSchema(BaseModel):
     percentile: int
     styles: dict[str, float]  # style_name -> mean_iou
     style_counts: dict[str, int]  # style_name -> num_images
+    method: str | None = None
 
 
 class ModelComparisonSchema(BaseModel):
@@ -148,6 +151,7 @@ class FeatureBreakdownSchema(BaseModel):
     percentile: int
     features: list[FeatureIoUEntry]
     total_feature_types: int = Field(..., description="Total number of feature types returned")
+    method: str | None = None
 
 
 class RawAttentionResponse(BaseModel):

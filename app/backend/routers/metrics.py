@@ -15,7 +15,7 @@ from app.backend.schemas import (
     StyleBreakdownSchema,
 )
 from app.backend.services.metrics_service import metrics_service
-from app.backend.validators import validate_layer_for_model, validate_model
+from app.backend.validators import validate_layer_for_model, validate_method, validate_model
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -59,6 +59,7 @@ async def get_image_metrics(
     model: Annotated[str, Query()] = "dinov2",
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> IoUResultSchema:
     """Get IoU metrics for a specific image.
 
@@ -66,6 +67,7 @@ async def get_image_metrics(
     """
     validate_model(model)
     validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -74,7 +76,7 @@ async def get_image_metrics(
             detail="Metrics database not available.",
         )
 
-    result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
+    result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
     if not result:
         raise HTTPException(
             status_code=404,
@@ -89,11 +91,13 @@ async def get_image_metrics_all_models(
     image_id: str,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> dict:
     """Get metrics for an image across all models.
 
     Useful for model comparison on a single image.
     Note: Layer validation is done per-model in the loop since models have different layer counts.
+    When method is specified, only models supporting that method are included.
     """
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -110,7 +114,14 @@ async def get_image_metrics_all_models(
         if layer >= num_layers:
             continue
 
-        result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
+        # Each model uses the requested method if valid, otherwise its default
+        try:
+            resolved_method = validate_method(model, method)
+        except HTTPException:
+            # Method not available for this model; use its default
+            resolved_method = validate_method(model, None)
+
+        result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
         if result:
             results[model] = result
 
@@ -132,12 +143,14 @@ async def get_image_metrics_all_models(
 async def get_layer_progression(
     model: str,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> LayerProgressionSchema:
     """Get IoU progression across all layers for a model.
 
     Shows how attention alignment evolves through transformer layers.
     """
     validate_model(model)
+    resolved_method = validate_method(model, method)
 
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -145,7 +158,7 @@ async def get_layer_progression(
             detail="Metrics database not available.",
         )
 
-    data = metrics_service.get_layer_progression(model, percentile)
+    data = metrics_service.get_layer_progression(model, percentile, method=resolved_method)
     return LayerProgressionSchema(**data)
 
 
@@ -154,6 +167,7 @@ async def get_style_breakdown(
     model: str,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> StyleBreakdownSchema:
     """Get IoU breakdown by architectural style.
 
@@ -161,6 +175,7 @@ async def get_style_breakdown(
     """
     validate_model(model)
     validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -169,7 +184,7 @@ async def get_style_breakdown(
             detail="Metrics database not available.",
         )
 
-    data = metrics_service.get_style_breakdown(model, layer_key, percentile)
+    data = metrics_service.get_style_breakdown(model, layer_key, percentile, method=resolved_method)
     return StyleBreakdownSchema(**data)
 
 
@@ -180,6 +195,7 @@ async def get_feature_breakdown(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     min_count: Annotated[int, Query(ge=0)] = 0,
     sort_by: Annotated[str, Query(enum=["mean_iou", "bbox_count", "feature_name", "feature_label"])] = "mean_iou",
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> FeatureBreakdownSchema:
     """Get IoU breakdown by architectural feature type.
 
@@ -188,6 +204,7 @@ async def get_feature_breakdown(
     """
     validate_model(model)
     validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -197,7 +214,7 @@ async def get_feature_breakdown(
         )
 
     data = metrics_service.get_feature_breakdown(
-        model, layer_key, percentile, sort_by=sort_by, min_count=min_count
+        model, layer_key, percentile, sort_by=sort_by, min_count=min_count, method=resolved_method
     )
     return FeatureBreakdownSchema(**data)
 
@@ -207,6 +224,7 @@ async def get_aggregate_metrics(
     model: str,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> dict:
     """Get aggregate metrics for a model/layer combination.
 
@@ -214,6 +232,7 @@ async def get_aggregate_metrics(
     """
     validate_model(model)
     validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -222,7 +241,7 @@ async def get_aggregate_metrics(
             detail="Metrics database not available.",
         )
 
-    result = metrics_service.get_aggregate_metrics(model, layer_key, percentile)
+    result = metrics_service.get_aggregate_metrics(model, layer_key, percentile, method=resolved_method)
     if not result:
         raise HTTPException(
             status_code=404,
@@ -239,6 +258,7 @@ async def get_all_images_metrics(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     sort_by: Annotated[str, Query(enum=["iou", "coverage"])] = "iou",
     limit: Annotated[int, Query(ge=1, le=200)] = 139,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> dict:
     """Get metrics for all images for a model/layer.
 
@@ -246,6 +266,7 @@ async def get_all_images_metrics(
     """
     validate_model(model)
     validate_layer_for_model(layer, model)
+    resolved_method = validate_method(model, method)
     layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
@@ -254,7 +275,7 @@ async def get_all_images_metrics(
             detail="Metrics database not available.",
         )
 
-    results = metrics_service.get_all_image_metrics(model, layer_key, percentile)
+    results = metrics_service.get_all_image_metrics(model, layer_key, percentile, method=resolved_method)
 
     # Sort
     if sort_by == "coverage":

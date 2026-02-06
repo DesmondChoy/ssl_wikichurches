@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from app.backend.config import (
+    DEFAULT_METHOD,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
     resolve_model_name,
 )
+from app.backend.validators import resolve_default_method
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -58,6 +60,7 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
+        method: str | None = None,
     ) -> dict | None:
         """Get metrics for a specific image/model/layer combination.
 
@@ -65,13 +68,14 @@ class MetricsService:
             Dict with iou, coverage, attention_area, annotation_area or None.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT iou, coverage, attention_area, annotation_area
                    FROM image_metrics
-                   WHERE image_id = ? AND model = ? AND layer = ? AND percentile = ?""",
-                (image_id, db_model, layer, percentile),
+                   WHERE image_id = ? AND model = ? AND layer = ? AND method = ? AND percentile = ?""",
+                (image_id, db_model, layer, resolved_method, percentile),
             )
             row = cursor.fetchone()
 
@@ -81,6 +85,7 @@ class MetricsService:
                     "model": model,  # Return original name for display
                     "layer": layer,
                     "percentile": percentile,
+                    "method": resolved_method,
                     "iou": row["iou"],
                     "coverage": row["coverage"],
                     "attention_area": row["attention_area"],
@@ -93,6 +98,7 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
+        method: str | None = None,
     ) -> dict | None:
         """Get aggregate metrics for a model/layer.
 
@@ -100,13 +106,14 @@ class MetricsService:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, num_images.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT mean_iou, std_iou, median_iou, mean_coverage, num_images
                    FROM aggregate_metrics
-                   WHERE model = ? AND layer = ? AND percentile = ?""",
-                (db_model, layer, percentile),
+                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
+                (db_model, layer, resolved_method, percentile),
             )
             row = cursor.fetchone()
 
@@ -115,6 +122,7 @@ class MetricsService:
                     "model": model,  # Return original name for display
                     "layer": layer,
                     "percentile": percentile,
+                    "method": resolved_method,
                     "mean_iou": row["mean_iou"],
                     "std_iou": row["std_iou"],
                     "median_iou": row["median_iou"],
@@ -126,21 +134,35 @@ class MetricsService:
     def get_leaderboard(self, percentile: int = 90) -> list[dict]:
         """Get model leaderboard ranked by best IoU.
 
+        Uses each model's default method for ranking (CLS for ViTs, etc.).
+
         Returns:
             List of dicts with rank, model, best_iou, best_layer.
         """
+        # Build a dynamic filter so each model uses its canonical default method
+        conditions = []
+        params: list[str | int] = []
+        for model_name, default_method in DEFAULT_METHOD.items():
+            conditions.append("(model = ? AND method = ?)")
+            params.extend([model_name, default_method.value])
+
+        if not conditions:
+            return []
+
+        filter_clause = " OR ".join(conditions)
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """SELECT model, MAX(mean_iou) as best_iou,
+                f"""SELECT model, MAX(mean_iou) as best_iou,
                    (SELECT layer FROM aggregate_metrics a2
-                    WHERE a2.model = a1.model AND a2.percentile = ?
+                    WHERE a2.model = a1.model AND a2.method = a1.method AND a2.percentile = ?
                     ORDER BY mean_iou DESC LIMIT 1) as best_layer
                    FROM aggregate_metrics a1
-                   WHERE percentile = ?
+                   WHERE percentile = ? AND ({filter_clause})
                    GROUP BY model
                    ORDER BY best_iou DESC""",
-                (percentile, percentile),
+                (percentile, percentile, *params),
             )
 
             return [
@@ -157,6 +179,7 @@ class MetricsService:
         self,
         model: str,
         percentile: int = 90,
+        method: str | None = None,
     ) -> dict:
         """Get IoU progression across all layers.
 
@@ -164,13 +187,14 @@ class MetricsService:
             Dict with model, percentile, layers, ious, best_layer, best_iou.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT layer, mean_iou FROM aggregate_metrics
-                   WHERE model = ? AND percentile = ?
+                   WHERE model = ? AND method = ? AND percentile = ?
                    ORDER BY layer""",
-                (db_model, percentile),
+                (db_model, resolved_method, percentile),
             )
             rows = cursor.fetchall()
 
@@ -184,6 +208,7 @@ class MetricsService:
             return {
                 "model": model,  # Return original name for display
                 "percentile": percentile,
+                "method": resolved_method,
                 "layers": layers,
                 "ious": ious,
                 "best_layer": best_layer,
@@ -195,6 +220,7 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
+        method: str | None = None,
     ) -> dict:
         """Get IoU breakdown by architectural style.
 
@@ -202,12 +228,13 @@ class MetricsService:
             Dict with model, layer, percentile, styles (name->iou), style_counts.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT style_name, mean_iou, num_images FROM style_metrics
-                   WHERE model = ? AND layer = ? AND percentile = ?""",
-                (db_model, layer, percentile),
+                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
+                (db_model, layer, resolved_method, percentile),
             )
 
             styles = {}
@@ -220,6 +247,7 @@ class MetricsService:
                 "model": model,  # Return original name for display
                 "layer": layer,
                 "percentile": percentile,
+                "method": resolved_method,
                 "styles": styles,
                 "style_counts": counts,
             }
@@ -229,6 +257,7 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
+        method: str | None = None,
     ) -> list[dict]:
         """Get metrics for all images for a model/layer.
 
@@ -236,14 +265,15 @@ class MetricsService:
             List of dicts with image_id, iou, coverage.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """SELECT image_id, iou, coverage, attention_area, annotation_area
                    FROM image_metrics
-                   WHERE model = ? AND layer = ? AND percentile = ?
+                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ?
                    ORDER BY iou DESC""",
-                (db_model, layer, percentile),
+                (db_model, layer, resolved_method, percentile),
             )
 
             return [
@@ -273,6 +303,7 @@ class MetricsService:
         percentile: int = 90,
         sort_by: str = "mean_iou",
         min_count: int = 0,
+        method: str | None = None,
     ) -> dict:
         """Get IoU breakdown by architectural feature type.
 
@@ -282,11 +313,13 @@ class MetricsService:
             percentile: Percentile threshold.
             sort_by: Field to sort by ("mean_iou", "bbox_count", "feature_name").
             min_count: Minimum bbox count to include a feature.
+            method: Attention method. None = model default.
 
         Returns:
             Dict with model, layer, percentile, features list, total_feature_types.
         """
         db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
@@ -302,9 +335,9 @@ class MetricsService:
             cursor.execute(
                 f"""SELECT feature_label, feature_name, mean_iou, std_iou, bbox_count
                    FROM feature_metrics
-                   WHERE model = ? AND layer = ? AND percentile = ? AND bbox_count >= ?
+                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ? AND bbox_count >= ?
                    ORDER BY {order_clause}""",
-                (db_model, layer, percentile, min_count),
+                (db_model, layer, resolved_method, percentile, min_count),
             )
 
             features = [
@@ -322,6 +355,7 @@ class MetricsService:
                 "model": model,  # Return original name for display
                 "layer": layer,
                 "percentile": percentile,
+                "method": resolved_method,
                 "features": features,
                 "total_feature_types": len(features),
             }

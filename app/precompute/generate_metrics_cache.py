@@ -28,6 +28,7 @@ from ssl_attention.config import (
     CACHE_PATH,
     DATASET_PATH,
     DEFAULT_METHOD,
+    MODEL_METHODS,
     MODELS,
     STYLE_MAPPING,
     STYLE_NAMES,
@@ -51,29 +52,31 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model TEXT NOT NULL,
             layer TEXT NOT NULL,
+            method TEXT NOT NULL,
             image_id TEXT NOT NULL,
             percentile INTEGER NOT NULL,
             iou REAL NOT NULL,
             coverage REAL NOT NULL,
             attention_area REAL NOT NULL,
             annotation_area REAL NOT NULL,
-            UNIQUE(model, layer, image_id, percentile)
+            UNIQUE(model, layer, method, image_id, percentile)
         )
     """)
 
-    # Aggregate metrics table (per model/layer)
+    # Aggregate metrics table (per model/layer/method)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS aggregate_metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model TEXT NOT NULL,
             layer TEXT NOT NULL,
+            method TEXT NOT NULL,
             percentile INTEGER NOT NULL,
             mean_iou REAL NOT NULL,
             std_iou REAL NOT NULL,
             median_iou REAL NOT NULL,
             mean_coverage REAL NOT NULL,
             num_images INTEGER NOT NULL,
-            UNIQUE(model, layer, percentile)
+            UNIQUE(model, layer, method, percentile)
         )
     """)
 
@@ -83,11 +86,12 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model TEXT NOT NULL,
             layer TEXT NOT NULL,
+            method TEXT NOT NULL,
             style_name TEXT NOT NULL,
             percentile INTEGER NOT NULL,
             mean_iou REAL NOT NULL,
             num_images INTEGER NOT NULL,
-            UNIQUE(model, layer, style_name, percentile)
+            UNIQUE(model, layer, method, style_name, percentile)
         )
     """)
 
@@ -97,38 +101,24 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model TEXT NOT NULL,
             layer TEXT NOT NULL,
+            method TEXT NOT NULL,
             feature_label INTEGER NOT NULL,
             feature_name TEXT NOT NULL,
             percentile INTEGER NOT NULL,
             mean_iou REAL NOT NULL,
             std_iou REAL NOT NULL,
             bbox_count INTEGER NOT NULL,
-            UNIQUE(model, layer, feature_label, percentile)
+            UNIQUE(model, layer, method, feature_label, percentile)
         )
     """)
     cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feature_model_layer ON feature_metrics(model, layer, percentile)"
+        "CREATE INDEX IF NOT EXISTS idx_feature_model_layer ON feature_metrics(model, layer, method, percentile)"
     )
 
-    # Model leaderboard view (best layer per model)
-    cursor.execute("""
-        CREATE VIEW IF NOT EXISTS model_leaderboard AS
-        SELECT
-            model,
-            MAX(mean_iou) as best_iou,
-            (SELECT layer FROM aggregate_metrics a2
-             WHERE a2.model = a1.model AND a2.percentile = 90
-             ORDER BY mean_iou DESC LIMIT 1) as best_layer
-        FROM aggregate_metrics a1
-        WHERE percentile = 90
-        GROUP BY model
-        ORDER BY best_iou DESC
-    """)
-
     # Indexes for fast queries
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_model_layer ON image_metrics(model, layer)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_model_layer ON image_metrics(model, layer, method)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_image_id ON image_metrics(image_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_agg_model ON aggregate_metrics(model)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_agg_model ON aggregate_metrics(model, method)")
 
     conn.commit()
     return conn
@@ -141,9 +131,10 @@ def compute_metrics_for_model(
     conn: sqlite3.Connection,
     percentiles: list[int],
     layers: list[int] | None = None,
+    methods: list[str] | None = None,
     skip_existing: bool = True,
 ) -> dict[str, int]:
-    """Compute metrics for a single model.
+    """Compute metrics for a single model across all its attention methods.
 
     Args:
         model_name: Name of model.
@@ -152,6 +143,7 @@ def compute_metrics_for_model(
         conn: SQLite connection.
         percentiles: List of percentile thresholds.
         layers: Specific layers to process. None = all.
+        methods: Specific methods to process. None = all for this model.
         skip_existing: Skip if already in database.
 
     Returns:
@@ -165,10 +157,11 @@ def compute_metrics_for_model(
     num_layers = model_config.num_layers
     layers_to_process = layers if layers else list(range(num_layers))
 
-    # Get the variant for this model's attention method (e.g., "gradcam", "cls", "mean")
-    variant = DEFAULT_METHOD[model_name].value
+    # Get all methods for this model (or filter by CLI arg)
+    all_methods = [m.value for m in MODEL_METHODS[model_name]]
+    methods_to_process = [m for m in methods if m in all_methods] if methods else all_methods
 
-    print(f"\nProcessing {model_name} ({len(layers_to_process)} layers)")
+    print(f"\nProcessing {model_name} ({len(layers_to_process)} layers, methods: {methods_to_process})")
 
     cursor = conn.cursor()
 
@@ -184,199 +177,191 @@ def compute_metrics_for_model(
                 break
         image_styles[image_id] = style_name
 
-    # Collect all results first, then compute aggregates
-    all_results: dict[tuple[str, str, int], list] = {}  # (model, layer, percentile) -> list of IoUResults
+    for variant in methods_to_process:
+        print(f"  Method: {variant}")
 
-    for layer in layers_to_process:
-        layer_key = f"layer{layer}"
+        # Process each image
+        for sample in tqdm(dataset, desc=f"{model_name}/{variant}"):
+            image_id = sample["image_id"]
+            annotation = sample["annotation"]
 
-        for percentile in percentiles:
-            key = (model_name, layer_key, percentile)
-            all_results[key] = []
+            for layer in layers_to_process:
+                layer_key = f"layer{layer}"
 
-    # Process each image
-    for sample in tqdm(dataset, desc=f"{model_name}"):
-        image_id = sample["image_id"]
-        annotation = sample["annotation"]
+                # Load attention from cache
+                try:
+                    attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
+                except KeyError:
+                    stats["skipped"] += len(percentiles)
+                    continue
+
+                for percentile in percentiles:
+                    # Check if already exists
+                    if skip_existing:
+                        cursor.execute(
+                            "SELECT 1 FROM image_metrics WHERE model=? AND layer=? AND method=? AND image_id=? AND percentile=?",
+                            (model_name, layer_key, variant, image_id, percentile),
+                        )
+                        if cursor.fetchone():
+                            stats["skipped"] += 1
+                            continue
+
+                    try:
+                        result = compute_image_iou(
+                            attention=attention,
+                            annotation=annotation,
+                            image_id=image_id,
+                            percentile=percentile,
+                        )
+
+                        # Insert into database
+                        cursor.execute(
+                            """INSERT OR REPLACE INTO image_metrics
+                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                model_name,
+                                layer_key,
+                                variant,
+                                image_id,
+                                percentile,
+                                result.iou,
+                                result.coverage,
+                                result.attention_area,
+                                result.annotation_area,
+                            ),
+                        )
+
+                        stats["processed"] += 1
+
+                    except Exception as e:
+                        print(f"\nError computing metrics for {image_id} layer{layer}/{variant}: {e}")
+                        stats["errors"] += 1
+
+        conn.commit()
+
+        # Compute aggregate metrics for this method
+        print(f"  Computing aggregates for {model_name}/{variant}...")
+        for layer in layers_to_process:
+            layer_key = f"layer{layer}"
+
+            for percentile in percentiles:
+                cursor.execute(
+                    "SELECT iou, coverage FROM image_metrics WHERE model=? AND layer=? AND method=? AND percentile=?",
+                    (model_name, layer_key, variant, percentile),
+                )
+                rows = cursor.fetchall()
+
+                if not rows:
+                    continue
+
+                ious = torch.tensor([r[0] for r in rows])
+                coverages = torch.tensor([r[1] for r in rows])
+
+                cursor.execute(
+                    """INSERT OR REPLACE INTO aggregate_metrics
+                       (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage, num_images)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        model_name,
+                        layer_key,
+                        variant,
+                        percentile,
+                        ious.mean().item(),
+                        ious.std().item(),
+                        ious.median().item(),
+                        coverages.mean().item(),
+                        len(rows),
+                    ),
+                )
+
+        conn.commit()
+
+        # Compute style breakdown for this method
+        print(f"  Computing style breakdown for {model_name}/{variant}...")
+        for layer in layers_to_process:
+            layer_key = f"layer{layer}"
+
+            for percentile in percentiles:
+                for style_name in STYLE_NAMES:
+                    style_images = [img_id for img_id, s in image_styles.items() if s == style_name]
+                    if not style_images:
+                        continue
+
+                    placeholders = ",".join("?" * len(style_images))
+                    cursor.execute(
+                        f"""SELECT AVG(iou), COUNT(*) FROM image_metrics
+                           WHERE model=? AND layer=? AND method=? AND percentile=? AND image_id IN ({placeholders})""",
+                        (model_name, layer_key, variant, percentile, *style_images),
+                    )
+                    row = cursor.fetchone()
+
+                    if row and row[0] is not None:
+                        cursor.execute(
+                            """INSERT OR REPLACE INTO style_metrics
+                               (model, layer, method, style_name, percentile, mean_iou, num_images)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                            (model_name, layer_key, variant, style_name, percentile, row[0], row[1]),
+                        )
+
+        conn.commit()
+
+        # Compute feature breakdown for this method
+        print(f"  Computing feature breakdown for {model_name}/{variant}...")
+        _, feature_types = load_annotations_with_features(ANNOTATIONS_PATH)
+        feature_names = [ft.name for ft in feature_types]
 
         for layer in layers_to_process:
             layer_key = f"layer{layer}"
 
-            # Load attention from cache
-            try:
-                attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
-            except KeyError:
-                stats["skipped"] += len(percentiles)
-                continue
-
             for percentile in percentiles:
-                # Check if already exists
-                if skip_existing:
-                    cursor.execute(
-                        "SELECT 1 FROM image_metrics WHERE model=? AND layer=? AND image_id=? AND percentile=?",
-                        (model_name, layer_key, image_id, percentile),
-                    )
-                    if cursor.fetchone():
-                        stats["skipped"] += 1
+                per_bbox_results: list[list[tuple[int, float]]] = []
+
+                for sample in dataset:
+                    image_id = sample["image_id"]
+                    annotation = sample["annotation"]
+
+                    try:
+                        attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
+                        bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
+                        per_bbox_results.append(bbox_ious)
+                    except KeyError:
                         continue
 
-                try:
-                    result = compute_image_iou(
-                        attention=attention,
-                        annotation=annotation,
-                        image_id=image_id,
-                        percentile=percentile,
-                    )
+                if not per_bbox_results:
+                    continue
 
-                    # Insert into database
+                feature_stats = aggregate_by_feature_type(per_bbox_results, feature_names)
+
+                for label, stats_dict in feature_stats.items():
+                    feature_name = stats_dict.get("name", f"feature_{label}")
                     cursor.execute(
-                        """INSERT OR REPLACE INTO image_metrics
-                           (model, layer, image_id, percentile, iou, coverage, attention_area, annotation_area)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        """INSERT OR REPLACE INTO feature_metrics
+                           (model, layer, method, feature_label, feature_name, percentile, mean_iou, std_iou, bbox_count)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             model_name,
                             layer_key,
-                            image_id,
+                            variant,
+                            label,
+                            feature_name,
                             percentile,
-                            result.iou,
-                            result.coverage,
-                            result.attention_area,
-                            result.annotation_area,
+                            stats_dict["mean_iou"],
+                            stats_dict["std_iou"],
+                            int(stats_dict["count"]),
                         ),
                     )
 
-                    all_results[(model_name, layer_key, percentile)].append(result)
-                    stats["processed"] += 1
-
-                except Exception as e:
-                    print(f"\nError computing metrics for {image_id} layer{layer}: {e}")
-                    stats["errors"] += 1
-
-    conn.commit()
-
-    # Compute aggregate metrics
-    print(f"Computing aggregates for {model_name}...")
-    for layer in layers_to_process:
-        layer_key = f"layer{layer}"
-
-        for percentile in percentiles:
-            # Fetch all results from DB for this configuration
-            cursor.execute(
-                "SELECT iou, coverage FROM image_metrics WHERE model=? AND layer=? AND percentile=?",
-                (model_name, layer_key, percentile),
-            )
-            rows = cursor.fetchall()
-
-            if not rows:
-                continue
-
-            ious = torch.tensor([r[0] for r in rows])
-            coverages = torch.tensor([r[1] for r in rows])
-
-            cursor.execute(
-                """INSERT OR REPLACE INTO aggregate_metrics
-                   (model, layer, percentile, mean_iou, std_iou, median_iou, mean_coverage, num_images)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    model_name,
-                    layer_key,
-                    percentile,
-                    ious.mean().item(),
-                    ious.std().item(),
-                    ious.median().item(),
-                    coverages.mean().item(),
-                    len(rows),
-                ),
-            )
-
-    conn.commit()
-
-    # Compute style breakdown
-    print(f"Computing style breakdown for {model_name}...")
-    for layer in layers_to_process:
-        layer_key = f"layer{layer}"
-
-        for percentile in percentiles:
-            for style_name in STYLE_NAMES:
-                # Get image IDs for this style
-                style_images = [img_id for img_id, s in image_styles.items() if s == style_name]
-                if not style_images:
-                    continue
-
-                placeholders = ",".join("?" * len(style_images))
-                cursor.execute(
-                    f"""SELECT AVG(iou), COUNT(*) FROM image_metrics
-                       WHERE model=? AND layer=? AND percentile=? AND image_id IN ({placeholders})""",
-                    (model_name, layer_key, percentile, *style_images),
-                )
-                row = cursor.fetchone()
-
-                if row and row[0] is not None:
-                    cursor.execute(
-                        """INSERT OR REPLACE INTO style_metrics
-                           (model, layer, style_name, percentile, mean_iou, num_images)
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                        (model_name, layer_key, style_name, percentile, row[0], row[1]),
-                    )
-
-    conn.commit()
-
-    # Compute feature breakdown (per architectural feature type)
-    print(f"Computing feature breakdown for {model_name}...")
-    _, feature_types = load_annotations_with_features(ANNOTATIONS_PATH)
-    feature_names = [ft.name for ft in feature_types]
-
-    for layer in layers_to_process:
-        layer_key = f"layer{layer}"
-
-        for percentile in percentiles:
-            # Collect per-bbox IoU results for all images at this layer/percentile
-            per_bbox_results: list[list[tuple[int, float]]] = []
-
-            for sample in dataset:
-                image_id = sample["image_id"]
-                annotation = sample["annotation"]
-
-                try:
-                    attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
-                    bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
-                    per_bbox_results.append(bbox_ious)
-                except KeyError:
-                    # Skip images without cached attention
-                    continue
-
-            if not per_bbox_results:
-                continue
-
-            # Aggregate by feature type
-            feature_stats = aggregate_by_feature_type(per_bbox_results, feature_names)
-
-            # Insert into database
-            for label, stats_dict in feature_stats.items():
-                feature_name = stats_dict.get("name", f"feature_{label}")
-                cursor.execute(
-                    """INSERT OR REPLACE INTO feature_metrics
-                       (model, layer, feature_label, feature_name, percentile, mean_iou, std_iou, bbox_count)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        model_name,
-                        layer_key,
-                        label,
-                        feature_name,
-                        percentile,
-                        stats_dict["mean_iou"],
-                        stats_dict["std_iou"],
-                        int(stats_dict["count"]),
-                    ),
-                )
-
-    conn.commit()
+        conn.commit()
 
     return stats
 
 
 def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
-    """Export summary statistics to JSON for fast frontend loading."""
+    """Export summary statistics to JSON for fast frontend loading.
+
+    Uses each model's default method for the summary (same as leaderboard).
+    """
     from typing import Any
 
     cursor = conn.cursor()
@@ -384,25 +369,34 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     models_data: dict[str, Any] = {}
     leaderboard: list[dict[str, Any]] = []
 
-    # Get leaderboard
-    cursor.execute(
-        """SELECT model, MAX(mean_iou) as best_iou
-           FROM aggregate_metrics WHERE percentile = 90
-           GROUP BY model ORDER BY best_iou DESC"""
-    )
-    for row in cursor.fetchall():
-        leaderboard.append({"model": row[0], "best_iou": row[1]})
-
-    # Get per-model summaries
+    # Get distinct models
     cursor.execute("SELECT DISTINCT model FROM aggregate_metrics")
     models = [row[0] for row in cursor.fetchall()]
 
+    # Build leaderboard using each model's default method
     for model in models:
+        default_method = DEFAULT_METHOD[model].value
+        cursor.execute(
+            """SELECT MAX(mean_iou) as best_iou
+               FROM aggregate_metrics
+               WHERE model = ? AND method = ? AND percentile = 90""",
+            (model, default_method),
+        )
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            leaderboard.append({"model": model, "best_iou": row[0]})
+
+    leaderboard.sort(key=lambda x: x["best_iou"], reverse=True)
+
+    # Get per-model summaries (at default method)
+    for model in models:
+        default_method = DEFAULT_METHOD[model].value
+
         # Best layer at 90th percentile
         cursor.execute(
             """SELECT layer, mean_iou FROM aggregate_metrics
-               WHERE model = ? AND percentile = 90 ORDER BY mean_iou DESC LIMIT 1""",
-            (model,),
+               WHERE model = ? AND method = ? AND percentile = 90 ORDER BY mean_iou DESC LIMIT 1""",
+            (model, default_method),
         )
         row = cursor.fetchone()
         best_layer = row[0] if row else "layer11"
@@ -411,8 +405,8 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         # Layer progression
         cursor.execute(
             """SELECT layer, mean_iou FROM aggregate_metrics
-               WHERE model = ? AND percentile = 90 ORDER BY layer""",
-            (model,),
+               WHERE model = ? AND method = ? AND percentile = 90 ORDER BY layer""",
+            (model, default_method),
         )
         layer_progression = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -466,6 +460,12 @@ def main() -> int:
         help="Percentile thresholds to compute",
     )
     parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=None,
+        help="Specific methods to process (e.g., cls rollout). Default: all for each model.",
+    )
+    parser.add_argument(
         "--no-skip",
         action="store_true",
         help="Don't skip existing database entries",
@@ -512,6 +512,7 @@ def main() -> int:
             conn=conn,
             percentiles=args.percentiles,
             layers=args.layers,
+            methods=args.methods,
             skip_existing=not args.no_skip,
         )
 

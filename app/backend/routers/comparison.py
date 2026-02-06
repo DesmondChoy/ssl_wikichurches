@@ -10,7 +10,7 @@ from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_m
 from app.backend.schemas import IoUResultSchema, ModelComparisonSchema
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
-from app.backend.validators import resolve_default_method, validate_layer_for_model
+from app.backend.validators import resolve_default_method, validate_layer_for_model, validate_method
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
@@ -21,10 +21,12 @@ async def compare_models(
     models: Annotated[list[str] | None, Query(description="Models to compare")] = None,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> ModelComparisonSchema:
     """Compare multiple models on a single image.
 
     Returns IoU results and heatmap URLs for side-by-side comparison.
+    When method is specified, models that don't support it use their default.
     """
     # Default models if not specified
     if models is None:
@@ -58,16 +60,21 @@ async def compare_models(
 
     for model in models:
         resolved_model = resolve_model_name(model)
-        method = resolve_default_method(model)
+
+        # Resolve method per model (fallback to default if requested method unavailable)
+        try:
+            resolved_method = validate_method(model, method)
+        except HTTPException:
+            resolved_method = resolve_default_method(model)
 
         # Get metrics
-        metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
+        metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
         if metrics:
             results.append(IoUResultSchema(**metrics))
 
-        # Get heatmap URL
-        if image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay"):
-            heatmap_urls[model] = f"/api/attention/{image_id}/overlay?model={model}&layer={layer}"
+        # Get heatmap URL (include method)
+        if image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant="overlay"):
+            heatmap_urls[model] = f"/api/attention/{image_id}/overlay?model={model}&layer={layer}&method={resolved_method}"
 
     if not results:
         raise HTTPException(
@@ -139,6 +146,7 @@ async def compare_layers(
     image_id: str,
     model: Annotated[str, Query()] = "dinov2",
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> dict:
     """Get IoU progression across layers for layer comparison.
 
@@ -162,21 +170,21 @@ async def compare_layers(
     # Get per-model layer count
     resolved_model = resolve_model_name(model)
     num_layers = get_model_num_layers(resolved_model)
-    method = resolve_default_method(model)
+    resolved_method = validate_method(model, method)
 
     layers_data = []
     for layer in range(num_layers):
         layer_key = f"layer{layer}"
-        metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile)
+        metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
 
         if metrics:
-            has_heatmap = image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay")
+            has_heatmap = image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant="overlay")
             layers_data.append({
                 "layer": layer,
                 "layer_key": layer_key,
                 "iou": metrics["iou"],
                 "coverage": metrics["coverage"],
-                "heatmap_url": f"/api/attention/{image_id}/overlay?model={model}&layer={layer}" if has_heatmap else None,
+                "heatmap_url": f"/api/attention/{image_id}/overlay?model={model}&layer={layer}&method={resolved_method}" if has_heatmap else None,
             })
 
     if not layers_data:
