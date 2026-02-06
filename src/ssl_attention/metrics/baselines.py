@@ -25,6 +25,7 @@ Example:
 
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -36,6 +37,11 @@ from ssl_attention.config import DEFAULT_IMAGE_SIZE
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import ImageAnnotation
+
+
+def _deterministic_hash(s: str) -> int:
+    """Return a deterministic integer hash for a string, stable across Python sessions."""
+    return int(hashlib.md5(s.encode()).hexdigest(), 16)
 
 
 def random_baseline(
@@ -257,7 +263,7 @@ def compute_baseline_ious(
         for trial in range(n_random_trials):
             trial_ious: list[float] = []
             for annotation in annotations:
-                attn = random_baseline(seed=trial * 1000 + hash(annotation.image_id) % 1000)
+                attn = random_baseline(seed=trial * 1000 + _deterministic_hash(annotation.image_id) % 1000)
                 gt_mask = annotation.get_union_mask(
                     DEFAULT_IMAGE_SIZE, DEFAULT_IMAGE_SIZE
                 )
@@ -327,7 +333,7 @@ def compute_baseline_pointing(
     for trial in range(n_random_trials):
         trial_hits = 0
         for annotation in annotations:
-            attn = random_baseline(seed=trial * 1000 + hash(annotation.image_id) % 1000)
+            attn = random_baseline(seed=trial * 1000 + _deterministic_hash(annotation.image_id) % 1000)
             hit, _, _ = pointing_game_hit(attn, annotation, tolerance=tolerance)
             if hit:
                 trial_hits += 1
