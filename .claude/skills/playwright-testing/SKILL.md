@@ -160,11 +160,19 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Back navigation returns to gallery
 
 #### Layout
-- [ ] Two-column layout: visualization (left), controls (right)
-- [ ] Left column displays the main image with attention overlay
-- [ ] Right column contains control panel and annotations
+- [ ] Three-column layout: annotations (left), visualization (center), controls (right)
+- [ ] Left column (2/10) shows Annotations panel with styles and bbox list
+- [ ] Center column (5/10) displays the main image with attention overlay
+- [ ] Right column (3/10) contains control panel and metrics
 
-#### Attention Viewer (Left Column)
+#### Annotations Panel (Left Column)
+- [ ] Architectural styles are listed as badges
+- [ ] Number of bounding boxes is shown
+- [ ] Scrollable list of bboxes with dimensions (% width x % height)
+- [ ] Clicking bbox in list selects it (when bboxes are shown)
+- [ ] Hint text "Click a bounding box to see feature similarity heatmap" appears when bboxes are shown
+
+#### Attention Viewer (Center Column)
 - [ ] Main image displays with attention heatmap overlay
 - [ ] Overlay toggle button appears on hover (top-right of image)
 - [ ] Clicking toggle switches between attention overlay and original image
@@ -175,7 +183,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Model selector dropdown shows all 6 models (dinov2, dinov3, mae, clip, siglip2, resnet50)
 - [ ] Layer slider range adjusts per model (e.g., 0-11 for ViTs, 0-3 for ResNet-50)
 - [ ] Percentile threshold selector shows options: 90%, 85%, 80%, 70%, 60%, 50%
-- [ ] "Show Bounding Boxes" toggle is present
+- [ ] "Show Bounding Boxes" toggle is present (defaults to ON)
 - [ ] Changing model updates the attention visualization
 - [ ] Changing layer updates the attention visualization
 - [ ] Changing percentile updates the attention overlay
@@ -202,27 +210,28 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] "Early layers" and "Late layers" labels are visible
 
 #### IoU Metrics Display
-- [ ] IoU Score is displayed with value
-- [ ] Coverage percentage is shown
+- [ ] IoU Score card is displayed with value
+- [ ] Max IoU progress bar shows IoU relative to theoretical maximum
+- [ ] Progress bar is color-coded: green ≥75%, yellow ≥50%, orange ≥25%, red <25% of max
+- [ ] "X% of theoretical max" label appears below progress bar
+- [ ] Coverage percentage card is shown
+- [ ] Tooltip help icons (?) appear on IoU Score and Coverage cards
 - [ ] Metrics update when model/layer/percentile changes
+- [ ] Selecting a bbox updates metrics to show per-bbox IoU/Coverage
+- [ ] Green context indicator shows "Showing metrics for: [bbox name]" when bbox selected
+- [ ] Deselecting bbox reverts to union-of-all-bboxes metrics instantly
 
 #### Bounding Box Interaction
-- [ ] Enabling "Show Bounding Boxes" displays bbox overlays on image
+- [ ] Bounding boxes are shown by default (toggle defaults ON)
+- [ ] Bbox overlays render on the image
 - [ ] Clicking a bbox in the annotations list selects it
-- [ ] Selected bbox is highlighted (different color)
+- [ ] Selected bbox is highlighted (green) in both image and annotations list
 - [ ] Feature similarity heatmap loads when bbox is selected
-- [ ] Clicking outside deselects the bbox
+- [ ] Per-bbox metrics update in the Metrics card when bbox is selected
+- [ ] Clicking outside or re-clicking deselects the bbox
 
-#### Annotations Card
-- [ ] Architectural styles are listed
-- [ ] Number of bounding boxes is shown
-- [ ] Scrollable list of bboxes with dimensions
-- [ ] Clicking bbox in list selects it
-
-#### Navigation Links (CRITICAL - verify these work!)
+#### Navigation Links
 - [ ] "Compare Models" link navigates to /compare with current image pre-selected
-- [ ] "Layer Analysis" link navigates to a valid page (NOT blank screen)
-- [ ] Verify Layer Analysis page actually renders content
 
 ---
 
@@ -302,7 +311,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Standard Desktop (1280px width)
 - [ ] Full multi-column layouts display correctly
 - [ ] Gallery shows proper column grid
-- [ ] Image detail shows side-by-side layout (visualization + controls)
+- [ ] Image detail shows three-column layout (annotations + visualization + controls)
 - [ ] Dashboard shows leaderboard + charts side-by-side
 - [ ] Maximum content width is respected
 - [ ] Adequate whitespace and spacing
@@ -323,12 +332,10 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 
 #### Invalid Routes
 - [ ] Navigating to /invalid-route shows 404 or redirects to home
-- [ ] Navigating to /layers (Layer Analysis) works or shows appropriate fallback
 - [ ] Invalid image ID (/image/nonexistent) handled gracefully
 
 #### Broken Links (CRITICAL - catch links to undefined routes!)
 - [ ] All navigation links in the app lead to valid, rendering pages
-- [ ] "Layer Analysis" link from Image Detail page works
 - [ ] No internal links result in blank screens
 - [ ] Check console for React Router warnings about unmatched routes
 
@@ -363,14 +370,15 @@ For rapid testing, verify these critical paths:
 7. [ ] Attention Method dropdown appears for DINOv2 (CLS Attention / Attention Rollout)
 8. [ ] Layer Play button stops at last layer (doesn't loop)
 9. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
-10. [ ] "Layer Analysis" link works (page renders, not blank)
-11. [ ] Compare page loads and allows image selection
-12. [ ] **Dashboard page renders content (NOT blank screen!)**
-13. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
-14. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
-15. [ ] Navigation between all pages works
-16. [ ] No console errors throughout
-17. [ ] No blank pages anywhere in the app
+10. [ ] Per-bbox metrics update when bbox selected (green context indicator)
+11. [ ] Max IoU progress bar shows IoU relative to theoretical max
+12. [ ] Compare page loads and allows image selection
+13. [ ] **Dashboard page renders content (NOT blank screen!)**
+14. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
+15. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
+16. [ ] Navigation between all pages works
+17. [ ] No console errors throughout
+18. [ ] No blank pages anywhere in the app
 
 ---
 
@@ -416,15 +424,15 @@ When instructed to perform Playwright testing, follow this workflow:
 
    PHASE 3: Image Detail Page
    └── Navigation (3 items)
-   └── Layout (3 items)
-   └── Attention Viewer (5 items)
+   └── Layout (4 items) - three-column layout
+   └── Annotations Panel (5 items) - left column
+   └── Attention Viewer (5 items) - center column
    └── Control Panel (12 items) - includes tooltips, attention method
    └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
    └── Layer Animation Slider (7 items) - includes stop-at-end behavior
-   └── IoU Metrics Display (3 items)
-   └── Bounding Box Interaction (5 items)
-   └── Annotations Card (4 items)
-   └── Navigation Links - CRITICAL (3 items)
+   └── IoU Metrics Display (10 items) - includes max IoU bar, per-bbox metrics
+   └── Bounding Box Interaction (7 items) - includes per-bbox metrics
+   └── Navigation Links (1 item)
 
    PHASE 4: Compare Page
    └── Layout (3 items)
@@ -446,8 +454,8 @@ When instructed to perform Playwright testing, follow this workflow:
 
    PHASE 7: Error Handling
    └── Network Errors (3 items)
-   └── Invalid Routes (3 items)
-   └── Broken Links - CRITICAL (4 items)
+   └── Invalid Routes (2 items)
+   └── Broken Links - CRITICAL (3 items)
    └── Edge Cases (4 items)
 
    PHASE 8: Performance (5 items)
@@ -456,4 +464,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~121 items
+**Total checklist items**: ~130 items
