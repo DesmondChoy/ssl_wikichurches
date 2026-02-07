@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-02 (Phase 5 items 3-4 pending team discussion; Phase 6 item 8 pending)
+**Last Updated:** 2026-02-07 (Phase 5 item 4 pending; Phase 6 fully complete)
 
 ---
 
@@ -271,6 +271,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - MPS memory management (`torch.mps.empty_cache()`), checkpoint saving
    - `load_finetuned_model()` for loading trained checkpoints
    - `save_training_results()` for JSON export of training history
+   - **LoRA fine-tuning** via HuggingFace PEFT with model-specific target modules (rank=8, alpha=32)
+   - **Cosine LR scheduler** with linear warmup (10% warmup ratio)
+   - **Gradient clipping** via `clip_grad_norm_` (max_norm=1.0)
+   - **Data augmentation** — RandomResizedCrop, HorizontalFlip, ColorJitter (toggleable)
 
 2. **Fine-tuning script** (`experiments/scripts/fine_tune_models.py`) ✅
    - Train single model or all models via CLI flags
@@ -279,17 +283,20 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt`
    - Training summary with per-model results
 
-3. **Comparative analysis** ⬜
-   - Load fine-tuned models
+3. **Comparative analysis** (`experiments/scripts/analyze_delta_iou.py`) ✅
+   - Load frozen baseline and fine-tuned models
    - Extract attention on annotated subset
-   - Compute Δ IoU per model
-   - Statistical tests (paired t-test on per-image IoU)
+   - Compute Δ IoU per model with per-image breakdown
+   - Bootstrap 95% CIs, Cohen's d effect sizes
+   - Paired t-test / Wilcoxon (auto-selected based on normality)
+   - Holm correction for multiple comparisons across models
+   - JSON export of full results
 
 4. **Visualization** ⬜
-   - Side-by-side heatmaps (frozen vs fine-tuned)
-   - Attention shift maps (where did attention move?)
+   - Side-by-side heatmaps (frozen vs fine-tuned) — available via comparison view
+   - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Items 3-4 are pending team discussion on fine-tuning strategy (what type of fine-tuning to pursue, evaluation approach, and next steps). See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
+> **Note:** Item 4 (attention shift visualization) is the sole remaining Phase 5 work item. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -338,12 +345,27 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Create FeatureBreakdown.tsx component
    - Display IoU by 106 architectural feature types
 
-8. **Per-Model Layer Counts** ⬜
-   - Update `/api/models` endpoint to return `layer_counts` per model
-   - Adapt layer slider range based on selected model (ViTs have 12 layers, ResNet-50 has 4)
-   - Currently UI shows layers 0-11 for all models, causing 404s for ResNet-50 layers > 3
+8. **Per-Model Layer Counts** ✅
+   - `/api/attention/models` returns `num_layers_per_model` dict (e.g., ResNet-50 → 4, ViTs → 12)
+   - `viewStore` tracks per-model counts, clamps layer on model switch
+   - `LayerSlider` accepts dynamic `maxLayers` prop
 
-9. **Interactive Bbox Similarity Comparison** ✅
+9. **Per-Bbox Metrics** ✅
+   - `GET /api/metrics/{image_id}/bbox/{bbox_index}` computes IoU/coverage for individual bboxes
+   - Frontend switches between per-bbox and union-of-all metrics based on selection
+   - Green context indicator in IoUDisplay showing selected bbox name
+
+10. **Max IoU Progress Bar** ✅
+    - Shows observed IoU as percentage of theoretical maximum
+    - Color-coded: green ≥75%, yellow ≥50%, orange ≥25%, red <25%
+
+11. **UI Polish** ✅
+    - Annotations panel moved to left sidebar (3-column layout: annotations | viewer | controls)
+    - Bounding boxes shown by default
+    - Portal-rendered tooltips (escape overflow-hidden containers)
+    - `keepPreviousData` on React Query hooks prevents UI flash during layer animation
+
+12. **Interactive Bbox Similarity Comparison** ✅
    - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
    - Clicking a bbox shows similarity heatmaps for both models simultaneously
    - Synchronized selection across both panels for direct comparison
@@ -512,7 +534,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 - DINOv3 sequence: 1 CLS + 4 registers + 196 patches (patch 16, 224px)
 - MAE sequence: 1 CLS + 196 patches (with mask_ratio=0)
 - CLIP: 1 CLS + 196 patches
-- SigLIP 2: 196 patches (no CLS token; uses mean pooling)
+- SigLIP 2: 196 patches (no CLS token; uses MAP attention pooling)
 
 ### Dataset Details (Verified)
 
