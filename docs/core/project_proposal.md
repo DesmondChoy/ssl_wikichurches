@@ -14,7 +14,7 @@ Self-supervised learning (SSL) models like DINOv2, DINOv3, and MAE learn visual 
 
 Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features."
 
-While existing tools like BertViz and Comet ML visualize transformer attention, they do not quantify whether attention aligns with domain expertise. This gap matters for practitioners fine-tuning foundation models: a model achieving high classification accuracy might exploit background correlations rather than attending to diagnostic features. We address this gap with both a quantitative benchmark and an interactive analysis tool.
+Existing interpretability tools address parts of this problem but leave a critical gap. Visualization tools like BertViz (Vig, ACL 2019) render attention weights interactively but provide no quantitative metrics. Attribution frameworks like Captum measure whether explanations are faithful to the model's own decisions (infidelity, sensitivity) but not whether the model attends to features that domain experts consider diagnostic. Recent work in medical imaging has begun evaluating attention against radiologist annotations (Komorowski et al., CVPR 2023), but no existing benchmark compares multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. We address this gap with both a quantitative benchmark and an interactive analysis tool.
 
 ### Research Questions and Approaches
 
@@ -171,7 +171,7 @@ All models compared against:
 | Literature review | SSL methods, attention visualization, interpretability metrics |
 | Practical application | Interactive attention analysis tool for evaluating domain-adapted vision models |
 | Final developed system | Web-based dashboard with heatmap explorer, model comparison, and metrics views |
-| Commercial solutions comparison | BertViz, Comet ML (visualize but don't quantify); ASCENT-ViT (research, not commercial) |
+| Commercial solutions comparison | BertViz (visualize only); Captum (faithfulness metrics, not expert alignment); Komorowski et al. (medical imaging only) |
 
 ---
 
@@ -214,19 +214,22 @@ All models compared against:
 
 ## 10. Commercial and Research Solutions Comparison
 
-**Visualization Tools:**
-- BertViz: Interactive attention head visualization for transformers
-- Comet ML: MLOps platform with attention panels
-- Hugging Face Transformers: Built-in attention output visualization
+**Visualization Tools** (qualitative only):
+- BertViz (Vig, ACL 2019): Interactive attention head visualization for transformers
+- Hugging Face Transformers: Built-in attention output access
+- Ecco (Alammar, ACL 2021): Interactive NLP model interpretability
 
-These tools visualize attention but do not quantify alignment with domain expertise.
+**Attribution Frameworks** (quantify faithfulness to model, not alignment with expertise):
+- Captum (Kokhlikyan et al., 2020): Infidelity, sensitivity metrics for attribution methods
+- pytorch-grad-cam (Gil, 2021): Insertion/deletion, ROAD metrics for CAM evaluations
+- Chefer et al. (CVPR 2021): Transformer interpretability beyond attention visualization
 
-**Research on Attention-Annotation Alignment:**
+**Research on Attention-Expert Alignment** (domain-specific, no cross-model benchmark):
+- Komorowski et al. (CVPR 2023): ViT explanations evaluated against radiologist bbox annotations
 - ASCENT-ViT (2025): Aligns attention with concept annotations using Pixel TPR
-- Medical imaging studies: Evaluate attention against radiologist annotations
-- Chefer et al. (2021): Transformer interpretability beyond attention visualization
+- Pointing Game (Zhang et al., ECCV 2016): Binary hit/miss against ground-truth masks
 
-**Knowledge Gap:** No existing work benchmarks multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. We fill this gap with a quantitative benchmark and interactive tool.
+**Knowledge Gap:** Attribution frameworks quantify whether explanations faithfully reflect model decisions, but not whether the model attends to features that domain experts consider diagnostic. The medical imaging studies above evaluate attention against expert annotations, but no existing work benchmarks multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. We fill this gap with a cross-model quantitative benchmark and interactive analysis tool.
 
 ---
 

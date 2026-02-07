@@ -59,7 +59,7 @@ These two scenarios are indistinguishable from accuracy metrics alone. Attention
 
 ### From Visualization to Quantification
 
-While tools like [BertViz](https://github.com/jessevig/bertviz) and [Comet ML](https://www.comet.ml/) visualize attention, they don't quantify whether attention aligns with domain expertise. Our system goes further by:
+Visualization tools like [BertViz](https://github.com/jessevig/bertviz) render attention weights interactively, and attribution frameworks like [Captum](https://captum.ai/) measure whether explanations are faithful to the model's own decisions. Neither quantifies whether attention aligns with what domain experts consider diagnostic. Our system goes further by:
 
 1. Overlaying attention on expert-annotated bounding boxes
 2. Computing **IoU (Intersection over Union)** between attention regions and expert annotations
