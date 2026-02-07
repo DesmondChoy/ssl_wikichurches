@@ -19,7 +19,7 @@ Background research, literature analysis, and novelty assessments informing the 
 | Document | Description |
 |----------|-------------|
 | [attention_methods.md](research/attention_methods.md) | Attention visualization methods, metrics, and interpretation guide |
-| [claude_novelty_check.md](research/claude_novelty_check.md) | Novelty assessment across all four research questions |
+| [claude_novelty_check.md](research/claude_novelty_check.md) | Novelty assessment across research questions |
 
 ### [`reference/`](reference/) — Implementation Reference
 Technical implementation details and model-specific considerations.

@@ -21,11 +21,10 @@ While existing tools like BertViz and Comet ML visualize transformer attention, 
 | Research Question | Approach | Tool/Method |
 |-------------------|----------|-------------|
 | **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU between thresholded attention maps and expert bounding boxes across 6 models and 12 layers | Attention heatmap overlay, IoU metrics dashboard, model leaderboard |
-| **Q2:** Does fine-tuning shift attention toward expert-identified features? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images | Frozen vs fine-tuned comparison view, attention shift visualization |
+| **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images; compare Δ IoU across three fine-tuning methods using paired tests with Holm correction; compute Cohen's d effect sizes; analyze catastrophic forgetting via pre-training IoU retention | Frozen vs fine-tuned comparison view, attention shift visualization, fine-tuning method comparison, Δ IoU bar charts by method, forgetting metrics |
 | **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Per-head attention selector, head IoU heatmap (head × feature type), head specialization dashboard |
-| **Q4:** Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect how much attention shifts toward expert features? | Compare Δ IoU across three fine-tuning methods using paired tests; compute Cohen's d effect sizes; analyze catastrophic forgetting via pre-training IoU retention | Fine-tuning method comparison view, Δ IoU bar charts by method, forgetting metrics |
 
-> **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2/Q4 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
+> **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
 
 ---
 
@@ -102,7 +101,7 @@ Train linear classifiers on frozen features for 4-class style classification. Co
 
 Fine-tune each backbone on 4-class style classification (9,485 images), then re-extract attention on the 139 annotated images. Compare Δ IoU (fine-tuned − frozen) per model.
 
-Three fine-tuning strategies are compared (addressing Q4):
+Three fine-tuning strategies are compared (addressing Q2):
 
 | Strategy | Description | Key Parameters |
 |:---------|:-----------|:---------------|
@@ -146,9 +145,8 @@ To verify findings are robust to methodological choices:
 | RQ | Primary Metric | Statistical Test | Visualization |
 |:---|:---------------|:-----------------|:--------------|
 | Q1 | Mean IoU (per model, per layer) | Paired t-test across models; bootstrap CIs | Attention heatmaps with bbox overlay |
-| Q2 | Δ IoU (fine-tuned − frozen) | Paired t-test (same images) | Side-by-side frozen vs fine-tuned |
+| Q2 | Δ IoU (fine-tuned − frozen); Δ IoU by method; forgetting ratio | Paired t-test (same images); paired t-test with Holm correction across methods | Side-by-side frozen vs fine-tuned; bar chart by fine-tuning method |
 | Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
-| Q4 | Δ IoU by method; forgetting ratio | Paired t-test with Holm correction | Bar chart by fine-tuning method |
 
 **Secondary metric:** Pointing game accuracy (binary hit: does attention maximum fall within bbox?) with optional 15-pixel tolerance margin per Zhang et al. (2016)
 
@@ -208,10 +206,9 @@ All models compared against:
 
 1. **Benchmark:** Quantitative attention-alignment evaluation on expert-annotated architectural features
 2. **Q1:** Empirical comparison of SSL paradigms on expert attention alignment
-3. **Q2:** Analysis of how fine-tuning shifts attention toward expert features
+3. **Q2:** Analysis of how fine-tuning shifts attention toward expert features, including trade-off analysis across strategies (Linear Probe vs LoRA vs Full)
 4. **Q3:** Identification of attention heads specialized for architectural recognition
-5. **Q4:** Trade-off analysis of fine-tuning methods (Linear Probe vs LoRA vs Full)
-6. **Deliverable:** Reproducible codebase and interactive analysis tool
+5. **Deliverable:** Reproducible codebase and interactive analysis tool
 
 ---
 

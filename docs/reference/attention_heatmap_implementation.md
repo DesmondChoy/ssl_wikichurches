@@ -73,14 +73,13 @@ This transforms subjective "the model seems to look at the right things" into qu
 
 ## Research Questions Addressed
 
-Attention heatmaps directly support **Research Question 1** and contribute to all four research questions from the [Project Proposal](../core/project_proposal.md#research-questions-and-approaches):
+Attention heatmaps directly support **Research Question 1** and contribute to all three research questions from the [Project Proposal](../core/project_proposal.md#research-questions-and-approaches):
 
 | RQ | Question | How Attention Heatmaps Help |
 |----|----------|----------------------------|
 | **Q1** | Do SSL models attend to the same features human experts consider diagnostic? | Overlay heatmaps on expert bounding boxes; compute IoU to quantify alignment |
-| **Q2** | Does fine-tuning shift attention toward expert-identified features? | Compare heatmaps before/after fine-tuning; measure Δ IoU |
+| **Q2** | Does fine-tuning shift attention toward expert-identified features, and does the strategy matter? | Compare heatmaps before/after fine-tuning; measure Δ IoU; compare changes across Linear Probe, LoRA, and Full fine-tuning |
 | **Q3** | Do individual attention heads specialize for different architectural features? | Generate per-head heatmaps; analyze which heads best align with specific feature types |
-| **Q4** | Does the fine-tuning strategy affect how much attention shifts? | Compare heatmap changes across Linear Probe, LoRA, and Full fine-tuning |
 
 **Q1 is the primary use case:** The heatmap overlay with bounding boxes is the core visual interface for understanding whether models have learned expert-relevant attention patterns.
 

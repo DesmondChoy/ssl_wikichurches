@@ -42,16 +42,29 @@ The [WikiChurches dataset](../core/project_proposal.md#2-dataset) (Barz & Denzle
 
 This app visualizes these attention patterns and computes the overlap (IoU) between model attention and expert annotations.
 
-### The Four Research Questions
+### The Three Research Questions
 
-This application helps answer four interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
+This application helps answer three interconnected questions from our [research design](../core/project_proposal.md#research-questions-and-approaches):
 
 | # | Research Question | How This App Helps |
 |---|-------------------|-------------------|
 | 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + IoU metrics |
-| 2 | Does fine-tuning shift attention toward expert-identified features? | Frozen vs. fine-tuned comparison |
+| 2 | Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Frozen vs. fine-tuned comparison + fine-tuning method comparison + Δ IoU by method |
 | 3 | Do individual attention heads specialize for different architectural features? | Per-head attention selector + per-head IoU analysis |
-| 4 | Does the fine-tuning strategy affect how much attention shifts toward expert features? | Fine-tuning method comparison + Δ IoU by method |
+
+### Fine-Tuning Strategy Comparison (Research Question 2)
+
+Q2 encompasses both the general question of whether fine-tuning shifts attention and the comparative question of whether the strategy matters. Three fine-tuning strategies are compared:
+
+| Method | Trainable Params | Expected Behavior |
+|--------|------------------|-------------------|
+| **Linear Probe** | ~3K (head only) | No attention change (baseline) |
+| **LoRA (r=8)** | ~300K | Moderate attention shift with preserved pre-training |
+| **Full Fine-tuning** | ~86M | Maximum attention shift, risk of catastrophic forgetting |
+
+**Academic foundation:**
+- Hu et al. (2022) introduced LoRA for parameter-efficient adaptation
+- Biderman et al. (2024) showed "LoRA learns less and forgets less" compared to full fine-tuning
 
 ### Per-Head Attention Analysis (Research Question 3)
 
@@ -66,20 +79,6 @@ Rather than fusing all 12 attention heads via averaging, Q3 examines each head i
 - Voita et al. (2019) showed that "a small subset of heads" performs most of the work in transformers
 - Caron et al. (2021) demonstrated that DINO heads exhibit diverse specialization patterns
 - This analysis extends these findings to measure alignment with domain expertise
-
-### Fine-Tuning Method Comparison (Research Question 4)
-
-Q4 compares three fine-tuning strategies to understand how training approach affects attention shift:
-
-| Method | Trainable Params | Expected Behavior |
-|--------|------------------|-------------------|
-| **Linear Probe** | ~3K (head only) | No attention change (baseline) |
-| **LoRA (r=8)** | ~300K | Moderate attention shift with preserved pre-training |
-| **Full Fine-tuning** | ~86M | Maximum attention shift, risk of catastrophic forgetting |
-
-**Academic foundation:**
-- Hu et al. (2022) introduced LoRA for parameter-efficient adaptation
-- Biderman et al. (2024) showed "LoRA learns less and forgets less" compared to full fine-tuning
 
 ---
 

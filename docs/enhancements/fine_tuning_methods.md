@@ -4,14 +4,13 @@
 > **Purpose:** Evaluate fine-tuning strategies to study whether task-specific training redirects SSL model attention toward expert-annotated architectural features
 
 > **Related documents:**
-> - [Project Proposal — Q2 & Q4: Fine-Tuning](../core/project_proposal.md#research-questions-and-approaches)
+> - [Project Proposal — Q2: Fine-Tuning](../core/project_proposal.md#research-questions-and-approaches)
 > - [Implementation Plan — Phase 5: Fine-Tuning Analysis](../core/implementation_plan.md#phase-5-fine-tuning-analysis--in-progress)
 
 ## Executive Summary
 
 This document outlines fine-tuning methods suitable for the SSL WikiChurches project. It supports:
-- **Research Question 2**: Does fine-tuning shift attention toward expert-identified features?
-- **Research Question 4**: Does the fine-tuning strategy (Linear Probe vs LoRA vs Full) affect how much attention shifts toward expert features?
+- **Research Question 2**: Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
 
 **Key insight:** The Δ IoU metric (post-fine-tuning IoU − pre-fine-tuning IoU) directly measures whether fine-tuning improves alignment between model attention and human expert annotations.
 
