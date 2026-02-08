@@ -17,6 +17,7 @@ import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
+import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 
 export function DashboardPage() {
   const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
@@ -76,13 +77,6 @@ export function DashboardPage() {
       }))
     : [];
 
-  const percentileOptions = [
-    { value: 90, label: 'Top 10%' },
-    { value: 85, label: 'Top 15%' },
-    { value: 80, label: 'Top 20%' },
-    { value: 70, label: 'Top 30%' },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -97,7 +91,7 @@ export function DashboardPage() {
         <Select
           value={percentile}
           onChange={(v) => setPercentile(Number(v))}
-          options={percentileOptions}
+          options={PERCENTILE_OPTIONS}
           label="Threshold"
         />
       </div>

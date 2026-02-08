@@ -9,6 +9,7 @@ import { Select } from '../ui/Select';
 import { Slider } from '../ui/Slider';
 import { Toggle } from '../ui/Toggle';
 import { GLOSSARY } from '../../constants/glossary';
+import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
 import type { HeatmapStyle } from '../../types';
 
 // Human-readable labels for attention methods
@@ -93,15 +94,6 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     label: METHOD_LABELS[m] || m,
   }));
 
-  const percentileOptions = [
-    { value: 90, label: 'Top 10%' },
-    { value: 85, label: 'Top 15%' },
-    { value: 80, label: 'Top 20%' },
-    { value: 70, label: 'Top 30%' },
-    { value: 60, label: 'Top 40%' },
-    { value: 50, label: 'Top 50%' },
-  ];
-
   const heatmapStyleOptions = [
     { value: 'smooth', label: 'Smooth Gradient' },
     { value: 'squares', label: 'Squares' },
@@ -143,7 +135,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
       <Select
         value={percentile}
         onChange={(v) => setPercentile(Number(v))}
-        options={percentileOptions}
+        options={PERCENTILE_OPTIONS}
         label="Attention Threshold"
         tooltip={GLOSSARY['Attention Threshold']}
       />
