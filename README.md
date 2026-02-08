@@ -134,7 +134,7 @@ uv run jupyter lab notebooks/01_data_exploration.ipynb
 ```
 ssl_wikichurches/
 ├── app/
-│   ├── backend/          # FastAPI server (25 REST endpoints)
+│   ├── backend/          # FastAPI server (26 REST endpoints)
 │   ├── frontend/         # React + Vite + Tailwind
 │   └── precompute/       # Cache generation scripts
 ├── dataset/              # WikiChurches data (gitignored)
