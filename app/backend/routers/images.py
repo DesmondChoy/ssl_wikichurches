@@ -32,20 +32,7 @@ async def list_images(
     """
     image_ids = image_service.list_image_ids()
 
-    # Filter by style if specified
-    if style:
-        filtered = []
-        for image_id in image_ids:
-            annotation = image_service.get_annotation(image_id)
-            if annotation:
-                style_names = image_service.get_style_names(list(annotation.styles))
-                if style in style_names:
-                    filtered.append(image_id)
-        image_ids = filtered
-
-    # Apply pagination
-    image_ids = image_ids[offset : offset + limit]
-
+    # Single pass: filter by style (if specified) and build items together
     items = []
     for image_id in image_ids:
         annotation = image_service.get_annotation(image_id)
@@ -53,6 +40,9 @@ async def list_images(
             continue
 
         style_names = image_service.get_style_names(list(annotation.styles))
+
+        if style and style not in style_names:
+            continue
 
         items.append(
             ImageListItem(
@@ -64,7 +54,8 @@ async def list_images(
             )
         )
 
-    return items
+    # Apply pagination
+    return items[offset : offset + limit]
 
 
 @router.get("/styles", response_model=list[str])
