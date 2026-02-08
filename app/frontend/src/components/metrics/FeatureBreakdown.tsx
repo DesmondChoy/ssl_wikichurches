@@ -36,16 +36,19 @@ export function FeatureBreakdown({ model, layer, percentile, method }: FeatureBr
 
   const { data, isLoading, error } = useFeatureBreakdown(model, layer, percentile, sortBy, 0, method);
 
+  // Extract features so the compiler sees a stable dependency reference
+  const features = data?.features;
+
   // Filter features by search query
   const filteredFeatures = useMemo(() => {
-    if (!data?.features) return [];
-    if (!searchQuery.trim()) return data.features;
+    if (!features) return [];
+    if (!searchQuery.trim()) return features;
 
     const query = searchQuery.toLowerCase();
-    return data.features.filter(f =>
+    return features.filter(f =>
       f.feature_name.toLowerCase().includes(query)
     );
-  }, [data?.features, searchQuery]);
+  }, [features, searchQuery]);
 
   // Pagination
   const visibleFeatures = filteredFeatures.slice(0, showCount);

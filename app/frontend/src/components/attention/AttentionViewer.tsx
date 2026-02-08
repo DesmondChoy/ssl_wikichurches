@@ -40,9 +40,14 @@ export function AttentionViewer({
   const [imageError, setImageError] = useState(false);
 
   // Reset error state when model/layer/method changes
-  useEffect(() => {
+  // Uses the "adjust state during render" pattern recommended by React
+  // instead of setState-in-effect which causes cascading renders.
+  const errorResetKey = `${imageId}|${model}|${layer}|${method}`;
+  const [prevResetKey, setPrevResetKey] = useState(errorResetKey);
+  if (errorResetKey !== prevResetKey) {
+    setPrevResetKey(errorResetKey);
     setImageError(false);
-  }, [imageId, model, layer, method]);
+  }
 
   // Get heatmap settings from store
   const heatmapOpacity = useHeatmapOpacity();

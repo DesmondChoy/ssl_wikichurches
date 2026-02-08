@@ -15,40 +15,46 @@ interface TooltipProps {
 }
 
 export function Tooltip({ content, align = 'center' }: TooltipProps) {
-  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const popup = () => {
-    if (!isVisible || !buttonRef.current) return null;
+  const show = () => {
+    if (buttonRef.current) {
+      setPosition(buttonRef.current.getBoundingClientRect());
+    }
+  };
 
-    const rect = buttonRef.current.getBoundingClientRect();
+  const hide = () => {
+    setPosition(null);
+  };
 
-    // Horizontal position based on align prop
+  // Compute popup position from state (not from ref during render)
+  let popup = null;
+  if (position) {
     let left: number;
     if (align === 'left') {
-      left = rect.left;
+      left = position.left;
     } else if (align === 'right') {
-      left = rect.right - 256; // w-64 = 256px
+      left = position.right - 256; // w-64 = 256px
     } else {
-      left = rect.left + rect.width / 2 - 128; // center
+      left = position.left + position.width / 2 - 128; // center
     }
 
-    // Arrow offset (distance from the aligned edge)
     let arrowLeft: number;
     if (align === 'left') {
-      arrowLeft = rect.width / 2;
+      arrowLeft = position.width / 2;
     } else if (align === 'right') {
-      arrowLeft = 256 - rect.width / 2;
+      arrowLeft = 256 - position.width / 2;
     } else {
       arrowLeft = 128; // center
     }
 
-    return createPortal(
+    popup = createPortal(
       <div
         className="fixed z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none"
         style={{
           left,
-          top: rect.top - 8, // 8px gap (mb-2)
+          top: position.top - 8, // 8px gap (mb-2)
           transform: 'translateY(-100%)',
         }}
       >
@@ -60,7 +66,7 @@ export function Tooltip({ content, align = 'center' }: TooltipProps) {
       </div>,
       document.body,
     );
-  };
+  }
 
   return (
     <span className="relative inline-flex items-center">
@@ -68,15 +74,15 @@ export function Tooltip({ content, align = 'center' }: TooltipProps) {
         ref={buttonRef}
         type="button"
         className="ml-1 inline-flex items-center justify-center w-4 h-4 text-xs text-gray-500 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
-        onMouseEnter={() => setIsVisible(true)}
-        onMouseLeave={() => setIsVisible(false)}
-        onFocus={() => setIsVisible(true)}
-        onBlur={() => setIsVisible(false)}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
         aria-label="Help"
       >
         ?
       </button>
-      {popup()}
+      {popup}
     </span>
   );
 }
