@@ -6,10 +6,10 @@ the primary evaluation metric. Errors here invalidate experimental results.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 import torch
-
-from unittest.mock import patch
 
 from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
 from ssl_attention.metrics.iou import (
@@ -396,8 +396,8 @@ def test_percentile_coverage_uniform_attention(percentile: int, expected_coverag
 def _make_annotation(*bbox_specs: tuple[float, float, float, float, int]) -> ImageAnnotation:
     """Helper: create an ImageAnnotation from (left, top, w, h, label) tuples."""
     bboxes = tuple(
-        BoundingBox(left=l, top=t, width=w, height=h, label=lab, group_label=0)
-        for l, t, w, h, lab in bbox_specs
+        BoundingBox(left=left, top=t, width=w, height=h, label=lab, group_label=0)
+        for left, t, w, h, lab in bbox_specs
     )
     return ImageAnnotation(image_id="test.jpg", styles=(), bboxes=bboxes)
 
@@ -452,7 +452,7 @@ class TestComputePerBboxIoU:
             reference.append((bbox.label, iou))
 
         assert len(optimized) == len(reference)
-        for (opt_label, opt_iou), (ref_label, ref_iou) in zip(optimized, reference):
+        for (opt_label, opt_iou), (ref_label, ref_iou) in zip(optimized, reference, strict=True):
             assert opt_label == ref_label
             assert abs(opt_iou - ref_iou) < 1e-7, (
                 f"label={opt_label}: optimized={opt_iou}, reference={ref_iou}"
