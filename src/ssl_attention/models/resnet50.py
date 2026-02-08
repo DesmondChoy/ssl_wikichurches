@@ -262,6 +262,9 @@ class ResNet50(BaseVisionModel):
             # Forward pass
             logits = self.model(images)  # (B, 1000) - ImageNet classes
 
+            # Clear stale parameter gradients from any previous call
+            self.model.zero_grad()
+
             # Backward pass from predicted class (for Grad-CAM)
             # Use sum of all class logits as target (class-agnostic saliency)
             logits.sum().backward()

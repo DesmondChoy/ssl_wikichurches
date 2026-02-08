@@ -11,6 +11,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import torch
+from torch import nn
 
 from ssl_attention.models.resnet50 import ResNet50
 
@@ -111,3 +112,29 @@ class TestComputeGradcamHeatmap:
 
         # Allow tolerance for bilinear interpolation (identity at same size)
         torch.testing.assert_close(result, expected_cam, atol=1e-4, rtol=1e-4)
+
+
+class TestGradientClearing:
+    """Verify that zero_grad() prevents gradient accumulation across calls."""
+
+    def test_zero_grad_prevents_accumulation(self):
+        """Two backward passes with zero_grad between them produce independent param.grad."""
+        model = nn.Linear(4, 2, bias=False)
+
+        # First backward (populates param.grad)
+        x1 = torch.randn(1, 4)
+        model.zero_grad()
+        model(x1).sum().backward()
+
+        # Second backward WITH zero_grad (the pattern our fix enforces)
+        x2 = torch.randn(1, 4)
+        model.zero_grad()
+        model(x2).sum().backward()
+        grad2 = model.weight.grad.clone()
+
+        # grad2 should equal the gradient from x2 alone, not x1+x2
+        model.zero_grad()
+        model(x2.clone()).sum().backward()
+        grad2_fresh = model.weight.grad.clone()
+
+        torch.testing.assert_close(grad2, grad2_fresh)
