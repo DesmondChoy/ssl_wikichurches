@@ -25,6 +25,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. Al
 | GET | `/api/metrics/leaderboard` | Model rankings by best IoU |
 | GET | `/api/metrics/summary` | Pre-computed metrics summary |
 | GET | `/api/metrics/{image_id}` | Per-image IoU metrics |
+| GET | `/api/metrics/{image_id}/bbox/{bbox_index}` | Per-bbox IoU metrics (computed on-the-fly) |
 | GET | `/api/metrics/{image_id}/all_models` | Per-image metrics across all models |
 | GET | `/api/metrics/model/{model}/progression` | Layer-by-layer IoU progression |
 | GET | `/api/metrics/model/{model}/style_breakdown` | IoU by architectural style |
@@ -35,6 +36,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. Al
 | GET | `/api/compare/frozen_vs_finetuned` | Frozen vs fine-tuned comparison |
 | GET | `/api/compare/layers` | Layer comparison with heatmap URLs |
 | GET | `/api/compare/all_models_summary` | Full leaderboard with progressions |
+| GET | `/health` | Health check with degraded-mode detection |
 
 ---
 
@@ -544,9 +546,53 @@ Get IoU metrics for a specific image with a given model/layer/percentile.
 
 ---
 
+### `GET /api/metrics/{image_id}/bbox/{bbox_index}`
+
+Get IoU metrics for a specific bounding box (rather than the union of all bboxes). Computed on-the-fly from the attention cache — not pre-cached in the metrics database.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `image_id` | string | Image filename |
+| `bbox_index` | int | Zero-based bounding box index (0 to `num_bboxes - 1`) |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
+| `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `method` | string | No | model default | Must be valid for model | Attention method |
+
+**Response**: `IoUResultSchema`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "layer": "layer0",
+  "percentile": 90,
+  "iou": 0.185,
+  "coverage": 0.42,
+  "attention_area": 0.10,
+  "annotation_area": 0.04
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, layer, method, or `bbox_index` out of range |
+| 404 | Annotation not found for image, or attention not cached |
+
+---
+
 ### `GET /api/metrics/{image_id}/all_models`
 
-Get metrics for a single image across all models. Models that don't support the requested layer are skipped.
+Get metrics for a single image across all models. Models that don't support the requested layer *or* the requested method are silently skipped (unlike `/api/compare/models`, which returns 400 on incompatibility).
 
 **Path Parameters**
 
@@ -801,6 +847,8 @@ Get metrics for all images for a given model/layer, with sorting and pagination.
 
 Compare multiple models side-by-side on a single image. Returns IoU metrics and heatmap URLs for each model.
 
+> **Method validation**: When a `method` is specified, it is validated against *each* selected model. If any model does not support the requested method, the endpoint returns **400** (strict validation). Use `/api/metrics/{image_id}/all_models` if you want incompatible models to be skipped instead.
+
 **Query Parameters**
 
 | Parameter | Type | Required | Default | Constraints | Description |
@@ -809,6 +857,7 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
 | `models` | list[string] | No | `["dinov2", "clip"]` | Each must be valid model | Models to compare (repeat param for multiple) |
 | `layer` | int | No | `0` | ≥ 0, within range for all models | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `method` | string | No | per-model default | Must be valid for *all* selected models | Attention method |
 
 **Response**: `ModelComparisonSchema`
 
@@ -969,6 +1018,40 @@ Get a full comparison summary of all models: leaderboard rankings plus per-layer
 | Status | Condition |
 |--------|-----------|
 | 503 | Metrics database not available |
+
+---
+
+## Health & Operations
+
+### `GET /health`
+
+Health check endpoint with degraded-mode detection. Reports the availability of critical backend resources.
+
+> **Note**: This endpoint is at `/health` (not under `/api`).
+
+**Parameters**: None
+
+**Response**: `dict`
+
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "annotations_loaded": true,
+    "metrics_db_available": true,
+    "attention_cache_available": true
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | `"healthy"` if all checks pass, `"degraded"` if any check fails |
+| `checks.annotations_loaded` | bool | Whether `building_parts.json` was parsed and images are available |
+| `checks.metrics_db_available` | bool | Whether `metrics.db` exists and is accessible |
+| `checks.attention_cache_available` | bool | Whether the HDF5 attention cache exists |
+
+**Startup Validation**: The FastAPI lifespan hook validates four resources on startup — annotations file, attention cache, metrics database, and heatmaps directory. If any are missing, the server starts in **degraded mode** and logs a warning. Endpoints dependent on missing resources return 503 or 404 as appropriate.
 
 ---
 
@@ -1140,6 +1223,17 @@ All errors follow the standard FastAPI error format:
 | **404** | Not Found | Image ID not in dataset, heatmap/attention/features not pre-computed, metrics not found for combination |
 | **500** | Internal Error | Unexpected error during attention loading or similarity computation |
 | **503** | Service Unavailable | Metrics database (`metrics.db`) or summary file not generated |
+
+### Centralized Validation
+
+All parameter validation is handled by `app/backend/validators.py`, which provides reusable helpers used across all routers:
+
+| Function | Purpose |
+|----------|---------|
+| `validate_model(model)` | Resolves aliases (e.g., `siglip2` → `siglip`) and returns 400 if invalid |
+| `validate_method(model, method)` | Validates that the method is available for the model; returns 400 if not |
+| `validate_layer_for_model(layer, model)` | Checks layer bounds per model; returns 400 if out of range |
+| `resolve_default_method(model)` | Returns the default attention method for a model |
 
 ### Pre-computation Dependencies
 

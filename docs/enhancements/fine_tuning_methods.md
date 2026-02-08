@@ -54,6 +54,8 @@ classifier = nn.Linear(768, num_classes)  # ViT-B hidden dimension
 
 **Expected attention shift:** None (Δ IoU ≈ 0)
 
+**Implementation note:** The linear probe uses an `sklearn.Pipeline` that wraps `StandardScaler` + `LogisticRegression`. This ensures the scaler is fit only on each cross-validation training fold, preventing data leakage from test-fold statistics.
+
 **References:**
 - [Understanding DINOv2: Engineer's Deep Dive](https://www.lightly.ai/blog/dinov2) — DINOv2 excels as frozen feature extractor
 - [DINOv3 Technical Overview](https://arxiv.org/html/2508.10104v1) — "With DINOv3, finetuning is not necessary to obtain strong performance"
@@ -400,6 +402,8 @@ outputs/checkpoints/
 ```
 
 Linear probe and full fine-tuning share the same checkpoint path — the difference is whether the backbone was frozen during training, which is recorded in the training results JSON.
+
+**Checkpoint discovery**: `load_finetuned_model()` checks both naming patterns automatically — first looking for `{model}_lora_finetuned.pt`, then falling back to `{model}_finetuned.pt`. This means LoRA checkpoints are preferred when both exist for the same model. The `generate_attention_cache.py --finetuned` flag uses this same discovery logic when caching fine-tuned model attention.
 
 ---
 

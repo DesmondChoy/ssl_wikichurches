@@ -115,16 +115,24 @@ Attention maps are continuous-valued (each pixel has a floating-point attention 
 Given an attention map and a percentile *p*:
 
 1. Flatten all attention values into a 1D array
-2. Compute the *p*-th percentile value using `torch.quantile(attention, p / 100)`
-3. Create a binary mask: pixel = 1 if attention ≥ threshold, else 0
+2. Compute `k = round(n × (100 − p) / 100)` — the exact number of top pixels to select
+3. Use `torch.topk(flat, k)` to find the top-*k* indices
+4. Create a binary mask: pixel = 1 if its index is in the top-*k* set, else 0
 
-**Example:** At percentile=90, we find the value below which 90% of pixels fall. All pixels at or above this value are marked as "high attention." This always selects exactly the **top 10% of pixels by count**.
+**Example:** At percentile=90, we compute k = round(n × 0.10). `torch.topk` selects exactly the **top 10% of pixels by count**, regardless of tied values.
 
 ```python
 # From src/ssl_attention/metrics/iou.py → threshold_attention()
-threshold = torch.quantile(attn.flatten().float(), percentile / 100.0)
-mask = attn >= threshold
+flat = attn.flatten().float()
+n = flat.numel()
+k = max(1, round(n * (100 - percentile) / 100.0))
+_, top_indices = torch.topk(flat, k)
+mask = torch.zeros(n, dtype=torch.bool, device=attn.device)
+mask[top_indices] = True
+mask = mask.view(attn.shape)
 ```
+
+**Why `topk` instead of `quantile`:** On low-resolution grids (e.g., ResNet-50's 7×7 = 49 pixels), `torch.quantile` with a `>=` comparison can select more pixels than intended when many values are tied. `topk` guarantees an exact pixel count regardless of ties or grid resolution.
 
 ### Comparison with Other Thresholding Approaches
 
@@ -273,7 +281,7 @@ This illustrates that both model choice and attention method significantly affec
 
 ### 1. Pixel-Count vs Mass Thresholding
 
-This project uses pixel-count percentile thresholding (via `torch.quantile`), while the DINO paper uses cumulative-mass thresholding. As a result:
+This project uses pixel-count percentile thresholding (via `torch.topk`), while the DINO paper uses cumulative-mass thresholding. As a result:
 
 - **IoU numbers from this project are not directly comparable to DINO paper numbers**, even when evaluating the same DINOv2 model
 - Both methods are valid; they answer slightly different questions about attention concentration
@@ -289,9 +297,13 @@ In the Image Detail view, selecting a bounding box switches the displayed IoU an
 
 The per-bbox metrics are computed on the backend via `compute_per_bbox_iou()` and are also used for the Feature Breakdown analysis on the Dashboard.
 
-### 4. Strict Pointing Game Variant
+### 4. Pointing Game Tolerance
 
-The CorLoc implementation uses a strict variant (IoU ≥ 0.5) without the 15-pixel tolerance border used in the standard Pointing Game protocol (Zhang et al., 2016). This means CorLoc scores may be slightly lower than those reported in papers using the standard protocol.
+The `pointing_game_hit()` function accepts an optional `tolerance` parameter (default `0`) that controls bbox dilation before checking if the maximum attention point falls inside. The standard Pointing Game protocol (Zhang et al., 2016) uses a 15-pixel tolerance border; pass `tolerance=15` to match this convention. With the default `tolerance=0`, the implementation uses strict containment — CorLoc scores may be slightly lower than those reported in papers using the standard protocol.
+
+```
+Source: src/ssl_attention/metrics/pointing_game.py → pointing_game_hit(attention, annotation, tolerance=0)
+```
 
 ---
 

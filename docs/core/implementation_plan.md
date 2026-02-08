@@ -280,8 +280,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Train single model or all models via CLI flags
    - Configurable hyperparameters (epochs, batch size, learning rates)
    - Head-only training option (`--freeze-backbone`)
-   - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt`
+   - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt` (linear probe / full) or `{model}_lora_finetuned.pt` (LoRA)
    - Training summary with per-model results
+   - `generate_attention_cache.py --finetuned` flag caches fine-tuned model attention maps
+   - Checkpoint discovery checks both `{model}_finetuned.pt` and `{model}_lora_finetuned.pt`, preferring LoRA when both exist
 
 3. **Comparative analysis** (`experiments/scripts/analyze_delta_iou.py`) ✅
    - Load frozen baseline and fine-tuned models
@@ -466,6 +468,14 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `app/backend/schemas/models.py` | Added BboxInput, SimilarityResponse | ✅ Done |
 | `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` | Clickable bbox SVG overlay | ✅ Done |
 | `app/frontend/src/utils/renderHeatmap.ts` | Client-side viridis heatmap | ✅ Done |
+
+### Phase 6 Enhancement: Error Handling & Validation
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `app/frontend/src/components/ui/ErrorBoundary.tsx` | React error boundary for graceful failure isolation | ✅ Done |
+| `app/backend/validators.py` | Centralized parameter validation (model, layer, method) | ✅ Done |
+| `app/frontend/src/constants/percentiles.ts` | Shared percentile constants for frontend | ✅ Done |
 
 ### Phase 6 Enhancement: Interactive Bbox Comparison
 
