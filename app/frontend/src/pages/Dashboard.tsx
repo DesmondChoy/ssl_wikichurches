@@ -16,6 +16,7 @@ import { useModels } from '../hooks/useAttention';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 
@@ -100,10 +101,12 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard */}
         <div>
-          <ModelLeaderboard
-            percentile={percentile}
-            onModelSelect={setModel}
-          />
+          <ErrorBoundary resetKeys={[percentile]}>
+            <ModelLeaderboard
+              percentile={percentile}
+              onModelSelect={setModel}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Layer progression chart */}
@@ -158,7 +161,9 @@ export function DashboardPage() {
         </Card>
 
         {/* Feature breakdown */}
-        <FeatureBreakdown model={model} layer={layer} percentile={percentile} method={method} />
+        <ErrorBoundary resetKeys={[model, layer, percentile, method]}>
+          <FeatureBreakdown model={model} layer={layer} percentile={percentile} method={method} />
+        </ErrorBoundary>
       </div>
 
       {/* Quick links */}

@@ -11,6 +11,7 @@ import { useModelComparison } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Card, CardContent } from '../ui/Card';
 import { SimilarityViewer } from './SimilarityViewer';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { renderHeatmapLegend } from '../../utils/renderHeatmap';
 import type { BoundingBox } from '../../types';
 
@@ -73,14 +74,16 @@ export function ModelCompare({
       <div className="grid grid-cols-2 gap-4">
         {/* Left model */}
         <Card>
-          <SimilarityViewer
-            imageId={imageId}
-            model={leftModel}
-            layer={layer}
-            bboxes={bboxes}
-            selectedBboxIndex={selectedBboxIndex}
-            onBboxSelect={setSelectedBboxIndex}
-          />
+          <ErrorBoundary resetKeys={[imageId, leftModel, layer]}>
+            <SimilarityViewer
+              imageId={imageId}
+              model={leftModel}
+              layer={layer}
+              bboxes={bboxes}
+              selectedBboxIndex={selectedBboxIndex}
+              onBboxSelect={setSelectedBboxIndex}
+            />
+          </ErrorBoundary>
           <CardContent>
             {comparison?.results.find((r) => r.model === leftModel) && (
               <div className="text-sm">
@@ -95,14 +98,16 @@ export function ModelCompare({
 
         {/* Right model */}
         <Card>
-          <SimilarityViewer
-            imageId={imageId}
-            model={rightModel}
-            layer={layer}
-            bboxes={bboxes}
-            selectedBboxIndex={selectedBboxIndex}
-            onBboxSelect={setSelectedBboxIndex}
-          />
+          <ErrorBoundary resetKeys={[imageId, rightModel, layer]}>
+            <SimilarityViewer
+              imageId={imageId}
+              model={rightModel}
+              layer={layer}
+              bboxes={bboxes}
+              selectedBboxIndex={selectedBboxIndex}
+              onBboxSelect={setSelectedBboxIndex}
+            />
+          </ErrorBoundary>
           <CardContent>
             {comparison?.results.find((r) => r.model === rightModel) && (
               <div className="text-sm">

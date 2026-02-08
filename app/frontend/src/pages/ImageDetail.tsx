@@ -13,6 +13,7 @@ import { ControlPanel } from '../components/attention/ControlPanel';
 import { LayerSlider } from '../components/attention/LayerSlider';
 import { IoUDisplay } from '../components/metrics/IoUDisplay';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
@@ -166,18 +167,20 @@ export function ImageDetailPage() {
 
         {/* Center: Attention viewer */}
         <div className="lg:col-span-5 space-y-4">
-          <AttentionViewer
-            imageId={decodedId}
-            model={model}
-            layer={layer}
-            method={method}
-            percentile={percentile}
-            showBboxes={showBboxes}
-            bboxes={imageDetail?.annotation.bboxes}
-            selectedBboxIndex={selectedBboxIndex}
-            onBboxSelect={handleBboxSelect}
-            className="aspect-square"
-          />
+          <ErrorBoundary resetKeys={[model, layer, method, percentile]}>
+            <AttentionViewer
+              imageId={decodedId}
+              model={model}
+              layer={layer}
+              method={method}
+              percentile={percentile}
+              showBboxes={showBboxes}
+              bboxes={imageDetail?.annotation.bboxes}
+              selectedBboxIndex={selectedBboxIndex}
+              onBboxSelect={handleBboxSelect}
+              className="aspect-square"
+            />
+          </ErrorBoundary>
 
           {/* Layer slider */}
           <Card>
@@ -202,7 +205,9 @@ export function ImageDetailPage() {
               <h3 className="font-semibold">Metrics</h3>
             </CardHeader>
             <CardContent>
-              <IoUDisplay metrics={effectiveMetrics} isLoading={effectiveLoading} bboxLabel={metricsContext} />
+              <ErrorBoundary resetKeys={[model, layer, percentile, method, selectedBboxIndex]}>
+                <IoUDisplay metrics={effectiveMetrics} isLoading={effectiveLoading} bboxLabel={metricsContext} />
+              </ErrorBoundary>
             </CardContent>
           </Card>
 

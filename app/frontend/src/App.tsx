@@ -8,6 +8,7 @@ import { HomePage } from './pages/Home';
 import { ImageDetailPage } from './pages/ImageDetail';
 import { ComparePage } from './pages/Compare';
 import { DashboardPage } from './pages/Dashboard';
+import { RouteErrorBoundary } from './components/ui/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,10 +79,10 @@ export default function App() {
           {/* Main content */}
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/image/:imageId" element={<ImageDetailPage />} />
-              <Route path="/compare" element={<ComparePage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/" element={<RouteErrorBoundary><HomePage /></RouteErrorBoundary>} />
+              <Route path="/image/:imageId" element={<RouteErrorBoundary><ImageDetailPage /></RouteErrorBoundary>} />
+              <Route path="/compare" element={<RouteErrorBoundary><ComparePage /></RouteErrorBoundary>} />
+              <Route path="/dashboard" element={<RouteErrorBoundary><DashboardPage /></RouteErrorBoundary>} />
             </Routes>
           </main>
 
