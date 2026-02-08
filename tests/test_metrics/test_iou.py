@@ -252,6 +252,83 @@ class TestComputeCoverage:
         assert coverage == 1.0
 
 
+class TestThresholdAttentionTies:
+    """Test that topk-based thresholding handles tied values correctly.
+
+    The old quantile+>= approach selected ALL tied pixels at the boundary,
+    violating the "top k%" contract. These tests verify the topk fix
+    guarantees exact pixel counts regardless of ties.
+    """
+
+    def test_constant_attention_selects_exact_count(self):
+        """All-ones attention (worst case: every value tied).
+
+        With quantile thresholding, this would select 100% of pixels
+        for any percentile < 100. With topk, it must select exactly k.
+        """
+        attn = torch.ones(14, 14)  # 196 pixels, all tied
+        n = 196
+
+        for percentile in [90, 80, 50]:
+            mask = threshold_attention(attn, percentile=percentile)
+            expected_k = max(1, round(n * (100 - percentile) / 100.0))
+            assert mask.sum().item() == expected_k, (
+                f"percentile={percentile}: expected {expected_k} pixels, "
+                f"got {mask.sum().item()}"
+            )
+
+    def test_step_function_selects_exact_count(self):
+        """Binary attention (50% zeros, 50% ones).
+
+        At percentile=50, should select exactly 50% of pixels.
+        Old code would select all ones (50%) which happens to be correct,
+        but at percentile=80 it would select all ones (50%) instead of 20%.
+        """
+        attn = torch.zeros(10, 10)  # 100 pixels
+        attn[:5, :] = 1.0  # Top half = 1, bottom half = 0
+
+        mask = threshold_attention(attn, percentile=80)
+        expected_k = max(1, round(100 * 20 / 100.0))  # 20 pixels
+        assert mask.sum().item() == expected_k, (
+            f"Expected {expected_k} pixels, got {mask.sum().item()}"
+        )
+
+    def test_small_grid_exact_count(self):
+        """7x7 grid (ResNet-50 scenario) with repeated values.
+
+        This is the most affected case: only 49 pixels, and many attention
+        values are quantized/repeated. topk must select exactly k.
+        """
+        # Simulate quantized attention: only 4 distinct values
+        attn = torch.zeros(7, 7)
+        attn[0:2, :] = 0.1  # 14 pixels
+        attn[2:4, :] = 0.3  # 14 pixels
+        attn[4:6, :] = 0.6  # 14 pixels
+        attn[6:7, :] = 0.9  # 7 pixels
+
+        n = 49
+        for percentile in [90, 80, 70, 50]:
+            mask = threshold_attention(attn, percentile=percentile)
+            expected_k = max(1, round(n * (100 - percentile) / 100.0))
+            assert mask.sum().item() == expected_k, (
+                f"percentile={percentile}: expected {expected_k} pixels, "
+                f"got {mask.sum().item()}"
+            )
+
+    def test_percentile_0_keeps_all(self):
+        """percentile=0 must keep every pixel regardless of ties."""
+        attn = torch.ones(7, 7)
+        mask = threshold_attention(attn, percentile=0)
+        assert mask.all()
+        assert mask.sum().item() == 49
+
+    def test_percentile_100_keeps_at_least_one(self):
+        """percentile=100 must keep at least 1 pixel (max(1, ...))."""
+        attn = torch.ones(7, 7)
+        mask = threshold_attention(attn, percentile=100)
+        assert mask.sum().item() == 1
+
+
 class TestIoUEdgeCases:
     """Test edge cases in IoU computation."""
 
@@ -308,5 +385,5 @@ def test_percentile_coverage_uniform_attention(percentile: int, expected_coverag
 
     actual_coverage = mask.float().mean().item()
 
-    # Allow 5% tolerance
-    assert abs(actual_coverage - expected_coverage) < 0.05
+    # topk guarantees exact pixel count; 1% tolerance for rounding only
+    assert abs(actual_coverage - expected_coverage) < 0.01

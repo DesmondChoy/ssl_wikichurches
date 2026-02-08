@@ -79,8 +79,8 @@ class BatchIoUResult:
 def threshold_attention(attention: Tensor, percentile: int) -> Tensor:
     """Create binary mask from attention by keeping top percentile values.
 
-    Uses torch.quantile for robust thresholding across different attention
-    value distributions.
+    Uses torch.topk to select exactly k = round(n * (100 - percentile) / 100)
+    pixels, guaranteeing a fixed pixel count regardless of tied values.
 
     Args:
         attention: Attention map of shape (H, W) or (B, H, W).
@@ -88,7 +88,7 @@ def threshold_attention(attention: Tensor, percentile: int) -> Tensor:
             Must be in range [0, 100].
 
     Returns:
-        Binary mask of same shape with True where attention >= threshold.
+        Binary mask of same shape with True for the top-k pixels.
 
     Example:
         >>> attn = torch.rand(224, 224)
@@ -108,9 +108,17 @@ def threshold_attention(attention: Tensor, percentile: int) -> Tensor:
 
     for i in range(batch_size):
         attn = attention[i]  # (H, W)
-        # Compute threshold at given percentile
-        threshold = torch.quantile(attn.flatten().float(), percentile / 100.0)
-        mask = attn >= threshold
+        flat = attn.flatten().float()
+        n = flat.numel()
+        k = max(1, round(n * (100 - percentile) / 100.0))
+
+        if percentile == 0:
+            mask = torch.ones_like(attn, dtype=torch.bool)
+        else:
+            _, top_indices = torch.topk(flat, k)
+            mask = torch.zeros(n, dtype=torch.bool, device=attn.device)
+            mask[top_indices] = True
+            mask = mask.view(attn.shape)
         masks.append(mask)
 
     result = torch.stack(masks, dim=0)
