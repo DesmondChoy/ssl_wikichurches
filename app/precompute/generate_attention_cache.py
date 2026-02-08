@@ -81,11 +81,14 @@ def discover_checkpoints(
         if name not in FINETUNE_MODELS:
             print(f"Warning: {name} is not fine-tunable (skipped)")
             continue
-        path = checkpoint_dir / f"{name}_finetuned.pt"
-        if path.exists():
-            found[name] = path
+        lora_path = checkpoint_dir / f"{name}_lora_finetuned.pt"
+        full_path = checkpoint_dir / f"{name}_finetuned.pt"
+        if lora_path.exists():
+            found[name] = lora_path
+        elif full_path.exists():
+            found[name] = full_path
         else:
-            print(f"Warning: No checkpoint for {name} at {path}")
+            print(f"Warning: No checkpoint for {name} in {checkpoint_dir}")
 
     return found
 

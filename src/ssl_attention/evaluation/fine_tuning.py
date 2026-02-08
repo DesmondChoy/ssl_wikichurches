@@ -895,7 +895,16 @@ def load_finetuned_model(
         FileNotFoundError: If checkpoint does not exist.
     """
     if checkpoint_path is None:
-        checkpoint_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
+        lora_path = CHECKPOINTS_PATH / f"{model_name}_lora_finetuned.pt"
+        full_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
+        if lora_path.exists():
+            checkpoint_path = lora_path
+        elif full_path.exists():
+            checkpoint_path = full_path
+        else:
+            raise FileNotFoundError(
+                f"No checkpoint found for {model_name} in {CHECKPOINTS_PATH}"
+            )
 
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")

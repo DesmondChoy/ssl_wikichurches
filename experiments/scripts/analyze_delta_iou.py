@@ -166,8 +166,9 @@ def get_available_checkpoints() -> list[str]:
     """
     available = []
     for model_name in MODELS.keys():
-        checkpoint_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
-        if checkpoint_path.exists():
+        lora_path = CHECKPOINTS_PATH / f"{model_name}_lora_finetuned.pt"
+        full_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
+        if lora_path.exists() or full_path.exists():
             available.append(model_name)
     return available
 
