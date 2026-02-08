@@ -59,12 +59,18 @@ class TestAttentionRollout:
         assert rollout.shape == (1, seq_len, seq_len)
 
     def test_batch_elements_have_independent_memory(self, make_attention_weights):
-        """Batch elements must not share underlying data (expand→clone safety)."""
+        """Batch elements must not share underlying data (expand→clone safety).
+
+        Specifically targets the edge case where start_layer >= end_layer
+        (empty loop), so the initialized identity is returned directly.
+        Without .clone(), expand() would share storage across batch elements.
+        """
         attention_weights = make_attention_weights(batch_size=2, seq_len=50, num_layers=4)
 
-        rollout = attention_rollout(attention_weights)
+        # Empty layer range → identity returned directly (no bmm to break aliasing)
+        rollout = attention_rollout(attention_weights, start_layer=2, end_layer=2)
 
-        # Each batch element should have its own storage
+        # Each batch element must have its own storage
         assert rollout[0].data_ptr() != rollout[1].data_ptr()
 
     def test_layer_range_selection(self, make_attention_weights):
