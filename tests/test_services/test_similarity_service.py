@@ -78,9 +78,8 @@ class TestBboxToPatchIndices:
         # Expected: rows 6-7, cols 6-7
         # Row 6: 6*14 + 6 = 90, 6*14 + 7 = 91
         # Row 7: 7*14 + 6 = 104, 7*14 + 7 = 105
-        expected = {90, 91, 104, 105}
-
         # Check that we get a 2x2 region in the center area
+        # Expected: {90, 91, 104, 105} — exact indices depend on boundary handling
         assert len(indices) >= 4
         # The exact indices depend on boundary handling
 

@@ -132,8 +132,8 @@ def make_annotation():
             bboxes = [(0.1, 0.2, 0.3, 0.4)]
 
         bbox_objects = tuple(
-            BoundingBox(left=l, top=t, width=w, height=h, label=i, group_label=0)
-            for i, (l, t, w, h) in enumerate(bboxes)
+            BoundingBox(left=left, top=t, width=w, height=h, label=i, group_label=0)
+            for i, (left, t, w, h) in enumerate(bboxes)
         )
 
         return ImageAnnotation(
