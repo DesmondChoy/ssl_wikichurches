@@ -69,9 +69,8 @@ async def get_image_metrics(
     Returns IoU, coverage, and area statistics.
     """
     validate_model(model)
-    validate_layer_for_model(layer, model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -155,11 +154,9 @@ async def get_bbox_metrics(
     Computes IoU and coverage on-the-fly for a single bbox
     against the attention map (rather than the union of all bboxes).
     """
-    validate_model(model)
-    validate_layer_for_model(layer, model)
+    resolved_model = validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
-    cache_model = resolve_model_name(model)
 
     # Load annotation
     annotation = image_service.get_annotation(image_id)
@@ -176,7 +173,7 @@ async def get_bbox_metrics(
     # Load attention tensor from HDF5 cache
     try:
         attention_tensor = attention_service.cache.load(
-            cache_model, layer_key, image_id, variant=resolved_method
+            resolved_model, layer_key, image_id, variant=resolved_method
         )
     except KeyError:
         raise HTTPException(
@@ -186,7 +183,7 @@ async def get_bbox_metrics(
 
     # Reshape 1D tensors to 2D grid
     if attention_tensor.dim() == 1:
-        grid_rows, grid_cols = attention_service.get_attention_grid(cache_model)
+        grid_rows, grid_cols = attention_service.get_attention_grid(resolved_model)
         attention_tensor = attention_tensor.reshape(grid_rows, grid_cols)
 
     # Generate mask for the specific bbox
@@ -246,9 +243,8 @@ async def get_style_breakdown(
     Shows how well the model attends to different architectural styles.
     """
     validate_model(model)
-    validate_layer_for_model(layer, model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -275,9 +271,8 @@ async def get_feature_breakdown(
     (e.g., windows, doors, arches) across all 106 feature types.
     """
     validate_model(model)
-    validate_layer_for_model(layer, model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -303,9 +298,8 @@ async def get_aggregate_metrics(
     Returns mean, std, median IoU across all images.
     """
     validate_model(model)
-    validate_layer_for_model(layer, model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -337,9 +331,8 @@ async def get_all_images_metrics(
     Returns list of images sorted by IoU or coverage.
     """
     validate_model(model)
-    validate_layer_for_model(layer, model)
+    layer_key = validate_layer_for_model(layer, model)
     resolved_method = validate_method(model, method)
-    layer_key = f"layer{layer}"
 
     if not metrics_service.db_exists:
         raise HTTPException(

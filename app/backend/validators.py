@@ -68,11 +68,14 @@ def validate_method(model: str, method: str | None) -> str:
     return method
 
 
-def validate_model(model: str) -> None:
-    """Validate model name exists in available models.
+def validate_model(model: str) -> str:
+    """Validate model name and return resolved canonical name.
 
     Args:
-        model: Model name (may be alias).
+        model: Model name (may be alias like 'siglip2').
+
+    Returns:
+        Resolved canonical model name (e.g., 'siglip' for 'siglip2').
 
     Raises:
         HTTPException: If model is not available.
@@ -82,14 +85,18 @@ def validate_model(model: str) -> None:
             status_code=400,
             detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
         )
+    return resolve_model_name(model)
 
 
-def validate_layer_for_model(layer: int, model: str) -> None:
-    """Validate layer is within bounds for the given model.
+def validate_layer_for_model(layer: int, model: str) -> str:
+    """Validate layer is within bounds and return layer key.
 
     Args:
         layer: Layer index (0-based).
         model: Model name (may be alias).
+
+    Returns:
+        Layer key string (e.g., 'layer5').
 
     Raises:
         HTTPException: If layer is out of bounds for the model.
@@ -100,3 +107,4 @@ def validate_layer_for_model(layer: int, model: str) -> None:
             status_code=400,
             detail=f"Invalid layer: {layer}. Model '{model}' has {num_layers} layers (0-{num_layers - 1}).",
         )
+    return f"layer{layer}"

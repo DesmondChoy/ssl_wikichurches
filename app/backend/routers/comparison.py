@@ -6,11 +6,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
+from app.backend.config import get_model_num_layers, resolve_model_name
 from app.backend.schemas import IoUResultSchema, ModelComparisonSchema
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
-from app.backend.validators import resolve_default_method, validate_layer_for_model, validate_method
+from app.backend.validators import (
+    resolve_default_method,
+    validate_layer_for_model,
+    validate_method,
+    validate_model,
+)
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
@@ -32,15 +37,9 @@ async def compare_models(
     if models is None:
         models = ["dinov2", "clip"]
 
-    # Validate models
-    invalid = [m for m in models if m not in AVAILABLE_MODELS]
-    if invalid:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid models: {invalid}. Available: {AVAILABLE_MODELS}",
-        )
-
-    # Validate layer for all requested models
+    # Validate models and layer for all requested models
+    for model in models:
+        validate_model(model)
     for model in models:
         validate_layer_for_model(layer, model)
 
@@ -99,19 +98,12 @@ async def compare_frozen_vs_finetuned(
     Note: Fine-tuned models are not yet available. This endpoint
     returns URLs for the frozen model with placeholder for fine-tuned.
     """
-    if model not in AVAILABLE_MODELS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
-        )
-
-    validate_layer_for_model(layer, model)
+    resolved_model = validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
 
     if not image_service.get_annotation(image_id):
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
 
-    layer_key = f"layer{layer}"
-    resolved_model = resolve_model_name(model)
     method = resolve_default_method(model)
 
     # Frozen model (always available after pre-computation)
@@ -148,11 +140,7 @@ async def compare_layers(
 
     Used for layer progression animation and analysis.
     """
-    if model not in AVAILABLE_MODELS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
-        )
+    resolved_model = validate_model(model)
 
     if not image_service.get_annotation(image_id):
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
@@ -164,7 +152,6 @@ async def compare_layers(
         )
 
     # Get per-model layer count
-    resolved_model = resolve_model_name(model)
     num_layers = get_model_num_layers(resolved_model)
     resolved_method = validate_method(model, method)
 

@@ -3,7 +3,12 @@
 import pytest
 from fastapi import HTTPException
 
-from app.backend.validators import resolve_default_method, validate_method
+from app.backend.validators import (
+    resolve_default_method,
+    validate_layer_for_model,
+    validate_method,
+    validate_model,
+)
 
 
 def test_resolve_default_method_cls_models():
@@ -76,3 +81,47 @@ class TestValidateMethod:
         """Aliases should be resolved before method validation."""
         # siglip2 is an alias for siglip
         assert validate_method("siglip2", "mean") == "mean"
+
+
+# --- validate_model tests ---
+
+
+class TestValidateModel:
+    """Tests for validate_model return values and error handling."""
+
+    def test_returns_resolved_name(self):
+        """validate_model should return the resolved canonical model name."""
+        assert validate_model("dinov2") == "dinov2"
+        assert validate_model("siglip2") == "siglip"
+
+    def test_invalid_model_raises(self):
+        """Unknown model should raise HTTPException 400."""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_model("nonexistent_model")
+        assert exc_info.value.status_code == 400
+        assert "Invalid model" in exc_info.value.detail
+
+
+# --- validate_layer_for_model tests ---
+
+
+class TestValidateLayerForModel:
+    """Tests for validate_layer_for_model return values and error handling."""
+
+    def test_returns_layer_key(self):
+        """validate_layer_for_model should return the layer key string."""
+        assert validate_layer_for_model(5, "dinov2") == "layer5"
+        assert validate_layer_for_model(0, "dinov2") == "layer0"
+
+    def test_out_of_bounds_raises(self):
+        """Layer index >= num_layers should raise HTTPException 400."""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_layer_for_model(999, "dinov2")
+        assert exc_info.value.status_code == 400
+        assert "Invalid layer" in exc_info.value.detail
+
+    def test_negative_layer_raises(self):
+        """Negative layer index should raise HTTPException 400."""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_layer_for_model(-1, "dinov2")
+        assert exc_info.value.status_code == 400

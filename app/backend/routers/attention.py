@@ -23,43 +23,11 @@ from app.backend.schemas.models import BboxInput, RawAttentionResponse, Similari
 from app.backend.services.attention_service import attention_service
 from app.backend.services.image_service import image_service
 from app.backend.services.similarity_service import similarity_service
-from app.backend.validators import validate_method
+from app.backend.validators import validate_layer_for_model, validate_method, validate_model
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/attention", tags=["attention"])
-
-
-def validate_model(model: str) -> str:
-    """Validate model name and return resolved canonical name."""
-    if model not in AVAILABLE_MODELS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
-        )
-    return resolve_model_name(model)
-
-
-def validate_layer(layer: int, model: str) -> str:
-    """Validate layer number for a specific model and return layer key.
-
-    Args:
-        layer: Layer number to validate.
-        model: Canonical model name.
-
-    Returns:
-        Layer key string (e.g., "layer0").
-
-    Raises:
-        HTTPException: If layer is out of range for the model.
-    """
-    num_layers = get_model_num_layers(model)
-    if not 0 <= layer < num_layers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid layer: {layer}. Model '{model}' has {num_layers} layers (0-{num_layers - 1}).",
-        )
-    return f"layer{layer}"
 
 
 @router.get("/{image_id}/heatmap")
@@ -74,7 +42,7 @@ async def get_heatmap(
     Returns the attention map rendered with the configured colormap.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer(layer, resolved_model)
+    layer_key = validate_layer_for_model(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
 
     if not image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant="heatmap"):
@@ -117,7 +85,7 @@ async def get_overlay(
         show_bboxes: If True, also draw bounding box annotations.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer(layer, resolved_model)
+    layer_key = validate_layer_for_model(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
 
     variant = "overlay_bbox" if show_bboxes else "overlay"
@@ -163,7 +131,7 @@ async def get_raw_attention(
         method: Attention method (cls, rollout, mean, gradcam). Default per model.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer(layer, resolved_model)
+    layer_key = validate_layer_for_model(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
 
     # Check if attention is cached
@@ -276,7 +244,7 @@ async def compute_bbox_similarity(
         SimilarityResponse with similarity values for each patch.
     """
     resolved_model = validate_model(model)
-    validate_layer(layer, resolved_model)
+    validate_layer_for_model(layer, resolved_model)
 
     # Check if features are cached
     if not similarity_service.features_exist(resolved_model, layer, image_id):
