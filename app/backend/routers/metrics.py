@@ -179,7 +179,7 @@ async def get_bbox_metrics(
         raise HTTPException(
             status_code=404,
             detail=f"Attention not cached for {model}/{layer_key}/{resolved_method}/{image_id}. Run precompute first.",
-        )
+        ) from None
 
     # Reshape 1D tensors to 2D grid
     if attention_tensor.dim() == 1:

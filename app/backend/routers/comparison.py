@@ -40,7 +40,6 @@ async def compare_models(
     # Validate models and layer for all requested models
     for model in models:
         validate_model(model)
-    for model in models:
         validate_layer_for_model(layer, model)
 
     # Check image exists
