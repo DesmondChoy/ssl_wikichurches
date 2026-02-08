@@ -344,13 +344,14 @@ def compute_per_bbox_iou(
     h, w = attention.shape[-2:]
     results: list[tuple[int, float]] = []
 
-    for bbox in annotation.bboxes:
-        # Generate mask for this specific bbox
-        bbox_mask = bbox.to_mask(h, w)
-        bbox_mask = bbox_mask.to(attention.device)
+    # Threshold attention ONCE for all bboxes (avoids redundant topk per bbox)
+    attn_mask = threshold_attention(attention, percentile).bool()
 
-        # Compute IoU
-        iou, _, _ = compute_iou(attention, bbox_mask, percentile)
+    for bbox in annotation.bboxes:
+        bbox_mask = bbox.to_mask(h, w).to(attention.device).bool()
+        intersection = (attn_mask & bbox_mask).sum().item()
+        union = (attn_mask | bbox_mask).sum().item()
+        iou = intersection / (union + EPSILON) if union > 0 else 0.0
         results.append((bbox.label, iou))
 
     return results

@@ -9,9 +9,13 @@ from __future__ import annotations
 import pytest
 import torch
 
+from unittest.mock import patch
+
+from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
 from ssl_attention.metrics.iou import (
     compute_coverage,
     compute_iou,
+    compute_per_bbox_iou,
     threshold_attention,
 )
 
@@ -387,3 +391,90 @@ def test_percentile_coverage_uniform_attention(percentile: int, expected_coverag
 
     # topk guarantees exact pixel count; 1% tolerance for rounding only
     assert abs(actual_coverage - expected_coverage) < 0.01
+
+
+def _make_annotation(*bbox_specs: tuple[float, float, float, float, int]) -> ImageAnnotation:
+    """Helper: create an ImageAnnotation from (left, top, w, h, label) tuples."""
+    bboxes = tuple(
+        BoundingBox(left=l, top=t, width=w, height=h, label=lab, group_label=0)
+        for l, t, w, h, lab in bbox_specs
+    )
+    return ImageAnnotation(image_id="test.jpg", styles=(), bboxes=bboxes)
+
+
+class TestComputePerBboxIoU:
+    """Test per-bbox IoU computation with the optimized threshold-once path."""
+
+    def test_basic_per_bbox_iou(self):
+        """Known attention + bboxes produce correct (label, iou) tuples."""
+        # 10×10 attention with high values in top-left quadrant
+        attention = torch.zeros(10, 10)
+        attention[0:5, 0:5] = 1.0  # 25 pixels high
+
+        # Two bboxes: one overlapping attention, one not
+        annotation = _make_annotation(
+            (0.0, 0.0, 0.5, 0.5, 1),  # top-left → overlaps attention
+            (0.5, 0.5, 0.5, 0.5, 2),  # bottom-right → no overlap
+        )
+
+        # percentile=75 keeps top 25% → exactly the high-attention pixels
+        results = compute_per_bbox_iou(attention, annotation, percentile=75)
+
+        assert len(results) == 2
+        # First bbox: perfect overlap with attention
+        assert results[0][0] == 1  # label
+        assert results[0][1] > 0.95  # iou ≈ 1.0
+        # Second bbox: no overlap
+        assert results[1][0] == 2  # label
+        assert results[1][1] == 0.0  # iou = 0
+
+    def test_matches_compute_iou_per_bbox(self):
+        """Optimized function must produce identical IoU vs calling compute_iou per bbox."""
+        attention = torch.rand(14, 14)
+
+        annotation = _make_annotation(
+            (0.0, 0.0, 0.3, 0.4, 10),
+            (0.2, 0.3, 0.5, 0.5, 20),
+            (0.6, 0.6, 0.4, 0.4, 30),
+        )
+
+        percentile = 80
+        h, w = attention.shape[-2:]
+
+        # Optimized path
+        optimized = compute_per_bbox_iou(attention, annotation, percentile)
+
+        # Reference: call compute_iou individually per bbox
+        reference = []
+        for bbox in annotation.bboxes:
+            bbox_mask = bbox.to_mask(h, w).to(attention.device)
+            iou, _, _ = compute_iou(attention, bbox_mask, percentile)
+            reference.append((bbox.label, iou))
+
+        assert len(optimized) == len(reference)
+        for (opt_label, opt_iou), (ref_label, ref_iou) in zip(optimized, reference):
+            assert opt_label == ref_label
+            assert abs(opt_iou - ref_iou) < 1e-7, (
+                f"label={opt_label}: optimized={opt_iou}, reference={ref_iou}"
+            )
+
+    def test_threshold_called_once(self):
+        """threshold_attention must be called exactly once regardless of bbox count."""
+        attention = torch.rand(14, 14)
+
+        annotation = _make_annotation(
+            (0.0, 0.0, 0.3, 0.3, 1),
+            (0.3, 0.0, 0.3, 0.3, 2),
+            (0.6, 0.0, 0.3, 0.3, 3),
+            (0.0, 0.5, 0.5, 0.5, 4),
+        )
+
+        with patch(
+            "ssl_attention.metrics.iou.threshold_attention",
+            wraps=threshold_attention,
+        ) as mock_thresh:
+            compute_per_bbox_iou(attention, annotation, percentile=90)
+
+        assert mock_thresh.call_count == 1, (
+            f"Expected 1 call to threshold_attention, got {mock_thresh.call_count}"
+        )

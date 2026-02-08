@@ -313,21 +313,24 @@ def compute_metrics_for_model(
 
         for layer in layers_to_process:
             layer_key = f"layer{layer}"
+            per_bbox_by_pct: dict[int, list[list[tuple[int, float]]]] = {
+                p: [] for p in percentiles
+            }
+
+            for sample in dataset:
+                image_id = sample["image_id"]
+                annotation = sample["annotation"]
+                try:
+                    attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
+                except KeyError:
+                    continue
+
+                for percentile in percentiles:
+                    bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
+                    per_bbox_by_pct[percentile].append(bbox_ious)
 
             for percentile in percentiles:
-                per_bbox_results: list[list[tuple[int, float]]] = []
-
-                for sample in dataset:
-                    image_id = sample["image_id"]
-                    annotation = sample["annotation"]
-
-                    try:
-                        attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
-                        bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
-                        per_bbox_results.append(bbox_ious)
-                    except KeyError:
-                        continue
-
+                per_bbox_results = per_bbox_by_pct[percentile]
                 if not per_bbox_results:
                     continue
 

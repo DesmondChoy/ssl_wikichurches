@@ -58,6 +58,15 @@ class TestAttentionRollout:
         # For identity attention, this should be close to uniform distribution
         assert rollout.shape == (1, seq_len, seq_len)
 
+    def test_batch_elements_have_independent_memory(self, make_attention_weights):
+        """Batch elements must not share underlying data (expand→clone safety)."""
+        attention_weights = make_attention_weights(batch_size=2, seq_len=50, num_layers=4)
+
+        rollout = attention_rollout(attention_weights)
+
+        # Each batch element should have its own storage
+        assert rollout[0].data_ptr() != rollout[1].data_ptr()
+
     def test_layer_range_selection(self, make_attention_weights):
         """Verify start_layer and end_layer limit computation range."""
         attention_weights = make_attention_weights(seq_len=197, num_layers=12)

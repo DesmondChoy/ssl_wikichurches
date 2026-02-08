@@ -64,7 +64,7 @@ def attention_rollout(
 
     # Initialize rollout as identity matrix
     rollout = torch.eye(seq_len, device=attention_weights[0].device)
-    rollout = rollout.unsqueeze(0).expand(batch_size, -1, -1)  # (B, seq, seq)
+    rollout = rollout.unsqueeze(0).expand(batch_size, -1, -1).clone()  # (B, seq, seq)
 
     for layer_idx in range(start_layer, end_layer):
         # Fuse heads for this layer
