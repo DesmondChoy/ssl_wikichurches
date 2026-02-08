@@ -117,12 +117,11 @@ async def get_image_metrics_all_models(
         if layer >= num_layers:
             continue
 
-        # Each model uses the requested method if valid, otherwise its default
+        # Skip models that don't support the requested method
         try:
             resolved_method = validate_method(model, method)
         except HTTPException:
-            # Method not available for this model; use its default
-            resolved_method = validate_method(model, None)
+            continue
 
         result = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
         if result:

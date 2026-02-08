@@ -26,7 +26,7 @@ async def compare_models(
     """Compare multiple models on a single image.
 
     Returns IoU results and heatmap URLs for side-by-side comparison.
-    When method is specified, models that don't support it use their default.
+    Returns 400 if the requested method is not available for any selected model.
     """
     # Default models if not specified
     if models is None:
@@ -61,11 +61,7 @@ async def compare_models(
     for model in models:
         resolved_model = resolve_model_name(model)
 
-        # Resolve method per model (fallback to default if requested method unavailable)
-        try:
-            resolved_method = validate_method(model, method)
-        except HTTPException:
-            resolved_method = resolve_default_method(model)
+        resolved_method = validate_method(model, method)
 
         # Get metrics
         metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
