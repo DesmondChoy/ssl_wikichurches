@@ -138,11 +138,11 @@ async def get_raw_attention(
 
     # Check if attention is cached
     if not attention_service.exists(resolved_model, layer_key, image_id, method=resolved_method):
-        raise HTTPException(
-            status_code=404,
-            detail=f"Attention not cached for {resolved_model}/{layer_key}/{resolved_method}/{image_id}. "
-            "Run generate_attention_cache.py first.",
-        )
+        detail = (
+            f"Attention not cached for {resolved_model}/{layer_key}/{resolved_method}/{image_id}. "
+            "Run generate_attention_cache.py first."
+        ) if DEBUG else "Requested resource not found"
+        raise HTTPException(status_code=404, detail=detail)
 
     try:
         result = attention_service.get_raw_attention(
@@ -251,11 +251,11 @@ async def compute_bbox_similarity(
 
     # Check if features are cached
     if not similarity_service.features_exist(resolved_model, layer, image_id):
-        raise HTTPException(
-            status_code=404,
-            detail=f"Features not pre-computed for {resolved_model}/layer{layer}/{image_id}. "
-            "Run generate_feature_cache.py first.",
-        )
+        detail = (
+            f"Features not pre-computed for {resolved_model}/layer{layer}/{image_id}. "
+            "Run generate_feature_cache.py first."
+        ) if DEBUG else "Requested resource not found"
+        raise HTTPException(status_code=404, detail=detail)
 
     try:
         result = similarity_service.compute_similarity(
