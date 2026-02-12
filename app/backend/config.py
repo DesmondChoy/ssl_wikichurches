@@ -34,7 +34,7 @@ NUM_LAYERS = 12
 STYLE_NAMES = ["Romanesque", "Gothic", "Renaissance", "Baroque"]
 
 # Debug mode — controls whether error responses include internal details
-DEBUG = os.environ.get("SSL_DEBUG", "1").lower() in ("1", "true", "yes")
+DEBUG = os.environ.get("SSL_DEBUG", "0").lower() in ("1", "true", "yes")
 
 # API settings
 API_PREFIX = "/api"

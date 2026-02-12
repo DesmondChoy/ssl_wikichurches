@@ -64,7 +64,8 @@ async def get_heatmap(
             headers={"Cache-Control": "max-age=86400"},
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
+        detail = str(e) if DEBUG else "Requested resource not found"
+        raise HTTPException(status_code=404, detail=detail) from None
 
 
 @router.get("/{image_id}/overlay")
@@ -109,7 +110,8 @@ async def get_overlay(
             headers={"Cache-Control": "max-age=86400"},
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
+        detail = str(e) if DEBUG else "Requested resource not found"
+        raise HTTPException(status_code=404, detail=detail) from None
 
 
 @router.get("/{image_id}/raw", response_model=RawAttentionResponse)
@@ -151,7 +153,8 @@ async def get_raw_attention(
         )
         return RawAttentionResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
+        detail = str(e) if DEBUG else "Requested resource not found"
+        raise HTTPException(status_code=404, detail=detail) from None
     except Exception as e:
         logger.exception("Error loading attention")
         detail = f"Error loading attention: {e}" if DEBUG else "Error loading attention"
@@ -266,7 +269,8 @@ async def compute_bbox_similarity(
         )
         return SimilarityResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        detail = str(e) if DEBUG else "Invalid request"
+        raise HTTPException(status_code=400, detail=detail) from None
     except Exception as e:
         logger.exception("Error computing similarity")
         detail = f"Error computing similarity: {e}" if DEBUG else "Error computing similarity"
