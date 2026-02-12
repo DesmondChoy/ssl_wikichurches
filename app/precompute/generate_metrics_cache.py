@@ -408,7 +408,8 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         # Layer progression
         cursor.execute(
             """SELECT layer, mean_iou FROM aggregate_metrics
-               WHERE model = ? AND method = ? AND percentile = 90 ORDER BY layer""",
+               WHERE model = ? AND method = ? AND percentile = 90
+               ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
             (model, default_method),
         )
         layer_progression = {row[0]: row[1] for row in cursor.fetchall()}

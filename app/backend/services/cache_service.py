@@ -71,7 +71,10 @@ class CacheService:
         """Get all layers with cached attention for an image."""
         cache_model = resolve_model_name(model)
         keys = self.cache.list_cached(cache_model)
-        return sorted(set(k.layer for k in keys if k.image_id == image_id))
+        return sorted(
+            set(k.layer for k in keys if k.image_id == image_id),
+            key=lambda x: int(x.replace("layer", "")),
+        )
 
 
 # Global instance

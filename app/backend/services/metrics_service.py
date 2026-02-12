@@ -194,7 +194,7 @@ class MetricsService:
             cursor.execute(
                 """SELECT layer, mean_iou FROM aggregate_metrics
                    WHERE model = ? AND method = ? AND percentile = ?
-                   ORDER BY layer""",
+                   ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
                 (db_model, resolved_method, percentile),
             )
             rows = cursor.fetchall()
