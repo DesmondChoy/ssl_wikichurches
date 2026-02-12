@@ -101,6 +101,11 @@ class AnnotatedSubset(Dataset):
         }
 
     @property
+    def image_ids(self) -> list[str]:
+        """Sorted list of image IDs in this dataset."""
+        return list(self._image_ids)
+
+    @property
     def annotations(self) -> dict[str, ImageAnnotation]:
         """Access the full annotations dictionary."""
         return self._annotations

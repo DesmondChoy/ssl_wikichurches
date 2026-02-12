@@ -165,11 +165,10 @@ def compute_metrics_for_model(
 
     cursor = conn.cursor()
 
-    # Build style mapping for images
+    # Build style mapping for images (metadata-only, no image I/O)
     image_styles: dict[str, str | None] = {}
-    for sample in dataset:
-        image_id = sample["image_id"]
-        annotation = sample["annotation"]
+    for image_id in dataset.image_ids:
+        annotation = dataset.annotations[image_id]
         style_name = None
         for style_qid in annotation.styles:
             if style_qid in STYLE_MAPPING:
@@ -180,10 +179,9 @@ def compute_metrics_for_model(
     for variant in methods_to_process:
         print(f"  Method: {variant}")
 
-        # Process each image
-        for sample in tqdm(dataset, desc=f"{model_name}/{variant}"):
-            image_id = sample["image_id"]
-            annotation = sample["annotation"]
+        # Process each image (metadata-only, no image I/O)
+        for image_id in tqdm(dataset.image_ids, desc=f"{model_name}/{variant}"):
+            annotation = dataset.annotations[image_id]
 
             for layer in layers_to_process:
                 layer_key = f"layer{layer}"
@@ -317,9 +315,8 @@ def compute_metrics_for_model(
                 p: [] for p in percentiles
             }
 
-            for sample in dataset:
-                image_id = sample["image_id"]
-                annotation = sample["annotation"]
+            for image_id in dataset.image_ids:
+                annotation = dataset.annotations[image_id]
                 try:
                     attention = attention_cache.load(model_name, layer_key, image_id, variant=variant)
                 except KeyError:
