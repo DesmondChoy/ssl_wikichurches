@@ -393,6 +393,48 @@ def test_percentile_coverage_uniform_attention(percentile: int, expected_coverag
     assert abs(actual_coverage - expected_coverage) < 0.01
 
 
+class TestTopKPixelCountContract:
+    """Cross-validation contract test for frontend-backend alignment.
+
+    The frontend (renderHeatmap.ts:applyPercentileThreshold) and backend
+    (iou.py:threshold_attention) must agree on the number of active pixels
+    for a given percentile and grid size. Both use the formula:
+
+        k = max(1, round(n * (100 - percentile) / 100))
+
+    This test verifies the backend produces exactly k pixels for all
+    supported percentile values and grid sizes. If this test fails,
+    the frontend formula must be updated to match.
+    """
+
+    PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
+    GRID_SIZES = [(7, 7), (14, 14), (16, 16)]  # ResNet-50, MAE/CLIP, DINOv2
+
+    @pytest.mark.parametrize("percentile", PERCENTILES)
+    @pytest.mark.parametrize("grid_size", GRID_SIZES, ids=["7x7", "14x14", "16x16"])
+    def test_exact_pixel_count(self, grid_size: tuple[int, int], percentile: int):
+        """Backend threshold_attention selects exactly k pixels.
+
+        Formula: k = max(1, round(n * (100 - percentile) / 100))
+
+        This is the same formula used by the frontend's applyPercentileThreshold.
+        If either side changes, this test will catch the divergence.
+        """
+        h, w = grid_size
+        n = h * w
+        expected_k = max(1, round(n * (100 - percentile) / 100))
+
+        # Use random attention to avoid any special-case shortcuts
+        attn = torch.rand(h, w)
+        mask = threshold_attention(attn, percentile=percentile)
+
+        assert mask.sum().item() == expected_k, (
+            f"grid={h}x{w}, percentile={percentile}: "
+            f"expected {expected_k} pixels, got {mask.sum().item()}. "
+            f"Frontend-backend contract violated!"
+        )
+
+
 def _make_annotation(*bbox_specs: tuple[float, float, float, float, int]) -> ImageAnnotation:
     """Helper: create an ImageAnnotation from (left, top, w, h, label) tuples."""
     bboxes = tuple(

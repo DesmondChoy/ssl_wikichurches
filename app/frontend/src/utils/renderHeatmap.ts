@@ -256,23 +256,31 @@ export function computeSimilarityStats(similarity: number[]): SimilarityStats {
 }
 
 /**
- * Apply percentile threshold to attention values.
- * Values below the threshold are set to 0 (transparent).
+ * Apply percentile threshold to attention values using top-k selection.
+ *
+ * Selects exactly k = max(1, round(n × (100 − percentile) / 100)) values,
+ * matching the backend's torch.topk contract (src/ssl_attention/metrics/iou.py).
+ * This guarantees a fixed pixel count regardless of tied values, unlike the
+ * previous quantile-threshold approach which could over-select when many
+ * values share the same level (common with float16 or low-resolution grids).
  *
  * @param values - Raw attention values
  * @param percentile - Percentile threshold (e.g., 90 means keep top 10%)
- * @returns Thresholded values with same length
+ * @returns Thresholded values with same length; non-top-k entries set to 0
  */
 export function applyPercentileThreshold(values: number[], percentile: number): number[] {
   if (values.length === 0) return [];
 
-  // Sort to find percentile threshold
-  const sorted = [...values].sort((a, b) => a - b);
-  const thresholdIndex = Math.floor((percentile / 100) * (sorted.length - 1));
-  const threshold = sorted[thresholdIndex];
+  const n = values.length;
+  const k = Math.max(1, Math.round(n * (100 - percentile) / 100));
 
-  // Apply threshold: values below are zeroed out
-  return values.map(v => (v >= threshold ? v : 0));
+  // Build index array sorted by value descending (matches torch.topk order)
+  const indices = Array.from({ length: n }, (_, i) => i);
+  indices.sort((a, b) => values[b] - values[a]);
+
+  // Mark top-k positions
+  const keep = new Set(indices.slice(0, k));
+  return values.map((v, i) => (keep.has(i) ? v : 0));
 }
 
 export interface RenderAttentionHeatmapOptions {
