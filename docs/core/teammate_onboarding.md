@@ -1,6 +1,5 @@
 # SSL WikiChurches Teammate Onboarding Guide
 
-> **See also:** [`docs/ONBOARDING.md`](../ONBOARDING.md) for a comprehensive deep-dive reference covering model internals, attention extraction pipelines, metrics methodology, frontend components, and known gotchas.
 
 ## 1. Why this project exists
 
