@@ -469,7 +469,7 @@ describe("HeadSelector", () => {
 
 #### 4.1 Create User Documentation
 
-**File:** `docs/features/per_head_attention.md`
+**File:** `docs/enhancements/per_attention_head.md`
 
 Document:
 - What attention heads are and why they matter

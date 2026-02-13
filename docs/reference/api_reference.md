@@ -1,6 +1,6 @@
 # API Reference
 
-Complete REST API documentation for the SSL Attention Visualization platform. All endpoints are served under the `/api` prefix by the FastAPI backend.
+Complete REST API documentation for the SSL Attention Visualization platform. API routes are served under the `/api` prefix by the FastAPI backend, with `/health` exposed at the root.
 
 > **Interactive docs**: When the backend is running, visit `/docs` for the auto-generated Swagger UI or `/redoc` for ReDoc.
 

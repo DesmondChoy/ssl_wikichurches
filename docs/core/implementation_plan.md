@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-07 (Phase 5 item 4 pending; Phase 6 fully complete)
+**Last Updated:** 2026-02-12 (Documentation sync: corrected project structure/file references; Phase 5 integration items pending)
 
 ---
 
@@ -65,7 +65,6 @@ ssl_wikichurches/
 │   ├── data/
 │   │   ├── __init__.py
 │   │   ├── wikichurches.py      # WikiChurchesDataset, AnnotatedSubset
-│   │   ├── transforms.py        # Model-specific preprocessing
 │   │   └── annotations.py       # BoundingBox, ImageAnnotation dataclasses
 │   │
 │   ├── metrics/
@@ -95,19 +94,14 @@ ssl_wikichurches/
 │       └── device.py            # MPS/CUDA/CPU handling
 │
 ├── experiments/
-│   ├── configs/
-│   │   └── default.yaml         # Main experiment config
 │   └── scripts/
-│       ├── extract_features.py
-│       ├── compute_attention.py
-│       ├── run_iou_analysis.py
-│       ├── train_linear_probe.py
-│       └── fine_tune_models.py  # Fine-tuning script
+│       ├── fine_tune_models.py  # Fine-tuning script
+│       └── analyze_delta_iou.py # Frozen vs fine-tuned delta analysis
 │
 ├── outputs/                     # Git-ignored
 │   ├── cache/
-│   ├── results/
-│   └── figures/
+│   ├── checkpoints/
+│   └── results/
 │
 └── tests/
 ```
@@ -202,7 +196,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 2. **Dataset classes** (`wikichurches.py`) ✅
    - `AnnotatedSubset` - 139 images with bboxes
-   - `FullDataset` - 9,485 images for linear probe
+   - `FullDataset` - 9,502 images total (use `filter_labeled=True` for 4-style training subset)
    - Per-model preprocessing via registry
 
 3. **HDF5 caching** (`cache/manager.py`) ✅
@@ -295,10 +289,10 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - JSON export of full results
 
 4. **Visualization** ⬜
-   - Side-by-side heatmaps (frozen vs fine-tuned) — available via comparison view
+   - Side-by-side heatmaps (frozen vs fine-tuned) — API route exists, but end-to-end frontend/precompute integration is pending
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Item 4 (attention shift visualization) is the sole remaining Phase 5 work item. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
+> **Note:** Remaining Phase 5 work includes (a) frozen-vs-fine-tuned integration across precompute/API/frontend and (b) attention shift visualization. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -420,7 +414,6 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | File | Purpose | Status |
 |------|---------|--------|
 | `src/ssl_attention/data/__init__.py` | Data module exports | ✅ Done |
-| `src/ssl_attention/data/transforms.py` | Model-specific preprocessing | ✅ Done |
 | `src/ssl_attention/cache/__init__.py` | Cache module exports | ✅ Done |
 
 ### Additional Phase 3 Files Created
@@ -453,7 +446,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 |------|---------|--------|
 | `app/backend/main.py` | FastAPI application entry | ✅ Done |
 | `app/backend/config.py` | Backend configuration | ✅ Done |
-| `app/backend/schemas.py` | Pydantic schemas | ✅ Done |
+| `app/backend/schemas/models.py` | Pydantic schemas | ✅ Done |
 | `app/backend/routers/` | API route handlers | ✅ Done |
 | `app/backend/services/` | Business logic services | ✅ Done |
 | `app/precompute/` | Pre-computation scripts | ✅ Done |
