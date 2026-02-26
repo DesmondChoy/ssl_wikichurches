@@ -132,6 +132,11 @@ class ResNet50(BaseVisionModel):
             ResNet-50 model with pretrained weights.
         """
         model: nn.Module = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+
+        # Freeze parameters to avoid computing parameter gradients during Grad-CAM backward
+        for param in model.parameters():
+            param.requires_grad = False
+
         return model
 
     def _register_gradcam_hooks(self) -> None:
