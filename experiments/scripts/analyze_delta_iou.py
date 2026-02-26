@@ -320,7 +320,7 @@ def analyze_single_model(
     frozen_model = create_model(model_name)
 
     # Compute frozen IoUs
-    print(f"  Computing frozen IoUs...")
+    print("  Computing frozen IoUs...")
     frozen_ious = compute_model_ious(
         frozen_model, dataset, model_name, percentiles, layer
     )
@@ -334,7 +334,7 @@ def analyze_single_model(
     finetuned_model = load_finetuned_model(model_name)
 
     # Compute fine-tuned IoUs
-    print(f"  Computing fine-tuned IoUs...")
+    print("  Computing fine-tuned IoUs...")
     finetuned_ious = compute_model_ious(
         finetuned_model, dataset, model_name, percentiles, layer
     )

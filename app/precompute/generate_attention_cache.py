@@ -23,6 +23,7 @@ Usage (fine-tuned models):
 from __future__ import annotations
 
 import argparse
+from typing import Any
 import gc
 import sys
 from pathlib import Path
@@ -99,7 +100,7 @@ def generate_attention_for_model(
     cache: AttentionCache,
     layers: list[int] | None = None,
     methods: list[AttentionMethod] | None = None,
-    device: torch.device | str = "cpu",
+    device: Any = "cpu",
     skip_existing: bool = True,
     finetuned: bool = False,
     checkpoint_path: Path | None = None,
@@ -145,6 +146,9 @@ def generate_attention_for_model(
     print(f"Processing {model_name} [{mode_label}] ({len(layers_to_process)} layers, "
           f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
     print(f"{'='*60}")
+
+    from typing import Any
+    model: Any
 
     # Load model
     if finetuned:
@@ -354,7 +358,8 @@ def main() -> int:
         models_to_process = list(checkpoints.keys())
 
     # Setup
-    device = args.device or get_device()
+    device_arg = args.device or get_device()
+    device = torch.device(device_arg) if isinstance(device_arg, str) else device_arg
     mode_label = "FINE-TUNED" if args.finetuned else "FROZEN"
     print(f"Mode: {mode_label}")
     print(f"Device: {device}")

@@ -2,7 +2,6 @@
 """Initialize a new skill directory with template files."""
 
 import argparse
-import os
 from pathlib import Path
 
 
@@ -77,11 +76,11 @@ Delete this file if not needed.
     (skill_dir / "assets" / ".gitkeep").write_text("")
 
     print(f"Created skill at: {skill_dir}")
-    print(f"\nNext steps:")
+    print("\nNext steps:")
     print(f"  1. Edit {skill_dir}/SKILL.md")
-    print(f"  2. Add scripts, references, and assets as needed")
-    print(f"  3. Delete example files you don't need")
-    print(f"  4. Run package_skill.py when ready")
+    print("  2. Add scripts, references, and assets as needed")
+    print("  3. Delete example files you don't need")
+    print("  4. Run package_skill.py when ready")
 
 
 def main():

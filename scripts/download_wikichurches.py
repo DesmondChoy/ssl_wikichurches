@@ -103,20 +103,19 @@ def download_file(filename: str, output_dir: Path, chunk_size: int = 8192) -> bo
         # Open file in append mode if resuming, write mode otherwise
         mode = "ab" if existing_size > 0 and response.status_code == 206 else "wb"
 
-        with open(output_path, mode) as f:
-            with tqdm(
-                total=total_size,
-                initial=existing_size,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc=filename,
-                ncols=80,
-            ) as pbar:
-                for chunk in response.iter_content(chunk_size=chunk_size):
-                    if chunk:
-                        f.write(chunk)
-                        pbar.update(len(chunk))
+        with open(output_path, mode) as f, tqdm(
+            total=total_size,
+            initial=existing_size,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            desc=filename,
+            ncols=80,
+        ) as pbar:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
 
         return True
 
@@ -219,10 +218,7 @@ Examples:
         return 0
 
     # Determine which files to download
-    if args.files:
-        files_to_download = args.files
-    else:
-        files_to_download = list(DATASET_FILES.keys())
+    files_to_download = args.files or list(DATASET_FILES.keys())
 
     if args.exclude:
         files_to_download = [f for f in files_to_download if f not in args.exclude]
@@ -244,7 +240,7 @@ Examples:
 
     # Calculate total download size
     total_size = sum(DATASET_FILES[f] for f in files_to_download)
-    print(f"WikiChurches Dataset Download")
+    print("WikiChurches Dataset Download")
     print(f"Output directory: {args.output.absolute()}")
     print(f"Files to download: {len(files_to_download)}")
     print(f"Total size: {format_size(total_size)}")
