@@ -74,7 +74,7 @@ class BaseVisionModel(ABC, nn.Module):
         """
         return AutoImageProcessor.from_pretrained(self.model_id)
 
-    def _load_config(self) -> AutoConfig:
+    def _load_config(self) -> Any:
         """Load model config with attention output enabled.
 
         Returns:
@@ -170,7 +170,8 @@ class BaseVisionModel(ABC, nn.Module):
         # Most ViT models use 224x224
         size = getattr(self.processor, "size", {})
         if isinstance(size, dict):
-            return size.get("height", size.get("shortest_edge", 224))
+            val = size.get("height", size.get("shortest_edge", 224))
+            return int(val) if val is not None else 224
         return 224
 
     @property

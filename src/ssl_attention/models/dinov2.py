@@ -55,7 +55,7 @@ class DINOv2(BaseVisionModel):
         Uses AutoModel to correctly load the dinov2_with_registers variant.
         """
         config = self._load_config()
-        return AutoModel.from_pretrained(self.model_id, config=config)
+        return AutoModel.from_pretrained(self.model_id, config=config)  # type: ignore[no-any-return]
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False

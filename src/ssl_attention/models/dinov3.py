@@ -63,7 +63,7 @@ class DINOv3(BaseVisionModel):
         Uses AutoModel with config that enables attention output.
         """
         config = self._load_config()
-        return AutoModel.from_pretrained(self.model_id, config=config, trust_remote_code=True)
+        return AutoModel.from_pretrained(self.model_id, config=config, trust_remote_code=True)  # type: ignore[no-any-return]
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False

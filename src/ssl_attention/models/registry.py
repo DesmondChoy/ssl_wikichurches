@@ -61,7 +61,7 @@ def _import_model_class(name: str) -> type["BaseVisionModel"]:
     import importlib
 
     module = importlib.import_module(module_path)
-    return getattr(module, class_name)
+    return getattr(module, class_name)  # type: ignore[no-any-return]
 
 
 def create_model(

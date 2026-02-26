@@ -4,12 +4,10 @@
 
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-// TODO: recharts has SVG animation bugs with current React version
-// Re-enable when recharts releases a fix
-// import {
-//   LineChart, Line, XAxis, YAxis, CartesianGrid,
-//   Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
-// } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
+} from 'recharts';
 import { useViewStore } from '../store/viewStore';
 import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
 import { useModels } from '../hooks/useAttention';
@@ -119,12 +117,40 @@ export function DashboardPage() {
               {summaryLoading ? (
                 <div className="h-64 animate-pulse bg-gray-100 rounded" />
               ) : (
-                <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded border-2 border-dashed border-gray-200">
-                  <div className="text-center text-gray-500">
-                    <p className="font-medium">Layer Progression Chart</p>
-                    <p className="text-sm">{chartData.length} layers × {summary?.leaderboard.length || 0} models</p>
-                    <p className="text-xs mt-2 text-gray-400">Charts temporarily disabled</p>
-                  </div>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis 
+                        dataKey="layer" 
+                        tick={{ fontSize: 12 }}
+                        tickMargin={10}
+                      />
+                      <YAxis 
+                        domain={[0, 1]} 
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(v) => v.toFixed(1)}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [value.toFixed(3), 'IoU']}
+                        labelStyle={{ color: '#374151', fontWeight: 600 }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      {summary?.leaderboard.map((entry, i) => (
+                        <Line
+                          key={entry.model}
+                          type="monotone"
+                          dataKey={entry.model}
+                          name={entry.model}
+                          stroke={`hsl(${(i * 137.5) % 360}, 70%, 50%)`}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </CardContent>
@@ -145,12 +171,31 @@ export function DashboardPage() {
             {styleLoading ? (
               <div className="h-48 animate-pulse bg-gray-100 rounded" />
             ) : styleData.length > 0 ? (
-              <div className="h-[200px] flex items-center justify-center bg-gray-50 rounded border-2 border-dashed border-gray-200">
-                <div className="text-center text-gray-500">
-                  <p className="font-medium">Style Breakdown Chart</p>
-                  <p className="text-sm">{styleData.length} architectural styles</p>
-                  <p className="text-xs mt-2 text-gray-400">Charts temporarily disabled</p>
-                </div>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={styleData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                    <XAxis type="number" domain={[0, 1]} tick={{ fontSize: 12 }} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="style" 
+                      tick={{ fontSize: 12 }}
+                      width={80}
+                    />
+                    <Tooltip 
+                      formatter={(value: number, name: string) => {
+                        if (name === 'iou') return [value.toFixed(3), 'Mean IoU'];
+                        return [value, 'Images'];
+                      }}
+                    />
+                    <Bar 
+                      dataKey="iou" 
+                      fill="#3b82f6" 
+                      radius={[0, 4, 4, 0]}
+                      isAnimationActive={false}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             ) : (
               <div className="h-48 flex items-center justify-center text-gray-500">

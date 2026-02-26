@@ -22,6 +22,7 @@ from tqdm import tqdm
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
+from app.backend.config import display_model_name
 from ssl_attention.cache import AttentionCache
 from ssl_attention.config import (
     ANNOTATIONS_PATH,
@@ -384,7 +385,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         )
         row = cursor.fetchone()
         if row and row[0] is not None:
-            leaderboard.append({"model": model, "best_iou": row[0]})
+            leaderboard.append({"model": display_model_name(model), "best_iou": row[0]})
 
     leaderboard.sort(key=lambda x: x["best_iou"], reverse=True)
 
@@ -411,7 +412,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         )
         layer_progression = {row[0]: row[1] for row in cursor.fetchall()}
 
-        models_data[model] = {
+        models_data[display_model_name(model)] = {
             "best_layer": best_layer,
             "best_iou": best_iou,
             "layer_progression": layer_progression,
