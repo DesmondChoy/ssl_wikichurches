@@ -115,7 +115,7 @@ MODELS: dict[str, ModelConfig] = {
         has_cls_token=True,
     ),
     "siglip": ModelConfig(
-        model_id="google/siglip2-base-patch16-224",
+        model_id="google/siglip-base-patch16-224",
         patch_size=16,
         embed_dim=768,
         num_layers=12,

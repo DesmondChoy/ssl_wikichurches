@@ -1,4 +1,4 @@
-"""SigLIP 2 vision encoder wrapper.
+"""SigLIP vision encoder wrapper.
 
 SigLIP (Sigmoid Loss for Language-Image Pre-training) replaces CLIP's
 softmax-based contrastive loss with a sigmoid loss, enabling better
@@ -20,7 +20,7 @@ from typing import Any
 
 import torch
 from torch import nn
-from transformers import AutoImageProcessor, Siglip2VisionConfig, Siglip2VisionModel
+from transformers import AutoImageProcessor, SiglipVisionConfig, SiglipVisionModel
 
 from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
@@ -79,26 +79,31 @@ class SigLIP(BaseVisionModel):
         processor.do_resize = True
         return processor
 
-    def _load_config(self) -> Siglip2VisionConfig:
+    def _load_config(self) -> SiglipVisionConfig:
         """Load SigLIP vision config with attention output enabled.
 
-        SigLIP uses Siglip2VisionConfig, not AutoConfig, for the vision encoder.
+        SigLIP uses SiglipVisionConfig, not AutoConfig, for the vision encoder.
         """
-        config = Siglip2VisionConfig.from_pretrained(self.model_id)
+        config = SiglipVisionConfig.from_pretrained(self.model_id)
         config.output_attentions = True
         return config
 
     def _load_model(self) -> nn.Module:
-        """Load SigLIP 2 vision encoder from HuggingFace with attention output enabled."""
+        """Load SigLIP vision encoder from HuggingFace with attention output enabled."""
         config = self._load_config()
-        # Some versions of transformers/SigLIP may have minor size mismatches between
-        # the checkpoint and the config (e.g., positional embeddings when image size
-        # handling changes). We allow these to be reinitialized instead of failing.
-        return Siglip2VisionModel.from_pretrained(
-            self.model_id,
-            config=config,
-            ignore_mismatched_sizes=True,
-        )
+        return SiglipVisionModel.from_pretrained(self.model_id, config=config)
+
+    def forward(
+        self, images: torch.Tensor, output_hidden_states: bool = False
+    ) -> ModelOutput:
+        """Forward pass through the SigLIP vision backbone."""
+        with self.inference_context():
+            model_output = self.model(
+                pixel_values=images,
+                output_attentions=True,
+                output_hidden_states=output_hidden_states,
+            )
+        return self._extract_output(model_output, output_hidden_states)
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False
