@@ -91,7 +91,14 @@ class SigLIP(BaseVisionModel):
     def _load_model(self) -> nn.Module:
         """Load SigLIP 2 vision encoder from HuggingFace with attention output enabled."""
         config = self._load_config()
-        return Siglip2VisionModel.from_pretrained(self.model_id, config=config)
+        # Some versions of transformers/SigLIP may have minor size mismatches between
+        # the checkpoint and the config (e.g., positional embeddings when image size
+        # handling changes). We allow these to be reinitialized instead of failing.
+        return Siglip2VisionModel.from_pretrained(
+            self.model_id,
+            config=config,
+            ignore_mismatched_sizes=True,
+        )
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False
