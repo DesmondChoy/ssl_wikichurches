@@ -307,9 +307,19 @@ class FineTunableModel(nn.Module):
             return SiglipVisionModel.from_pretrained(model_id, config=siglip_config)
 
         elif self.model_name == "siglip2":
-            siglip2_config = Siglip2VisionConfig.from_pretrained(model_id)
-            siglip2_config.output_attentions = True
-            return Siglip2VisionModel.from_pretrained(model_id, config=siglip2_config)
+            auto_config = AutoConfig.from_pretrained(model_id)
+            model_type = getattr(auto_config, "model_type", None)
+            if model_type == "siglip2":
+                siglip2_config = Siglip2VisionConfig.from_pretrained(model_id)
+                siglip2_config.output_attentions = True
+                return Siglip2VisionModel.from_pretrained(model_id, config=siglip2_config)
+            if model_type == "siglip":
+                siglip_config = SiglipVisionConfig.from_pretrained(model_id)
+                siglip_config.output_attentions = True
+                return SiglipVisionModel.from_pretrained(model_id, config=siglip_config)
+            raise ValueError(
+                f"Unsupported SigLIP2 checkpoint type '{model_type}' for {model_id}"
+            )
 
         else:  # dinov2, dinov3
             auto_config = AutoConfig.from_pretrained(model_id)

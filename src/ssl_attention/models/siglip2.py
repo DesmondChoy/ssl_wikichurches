@@ -18,7 +18,14 @@ from typing import Any
 
 import torch
 from torch import nn
-from transformers import AutoImageProcessor, Siglip2VisionConfig, Siglip2VisionModel
+from transformers import (
+    AutoConfig,
+    AutoImageProcessor,
+    Siglip2VisionConfig,
+    Siglip2VisionModel,
+    SiglipVisionConfig,
+    SiglipVisionModel,
+)
 
 from ssl_attention.config import MODELS
 from ssl_attention.models.base import BaseVisionModel
@@ -75,16 +82,35 @@ class SigLIP2(BaseVisionModel):
         processor.do_resize = True
         return processor
 
-    def _load_config(self) -> Siglip2VisionConfig:
-        """Load SigLIP 2 vision config with attention output enabled."""
-        config = Siglip2VisionConfig.from_pretrained(self.model_id)
+    def _load_config(self) -> Siglip2VisionConfig | SiglipVisionConfig:
+        """Load a compatible SigLIP vision config with attention output enabled.
+
+        Some checkpoints under the SigLIP 2 naming convention still publish
+        `model_type='siglip'` configs. We select the matching vision config
+        class based on the actual checkpoint metadata to avoid load-time
+        shape mismatches.
+        """
+        auto_config = AutoConfig.from_pretrained(self.model_id)
+        model_type = getattr(auto_config, "model_type", None)
+
+        if model_type == "siglip2":
+            config = Siglip2VisionConfig.from_pretrained(self.model_id)
+        elif model_type == "siglip":
+            config = SiglipVisionConfig.from_pretrained(self.model_id)
+        else:
+            raise ValueError(
+                f"Unsupported SigLIP2 checkpoint type '{model_type}' for {self.model_id}"
+            )
+
         config.output_attentions = True
         return config
 
     def _load_model(self) -> nn.Module:
-        """Load SigLIP 2 vision encoder from HuggingFace with attention output enabled."""
+        """Load a compatible SigLIP vision encoder from HuggingFace."""
         config = self._load_config()
-        return Siglip2VisionModel.from_pretrained(self.model_id, config=config)
+        if isinstance(config, Siglip2VisionConfig):
+            return Siglip2VisionModel.from_pretrained(self.model_id, config=config)
+        return SiglipVisionModel.from_pretrained(self.model_id, config=config)
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False
