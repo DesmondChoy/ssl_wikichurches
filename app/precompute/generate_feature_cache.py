@@ -110,9 +110,9 @@ def generate_features_for_model(
                     # Structure depends on model type:
                     # - DINOv2/v3: [CLS] + [registers] + [patches]
                     # - CLIP/MAE: [CLS] + [patches]
-                    # - SigLIP: [patches] only (no CLS in sequence)
-                    if model_name == "siglip":
-                        # SigLIP has no CLS token in sequence - compute mean pooling
+                    # - SigLIP/SigLIP2: [patches] only (no CLS in sequence)
+                    if model_name in ("siglip", "siglip2"):
+                        # SigLIP/SigLIP2 have no CLS token in sequence - compute mean pooling
                         cls_token = layer_hidden.mean(dim=1)  # (B, D)
                         patch_tokens = layer_hidden  # (B, 196, D)
                     else:

@@ -2,14 +2,14 @@
 
 Priority 1: These tests verify:
 - ModelOutput.__post_init__() catches batch size mismatches (real validation logic)
-- Expected sequence layouts for all 5 ViT models (compact parametrized tests)
+- Expected sequence layouts for all ViT models (compact parametrized tests)
 
 Each model has a different sequence layout:
 - DINOv2: [CLS] + [4 registers] + [256 patches] = 261 tokens
 - DINOv3: [CLS] + [4 registers] + [196 patches] = 201 tokens
 - MAE:    [CLS] + [196 patches] = 197 tokens
 - CLIP:   [CLS] + [196 patches] = 197 tokens
-- SigLIP: [196 patches] (no CLS, uses pooler) = 196 tokens
+- SigLIP/SigLIP2: [196 patches] (no CLS, uses pooler) = 196 tokens
 """
 
 from __future__ import annotations
@@ -83,6 +83,7 @@ class TestModelOutputValidation:
         ("mae", 197, 196, 0),
         ("clip", 197, 196, 0),
         ("siglip", 196, 196, 0),
+        ("siglip2", 196, 196, 0),
     ],
 )
 class TestParameterizedModelConfigs:
@@ -104,7 +105,7 @@ class TestParameterizedModelConfigs:
         assert actual_seq_len == expected_seq_len
 
         # Verify math: seq_len = (1 if has CLS else 0) + registers + patches
-        has_cls = model_name != "siglip"
+        has_cls = model_name not in ("siglip", "siglip2")
         computed_seq_len = (1 if has_cls else 0) + expected_registers + expected_patches
         assert actual_seq_len == computed_seq_len
 

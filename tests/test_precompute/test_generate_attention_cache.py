@@ -102,7 +102,7 @@ class TestFineTuneModelsConstant:
 
     def test_includes_all_vits(self) -> None:
         """All ViT models should be in FINETUNE_MODELS."""
-        expected_vits = {"dinov2", "dinov3", "mae", "clip", "siglip"}
+        expected_vits = {"dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"}
         assert expected_vits == FINETUNE_MODELS
 
     def test_all_finetune_models_exist_in_config(self) -> None:

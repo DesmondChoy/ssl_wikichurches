@@ -26,6 +26,7 @@ _MODEL_REGISTRY: dict[str, tuple[str, str]] = {
     "mae": ("ssl_attention.models.mae", "MAE"),
     "clip": ("ssl_attention.models.clip_model", "CLIP"),
     "siglip": ("ssl_attention.models.siglip", "SigLIP"),
+    "siglip2": ("ssl_attention.models.siglip2", "SigLIP2"),
     "resnet50": ("ssl_attention.models.resnet50", "ResNet50"),
 }
 

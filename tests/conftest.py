@@ -19,6 +19,7 @@ MODEL_CONFIGS = {
     "mae": {"seq_len": 197, "num_patches": 196, "num_registers": 0, "has_pooler": False},
     "clip": {"seq_len": 197, "num_patches": 196, "num_registers": 0, "has_pooler": False},
     "siglip": {"seq_len": 196, "num_patches": 196, "num_registers": 0, "has_pooler": True},
+    "siglip2": {"seq_len": 196, "num_patches": 196, "num_registers": 0, "has_pooler": True},
 }
 
 

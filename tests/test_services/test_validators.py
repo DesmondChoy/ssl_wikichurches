@@ -17,8 +17,9 @@ def test_resolve_default_method_cls_models():
         assert resolve_default_method(model) == "cls", f"{model} should default to cls"
 
 
-def test_resolve_default_method_siglip_alias():
-    """SigLIP (passed as frontend alias 'siglip2') should resolve to 'mean'."""
+def test_resolve_default_method_siglip_models():
+    """SigLIP and SigLIP2 should resolve to 'mean'."""
+    assert resolve_default_method("siglip") == "mean"
     assert resolve_default_method("siglip2") == "mean"
 
 
@@ -41,7 +42,8 @@ class TestValidateMethod:
         assert validate_method("clip", None) == "cls"
 
     def test_none_returns_default_mean(self):
-        """SigLIP should default to 'mean'."""
+        """SigLIP and SigLIP2 should default to 'mean'."""
+        assert validate_method("siglip", None) == "mean"
         assert validate_method("siglip2", None) == "mean"
 
     def test_none_returns_default_gradcam(self):
@@ -72,14 +74,17 @@ class TestValidateMethod:
         assert "not available" in exc_info.value.detail
 
     def test_siglip_rejects_cls(self):
-        """SigLIP does not support CLS method."""
+        """SigLIP and SigLIP2 do not support CLS method."""
         with pytest.raises(HTTPException) as exc_info:
             validate_method("siglip2", "cls")
         assert exc_info.value.status_code == 400
+        with pytest.raises(HTTPException) as exc_info:
+            validate_method("siglip", "cls")
+        assert exc_info.value.status_code == 400
 
-    def test_alias_resolution(self):
-        """Aliases should be resolved before method validation."""
-        # siglip2 is an alias for siglip
+    def test_siglip_accepts_mean(self):
+        """SigLIP and SigLIP2 accept 'mean' method."""
+        assert validate_method("siglip", "mean") == "mean"
         assert validate_method("siglip2", "mean") == "mean"
 
 
@@ -92,7 +97,8 @@ class TestValidateModel:
     def test_returns_resolved_name(self):
         """validate_model should return the resolved canonical model name."""
         assert validate_model("dinov2") == "dinov2"
-        assert validate_model("siglip2") == "siglip"
+        assert validate_model("siglip") == "siglip"
+        assert validate_model("siglip2") == "siglip2"
 
     def test_invalid_model_raises(self):
         """Unknown model should raise HTTPException 400."""

@@ -123,6 +123,15 @@ MODELS: dict[str, ModelConfig] = {
         num_registers=0,
         has_cls_token=False,  # SigLIP uses mean pooling, no CLS token
     ),
+    "siglip2": ModelConfig(
+        model_id="google/siglip2-base-patch16-224",
+        patch_size=16,
+        embed_dim=768,
+        num_layers=12,
+        num_heads=12,
+        num_registers=0,
+        has_cls_token=False,  # SigLIP2 uses mean pooling, no CLS token
+    ),
     "resnet50": ModelConfig(
         model_id="torchvision",  # Flag for torchvision loading (not HuggingFace)
         patch_size=32,  # 224 / 7 = 32 (7x7 final feature grid)
@@ -145,7 +154,6 @@ MODEL_ALIASES: dict[str, str] = {
     "dinov2-reg": "dinov2",
     "vit-mae": "mae",
     "openai-clip": "clip",
-    "siglip2": "siglip",
 }
 
 
@@ -163,6 +171,7 @@ MODEL_METHODS: dict[str, list[AttentionMethod]] = {
     "mae": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
     "clip": [AttentionMethod.CLS, AttentionMethod.ROLLOUT],
     "siglip": [AttentionMethod.MEAN],
+    "siglip2": [AttentionMethod.MEAN],
     "resnet50": [AttentionMethod.GRADCAM],
 }
 
@@ -173,6 +182,7 @@ DEFAULT_METHOD: dict[str, AttentionMethod] = {
     "mae": AttentionMethod.CLS,
     "clip": AttentionMethod.CLS,
     "siglip": AttentionMethod.MEAN,
+    "siglip2": AttentionMethod.MEAN,
     "resnet50": AttentionMethod.GRADCAM,
 }
 
