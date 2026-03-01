@@ -28,6 +28,7 @@ MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "mae": (14, 14),     # 196 patches
     "clip": (14, 14),    # 196 patches
     "siglip": (14, 14),  # 196 patches
+    "siglip2": (14, 14),  # 196 patches
     "resnet50": (7, 7),  # 49 feature positions
 }
 

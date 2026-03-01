@@ -195,6 +195,7 @@ class TestGetPatchGrid:
             ("mae", (14, 14)),
             ("clip", (14, 14)),
             ("siglip", (14, 14)),
+            ("siglip2", (14, 14)),
         ],
     )
     def test_patch_grid_dimensions(self, service, model: str, expected_grid: tuple[int, int]):

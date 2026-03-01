@@ -111,13 +111,14 @@ class TestAllModelsMethodFiltering:
     """all_models should skip incompatible models, not fall back to defaults."""
 
     def test_rollout_excludes_siglip_and_resnet(self):
-        """When method=rollout, siglip2 and resnet50 should be absent."""
+        """When method=rollout, siglip, siglip2 and resnet50 should be absent."""
         resp = client.get(
             f"/api/metrics/{IMAGE_ID}/all_models",
             params={"method": "rollout"},
         )
         assert resp.status_code == 200
         models = resp.json()["models"]
+        assert "siglip" not in models
         assert "siglip2" not in models
         assert "resnet50" not in models
 
@@ -126,8 +127,8 @@ class TestAllModelsMethodFiltering:
         resp = client.get(f"/api/metrics/{IMAGE_ID}/all_models")
         assert resp.status_code == 200
         models = resp.json()["models"]
-        # All 6 models should appear (each uses its own default method)
-        for m in ("dinov2", "dinov3", "mae", "clip", "siglip2", "resnet50"):
+        # All 7 models should appear (each uses its own default method)
+        for m in ("dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"):
             assert m in models, f"Expected {m} in results when no method filter"
 
     def test_gradcam_only_includes_resnet(self):
@@ -140,5 +141,5 @@ class TestAllModelsMethodFiltering:
         models = resp.json()["models"]
         assert "resnet50" in models
         # ViT models don't support gradcam
-        for m in ("dinov2", "dinov3", "mae", "clip", "siglip2"):
+        for m in ("dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"):
             assert m not in models, f"{m} should not appear for method=gradcam"

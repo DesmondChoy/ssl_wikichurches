@@ -16,8 +16,8 @@ class TestLoRATargetModules:
     """Tests for the LORA_TARGET_MODULES constant."""
 
     def test_covers_all_vit_models(self) -> None:
-        """All 5 ViT model names should have LoRA target modules defined."""
-        expected = {"dinov2", "dinov3", "mae", "clip", "siglip"}
+        """All ViT model names should have LoRA target modules defined."""
+        expected = {"dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"}
         assert set(LORA_TARGET_MODULES.keys()) == expected
 
     def test_each_model_has_two_modules(self) -> None:
@@ -31,8 +31,8 @@ class TestLoRATargetModules:
             assert LORA_TARGET_MODULES[model_name] == ["query", "value"]
 
     def test_dinov3_clip_siglip_use_proj(self) -> None:
-        """DINOv3, CLIP, and SigLIP use 'q_proj'/'v_proj' naming convention."""
-        for model_name in ("dinov3", "clip", "siglip"):
+        """DINOv3, CLIP, SigLIP, and SigLIP2 use 'q_proj'/'v_proj' naming convention."""
+        for model_name in ("dinov3", "clip", "siglip", "siglip2"):
             assert LORA_TARGET_MODULES[model_name] == ["q_proj", "v_proj"]
 
 

@@ -70,6 +70,7 @@ LORA_TARGET_MODULES: dict[str, list[str]] = {
     "mae": ["query", "value"],
     "clip": ["q_proj", "v_proj"],
     "siglip": ["q_proj", "v_proj"],
+    "siglip2": ["q_proj", "v_proj"],
 }
 
 
@@ -83,7 +84,7 @@ class FineTuningConfig:
     """Configuration for fine-tuning an SSL model.
 
     Attributes:
-        model_name: Name of the SSL model to fine-tune (dinov2, dinov3, mae, clip, siglip).
+        model_name: Name of the SSL model to fine-tune (dinov2, dinov3, mae, clip, siglip, siglip2).
         num_epochs: Number of training epochs.
         batch_size: Training batch size.
         learning_rate_backbone: Learning rate for backbone parameters.
@@ -279,6 +280,8 @@ class FineTunableModel(nn.Module):
             AutoModel,
             CLIPVisionConfig,
             CLIPVisionModel,
+            SiglipVisionConfig,
+            SiglipVisionModel,
             Siglip2VisionConfig,
             Siglip2VisionModel,
             ViTMAEConfig,
@@ -299,9 +302,24 @@ class FineTunableModel(nn.Module):
             return CLIPVisionModel.from_pretrained(model_id, config=clip_config)
 
         elif self.model_name == "siglip":
-            siglip_config = Siglip2VisionConfig.from_pretrained(model_id)
+            siglip_config = SiglipVisionConfig.from_pretrained(model_id)
             siglip_config.output_attentions = True
-            return Siglip2VisionModel.from_pretrained(model_id, config=siglip_config)
+            return SiglipVisionModel.from_pretrained(model_id, config=siglip_config)
+
+        elif self.model_name == "siglip2":
+            auto_config = AutoConfig.from_pretrained(model_id)
+            model_type = getattr(auto_config, "model_type", None)
+            if model_type == "siglip2":
+                siglip2_config = Siglip2VisionConfig.from_pretrained(model_id)
+                siglip2_config.output_attentions = True
+                return Siglip2VisionModel.from_pretrained(model_id, config=siglip2_config)
+            if model_type == "siglip":
+                siglip_config = SiglipVisionConfig.from_pretrained(model_id)
+                siglip_config.output_attentions = True
+                return SiglipVisionModel.from_pretrained(model_id, config=siglip_config)
+            raise ValueError(
+                f"Unsupported SigLIP2 checkpoint type '{model_type}' for {model_id}"
+            )
 
         else:  # dinov2, dinov3
             auto_config = AutoConfig.from_pretrained(model_id)
@@ -375,8 +393,8 @@ class FineTunableModel(nn.Module):
         """
         attentions = list(model_output.attentions)
 
-        if self.model_name == "siglip":
-            # SigLIP uses pooler_output (no CLS in sequence)
+        if self.model_name in ("siglip", "siglip2"):
+            # SigLIP/SigLIP2 use pooler_output (no CLS in sequence)
             cls_features = model_output.pooler_output
         else:
             # DINOv2, DINOv3, MAE, CLIP all have CLS at position 0
@@ -446,7 +464,7 @@ class FineTunableModel(nn.Module):
         hidden_states = model_output.last_hidden_state
         attentions = list(model_output.attentions)
 
-        if self.model_name == "siglip":
+        if self.model_name in ("siglip", "siglip2"):
             cls_token = model_output.pooler_output
             patch_tokens = hidden_states  # All positions are patches
         else:
@@ -884,7 +902,7 @@ def load_finetuned_model(
     """Load a fine-tuned model from checkpoint.
 
     Args:
-        model_name: Name of the model (dinov2, dinov3, mae, clip, siglip).
+        model_name: Name of the model (dinov2, dinov3, mae, clip, siglip, siglip2).
         checkpoint_path: Path to checkpoint. If None, uses default path.
         device: Target device. Auto-detects if None.
 
