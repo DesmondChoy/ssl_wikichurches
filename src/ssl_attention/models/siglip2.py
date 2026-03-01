@@ -92,6 +92,7 @@ class SigLIP2(BaseVisionModel):
         """
         auto_config = AutoConfig.from_pretrained(self.model_id)
         model_type = getattr(auto_config, "model_type", None)
+        config: Siglip2VisionConfig | SiglipVisionConfig
 
         if model_type == "siglip2":
             config = Siglip2VisionConfig.from_pretrained(self.model_id)

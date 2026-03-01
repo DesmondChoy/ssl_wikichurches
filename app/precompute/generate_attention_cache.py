@@ -23,10 +23,10 @@ Usage (fine-tuned models):
 from __future__ import annotations
 
 import argparse
-from typing import Any
 import gc
 import sys
 from pathlib import Path
+from typing import Any
 
 import torch
 from tqdm import tqdm
@@ -147,7 +147,6 @@ def generate_attention_for_model(
           f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
     print(f"{'='*60}")
 
-    from typing import Any
     model: Any
 
     # Load model

@@ -64,6 +64,39 @@ disallow_untyped_defs = true
 module = ["h5py", "h5py.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "scipy"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sklearn"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "torchvision"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "torchvision.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "ssl_attention.metrics.statistics",
+    "ssl_attention.evaluation.linear_probe",
+    "ssl_attention.models.resnet50",
+    "ssl_attention.evaluation.fine_tuning",
+]
+disable_error_code = ["import-untyped"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"

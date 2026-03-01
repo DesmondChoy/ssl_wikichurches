@@ -280,10 +280,10 @@ class FineTunableModel(nn.Module):
             AutoModel,
             CLIPVisionConfig,
             CLIPVisionModel,
-            SiglipVisionConfig,
-            SiglipVisionModel,
             Siglip2VisionConfig,
             Siglip2VisionModel,
+            SiglipVisionConfig,
+            SiglipVisionModel,
             ViTMAEConfig,
             ViTMAEModel,
         )
