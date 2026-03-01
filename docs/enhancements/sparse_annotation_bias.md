@@ -20,7 +20,7 @@ Consider image **Q2820485_wd0.jpg**, which depicts a church facade with multiple
 When a user clicks the annotated "Round Arch Window" bbox in the Image Detail view, the backend computes IoU against that single bbox mask:
 
 ```
-GET /api/metrics/{image_id}/bbox/{bbox_index}?model=dinov2&percentile=90
+GET /api/metrics/{image_id}/bbox/{bbox_index}?model=<model_key>&percentile=90
 ```
 
 The model's attention correctly spreads across **all** round arch windows on the facade — both the annotated one and the unannotated ones. The IoU calculation then treats attention on the unannotated windows as **false positives** (attention outside the ground truth), even though the model is demonstrating correct semantic understanding.
@@ -72,7 +72,7 @@ The bias specifically affects the **per-bbox IoU** pathway — when a user selec
 | **Number of unannotated instances** | More unannotated instances → more "false positive" attention → lower IoU |
 | **Feature regularity** | Repeating architectural elements (windows, columns, arches) are most affected |
 | **Model quality** | Better models are penalized *more* because they correctly attend to all instances |
-| **Attention method** | Diffuse methods (Mean, Rollout) spread more attention to unannotated instances than focused methods (CLS) |
+| **Attention method** | Diffuse methods (Mean, Rollout) spread more attention to unannotated instances than focused methods (CLS); this is often more visible in SigLIP/SigLIP2 mean-attention maps |
 
 ### Misleading IoU Scores
 

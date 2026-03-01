@@ -2,13 +2,15 @@
 
 This academic proposal examining whether SSL vision transformers attend to what architectural experts annotate represents a **substantially novel contribution** across all four research questions. While the methodology (IoU measurement, attention maps, fine-tuning analysis) builds on established techniques, the specific combination of SSL models, expert annotations, architectural heritage domain, and comparative fine-tuning analysis fills identifiable gaps in the literature.
 
+> **Citation status note (verified March 1, 2026):** Venue/status labels below are based on primary records (arXiv/OpenReview/conference proceedings pages) available as of this date.
+
 ## Q1 verdict: Novel application, established methods
 
 The most directly relevant prior work is **Chefer et al. (CVPR 2021)**, which established the IoU and Pointing Game evaluation framework for ViT attention maps against ImageNet segmentation masks. Their follow-up ICCV 2021 paper extended this to bi-modal transformers including CLIP. The **original DINO paper (Caron et al., ICCV 2021)** already demonstrated measuring Jaccard similarity between attention-derived masks and PASCAL VOC12 ground truth, achieving **45.9%** versus only ~23% for supervised ViTs.
 
-The closest contemporary work is **Chung et al. (arXiv 2503.09535, March 2025)**, which computes both IoU and Pointing Game between ViT attention maps and expert bounding boxes on medical imaging datasets. They compare Random, Supervised, DINO, and MAE pretraining—remarkably similar methodology to the proposed work. Their key finding that "DINO pretraining does NOT necessarily outperform supervised/MAE on medical datasets" suggests domain-specific evaluation matters, strengthening the case for architectural heritage studies.
+The closest contemporary work is **Chung et al. (arXiv:2503.09535, submitted March 2025; comments indicate acceptance at the MICCAI 2024 iMIMIC workshop)**, which computes both IoU and Pointing Game between ViT attention maps and expert bounding boxes on medical imaging datasets. They compare Random, Supervised, DINO, and MAE pretraining—remarkably similar methodology to the proposed work. Their key finding that "DINO pretraining does NOT necessarily outperform supervised/MAE on medical datasets" suggests domain-specific evaluation matters, strengthening the case for architectural heritage studies.
 
-**ASCENT-ViT (IJCAI 2025)** takes a different approach, training attention to align with concept annotations on CUB bird parts and medical kidney tumors. However, this is a training method rather than an evaluation study. **No existing work evaluates attention alignment on WikiChurches or any architectural heritage dataset**, and no work compares DINOv2, DINOv3, MAE, CLIP, and SigLIP 2 in a unified attention-alignment framework. The project's novelty lies in the domain application and model comparison breadth rather than metric innovation.
+**ASCENT-ViT (listed as IJCAI 2025 main-track accepted paper with linked preprint)** takes a different approach, training attention to align with concept annotations on CUB bird parts and medical kidney tumors. However, this is a training method rather than an evaluation study. Based on the literature sweep available as of March 1, 2026, we did not find prior work evaluating attention alignment on WikiChurches or other architectural-heritage datasets, nor a unified attention-alignment comparison across DINOv2, DINOv3, MAE, CLIP, SigLIP, and SigLIP 2. The project's novelty lies in domain application and model-comparison breadth rather than metric innovation.
 
 Methodological recommendations from literature: use both IoU AND Pointing Game (they capture different aspects); consider using **Chefer's gradient-weighted attention rollout** which outperforms raw attention; threshold selection matters (medical paper used top 5% percentile); report per-model results since SSL method effects vary by domain.
 
@@ -16,7 +18,7 @@ Methodological recommendations from literature: use both IoU AND Pointing Game (
 
 Literature on fine-tuning effects on attention exists but does not directly measure the proposed Δ IoU methodology. The most relevant paper is **Li et al. (arXiv 2411.09702, November 2024)**, "On the Surprising Effectiveness of Attention Transfer for Vision Transformers," which found that using **only attention patterns from pretraining recovers 77.8% of the performance gap** between training from scratch and full fine-tuning. This demonstrates attention patterns are crucial for transfer learning, but they measured performance gaps rather than alignment with human annotations.
 
-**Park et al. (ICLR 2023)**, "What Do Self-Supervised Vision Transformers Learn?", provides quantitative layer-wise attention analysis comparing contrastive learning (MoCo v3, DINO) versus masked image modeling (MAE, SimMIM). Key finding: CL trains attention for longer-range global patterns while MIM focuses on local texture. They used attention head homogeneity metrics and Fourier analysis—valuable methodology but not expert-annotation alignment.
+**Park et al. (ICLR 2023 poster)**, "What Do Self-Supervised Vision Transformers Learn?", provides quantitative layer-wise attention analysis comparing contrastive learning (MoCo v3, DINO) versus masked image modeling (MAE, SimMIM). Key finding: CL trains attention for longer-range global patterns while MIM focuses on local texture. They used attention head homogeneity metrics and Fourier analysis—valuable methodology but not expert-annotation alignment.
 
 Several medical imaging papers compare attention-region overlap before/after different pretraining paradigms, but the specific formulation **Δ IoU = IoU(fine-tuned) − IoU(frozen)** for measuring task-induced attention shift toward expert-defined regions does not appear in literature. This represents a clear methodological novelty. The closest precedent is domain adaptation work like **PCaM (arXiv 2506.17232)**, which uses attention guidance loss to direct attention toward task-relevant regions, but this is a training technique rather than evaluation metric.
 
@@ -30,13 +32,13 @@ For Vision Transformers specifically, **Li et al. (IEEE TVCG 2023)** provides a 
 
 A recent **Neural Networks 2025 paper** on DINO head clusters found three distinct groups: **G1 heads (~20%)** focus on key points within figures resembling human gaze, **G2 heads (~60%)** distribute attention over entire figures with sharp contours, and **G3 heads (~20%)** attend to background. They validated against human eye-tracking data. This provides precedent for categorizing heads by what they attend to, though not against architectural features.
 
-**Basile et al. (arXiv 2510.21518, October 2025)**, "Head Pursuit: Probing Attention Specialization in Multimodal Transformers," uses simultaneous orthogonal matching pursuit to identify heads aligned with interpretable semantic attributes. They found editing ~1% of heads can reliably suppress/enhance targeted concepts. This is methodologically relevant for identifying which heads encode which features.
+**Basile et al. (arXiv:2510.21518, later revised January 2026; comments indicate NeurIPS 2025 spotlight)**, "Head Pursuit: Probing Attention Specialization in Multimodal Transformers," uses simultaneous orthogonal matching pursuit to identify heads aligned with interpretable semantic attributes. They found editing ~1% of heads can reliably suppress/enhance targeted concepts. This is methodologically relevant for identifying which heads encode which features.
 
 The proposed per-head IoU against architectural features (windows, portals, towers) extends the Voita paradigm to a new domain with different ground truth. **No existing work computes per-head IoU against expert-annotated domain-specific features** in architectural heritage or any fine-grained recognition context. The main novelty is the domain application and systematic per-feature analysis.
 
 ## Q4 verdict: Strongest novelty claim among all questions
 
-**Biderman et al. (TMLR 2024)**, "LoRA Learns Less and Forgets Less," is the primary reference comparing LoRA versus full fine-tuning. Key findings: LoRA substantially underperforms full fine-tuning on target domain but better maintains base model capabilities; full fine-tuning learns perturbations with rank **10-100× greater** than typical LoRA configurations; attention-only LoRA provides no additional benefit over MLP-only LoRA. However, they measured task performance metrics, not attention pattern changes.
+**Biderman et al. (accepted by TMLR, 2024)**, "LoRA Learns Less and Forgets Less," is the primary reference comparing LoRA versus full fine-tuning. Key findings: LoRA substantially underperforms full fine-tuning on target domain but better maintains base model capabilities; full fine-tuning learns perturbations with rank **10-100× greater** than typical LoRA configurations; attention-only LoRA provides no additional benefit over MLP-only LoRA. However, they measured task performance metrics, not attention pattern changes.
 
 **Kumar et al. (ICLR 2022)**, "Fine-Tuning can Distort Pretrained Features," compared Linear Probe versus Full Fine-tuning. Critical finding: fine-tuning achieves 2% higher in-distribution accuracy but **7% lower out-of-distribution accuracy**—fine-tuning distorts pretrained features. They measured feature distortion via cosine similarity and Fisher's discriminant ratio, not attention alignment. Their proposed LP-FT (Linear Probe then Fine-tune) combines benefits of both approaches.
 
@@ -46,7 +48,7 @@ Recent work on LoRA mechanisms includes **CKA similarity heatmaps** comparing SF
 
 ## WikiChurches dataset and cultural heritage attention studies
 
-The WikiChurches dataset (Barz & Denzler, NeurIPS 2021 Datasets Track) contains **9,485 images** with hierarchical style labels and **631 bounding box annotations** of characteristic visual features for 139 churches. Search results indicate **minimal subsequent usage beyond the original paper**—no follow-up studies from independent research groups, and no attention analysis or interpretability studies using this dataset. This underutilization represents an opportunity.
+The WikiChurches dataset (Barz & Denzler, NeurIPS 2021 Datasets Track) contains **9,485 images** with hierarchical style labels and **631 bounding box annotations** of characteristic visual features for 139 churches. Available indexing/search evidence as of March 1, 2026 indicates limited follow-up usage and no clearly established attention-alignment benchmark on WikiChurches; this underutilization represents an opportunity.
 
 Related cultural heritage work includes **MonuMAI** (Neurocomputing 2020), which provides expert-annotated architectural elements linked to Hispanic-Muslim, Gothic, Renaissance, and Baroque styles. **HistoNet (2025)** applies hybrid CNN-Transformer-Mamba architectures to architectural heritage with SHAP-based interpretability. The **Brazilian ImageMG dataset** classifies church architectural elements (fronton, door, window, tower) using transfer learning. However, none of these papers analyze SSL model attention against expert annotations.
 
@@ -80,3 +82,19 @@ The project should position itself as bridging three literatures: (1) ViT attent
 ## Conclusion: Proceed with confidence
 
 The project fills genuine gaps at the intersection of attention interpretability, fine-tuning analysis, and cultural heritage recognition. Q2 (Δ IoU methodology) and Q4 (three-way fine-tuning comparison) represent the strongest novelty claims. Q1 and Q3 are valuable domain extensions of established methods. The WikiChurches dataset is underutilized and appropriate for this research. No blocking prior work was identified that would undermine the contribution—the closest work (medical imaging attention alignment) actually strengthens the case for domain-specific evaluation studies.
+
+## Standardized Citations
+
+- Barz, B., and Denzler, J. (2021). WikiChurches: A Fine-Grained Dataset of Architectural Styles with Real-World Challenges. NeurIPS 2021 Datasets and Benchmarks. https://arxiv.org/abs/2108.06959
+- Basile, F., et al. (2025). Head Pursuit: Probing Attention Specialization in Multimodal Transformers. arXiv preprint (revised 2026; NeurIPS 2025 spotlight noted in arXiv comments). https://arxiv.org/abs/2510.21518
+- Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. TMLR 2024 (accepted). https://arxiv.org/abs/2405.09673
+- Caron, M., et al. (2021). Emerging Properties in Self-Supervised Vision Transformers. ICCV 2021. https://arxiv.org/abs/2104.14294
+- Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. CVPR 2021. https://arxiv.org/abs/2012.09838
+- Chung, Y., et al. (2025). What Should We Learn from Attention Maps? A ViT Study in Medical Imaging. arXiv preprint (workshop acceptance noted in arXiv comments). https://arxiv.org/abs/2503.09535
+- Hu, X., et al. (2025). ASCENT-ViT: Attentive Semantic Concept Explainability for Vision Transformers. IJCAI 2025. https://www.ijcai.org/proceedings/2025/58
+- Kumar, A., et al. (2022). Fine-Tuning can Distort Pretrained Features and Underperform Out-of-Distribution. ICLR 2022 (oral). https://arxiv.org/abs/2202.10054
+- Li, J., et al. (2024). On the Surprising Effectiveness of Attention Transfer for Vision Transformers. arXiv preprint. https://arxiv.org/abs/2411.09702
+- Li, Y., et al. (2023). Interpreting Vision Transformer from Head Distribution. IEEE TVCG 2023. https://doi.org/10.1109/TVCG.2023.3327840
+- Park, N., et al. (2023). What Do Self-Supervised Vision Transformers Learn? ICLR 2023 (poster). https://openreview.net/forum?id=azCKuYyS74
+- Simeoni, O., et al. (2025). DINOv3. arXiv preprint. https://arxiv.org/abs/2508.10104
+- Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention: Specialized Heads Do the Heavy Lifting. ACL 2019. https://arxiv.org/abs/1905.09418

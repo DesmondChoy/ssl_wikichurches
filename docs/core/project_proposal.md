@@ -82,7 +82,7 @@ Extract attention maps from each model using multiple methods:
 
 1. **CLS token attention:** Aggregate attention from [CLS] token to spatial patches across heads (DINOv2, DINOv3, MAE, CLIP)
 2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies (DINOv2, DINOv3, MAE, CLIP)
-3. **Mean attention:** Average attention across patches for models without [CLS] token (SigLIP)
+3. **Mean attention:** Average attention across patches for models without [CLS] token (SigLIP, SigLIP 2)
 4. **Grad-CAM (baseline):** Gradient-weighted activation maps for ResNet-50 CNN baseline
 
 For each image with expert annotations, generate attention heatmaps at the original image resolution.
@@ -99,7 +99,7 @@ Train linear classifiers on frozen features for 4-class style classification. Co
 
 ### 3.5 Fine-Tuning Analysis
 
-Fine-tune each backbone on 4-class style classification (9,485 images), then re-extract attention on the 139 annotated images. Compare Δ IoU (fine-tuned − frozen) per model.
+Fine-tune each backbone on 4-class style classification (using the style-labeled split), then re-extract attention on the 139 annotated images. Compare Δ IoU (fine-tuned − frozen) per model.
 
 Three fine-tuning strategies are compared (addressing Q2):
 
@@ -197,7 +197,7 @@ All models compared against:
 | Bounding boxes span only 4 style categories | Frame as focused study; note generalization limitations in discussion |
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
-| DINOv3/SigLIP 2 documentation still sparse | Resolved: both models fully integrated with proper HuggingFace classes (SigLIP using `Siglip2VisionModel`) |
+| Documentation drift between model keys and runtime behavior | Mitigate with periodic doc sync against `src/ssl_attention/config.py` and backend validators; keep `siglip` and `siglip2` documented as separate canonical keys |
 | Fine-tuning may overfit on small style subset | Validation split, early stopping, cosine LR schedule with warmup, gradient clipping, LoRA as parameter-efficient alternative, 139 eval images held out from training. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
 
 ---
@@ -237,7 +237,7 @@ All models compared against:
 
 ### 11.1 Dataset Expansion: Leveraging Unused Styles
 
-The current implementation uses only 4 architectural styles (Romanesque, Gothic, Renaissance, Baroque), covering 4,790 of 9,346 images (51.3%). The remaining 4,556 images have style labels but are excluded from training. This presents opportunities for future work:
+The current implementation uses only 4 architectural styles (Romanesque, Gothic, Renaissance, Baroque), covering 4,790 of 9,346 style-labeled images (51.3%). The remaining 4,556 labeled images have other styles and are excluded from current training. This presents opportunities for future work:
 
 **Current Dataset Utilization:**
 
@@ -268,7 +268,7 @@ The current implementation uses only 4 architectural styles (Romanesque, Gothic,
 
 3. **Hierarchical classification** — Implement two-level classification (major style → substyle). This would leverage the full dataset while preserving fine-grained distinctions.
 
-4. **Semi-supervised learning** — Use all 9,346 images regardless of style mapping. Unlabeled images could improve learned representations through consistency regularization or pseudo-labeling.
+4. **Semi-supervised learning** — Use all available images (9,485 in the official release, plus any local extensions) regardless of style mapping. Unlabeled images could improve learned representations through consistency regularization or pseudo-labeling.
 
 **Implementation Considerations:**
 
@@ -309,4 +309,3 @@ NUM_STYLES: int = len(STYLE_MAPPING)
 - Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention: Specialized Heads Do the Heavy Lifting. *ACL*. [arXiv:1905.09418](https://arxiv.org/abs/1905.09418)
 - Hu, E.J., et al. (2022). LoRA: Low-Rank Adaptation of Large Language Models. *ICLR*. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685)
 - Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. *TMLR*. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673)
-

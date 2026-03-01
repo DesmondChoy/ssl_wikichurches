@@ -1,6 +1,7 @@
 # Documentation
 
-SSL attention visualization platform comparing 6 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes). See the [Project Proposal](core/project_proposal.md) for the full research design.
+SSL attention visualization platform comparing 7 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes). See the [Project Proposal](core/project_proposal.md) for the full research design.
+Current model keys: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`.
 
 ## Structure
 

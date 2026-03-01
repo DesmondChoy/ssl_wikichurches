@@ -54,7 +54,7 @@ pytest                # Run tests
 
 ## Architecture Overview
 
-SSL attention visualization platform comparing 6 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes).
+SSL attention visualization platform comparing 7 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes).
 
 ### Data Flow
 
@@ -78,6 +78,7 @@ Precompute (one-time) → HDF5/PNG cache → FastAPI backend → React frontend
 | DINOv2 | CLS, Rollout | 14×14 patches, 4 register tokens |
 | DINOv3, MAE, CLIP | CLS, Rollout | 16×16 patches |
 | SigLIP | Mean | No CLS token |
+| SigLIP 2 | Mean | No CLS token |
 | ResNet-50 | Grad-CAM | CNN baseline |
 
 ### Key Patterns

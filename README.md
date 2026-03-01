@@ -1,6 +1,6 @@
 # Do Self-Supervised Vision Models Learn What Experts See?
 
-This project investigates whether SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP 2) attend to the same visual features human experts consider diagnostic for architectural style classification. Using the WikiChurches dataset, we measure:
+This project investigates whether SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP 2) attend to the same visual features human experts consider diagnostic for architectural style classification. Using the WikiChurches dataset, we measure:
 
 1. **Attention alignment** — IoU between model attention and expert annotations
 2. **Fine-tuning effects** — Does task-specific fine-tuning shift attention toward expert features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
@@ -42,7 +42,7 @@ dataset/
 ```
 </details>
 
-> **Note**: The full WikiChurches dataset (9,502 images) is available on [Zenodo](https://zenodo.org/records/5166987), but this app only uses the 139 images with expert annotations.
+> **Note**: The official WikiChurches release reports **9,485 images** ([Zenodo](https://zenodo.org/records/5166987), [arXiv](https://arxiv.org/abs/2108.06959)). This app uses the 139 images with expert bounding-box annotations for attention-alignment evaluation.
 
 ### 3. Pre-compute Caches
 
@@ -89,12 +89,15 @@ All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attentio
 | DINOv3 | `facebook/dinov3-vitb16-pretrain-lvd1689m` | ViT-B/16 | CLS, Rollout | Self-distillation + Gram |
 | MAE | `facebook/vit-mae-base` | ViT-B/16 | CLS, Rollout | Masked autoencoding |
 | CLIP | `openai/clip-vit-base-patch16` | ViT-B/16 | CLS, Rollout | Contrastive |
-| SigLIP 2 | `google/siglip2-base-patch16-224` | ViT-B/16 | Mean | Contrastive (sigmoid) |
+| SigLIP | `google/siglip-base-patch16-224` | ViT-B/16 | Mean | Contrastive (sigmoid) |
+| SigLIP 2 (`siglip2`) | `google/siglip2-base-patch16-224` | ViT-B/16 | Mean | Contrastive (sigmoid) |
 | ResNet-50 | `torchvision` | CNN | Grad-CAM | Supervised (ImageNet) |
+
+**Model keys (CLI/API)**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`.
 
 **Note on patch sizes**: DINOv2 uses 14×14 patches (256 tokens for 224×224 images) while other models use 16×16 patches (196 tokens). For visualization, all attention maps are upsampled to image resolution, making cross-model comparison valid despite the different native resolutions.
 
-**Note on attention methods**: CLS extracts attention from the [CLS] token row. Rollout multiplies attention matrices across layers to approximate total information flow. SigLIP lacks a CLS token and uses mean received attention (MAP attention pooling). ResNet-50 uses Grad-CAM on convolutional feature maps. Metrics are computed per-method — selecting a different method changes the attention heatmap and all derived metrics.
+**Note on attention methods**: CLS extracts attention from the [CLS] token row. Rollout multiplies attention matrices across layers to approximate total information flow. SigLIP and SigLIP 2 lack a CLS token and use mean received attention (MAP-style proxy). ResNet-50 uses Grad-CAM on convolutional feature maps. Metrics are computed per-method — selecting a different method changes the attention heatmap and all derived metrics.
 
 ## Fine-Tuning
 

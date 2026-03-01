@@ -22,7 +22,7 @@ This document explains what attention heatmaps are, why they matter for this pro
    - [DINOv3](#dinov3)
    - [CLIP](#clip)
    - [MAE](#mae)
-   - [SigLIP](#siglip)
+   - [SigLIP / SigLIP2](#siglip--siglip2)
    - [ResNet-50](#resnet-50)
 6. [Summary Table](#summary-table)
 7. [References](#references)
@@ -34,7 +34,7 @@ This document explains what attention heatmaps are, why they matter for this pro
 Attention heatmaps are visualizations that show **where a Vision Transformer (ViT) "looks"** when processing an image. They represent the attention weights from the model's self-attention mechanism as a color-coded overlay on the original image.
 
 In Vision Transformers:
-1. An image is divided into patches (e.g., 14×14 pixels for DINOv2, 16×16 pixels for CLIP/MAE/SigLIP/DINOv3)
+1. An image is divided into patches (e.g., 14×14 pixels for DINOv2, 16×16 pixels for CLIP/MAE/SigLIP/SigLIP2/DINOv3)
 2. Each patch becomes a token in a sequence
 3. The **attention mechanism** determines how much each token should "attend to" other tokens
 4. The **CLS token** (when present) aggregates information from all patches to form a global representation
@@ -154,7 +154,7 @@ When a user clicks on an expert-annotated bounding box, the system computes a **
 │   Data shape varies by model:                                   │
 │     DINOv2:           (256, 768)  = 16×16 grid × 768-dim       │
 │     DINOv3/MAE/CLIP:  (196, 768)  = 14×14 grid × 768-dim      │
-│     SigLIP:           (196, 768)  = 14×14 grid × 768-dim       │
+│     SigLIP/SigLIP2:   (196, 768)  = 14×14 grid × 768-dim       │
 │     ResNet-50:        (49, 2048)  = 7×7 grid × 2048-dim        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -318,20 +318,20 @@ MAE (Masked Autoencoder) presents a significant interpretability challenge. Whil
 
 **Verdict:** The implementation is technically correct, but the **interpretation may be misleading**. MAE attention should not be directly compared to DINO attention as if they measure the same thing. When MAE shows low IoU with expert annotations, it may reflect the model's reconstruction-oriented training objective rather than a failure to learn useful features.
 
-### SigLIP
+### SigLIP / SigLIP2
 
 | Aspect | Assessment |
 |--------|------------|
 | **Method** | Mean attention |
 | **Appropriateness** | **Acceptable** (approximation) |
 
-SigLIP uses a **pooling mechanism** instead of a CLS token. This architectural difference requires a different attention extraction approach.
+SigLIP and SigLIP2 use a **pooling mechanism** instead of a CLS token. This architectural difference requires a different attention extraction approach.
 
 **The challenge:** According to [SigLIP 2 documentation](https://arxiv.org/html/2502.14786v1) and [GitHub discussions](https://github.com/google-research/big_vision/issues/145):
 - There is no single CLS token whose attention we can extract
 - The aggregation happens through a pooling layer, not a fixed token in the self-attention sequence
 
-**Implementation note:** In our code (`siglip.py`), the `pooler_output` from HuggingFace is used as a stand-in for the CLS embedding in downstream tasks (e.g., classification). However, this pooler output is separate from the self-attention mechanism — it does not provide extractable attention weights. The exact pooling method used by the HuggingFace `SiglipVisionModel.pooler_output` should be verified against the architecture specification, as it may differ from the Multi-head Attention Pooling (MAP) described in the original paper.
+**Implementation note:** In our code (`siglip.py`, `siglip2.py`), the `pooler_output` from HuggingFace is used as a stand-in for the CLS embedding in downstream tasks (e.g., classification). However, this pooler output is separate from the self-attention mechanism — it does not provide extractable attention weights. The exact pooling method used by `SiglipVisionModel.pooler_output` / `Siglip2VisionModel.pooler_output` should be verified against the architecture specification, as it may differ from the Multi-head Attention Pooling (MAP) described in the original paper.
 
 **Our approach:** We use `extract_mean_attention()`, which computes how much each patch is **attended to** (received attention) by all other patches:
 
@@ -345,6 +345,7 @@ mean_received = attn_fused.mean(dim=1)  # (B, seq)
 - **Symmetric attention**: Average of sent and received — unnecessarily complex without clear benefit
 
 Received attention is a reasonable saliency proxy because patches that are "sought out" by many other patches likely contain important visual information.
+It remains an interpretability proxy derived from attention matrices, not the exact pooling operation used to produce final embeddings.
 
 **Limitations:**
 - This is an approximation, not the actual attention used by the pooling head
@@ -392,6 +393,7 @@ def _compute_gradcam_heatmap(self, layer_name: str, image_size: int) -> Tensor:
 | **CLIP** | CLS + Rollout | Yes | 16px → 14×14 (196) | Correct | **Good** | Text-alignment training affects patterns |
 | **MAE** | CLS + Rollout | Yes (no training signal) | 16px → 14×14 (196) | Correct | **Questionable** | CLS wasn't trained for semantic aggregation |
 | **SigLIP** | Mean attention | No (uses pooler) | 16px → 14×14 (196) | Approximation | **Acceptable** | Mean received attention ≠ pooler attention |
+| **SigLIP 2** | Mean attention | No (uses pooler) | 16px → 14×14 (196) | Approximation | **Acceptable** | Mean received attention is a proxy for pooling attention |
 | **ResNet-50** | Grad-CAM | N/A (CNN) | N/A → 7×7 (49) | Correct | **Correct** | Class-agnostic; standard for CNNs |
 
 ### Recommendations for Interpretation
@@ -399,7 +401,7 @@ def _compute_gradcam_heatmap(self, layer_name: str, image_size: int) -> Tensor:
 1. **Trust DINO attention most:** DINOv2/v3 attention has strong theoretical and empirical support for semantic meaning
 2. **CLIP with context:** Remember CLIP attention reflects text-image training objectives
 3. **MAE with caution:** Don't interpret MAE attention as "what the model thinks is important" in the same way as DINO
-4. **SigLIP as approximation:** Understand that mean received attention is a proxy for the actual pooling mechanism
+4. **SigLIP/SigLIP2 as approximation:** Understand that mean received attention is a proxy for the actual pooling mechanism
 5. **ResNet as baseline:** Use ResNet Grad-CAM to compare SSL attention against supervised learning
 
 ---

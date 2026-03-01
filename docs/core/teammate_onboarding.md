@@ -10,8 +10,9 @@ This project is organized around three research questions:
 3. **Do individual attention heads specialize for different architectural features?**
 
 The benchmark uses WikiChurches expert annotations (139 images, 631 bounding boxes) and compares multiple model families (DINOv2, DINOv3, MAE, CLIP, SigLIP 2, ResNet-50) with attention alignment metrics (primarily IoU + coverage).
+Canonical model keys in the app/API are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`.
 
-For Q2 fine-tuning, training should rely on the broader WikiChurches style-labeled dataset (9,502 images), with bbox-annotated evaluation images excluded to avoid leakage; the 139 annotated images are primarily for attention-alignment evaluation.
+For Q2 fine-tuning, training should rely on the broader WikiChurches style-labeled metadata split (9,346 entries in `churches.json`), with bbox-annotated evaluation images excluded to avoid leakage; the 139 annotated images are primarily for attention-alignment evaluation.
 
 ## 2. Current status snapshot (as of February 12, 2026)
 
@@ -30,7 +31,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 - Test suite is healthy:
   - `uv run pytest` passed: **273 passed**.
 - Dataset is present locally:
-  - `dataset/images` contains 9,502 images.
+  - `dataset/images` contains 9,502 files in this local mirror (official WikiChurches release size is 9,485).
 - Precomputed artifacts exist:
   - `outputs/cache/attention_viz.h5`
   - `outputs/cache/features.h5`
@@ -187,7 +188,7 @@ Goal: easier collaboration + reproducibility.
   - `src/ssl_attention/config.py`
   - `app/backend/validators.py`
   - frontend `viewStore` and `ControlPanel`.
-- Keep the API + frontend contract aligned (method names, model aliases, layer bounds).
+- Keep the API + frontend contract aligned (method names, model keys, layer bounds).
 - Prefer adding tests with each change; current suite is fast and reliable.
 
 ## 8. High-value first ticket recommendations

@@ -22,7 +22,7 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 
 ## Approach
 
-**Dataset:** WikiChurches --- 9,485 church images, 631 expert bounding boxes across 139 annotated churches in 4 architectural styles (Gothic, Romanesque, Renaissance, Baroque).
+**Dataset:** WikiChurches --- 9,485 church images (official release), 631 expert bounding boxes across 139 annotated churches in 4 architectural styles (Gothic, Romanesque, Renaissance, Baroque).
 
 **Models compared** (all ViT-B for controlled comparison):
 
@@ -32,17 +32,19 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 | DINOv3 | Self-distillation + Gram anchoring | Improved dense features |
 | MAE | Masked autoencoding | Pixel-level reconstruction |
 | CLIP | Contrastive (language-image, softmax) | Semantic alignment |
-| SigLIP 2 | Contrastive (language-image, sigmoid) | Dense feature quality |
+| SigLIP 2 (`siglip2`) | Contrastive (language-image, sigmoid) | Dense feature quality |
 | ResNet-50 | Supervised (Grad-CAM) | CNN baseline |
 
 **Methodology:**
-1. Extract attention maps (CLS attention, rollout, Grad-CAM) from pretrained models
+1. Extract attention maps (CLS attention, rollout, mean attention for SigLIP/SigLIP 2, and Grad-CAM) from pretrained models
 2. Threshold at multiple percentiles and compute IoU against expert bounding boxes
 3. Fine-tune on 4-class style classification (~4,790 images, 139 eval images held out)
 4. Re-extract attention and measure delta-IoU to quantify attention shift
 5. Analyze per-head IoU to identify heads specialized for architectural features (e.g., windows, portals, towers)
 
 ## Preliminary Results
+
+**Result provenance:** Snapshot from metrics cache generated on 2026-02-12 (`outputs/cache/metrics_summary.json`). Regenerate after cache refresh.
 
 | Model | Best IoU (frozen) | Rank | Key Observation |
 |-------|:-:|:-:|-----------------|

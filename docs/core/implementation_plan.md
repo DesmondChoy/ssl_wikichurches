@@ -19,7 +19,7 @@
 
 Build a system to compare SSL model attention patterns against 631 expert-annotated bounding boxes on 139 WikiChurches images, measuring whether models attend to the same features human experts consider diagnostic.
 
-**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP 2 (all ViT-B, evaluated frozen and fine-tuned)
+**Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP 2 (all ViT-B, evaluated frozen and fine-tuned)
 **Research Design:** Two-pass analysis comparing attention patterns before and after task-specific fine-tuning
 **Primary Metric:** IoU between thresholded attention and expert bounding boxes
 **Platform:** M4 Pro with MPS backend
@@ -54,7 +54,8 @@ ssl_wikichurches/
 │   │   ├── dinov3.py            # DINOv3 wrapper (facebook/dinov3-vitb16-pretrain-lvd1689m)
 │   │   ├── mae.py               # MAE wrapper (facebook/vit-mae-base)
 │   │   ├── clip_model.py        # CLIP wrapper (openai/clip-vit-base-patch16)
-│   │   ├── siglip.py            # SigLIP 2 wrapper (google/siglip2-base-patch16-224)
+│   │   ├── siglip.py            # SigLIP wrapper (google/siglip-base-patch16-224)
+│   │   ├── siglip2.py           # SigLIP 2 wrapper (google/siglip2-base-patch16-224)
 │   │   └── resnet50.py          # ResNet-50 supervised baseline (Grad-CAM)
 │   │
 │   ├── attention/
@@ -116,6 +117,7 @@ ssl_wikichurches/
 | DINOv3 | `facebook/dinov3-vitb16-pretrain-lvd1689m` | `DINOv3ViTModel` | 16 | Requires transformers 4.56.0+, uses RoPE |
 | MAE | `facebook/vit-mae-base` | `ViTMAEModel` | 16 | Set `mask_ratio=0.0` for extraction |
 | CLIP | `openai/clip-vit-base-patch16` | `CLIPVisionModel` | 16 | Vision encoder only |
+| SigLIP | `google/siglip-base-patch16-224` | `SiglipVisionModel` | 16 | No CLS token; mean attention path |
 | SigLIP 2 | `google/siglip2-base-patch16-224` | `Siglip2VisionModel` | 16 | Improved dense features; better for attention alignment |
 
 ### Key API Patterns
@@ -180,7 +182,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `dinov3.py` - Handle RoPE, registers, patch size 16 ✅
    - `mae.py` - Disable masking with `mask_ratio=0.0` ✅
    - `clip_model.py` - Vision encoder only ✅
-   - `siglip.py` - Vision encoder only (SigLIP 2) ✅
+   - `siglip.py` - Vision encoder only (SigLIP) ✅
+   - `siglip2.py` - Vision encoder only (SigLIP 2) ✅
 
 4. **Implement attention extractors**: ✅
    - `cls_attention.py` - CLS to patch attention with head fusion ✅
@@ -196,7 +199,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 2. **Dataset classes** (`wikichurches.py`) ✅
    - `AnnotatedSubset` - 139 images with bboxes
-   - `FullDataset` - 9,502 images total (use `filter_labeled=True` for 4-style training subset)
+   - `FullDataset` - 9,502 files in local mirror / 9,485 in official release (use `filter_labeled=True` for 4-style training subset)
    - Per-model preprocessing via registry
 
 3. **HDF5 caching** (`cache/manager.py`) ✅
@@ -383,6 +386,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 5 | `src/ssl_attention/models/mae.py` | MAE wrapper | ✅ Done |
 | 6 | `src/ssl_attention/models/clip_model.py` | CLIP wrapper | ✅ Done |
 | 7 | `src/ssl_attention/models/siglip.py` | SigLIP wrapper | ✅ Done |
+| 7b | `src/ssl_attention/models/siglip2.py` | SigLIP 2 wrapper | ✅ Done |
 | 21 | `src/ssl_attention/models/resnet50.py` | ResNet-50 supervised baseline | ✅ Done |
 | 8 | `src/ssl_attention/attention/cls_attention.py` | Primary attention method | ✅ Done |
 | 9 | `src/ssl_attention/data/annotations.py` | Bbox parsing | ✅ Done |
@@ -537,7 +541,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 - DINOv3 sequence: 1 CLS + 4 registers + 196 patches (patch 16, 224px)
 - MAE sequence: 1 CLS + 196 patches (with mask_ratio=0)
 - CLIP: 1 CLS + 196 patches
-- SigLIP 2: 196 patches (no CLS token; uses MAP attention pooling)
+- SigLIP: 196 patches (no CLS token; mean attention method)
+- SigLIP 2: 196 patches (no CLS token; mean attention method)
 
 ### Dataset Details (Verified)
 

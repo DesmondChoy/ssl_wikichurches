@@ -13,6 +13,8 @@ This document outlines fine-tuning methods suitable for the SSL WikiChurches pro
 - **Research Question 2**: Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
 
 **Key insight:** The Δ IoU metric (post-fine-tuning IoU − pre-fine-tuning IoU) directly measures whether fine-tuning improves alignment between model attention and human expert annotations.
+Supported model keys in this project are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, and `resnet50`.
+For `siglip`/`siglip2`, attention analysis uses the mean-attention path (no CLS-token method).
 
 ---
 
@@ -20,7 +22,7 @@ This document outlines fine-tuning methods suitable for the SSL WikiChurches pro
 
 ### The Natural Experiment
 
-1. **Pre-trained models learned general features** — DINOv2, CLIP, MAE, etc. were trained on diverse datasets (ImageNet, LAION) without knowledge of architectural styles
+1. **Pre-trained models learned general features** — DINOv2, CLIP, MAE, SigLIP, SigLIP 2, etc. were trained on diverse datasets (ImageNet, LAION) without knowledge of architectural styles
 2. **Fine-tuning creates task specificity** — Training on style classification forces models to learn which visual features distinguish Romanesque from Gothic, Renaissance from Baroque
 3. **Attention as a window into learning** — By comparing attention maps before and after fine-tuning, we can observe *what* the model learns to focus on
 
@@ -213,7 +215,7 @@ Adds new transformer blocks that can be trained while keeping original blocks fr
 |---------|------|--------|-----|
 | Bbox-annotated images | 139 images, 631 boxes | Expert architectural features | **Evaluation only** |
 | Style-labeled (4 classes) | 4,790 images | Romanesque, Gothic, Renaissance, Baroque | Fine-tuning training |
-| Full WikiChurches | 9,485 images | Various style labels | Semi-supervised expansion |
+| Full WikiChurches | 9,485 images (official release) | Various style labels | Semi-supervised expansion |
 
 ### Recommended Split
 

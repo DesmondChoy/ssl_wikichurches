@@ -104,6 +104,8 @@ Source: src/ssl_attention/metrics/iou.py → compute_coverage()
 | **CorLoc** | Binary: 1 if IoU ≥ 0.5, else 0, averaged across images | Standard WSOL metric (Choe et al., 2020). Computed via `compute_corloc()` |
 | **Per-Bbox IoU** | IoU computed per individual bounding box (not the union mask) | Used in Feature Breakdown analysis. Computed via `compute_per_bbox_iou()` |
 
+**Model note (SigLIP family):** For `siglip` and `siglip2`, these metrics are computed from mean-attention heatmaps on a 14×14 patch grid (for 224×224 inputs), using the same IoU/Coverage pipeline as other ViTs.
+
 ---
 
 ## How Thresholding Works

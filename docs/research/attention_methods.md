@@ -4,6 +4,8 @@ This document explains how attention visualization works in this application and
 
 > **Related document:** This guide complements the [Project Proposal](../core/project_proposal.md), which details the full research design, hypotheses, and evaluation methodology. Links to specific proposal sections are provided throughout.
 
+> **Citation status note (verified March 1, 2026):** Venue/status wording in this guide is aligned to primary records (arXiv/OpenReview/proceedings pages) available on this date. Recent papers (for example DINOv3 and SigLIP 2) are cited as preprints unless a formal venue status is explicitly verified.
+
 ---
 
 ## Table of Contents
@@ -173,9 +175,9 @@ Source: src/ssl_attention/attention/rollout.py
 - Does not require a CLS token
 - Useful for models that use mean pooling instead of CLS pooling
 
-**Available for:** SigLIP (and other models without CLS tokens)
+**Available for:** SigLIP and SigLIP2 (and other models without CLS tokens)
 
-**Research relevance:** SigLIP uses sigmoid loss and mean pooling rather than a CLS token. Mean attention lets us compare its attention patterns to CLS-based models on equal footing.
+**Research relevance:** SigLIP and SigLIP2 use sigmoid-loss VLM pretraining and mean-style pooling rather than a CLS token. Mean attention lets us compare their attention patterns to CLS-based models on equal footing. It is an interpretability proxy derived from attention matrices, not the exact pooling operation used for final embeddings.
 
 ```
 Source: src/ssl_attention/attention/cls_attention.py (extract_mean_attention)
@@ -264,7 +266,7 @@ In the metrics dashboard, you can see:
 Each model was chosen to test specific hypotheses about how [training paradigms affect attention](../core/project_proposal.md#4-ablations):
 - **DINOv2 vs DINOv3:** Does Gram Anchoring improve attention quality?
 - **MAE:** Does reconstruction-based learning produce different attention than discriminative objectives?
-- **CLIP vs SigLIP:** Does loss function (softmax vs sigmoid) affect attention alignment?
+- **CLIP vs SigLIP family:** Does loss function (softmax vs sigmoid) affect attention alignment?
 - **ResNet-50:** Supervised baseline to isolate SSL-specific effects
 
 ### Models with CLS Token (DINOv2, DINOv3, MAE, CLIP)
@@ -287,18 +289,20 @@ You may see references to DINOv3 using "Self-distillation + Gram Anchoring" in t
 
 Gram Anchoring uses Gram matrix matching during pretraining to encourage consistent style/texture representations. One of our [hypotheses](../core/project_proposal.md#4-ablations) is that this may sharpen attention to semantically meaningful regions compared to DINOv2. We test this by comparing their CLS Attention and Rollout patterns—there is no separate "Gram" attention extraction method.
 
+As of March 1, 2026, DINOv3 is referenced via its arXiv preprint (`arXiv:2508.10104`) in this project docs.
+
 ### DINOv2 vs. DINOv3: Patch Size Difference
 
 | Model | Patch Size | Patches per 224×224 Image |
 |-------|------------|---------------------------|
 | DINOv2 | 14×14 | 16×16 = 256 patches |
-| DINOv3, MAE, CLIP, SigLIP | 16×16 | 14×14 = 196 patches |
+| DINOv3, MAE, CLIP, SigLIP, SigLIP2 | 16×16 | 14×14 = 196 patches |
 
 This means DINOv2 has finer spatial resolution in its attention maps. For visualization, all maps are upsampled to the full image resolution, making comparison valid.
 
-### SigLIP: No CLS Token
+### SigLIP / SigLIP2: No CLS Token
 
-SigLIP uses **mean pooling** instead of a CLS token—it averages all patch representations to get a global representation. Therefore:
+SigLIP and SigLIP2 use **mean pooling** instead of a CLS token—they average patch representations to get a global representation. Therefore:
 - CLS Attention is not available
 - Use **Mean Attention** instead
 
@@ -343,7 +347,7 @@ When comparing models side-by-side, look for patterns that test our [hypotheses]
 - **Specificity:** Which model's attention best matches the expert bounding boxes?
 - **Failure cases:** When models disagree with experts, what do they attend to instead?
 - **Training paradigm effects:** Do self-distillation models (DINO) show more coherent attention than reconstruction models (MAE)?
-- **Language supervision:** Do CLIP/SigLIP attend to more "nameable" features?
+- **Language supervision:** Do CLIP/SigLIP-family models attend to more "nameable" features?
 
 ---
 
@@ -358,6 +362,7 @@ When comparing models side-by-side, look for patterns that test our [hypotheses]
 | MAE | ✅ | ✅ | ❌ | ❌ |
 | CLIP | ✅ | ✅ | ❌ | ❌ |
 | SigLIP | ❌ | ❌ | ✅ | ❌ |
+| SigLIP2 | ❌ | ❌ | ✅ | ❌ |
 | ResNet-50 | ❌ | ❌ | ❌ | ✅ |
 
 ### Key Source Files
@@ -521,58 +526,30 @@ The ERASER benchmark (DeYoung et al., 2020) established that evaluation should i
 
 ## References
 
-### Core Papers
+### Standardized Citations
 
-| Paper | Citation | Relevance |
-|-------|----------|-----------|
-| **DINO** | Caron, M., et al. (2021). Emerging Properties in Self-Supervised Vision Transformers. *ICCV*. [arXiv:2104.14294](https://arxiv.org/abs/2104.14294) | Discovered emergent segmentation in self-attention |
-| **DINOv2** | Oquab, M., et al. (2024). DINOv2: Learning Robust Visual Features without Supervision. *TMLR*. [arXiv:2304.07193](https://arxiv.org/abs/2304.07193) | Foundation model we evaluate |
-| **Registers** | Darcet, T., et al. (2024). Vision Transformers Need Registers. *ICLR* (Oral). [arXiv:2309.16588](https://arxiv.org/abs/2309.16588) | Explains artifacts; motivates register-equipped model |
-| **Attention Rollout** | Abnar, S. & Zuidema, W. (2020). Quantifying Attention Flow in Transformers. *ACL*. [arXiv:2005.00928](https://arxiv.org/abs/2005.00928) | Our rollout implementation follows this |
-| **Transformer Interpretability** | Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. *CVPR*. [arXiv:2012.09838](https://arxiv.org/abs/2012.09838) | Compares methods; shows Grad-CAM limitations |
-| **Grad-CAM** | Selvaraju, R.R., et al. (2017). Grad-CAM: Visual Explanations from Deep Networks. *ICCV*. [arXiv:1610.02391](https://arxiv.org/abs/1610.02391) | Gradient-based baseline for CNNs |
-| **CAM** | Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. *CVPR*. [arXiv:1512.04150](https://arxiv.org/abs/1512.04150) | Introduced IoU-based localization evaluation |
-| **Pointing Game** | Zhang, J., et al. (2016). Top-Down Neural Attention by Excitation Backprop. *ECCV*. [arXiv:1511.02668](https://arxiv.org/abs/1511.02668) | Introduced the Pointing Game evaluation metric |
-| **Specialized Heads** | Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention. *ACL*. [arXiv:1905.09418](https://arxiv.org/abs/1905.09418) | Shows head specialization in transformers |
-| **LoRA** | Hu, E.J., et al. (2022). LoRA: Low-Rank Adaptation. *ICLR*. [arXiv:2106.09685](https://arxiv.org/abs/2106.09685) | Parameter-efficient fine-tuning method |
-| **LoRA Forgetting** | Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. *TMLR*. [arXiv:2405.09673](https://arxiv.org/abs/2405.09673) | Forgetting analysis for fine-tuning methods |
-
-### The Attention Debate (Plausibility vs. Faithfulness)
-
-| Paper | Citation | Key Contribution |
-|-------|----------|------------------|
-| **Attention is not Explanation** | Jain, S. & Wallace, B.C. (2019). *NAACL*. [arXiv:1902.10186](https://arxiv.org/abs/1902.10186) | Showed attention often uncorrelated with importance |
-| **Attention is not not Explanation** | Wiegreffe, S. & Pinter, Y. (2019). *EMNLP*. [arXiv:1908.04626](https://arxiv.org/abs/1908.04626) | Argued it depends on definition of "explanation" |
-| **ERASER Benchmark** | DeYoung, J., et al. (2020). *ACL*. [arXiv:1911.03429](https://arxiv.org/abs/1911.03429) | Defined plausibility vs. faithfulness—**our IoU measures plausibility** |
-
-### Dataset
-
-| Paper | Citation |
-|-------|----------|
-| **WikiChurches** | Barz, B. & Denzler, J. (2021). WikiChurches: A Fine-Grained Dataset of Architectural Styles with Real-World Challenges. *NeurIPS Datasets and Benchmarks*. |
+- Abnar, S., and Zuidema, W. (2020). Quantifying Attention Flow in Transformers. ACL 2020. https://arxiv.org/abs/2005.00928
+- Barz, B., and Denzler, J. (2021). WikiChurches: A Fine-Grained Dataset of Architectural Styles with Real-World Challenges. NeurIPS 2021 Datasets and Benchmarks. https://arxiv.org/abs/2108.06959
+- Biderman, S., et al. (2024). LoRA Learns Less and Forgets Less. TMLR 2024 (accepted). https://arxiv.org/abs/2405.09673
+- Caron, M., et al. (2021). Emerging Properties in Self-Supervised Vision Transformers. ICCV 2021. https://arxiv.org/abs/2104.14294
+- Chefer, H., et al. (2021). Transformer Interpretability Beyond Attention Visualization. CVPR 2021. https://arxiv.org/abs/2012.09838
+- Darcet, T., et al. (2024). Vision Transformers Need Registers. ICLR 2024 (oral). https://arxiv.org/abs/2309.16588
+- DeYoung, J., et al. (2020). ERASER: A Benchmark to Evaluate Rationalized NLP Models. ACL 2020. https://arxiv.org/abs/1911.03429
+- He, K., et al. (2022). Masked Autoencoders Are Scalable Vision Learners. CVPR 2022. https://arxiv.org/abs/2111.06377
+- Hu, E. J., et al. (2022). LoRA: Low-Rank Adaptation of Large Language Models. ICLR 2022. https://arxiv.org/abs/2106.09685
+- Jain, S., and Wallace, B. C. (2019). Attention is not Explanation. NAACL 2019. https://arxiv.org/abs/1902.10186
+- Oquab, M., et al. (2024). DINOv2: Learning Robust Visual Features without Supervision. TMLR 2024. https://arxiv.org/abs/2304.07193
+- Selvaraju, R. R., et al. (2017). Grad-CAM: Visual Explanations from Deep Networks via Gradient-Based Localization. ICCV 2017. https://arxiv.org/abs/1610.02391
+- Simeoni, O., et al. (2025). DINOv3. arXiv preprint. https://arxiv.org/abs/2508.10104
+- Tschannen, M., et al. (2025). SigLIP 2: A Better Multilingual Vision Language Encoder. arXiv preprint. https://arxiv.org/abs/2502.14786
+- Voita, E., et al. (2019). Analyzing Multi-Head Self-Attention: Specialized Heads Do the Heavy Lifting. ACL 2019. https://arxiv.org/abs/1905.09418
+- Wiegreffe, S., and Pinter, Y. (2019). Attention is not not Explanation. EMNLP-IJCNLP 2019. https://arxiv.org/abs/1908.04626
+- Zhang, J., et al. (2016). Top-Down Neural Attention by Excitation Backprop. ECCV 2016. https://arxiv.org/abs/1511.02668
+- Zhou, B., et al. (2016). Learning Deep Features for Discriminative Localization. CVPR 2016. https://arxiv.org/abs/1512.04150
 
 ---
 
 ## Further Reading
 
-### Project Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Project Proposal](../core/project_proposal.md) | Full research design, hypotheses, and evaluation methodology |
-| ↳ [§1 Problem Statement](../core/project_proposal.md#1-problem-statement) | The research questions this app helps answer |
-| ↳ [§2 Dataset](../core/project_proposal.md#2-dataset) | WikiChurches dataset details and preprocessing |
-| ↳ [§3.1 Models](../core/project_proposal.md#31-feature-extraction-pipeline) | Model selection rationale and training paradigms |
-| ↳ [§3.3 IoU Methodology](../core/project_proposal.md#33-attention-annotation-alignment) | How attention-annotation alignment is measured |
-| ↳ [§4 Ablation Studies](../core/project_proposal.md#4-ablations) | Hypotheses about model and layer differences |
-| ↳ [§9 Expected Contributions](../core/project_proposal.md#9-expected-contributions) | What this research aims to contribute |
-| [Implementation Plan](../core/implementation_plan.md) | Technical architecture and phase breakdown |
-
-### Academic References
-
-- **Abnar & Zuidema (2020):** "Quantifying Attention Flow in Transformers" - Original attention rollout paper
-- **Chefer et al. (2021):** "Transformer Interpretability Beyond Attention Visualization" - Advanced attribution methods
-- **Selvaraju et al. (2017):** "Grad-CAM: Visual Explanations from Deep Networks" - Gradient-based visualization
-- **Barz & Denzler (2021):** "WikiChurches" - The dataset providing expert annotations
-
-See the [full references](../core/project_proposal.md#references) in the project proposal.
+- [Project Proposal](../core/project_proposal.md)
+- [Implementation Plan](../core/implementation_plan.md)

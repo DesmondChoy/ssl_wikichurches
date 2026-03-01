@@ -46,21 +46,22 @@ These parameters appear across multiple endpoints:
 
 | Parameter | Type | Values | Default | Description |
 |-----------|------|--------|---------|-------------|
-| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip2`, `resnet50` | `dinov2` | Model name. `siglip2` resolves to canonical name `siglip` internally. |
+| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50` | `dinov2` | Model name. `siglip` and `siglip2` are separate canonical model keys. |
 | `layer` | int | 0–11 (ViTs), 0–3 (ResNet) | varies | Layer index (0-based). Range depends on model. |
 | `percentile` | int | 50–95 | `90` | Attention threshold percentile for IoU computation. |
 | `method` | string | `cls`, `rollout`, `mean`, `gradcam` | per-model | Attention extraction method. Availability depends on model (see table below). |
 
 ### Model / Method / Layer Matrix
 
-| Model | Attention Methods | Default | Layers | Patch Size |
+| Model | Attention Methods | Default | Layers | Attention Grid |
 |-------|-------------------|---------|--------|------------|
-| `dinov2` | `cls`, `rollout` | `cls` | 12 (0–11) | 14×14 |
-| `dinov3` | `cls`, `rollout` | `cls` | 12 (0–11) | 16×16 |
-| `mae` | `cls`, `rollout` | `cls` | 12 (0–11) | 16×16 |
-| `clip` | `cls`, `rollout` | `cls` | 12 (0–11) | 16×16 |
-| `siglip2` | `mean` | `mean` | 12 (0–11) | 16×16 |
-| `resnet50` | `gradcam` | `gradcam` | 4 (0–3) | 32×32 |
+| `dinov2` | `cls`, `rollout` | `cls` | 12 (0–11) | 16×16 |
+| `dinov3` | `cls`, `rollout` | `cls` | 12 (0–11) | 14×14 |
+| `mae` | `cls`, `rollout` | `cls` | 12 (0–11) | 14×14 |
+| `clip` | `cls`, `rollout` | `cls` | 12 (0–11) | 14×14 |
+| `siglip` | `mean` | `mean` | 12 (0–11) | 14×14 |
+| `siglip2` | `mean` | `mean` | 12 (0–11) | 14×14 |
+| `resnet50` | `gradcam` | `gradcam` | 4 (0–3) | 7×7 |
 
 ---
 
@@ -141,7 +142,7 @@ Get detailed information about an image including all bounding box annotations.
       }
     ]
   },
-  "available_models": ["dinov2", "dinov3", "mae", "clip", "siglip2", "resnet50"]
+  "available_models": ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"]
 }
 ```
 
@@ -231,19 +232,21 @@ List all available models with their configurations, supported attention methods
 
 ```json
 {
-  "models": ["dinov2", "dinov3", "mae", "clip", "siglip2", "resnet50"],
+  "models": ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"],
   "num_layers": 12,
   "num_layers_per_model": {
     "dinov2": 12, "dinov3": 12, "mae": 12,
-    "clip": 12, "siglip2": 12, "resnet50": 4
+    "clip": 12, "siglip": 12, "siglip2": 12, "resnet50": 4
   },
   "methods": {
     "dinov2": ["cls", "rollout"],
+    "siglip": ["mean"],
     "siglip2": ["mean"],
     "resnet50": ["gradcam"]
   },
   "default_methods": {
     "dinov2": "cls",
+    "siglip": "mean",
     "siglip2": "mean",
     "resnet50": "gradcam"
   }
@@ -1230,7 +1233,7 @@ All parameter validation is handled by `app/backend/validators.py`, which provid
 
 | Function | Purpose |
 |----------|---------|
-| `validate_model(model)` | Resolves aliases (e.g., `siglip2` → `siglip`) and returns 400 if invalid |
+| `validate_model(model)` | Validates model key and returns 400 if invalid (`siglip` and `siglip2` are distinct keys) |
 | `validate_method(model, method)` | Validates that the method is available for the model; returns 400 if not |
 | `validate_layer_for_model(layer, model)` | Checks layer bounds per model; returns 400 if out of range |
 | `resolve_default_method(model)` | Returns the default attention method for a model |

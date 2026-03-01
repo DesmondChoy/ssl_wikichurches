@@ -60,6 +60,7 @@ The original DINO paper (Caron et al., 2021) demonstrated that self-supervised V
 | CLIP | Mean | ✅ Yes | Direct head access |
 | CLIP | Rollout | ❌ No | Complex multi-layer aggregation |
 | SigLIP | Mean | ✅ Yes | Direct head access (no CLS token) |
+| SigLIP2 | Mean | ✅ Yes | Direct head access (no CLS token) |
 | ResNet-50 | Grad-CAM | ❌ No | CNN architecture, no attention heads |
 
 ### Technical Constraints
@@ -86,6 +87,7 @@ MODEL_NUM_HEADS = {
     "mae": 12,
     "clip": 12,
     "siglip": 12,
+    "siglip2": 12,
     "resnet50": 0,  # CNN, no attention heads
 }
 
@@ -384,7 +386,7 @@ export const GLOSSARY = {
 ```bash
 # Generate per-head attention maps for all supported models
 python -m app.precompute.generate_attention_cache \
-  --models dinov2 dinov3 mae clip siglip \
+  --models dinov2 dinov3 mae clip siglip siglip2 \
   --methods cls mean \
   --per-head
 
@@ -399,6 +401,7 @@ du -sh cache/attention/*/
 120M    cache/attention/mae/
 120M    cache/attention/clip/
 60M     cache/attention/siglip/   # Mean only
+60M     cache/attention/siglip2/  # Mean only
 ```
 
 #### 3.2 Backend Testing
@@ -540,7 +543,7 @@ def compute_per_head_iou(image_id: str, model: str) -> dict[int, float]:
 **Research questions this enables:**
 - Which heads align best with expert annotations?
 - Do some heads specialize in specific architectural feature types?
-- Does head specialization differ between DINO, CLIP, and MAE?
+- Does head specialization differ between DINO, CLIP, MAE, and the SigLIP family?
 
 ### Head Specialization Clustering
 
