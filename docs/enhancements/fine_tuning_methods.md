@@ -13,7 +13,8 @@ This document outlines fine-tuning methods suitable for the SSL WikiChurches pro
 - **Research Question 2**: Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
 
 **Key insight:** The Δ IoU metric (post-fine-tuning IoU − pre-fine-tuning IoU) directly measures whether fine-tuning improves alignment between model attention and human expert annotations.
-Supported model keys in this project are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, and `resnet50`.
+App/API model keys in this project are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, and `resnet50`.
+Fine-tuning is supported for `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, and `siglip2` (`resnet50` excluded).
 For `siglip`/`siglip2`, attention analysis uses the mean-attention path (no CLS-token method).
 
 ---

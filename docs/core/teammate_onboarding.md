@@ -14,7 +14,7 @@ Canonical model keys in the app/API are `dinov2`, `dinov3`, `mae`, `clip`, `sigl
 
 For Q2 fine-tuning, training should rely on the broader WikiChurches style-labeled metadata split (9,346 entries in `churches.json`), with bbox-annotated evaluation images excluded to avoid leakage; the 139 annotated images are primarily for attention-alignment evaluation.
 
-## 2. Current status snapshot (as of February 12, 2026)
+## 2. Current status snapshot (as of March 2, 2026)
 
 ### What is working now
 
@@ -29,7 +29,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - React frontend with gallery/detail/compare/dashboard views
   - Precompute scripts for attention/features/heatmaps/metrics
 - Test suite is healthy:
-  - `uv run pytest` passed: **273 passed**.
+  - `uv run pytest` passed: **285 passed**.
 - Dataset is present locally:
   - `dataset/images` contains 9,502 files in this local mirror (official WikiChurches release size is 9,485).
 - Precomputed artifacts exist:
@@ -42,10 +42,12 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 
 - `outputs/checkpoints/` is empty (no fine-tuned checkpoints currently present).
 - `outputs/results/fine_tuning_results.json` references a checkpoint path that is not present locally.
-- Frozen vs fine-tuned product path is only partially integrated:
-  - Frontend component `app/frontend/src/components/comparison/FrozenVsFinetuned.tsx` is hardcoded as unavailable.
-  - Backend compare endpoint still describes fine-tuned availability as placeholder.
-  - `generate_heatmap_images.py` and `generate_metrics_cache.py` currently operate on canonical models, not `_finetuned` model keys.
+- Frozen vs fine-tuned overlays are integrated end-to-end:
+  - Frontend `FrozenVsFinetuned.tsx` now uses API-based availability checks and renders slider when both overlays exist.
+  - Backend `/api/compare/frozen_vs_finetuned` now returns explicit method-aware frozen and `*_finetuned` URLs.
+  - Precompute supports `--finetuned` for both attention cache and heatmap image generation.
+- Remaining fine-tuned analytics gap:
+  - `generate_metrics_cache.py` still computes canonical model rows only (no `*_finetuned` metric rows/leaderboard entries yet).
 
 ## 3. Repository map (where to work)
 
@@ -140,19 +142,20 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - Similarity heatmap overlays
   - Leaderboard + feature breakdown views
 - End-to-end precompute pipeline exists and is operational for frozen models.
+- Fine-tuned precompute path is available for attention/heatmap overlays (`--finetuned` mode).
 
 ## 6. Recommended next-step roadmap
 
-### Priority 1: Complete frozen vs fine-tuned product path
+### Priority 1: Expand fine-tuned analytics beyond overlay availability
 
-Goal: make fine-tuned comparisons first-class in API + precompute + UI.
+Goal: make fine-tuned metrics first-class in analytics and reporting flows.
 
 - Add reliable checkpoint lifecycle:
   - define source-of-truth for available checkpoints
   - expose this in backend status endpoint.
-- Extend precompute flow to generate heatmaps/metrics for fine-tuned variants.
-- Update compare APIs and frontend to use real availability checks (not hardcoded placeholder).
-- Add regression tests for fine-tuned cache/heatmap/metrics query paths.
+- Extend metrics precompute flow to write `*_finetuned` rows into SQLite.
+- Add comparison and leaderboard routes that can include fine-tuned metric variants.
+- Add regression tests for fine-tuned metrics query paths.
 
 ### Priority 2: Strengthen evaluation robustness
 
@@ -193,7 +196,7 @@ Goal: easier collaboration + reproducibility.
 
 ## 8. High-value first ticket recommendations
 
-1. Implement production-ready frozen-vs-fine-tuned compare flow end-to-end.
+1. Add fine-tuned metrics-cache support and expose `*_finetuned` variants in analytics endpoints.
 2. Add per-bbox recall metric and expose it in detail view metrics.
 3. Replace dashboard chart placeholders with working visualizations.
 4. Add CI automation for `pytest` and a reproducible bootstrap checklist.
@@ -202,6 +205,6 @@ Goal: easier collaboration + reproducibility.
 
 If you are joining this repo now, the fastest path to impact is:
 
-- own the fine-tuned comparison completion,
+- own the fine-tuned metrics + analytics completion,
 - then strengthen evaluation robustness,
 - then improve dashboard analytics for decision-making.

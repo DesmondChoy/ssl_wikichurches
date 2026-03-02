@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-02-12 (Documentation sync: corrected project structure/file references; Phase 5 integration items pending)
+**Last Updated:** 2026-03-02 (Frozen-vs-fine-tuned precompute/API/frontend integration synced; Phase 5 analytics follow-ups tracked)
 
 ---
 
@@ -277,9 +277,11 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Train single model or all models via CLI flags
    - Configurable hyperparameters (epochs, batch size, learning rates)
    - Head-only training option (`--freeze-backbone`)
+   - Fine-tunable model allowlist enforced (`resnet50` excluded)
    - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt` (linear probe / full) or `{model}_lora_finetuned.pt` (LoRA)
    - Training summary with per-model results
-   - `generate_attention_cache.py --finetuned` flag caches fine-tuned model attention maps
+   - `generate_attention_cache.py --finetuned` caches fine-tuned model attention maps
+   - `generate_heatmap_images.py --finetuned` renders fine-tuned overlay PNGs under `{model}_finetuned` keys
    - Checkpoint discovery checks both `{model}_finetuned.pt` and `{model}_lora_finetuned.pt`, preferring LoRA when both exist
 
 3. **Comparative analysis** (`experiments/scripts/analyze_delta_iou.py`) ✅
@@ -291,11 +293,11 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Holm correction for multiple comparisons across models
    - JSON export of full results
 
-4. **Visualization** ⬜
-   - Side-by-side heatmaps (frozen vs fine-tuned) — API route exists, but end-to-end frontend/precompute integration is pending
+4. **Visualization** 🔄
+   - Side-by-side heatmaps (frozen vs fine-tuned) integrated across precompute/API/frontend
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Remaining Phase 5 work includes (a) frozen-vs-fine-tuned integration across precompute/API/frontend and (b) attention shift visualization. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
+> **Note:** Remaining Phase 5 work includes (a) fine-tuned metrics-cache/leaderboard integration and (b) attention shift visualization. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 

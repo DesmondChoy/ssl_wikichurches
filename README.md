@@ -55,10 +55,12 @@ python -m app.precompute.generate_heatmap_images --colormap viridis
 python -m app.precompute.generate_metrics_cache
 ```
 
-To cache attention from fine-tuned checkpoints (for frozen vs fine-tuned comparison):
+To enable frozen-vs-fine-tuned overlay comparison, precompute both fine-tuned
+attention and fine-tuned heatmaps:
 
 ```bash
 python -m app.precompute.generate_attention_cache --finetuned --models all
+python -m app.precompute.generate_heatmap_images --finetuned --models all
 ```
 
 > **Tip:** Test with a subset first: `--models dinov2 --layers 11`
@@ -101,13 +103,17 @@ All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attentio
 
 ## Fine-Tuning
 
-Fine-tune any SSL model on architectural style classification. Three strategies are supported:
+Fine-tune supported SSL backbones on architectural style classification (all ViT
+models in this project; `resnet50` is excluded from fine-tuning). Three
+strategies are supported:
 
 | Strategy | Config | What trains |
 |----------|--------|-------------|
 | **Linear Probe** | `freeze_backbone=True` | Classification head only |
 | **LoRA** | `use_lora=True` | Low-rank adapters on attention layers |
 | **Full** | (default) | Entire backbone + head |
+
+**Fine-tunable model keys**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`.
 
 ```python
 from ssl_attention.evaluation import FineTuningConfig, FineTuner, FineTunableModel

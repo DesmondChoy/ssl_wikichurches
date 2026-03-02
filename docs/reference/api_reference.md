@@ -46,7 +46,7 @@ These parameters appear across multiple endpoints:
 
 | Parameter | Type | Values | Default | Description |
 |-----------|------|--------|---------|-------------|
-| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50` | `dinov2` | Model name. `siglip` and `siglip2` are separate canonical model keys. |
+| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50` (+ `*_finetuned` variants for fine-tunable models) | `dinov2` | Model name. `siglip` and `siglip2` are separate canonical model keys. Fine-tuned variants (for example, `dinov2_finetuned`) are accepted where artifacts exist. |
 | `layer` | int | 0–11 (ViTs), 0–3 (ResNet) | varies | Layer index (0-based). Range depends on model. |
 | `percentile` | int | 50–95 | `90` | Attention threshold percentile for IoU computation. |
 | `method` | string | `cls`, `rollout`, `mean`, `gradcam` | per-model | Attention extraction method. Availability depends on model (see table below). |
@@ -62,6 +62,10 @@ These parameters appear across multiple endpoints:
 | `siglip` | `mean` | `mean` | 12 (0–11) | 14×14 |
 | `siglip2` | `mean` | `mean` | 12 (0–11) | 14×14 |
 | `resnet50` | `gradcam` | `gradcam` | 4 (0–3) | 7×7 |
+
+Fine-tuned variants (`dinov2_finetuned`, `dinov3_finetuned`, `mae_finetuned`,
+`clip_finetuned`, `siglip_finetuned`, `siglip2_finetuned`) inherit the same
+method and layer constraints as their base models.
 
 ---
 
@@ -876,6 +880,7 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
       "model": "dinov2",
       "layer": "layer0",
       "percentile": 90,
+      "method": "cls",
       "iou": 0.285,
       "coverage": 0.72,
       "attention_area": 0.15,
@@ -883,8 +888,8 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
     }
   ],
   "heatmap_urls": {
-    "dinov2": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0",
-    "clip": "/api/attention/Q2270_0.jpg/overlay?model=clip&layer=0"
+    "dinov2": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls",
+    "clip": "/api/attention/Q2270_0.jpg/overlay?model=clip&layer=0&method=cls"
   }
 }
 ```
@@ -893,7 +898,7 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Invalid model name(s) or layer out of range |
+| 400 | Invalid model/layer or requested method incompatible with selected model(s) |
 | 404 | Image not found or no metrics available |
 | 503 | Metrics database not available |
 
@@ -903,7 +908,10 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
 
 Compare frozen (pretrained) vs fine-tuned model attention on a single image.
 
-> **Note**: Fine-tuned models are not yet available. The `finetuned` section returns availability status and a placeholder note.
+> **Note**: This endpoint performs real cache availability checks. Returned URLs
+> include explicit `model` and `method` query parameters. For fine-tuned overlays,
+> precompute both `generate_attention_cache.py --finetuned` and
+> `generate_heatmap_images.py --finetuned`.
 
 **Query Parameters**
 
@@ -922,15 +930,19 @@ Compare frozen (pretrained) vs fine-tuned model attention on a single image.
   "layer": "layer0",
   "frozen": {
     "available": true,
-    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0"
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls"
   },
   "finetuned": {
     "available": false,
     "url": null,
-    "note": "Fine-tuned models will be available after Phase 5 training"
+    "note": "Fine-tuned overlay is unavailable for this model/layer/image. Generate fine-tuned attention + heatmap caches first."
   }
 }
 ```
+
+When `finetuned.available=true`, `finetuned.url` uses the explicit
+`{base_model}_finetuned` key (for example:
+`/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned&layer=0&method=cls`).
 
 **Errors**
 
@@ -952,6 +964,7 @@ Get IoU progression across all layers for a single model/image, with heatmap URL
 | `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
 | `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `method` | string | No | per-model default | Must be valid for model | Attention method |
 
 **Response**: `dict`
 
@@ -966,7 +979,7 @@ Get IoU progression across all layers for a single model/image, with heatmap URL
       "layer_key": "layer0",
       "iou": 0.12,
       "coverage": 0.45,
-      "heatmap_url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0"
+      "heatmap_url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls"
     }
   ],
   "best_layer": 11,
