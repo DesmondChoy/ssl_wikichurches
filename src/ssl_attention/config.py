@@ -175,6 +175,18 @@ MODEL_METHODS: dict[str, list[AttentionMethod]] = {
     "resnet50": [AttentionMethod.GRADCAM],
 }
 
+
+# Models that support style-task fine-tuning in this project.
+# ResNet-50 uses a separate Grad-CAM pipeline and is excluded.
+FINETUNE_MODELS: set[str] = {
+    "dinov2",
+    "dinov3",
+    "mae",
+    "clip",
+    "siglip",
+    "siglip2",
+}
+
 # Default method for each model (first in list for ViTs, only option for others)
 DEFAULT_METHOD: dict[str, AttentionMethod] = {
     "dinov2": AttentionMethod.CLS,

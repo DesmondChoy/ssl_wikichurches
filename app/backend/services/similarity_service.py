@@ -31,6 +31,7 @@ MODEL_PATCH_GRIDS: dict[str, tuple[int, int]] = {
     "siglip2": (14, 14),  # 196 patches
     "resnet50": (7, 7),  # 49 feature positions
 }
+_FINETUNED_SUFFIX = "_finetuned"
 
 
 class SimilarityService:
@@ -64,12 +65,22 @@ class SimilarityService:
         """
         if model in MODEL_PATCH_GRIDS:
             return MODEL_PATCH_GRIDS[model]
+        if model.endswith(_FINETUNED_SUFFIX):
+            base_model = model[: -len(_FINETUNED_SUFFIX)]
+            if base_model in MODEL_PATCH_GRIDS:
+                return MODEL_PATCH_GRIDS[base_model]
 
         # Fallback: compute from config
         if model in MODELS:
             patch_size = MODELS[model].patch_size
             grid_size = 224 // patch_size
             return (grid_size, grid_size)
+        if model.endswith(_FINETUNED_SUFFIX):
+            base_model = model[: -len(_FINETUNED_SUFFIX)]
+            if base_model in MODELS:
+                patch_size = MODELS[base_model].patch_size
+                grid_size = 224 // patch_size
+                return (grid_size, grid_size)
 
         # Default to 14x14
         return (14, 14)

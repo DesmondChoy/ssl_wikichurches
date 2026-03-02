@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 import pytest
 
+from ssl_attention.config import FINETUNE_MODELS
 from ssl_attention.evaluation.fine_tuning import (
     LORA_TARGET_MODULES,
     FineTuningConfig,
@@ -89,3 +90,9 @@ class TestFineTuningConfigLoRA:
         assert config.lora_alpha == 32
         assert config.lora_dropout == 0.1
         assert config.lora_target_modules is None
+
+    def test_non_finetunable_model_raises(self) -> None:
+        """Models outside FINETUNE_MODELS should be rejected."""
+        assert "resnet50" not in FINETUNE_MODELS
+        with pytest.raises(ValueError, match="not fine-tunable"):
+            FineTuningConfig(model_name="resnet50")

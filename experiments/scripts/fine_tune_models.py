@@ -48,7 +48,11 @@ os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from ssl_attention.config import DATASET_PATH, MODELS, STYLE_NAMES  # noqa: E402
+from ssl_attention.config import (  # noqa: E402
+    DATASET_PATH,
+    FINETUNE_MODELS,
+    STYLE_NAMES,
+)
 from ssl_attention.data.wikichurches import FullDataset  # noqa: E402
 from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
     FineTunableModel,
@@ -73,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     model_group.add_argument(
         "--model",
         type=str,
-        choices=list(MODELS.keys()),
+        choices=sorted(FINETUNE_MODELS),
         help="Single model to fine-tune",
     )
     model_group.add_argument(
@@ -228,7 +232,7 @@ def main() -> None:
     print(f"Style classes: {STYLE_NAMES}")
 
     # Determine which models to train
-    model_names = list(MODELS.keys()) if args.all else [args.model]
+    model_names = sorted(FINETUNE_MODELS) if args.all else [args.model]
 
     print(f"\nModels to train: {model_names}")
     print(f"Epochs: {args.epochs}")

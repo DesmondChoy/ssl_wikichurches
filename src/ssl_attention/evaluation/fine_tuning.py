@@ -1,6 +1,6 @@
 """Fine-tuning module for SSL models on WikiChurches style classification.
 
-This module enables fine-tuning all 5 SSL models (DINOv2, DINOv3, MAE, CLIP, SigLIP)
+This module enables fine-tuning SSL ViT models (DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP2)
 on the 4-class architectural style classification task. After fine-tuning, attention
 patterns can be compared before/after to measure alignment shift.
 
@@ -45,6 +45,7 @@ from transformers import AutoImageProcessor, get_cosine_schedule_with_warmup
 
 from ssl_attention.config import (
     ANNOTATIONS_PATH,
+    FINETUNE_MODELS,
     MODELS,
     NUM_STYLES,
 )
@@ -122,6 +123,11 @@ class FineTuningConfig:
     lora_target_modules: list[str] | None = field(default=None)
 
     def __post_init__(self) -> None:
+        if self.model_name not in FINETUNE_MODELS:
+            raise ValueError(
+                f"Model '{self.model_name}' is not fine-tunable. "
+                f"Available fine-tunable models: {sorted(FINETUNE_MODELS)}."
+            )
         if self.use_lora and self.freeze_backbone:
             raise ValueError(
                 "use_lora=True and freeze_backbone=True are conflicting strategies. "
@@ -200,7 +206,7 @@ class ClassificationHead(nn.Module):
 class FineTunableModel(nn.Module):
     """Wraps an SSL backbone with a classification head for fine-tuning.
 
-    Supports all 5 SSL models with unified interface:
+    Supports all 6 ViT SSL models with unified interface:
     - DINOv2: Uses CLS token from dinov2-with-registers
     - DINOv3: Uses CLS token from dinov3 with RoPE
     - MAE: Uses CLS token (mask_ratio=0 for full image)
@@ -245,6 +251,11 @@ class FineTunableModel(nn.Module):
         # Load model configuration
         if model_name not in MODELS:
             raise ValueError(f"Unknown model: {model_name}. Available: {list(MODELS.keys())}")
+        if model_name not in FINETUNE_MODELS:
+            raise ValueError(
+                f"Model '{model_name}' is not supported by FineTunableModel. "
+                f"Available fine-tunable models: {sorted(FINETUNE_MODELS)}."
+            )
         self._config = MODELS[model_name]
 
         # Load backbone and processor
@@ -597,11 +608,11 @@ class FineTuner:
         all_labels = []
         n_excluded = 0
         for i in range(len(dataset)):
-            sample = dataset[i]
-            if exclude_image_ids and sample.get("image_id") in exclude_image_ids:
+            sample = dataset.get_metadata(i)
+            if exclude_image_ids and sample["image_id"] in exclude_image_ids:
                 n_excluded += 1
                 continue
-            label = sample.get("style_label")
+            label = sample["style_label"]
             if label is not None:
                 all_labels.append((i, label))
 
@@ -715,11 +726,11 @@ class FineTuner:
         )
 
         # Compute class weights from training data
-        train_labels = [
-            dataset[idx]["style_label"]
-            for idx in train_subset.indices
-            if dataset[idx]["style_label"] is not None
-        ]
+        train_labels: list[int] = []
+        for idx in train_subset.indices:
+            label = dataset.get_metadata(idx)["style_label"]
+            if label is not None:
+                train_labels.append(label)
         class_weights = self._compute_class_weights(train_labels)
         print(f"Class weights: {class_weights.tolist()}")
 

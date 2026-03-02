@@ -46,6 +46,7 @@ from ssl_attention.config import (
     CACHE_PATH,
     DATASET_PATH,
     DEFAULT_METHOD,
+    FINETUNE_MODELS,
     MODEL_METHODS,
     MODELS,
     AttentionMethod,
@@ -57,9 +58,6 @@ from ssl_attention.evaluation.fine_tuning import (
 )
 from ssl_attention.models import create_model
 from ssl_attention.utils import get_device
-
-# Models that support fine-tuning (all ViTs; ResNet-50 uses a different pipeline)
-FINETUNE_MODELS = {"dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"}
 
 
 def discover_checkpoints(

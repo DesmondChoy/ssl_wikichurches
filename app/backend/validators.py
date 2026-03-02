@@ -12,6 +12,22 @@ from app.backend.config import (
     get_model_num_layers,
     resolve_model_name,
 )
+from ssl_attention.config import FINETUNE_MODELS
+
+_FINETUNED_SUFFIX = "_finetuned"
+
+
+def split_model_variant(model: str) -> tuple[str, bool]:
+    """Split and resolve a model identifier into base model + finetuned flag.
+
+    Accepts identifiers like:
+    - "dinov2" -> ("dinov2", False)
+    - "dinov2_finetuned" -> ("dinov2", True)
+    """
+    if model.endswith(_FINETUNED_SUFFIX):
+        base = model[: -len(_FINETUNED_SUFFIX)]
+        return resolve_model_name(base), True
+    return resolve_model_name(model), False
 
 
 def resolve_default_method(model: str) -> str:
@@ -23,8 +39,8 @@ def resolve_default_method(model: str) -> str:
     Returns:
         Default method string (e.g., 'cls', 'mean', 'gradcam').
     """
-    resolved = resolve_model_name(model)
-    method: str = DEFAULT_METHOD.get(resolved, AttentionMethod.CLS).value
+    base_model, _ = split_model_variant(model)
+    method: str = DEFAULT_METHOD.get(base_model, AttentionMethod.CLS).value
     return method
 
 
@@ -41,11 +57,11 @@ def validate_method(model: str, method: str | None) -> str:
     Raises:
         HTTPException: If method not available for model.
     """
-    resolved_model = resolve_model_name(model)
-    available = MODEL_METHODS.get(resolved_model, [])
+    base_model, _ = split_model_variant(model)
+    available = MODEL_METHODS.get(base_model, [])
 
     if method is None:
-        default: AttentionMethod = DEFAULT_METHOD.get(resolved_model, AttentionMethod.CLS)
+        default: AttentionMethod = DEFAULT_METHOD.get(base_model, AttentionMethod.CLS)
         return str(default.value)
 
     # Validate requested method
@@ -80,12 +96,24 @@ def validate_model(model: str) -> str:
     Raises:
         HTTPException: If model is not available.
     """
-    if model not in AVAILABLE_MODELS:
+    base_model, is_finetuned = split_model_variant(model)
+
+    if base_model not in AVAILABLE_MODELS:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid model: {model}. Available: {AVAILABLE_MODELS}",
         )
-    return resolve_model_name(model)
+
+    if is_finetuned and base_model not in FINETUNE_MODELS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Fine-tuned variant not supported for model: {base_model}. "
+                f"Fine-tunable models: {sorted(FINETUNE_MODELS)}"
+            ),
+        )
+
+    return f"{base_model}{_FINETUNED_SUFFIX}" if is_finetuned else base_model
 
 
 def validate_layer_for_model(layer: int, model: str) -> str:
@@ -101,7 +129,8 @@ def validate_layer_for_model(layer: int, model: str) -> str:
     Raises:
         HTTPException: If layer is out of bounds for the model.
     """
-    num_layers = get_model_num_layers(resolve_model_name(model))
+    base_model, _ = split_model_variant(model)
+    num_layers = get_model_num_layers(base_model)
     if not 0 <= layer < num_layers:
         raise HTTPException(
             status_code=400,

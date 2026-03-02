@@ -59,6 +59,7 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
+files = ["src", "app", "experiments"]
 
 [[tool.mypy.overrides]]
 module = ["h5py", "h5py.*"]
@@ -86,6 +87,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "torchvision.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tqdm", "tqdm.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

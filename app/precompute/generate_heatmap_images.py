@@ -7,7 +7,7 @@ Directory structure:
     heatmaps/{model}/layer{N}/{method}/{variant}/{image_id}.png
 
 Where:
-    - model: dinov2, dinov3, mae, clip, siglip, resnet50
+    - model: dinov2, dinov3, mae, clip, siglip, siglip2, resnet50
     - method: cls, rollout, mean, gradcam
     - variant: heatmap, overlay, overlay_bbox
 
@@ -15,6 +15,10 @@ Usage:
     python -m app.precompute.generate_heatmap_images --colormap viridis
     python -m app.precompute.generate_heatmap_images --models dinov2 --alpha 0.5
     python -m app.precompute.generate_heatmap_images --models dinov2 --methods cls rollout
+
+Usage (fine-tuned models):
+    python -m app.precompute.generate_heatmap_images --finetuned --models all
+    python -m app.precompute.generate_heatmap_images --finetuned --models dinov2
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from ssl_attention.config import (
     CACHE_PATH,
     DATASET_PATH,
     DEFAULT_METHOD,
+    FINETUNE_MODELS,
     IMAGES_PATH,
     MODEL_METHODS,
     MODELS,
@@ -58,6 +63,8 @@ def generate_heatmaps_for_model(
     layers: list[int] | None = None,
     methods: list[AttentionMethod] | None = None,
     skip_existing: bool = True,
+    cache_model_key: str | None = None,
+    output_model_key: str | None = None,
 ) -> dict[str, int]:
     """Generate heatmap images for a single model.
 
@@ -83,6 +90,8 @@ def generate_heatmaps_for_model(
         Dict with statistics.
     """
     stats = {"processed": 0, "skipped": 0, "errors": 0}
+    cache_key = cache_model_key or model_name
+    output_key = output_model_key or cache_key
 
     model_config = MODELS[model_name]
     num_layers = model_config.num_layers
@@ -99,11 +108,11 @@ def generate_heatmaps_for_model(
         print(f"No compatible methods for {model_name}")
         return stats
 
-    print(f"\nProcessing {model_name} ({len(layers_to_process)} layers, "
+    print(f"\nProcessing {output_key} ({len(layers_to_process)} layers, "
           f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
 
     # Create output directories for each layer/method combo
-    model_dir = output_dir / model_name
+    model_dir = output_dir / output_key
     for layer in layers_to_process:
         for method in methods_to_process:
             method_dir = model_dir / f"layer{layer}" / method.value
@@ -112,7 +121,7 @@ def generate_heatmaps_for_model(
             (method_dir / "overlay_bbox").mkdir(parents=True, exist_ok=True)
 
     # Process each image
-    for sample in tqdm(dataset, desc=f"{model_name}"):
+    for sample in tqdm(dataset, desc=f"{output_key}"):
         image_id = sample["image_id"]
         annotation = sample["annotation"]
 
@@ -150,7 +159,7 @@ def generate_heatmaps_for_model(
                 # Load attention from cache (using method as variant)
                 try:
                     attention = attention_cache.load(
-                        model_name, layer_key, image_id, variant=method.value
+                        cache_key, layer_key, image_id, variant=method.value
                     )
                 except KeyError:
                     # Attention not cached for this combination
@@ -316,6 +325,11 @@ def main() -> int:
         action="store_true",
         help="Don't skip existing files",
     )
+    parser.add_argument(
+        "--finetuned",
+        action="store_true",
+        help="Generate heatmaps for fine-tuned cache keys ({model}_finetuned)",
+    )
     args = parser.parse_args()
 
     # Parse methods (None = all available per model)
@@ -331,9 +345,18 @@ def main() -> int:
 
     # Determine models to process
     if "all" in args.models:
-        models_to_process = list(MODELS.keys())
+        models_to_process = sorted(FINETUNE_MODELS) if args.finetuned else list(MODELS.keys())
     else:
         models_to_process = [m for m in args.models if m in MODELS]
+        invalid = [m for m in args.models if m not in MODELS]
+        if invalid:
+            print(f"Warning: Unknown models ignored: {invalid}")
+            print(f"Available: {list(MODELS.keys())}")
+        if args.finetuned:
+            not_finetunable = [m for m in models_to_process if m not in FINETUNE_MODELS]
+            if not_finetunable:
+                print(f"Warning: Non-fine-tunable models ignored: {not_finetunable}")
+            models_to_process = [m for m in models_to_process if m in FINETUNE_MODELS]
 
     if not models_to_process:
         print("No valid models specified")
@@ -349,6 +372,7 @@ def main() -> int:
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output dir: {output_dir}")
+    print(f"Mode: {'FINE-TUNED' if args.finetuned else 'FROZEN'}")
 
     # Generate originals with bboxes first
     stats = generate_original_with_bboxes(
@@ -360,6 +384,7 @@ def main() -> int:
     total_stats = {"processed": 0, "skipped": 0, "errors": 0}
 
     for model_name in models_to_process:
+        cache_key = f"{model_name}_finetuned" if args.finetuned else model_name
         stats = generate_heatmaps_for_model(
             model_name=model_name,
             dataset=dataset,
@@ -370,12 +395,14 @@ def main() -> int:
             layers=args.layers,
             methods=methods_to_use,
             skip_existing=not args.no_skip,
+            cache_model_key=cache_key,
+            output_model_key=cache_key,
         )
 
         for key in total_stats:
             total_stats[key] += stats[key]
 
-        print(f"{model_name} complete: {stats}")
+        print(f"{cache_key} complete: {stats}")
 
     print(f"\n{'='*60}")
     print("SUMMARY")

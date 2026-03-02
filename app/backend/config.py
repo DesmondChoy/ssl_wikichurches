@@ -59,6 +59,8 @@ from ssl_attention.config import MODEL_METHODS as MODEL_METHODS
 from ssl_attention.config import MODELS as MODELS
 from ssl_attention.config import AttentionMethod as AttentionMethod
 
+_FINETUNED_SUFFIX = "_finetuned"
+
 
 def resolve_model_name(model: str) -> str:
     """Resolve model alias to canonical name.
@@ -69,6 +71,11 @@ def resolve_model_name(model: str) -> str:
     Returns:
         Canonical model name (e.g., 'siglip').
     """
+    if model.endswith(_FINETUNED_SUFFIX):
+        base_model = model[: -len(_FINETUNED_SUFFIX)]
+        resolved_base = MODEL_ALIASES.get(base_model, base_model)
+        return f"{resolved_base}{_FINETUNED_SUFFIX}"
+
     resolved: str = MODEL_ALIASES.get(model, model)
     return resolved
 
@@ -99,6 +106,9 @@ def get_model_num_layers(model: str) -> int:
     Returns:
         Number of layers for the model.
     """
-    if model in MODELS:
-        return MODELS[model].num_layers
+    resolved = resolve_model_name(model)
+    if resolved.endswith(_FINETUNED_SUFFIX):
+        resolved = resolved[: -len(_FINETUNED_SUFFIX)]
+    if resolved in MODELS:
+        return MODELS[resolved].num_layers
     return NUM_LAYERS  # Fallback to default

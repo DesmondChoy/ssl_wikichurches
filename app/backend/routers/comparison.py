@@ -12,6 +12,7 @@ from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import (
     resolve_default_method,
+    split_model_variant,
     validate_layer_for_model,
     validate_method,
     validate_model,
@@ -93,37 +94,46 @@ async def compare_frozen_vs_finetuned(
     layer: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:
     """Compare frozen (pretrained) vs fine-tuned model attention.
-
-    Note: Fine-tuned models are not yet available. This endpoint
-    returns URLs for the frozen model with placeholder for fine-tuned.
     """
     resolved_model = validate_model(model)
-    layer_key = validate_layer_for_model(layer, model)
+    base_model, _ = split_model_variant(resolved_model)
+    layer_key = validate_layer_for_model(layer, base_model)
 
     if not image_service.get_annotation(image_id):
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
 
-    method = resolve_default_method(model)
+    method = resolve_default_method(base_model)
 
     # Frozen model (always available after pre-computation)
-    frozen_available = image_service.heatmap_exists(resolved_model, layer_key, image_id, method=method, variant="overlay")
+    frozen_available = image_service.heatmap_exists(base_model, layer_key, image_id, method=method, variant="overlay")
 
-    # Fine-tuned model (placeholder - will be available after Phase 5)
-    finetuned_model = f"{model}_finetuned"
+    # Fine-tuned variant key (uses explicit *_finetuned model IDs)
+    finetuned_model = f"{base_model}_finetuned"
     finetuned_available = image_service.heatmap_exists(finetuned_model, layer_key, image_id, method=method, variant="overlay")
 
     return {
         "image_id": image_id,
-        "model": model,
+        "model": base_model,
         "layer": layer_key,
         "frozen": {
             "available": frozen_available,
-            "url": f"/api/attention/{image_id}/overlay?model={model}&layer={layer}" if frozen_available else None,
+            "url": (
+                f"/api/attention/{image_id}/overlay?model={base_model}&layer={layer}&method={method}"
+                if frozen_available
+                else None
+            ),
         },
         "finetuned": {
             "available": finetuned_available,
-            "url": f"/api/attention/{image_id}/overlay?model={finetuned_model}&layer={layer}" if finetuned_available else None,
-            "note": "Fine-tuned models will be available after Phase 5 training",
+            "url": (
+                f"/api/attention/{image_id}/overlay?model={finetuned_model}&layer={layer}&method={method}"
+                if finetuned_available
+                else None
+            ),
+            "note": (
+                "Fine-tuned overlay is unavailable for this model/layer/image. "
+                "Generate fine-tuned attention + heatmap caches first."
+            ),
         },
     }
 

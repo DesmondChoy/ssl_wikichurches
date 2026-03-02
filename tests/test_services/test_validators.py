@@ -28,6 +28,12 @@ def test_resolve_default_method_resnet():
     assert resolve_default_method("resnet50") == "gradcam"
 
 
+def test_resolve_default_method_finetuned_variant():
+    """Fine-tuned variants should inherit the base model default method."""
+    assert resolve_default_method("dinov2_finetuned") == "cls"
+    assert resolve_default_method("siglip2_finetuned") == "mean"
+
+
 # --- validate_method tests ---
 
 
@@ -87,6 +93,13 @@ class TestValidateMethod:
         assert validate_method("siglip", "mean") == "mean"
         assert validate_method("siglip2", "mean") == "mean"
 
+    def test_finetuned_variant_uses_base_method_compatibility(self):
+        """Fine-tuned variants should validate methods like their base model."""
+        assert validate_method("dinov2_finetuned", "rollout") == "rollout"
+        with pytest.raises(HTTPException) as exc_info:
+            validate_method("siglip2_finetuned", "cls")
+        assert exc_info.value.status_code == 400
+
 
 # --- validate_model tests ---
 
@@ -99,6 +112,7 @@ class TestValidateModel:
         assert validate_model("dinov2") == "dinov2"
         assert validate_model("siglip") == "siglip"
         assert validate_model("siglip2") == "siglip2"
+        assert validate_model("dinov2_finetuned") == "dinov2_finetuned"
 
     def test_invalid_model_raises(self):
         """Unknown model should raise HTTPException 400."""
@@ -106,6 +120,13 @@ class TestValidateModel:
             validate_model("nonexistent_model")
         assert exc_info.value.status_code == 400
         assert "Invalid model" in exc_info.value.detail
+
+    def test_non_finetunable_model_variant_rejected(self):
+        """Fine-tuned variant should be rejected for non-fine-tunable models."""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_model("resnet50_finetuned")
+        assert exc_info.value.status_code == 400
+        assert "Fine-tuned variant not supported" in exc_info.value.detail
 
 
 # --- validate_layer_for_model tests ---
@@ -131,3 +152,7 @@ class TestValidateLayerForModel:
         with pytest.raises(HTTPException) as exc_info:
             validate_layer_for_model(-1, "dinov2")
         assert exc_info.value.status_code == 400
+
+    def test_finetuned_variant_uses_base_layer_count(self):
+        """Fine-tuned variants should validate layers against the base model config."""
+        assert validate_layer_for_model(11, "dinov2_finetuned") == "layer11"

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -34,6 +34,14 @@ from ssl_attention.data.annotations import ImageAnnotation, load_annotations
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+
+class FullSampleMetadata(TypedDict):
+    """Metadata-only payload for a FullDataset sample."""
+
+    image_id: str
+    style_label: int | None
+    wikidata_id: str
 
 
 class AnnotatedSubset(Dataset):
@@ -192,9 +200,11 @@ class FullDataset(Dataset):
             yield self[idx]
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
+        metadata = self.get_metadata(idx)
+        image_id = metadata["image_id"]
+        wikidata_id = metadata["wikidata_id"]
+        style_label = metadata["style_label"]
         image_path = self._image_paths[idx]
-        image_id = image_path.name
-        wikidata_id = self._extract_qid(image_id)
 
         # Lazy load image
         image = Image.open(image_path).convert("RGB")
@@ -202,11 +212,26 @@ class FullDataset(Dataset):
         if self.transform is not None:
             image = self.transform(image)
 
+        return {
+            "image_id": image_id,
+            "image": image,
+            "style_label": style_label,
+            "wikidata_id": wikidata_id,
+        }
+
+    def get_metadata(self, idx: int) -> FullSampleMetadata:
+        """Return sample metadata without loading image bytes.
+
+        This is used by split/label bookkeeping code paths to avoid expensive
+        image decoding when only identifiers and labels are needed.
+        """
+        image_path = self._image_paths[idx]
+        image_id = image_path.name
+        wikidata_id = self._extract_qid(image_id)
         style_label = self._qid_to_style.get(wikidata_id)
 
         return {
             "image_id": image_id,
-            "image": image,
             "style_label": style_label,
             "wikidata_id": wikidata_id,
         }

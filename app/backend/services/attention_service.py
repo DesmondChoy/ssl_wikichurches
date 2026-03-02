@@ -25,6 +25,7 @@ MODEL_ATTENTION_GRIDS: dict[str, tuple[int, int]] = {
     "siglip2": (14, 14),  # 196 patches
     "resnet50": (7, 7),  # 49 feature positions
 }
+_FINETUNED_SUFFIX = "_finetuned"
 
 
 class AttentionService:
@@ -58,6 +59,10 @@ class AttentionService:
         """
         if model in MODEL_ATTENTION_GRIDS:
             return MODEL_ATTENTION_GRIDS[model]
+        if model.endswith(_FINETUNED_SUFFIX):
+            base_model = model[: -len(_FINETUNED_SUFFIX)]
+            if base_model in MODEL_ATTENTION_GRIDS:
+                return MODEL_ATTENTION_GRIDS[base_model]
         # Default to 14x14
         return (14, 14)
 
