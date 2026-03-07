@@ -48,6 +48,14 @@ class AttentionMethod(str, Enum):
     MEAN = "mean"
 
 
+class FineTuningStrategy(str, Enum):
+    """Supported fine-tuning strategies for Q2 analysis."""
+
+    LINEAR_PROBE = "linear_probe"
+    LORA = "lora"
+    FULL = "full"
+
+
 @dataclass(frozen=True)
 class ModelConfig:
     """Configuration for a vision transformer model.
@@ -186,6 +194,12 @@ FINETUNE_MODELS: set[str] = {
     "siglip",
     "siglip2",
 }
+
+FINETUNE_STRATEGIES: tuple[FineTuningStrategy, ...] = (
+    FineTuningStrategy.LINEAR_PROBE,
+    FineTuningStrategy.LORA,
+    FineTuningStrategy.FULL,
+)
 
 # Default method for each model (first in list for ViTs, only option for others)
 DEFAULT_METHOD: dict[str, AttentionMethod] = {

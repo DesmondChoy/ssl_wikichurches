@@ -46,8 +46,10 @@ from transformers import AutoImageProcessor, get_cosine_schedule_with_warmup
 from ssl_attention.config import (
     ANNOTATIONS_PATH,
     FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     MODELS,
     NUM_STYLES,
+    FineTuningStrategy,
 )
 from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import clear_memory, get_device
@@ -63,6 +65,7 @@ if TYPE_CHECKING:
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 CHECKPOINTS_PATH = _PROJECT_ROOT / "outputs" / "checkpoints"
 RESULTS_PATH = _PROJECT_ROOT / "outputs" / "results"
+MANIFESTS_PATH = RESULTS_PATH / "fine_tuning_manifests"
 
 # LoRA target modules per model (HF attention projection names differ)
 LORA_TARGET_MODULES: dict[str, list[str]] = {
@@ -73,6 +76,49 @@ LORA_TARGET_MODULES: dict[str, list[str]] = {
     "siglip": ["q_proj", "v_proj"],
     "siglip2": ["q_proj", "v_proj"],
 }
+
+_LEGACY_FINETUNED_SUFFIX = "_finetuned.pt"
+
+
+def infer_strategy_id(*, freeze_backbone: bool, use_lora: bool) -> str:
+    """Infer strategy ID from training flags."""
+    if use_lora:
+        return FineTuningStrategy.LORA.value
+    if freeze_backbone:
+        return FineTuningStrategy.LINEAR_PROBE.value
+    return FineTuningStrategy.FULL.value
+
+
+def get_checkpoint_filename(model_name: str, strategy_id: str) -> str:
+    """Get strategy-aware checkpoint filename."""
+    return f"{model_name}_{strategy_id}_finetuned.pt"
+
+
+def get_finetuned_cache_key(model_name: str, strategy_id: str | None = None) -> str:
+    """Get cache key for fine-tuned model attention/heatmaps."""
+    if strategy_id is None:
+        return f"{model_name}_finetuned"
+    return f"{model_name}_finetuned_{strategy_id}"
+
+
+def get_checkpoint_candidates(model_name: str, strategy_id: str | None = None) -> list[Path]:
+    """Return checkpoint candidates in preference order."""
+    candidates: list[Path] = []
+
+    if strategy_id is None:
+        for strategy in (
+            FineTuningStrategy.LORA.value,
+            FineTuningStrategy.FULL.value,
+            FineTuningStrategy.LINEAR_PROBE.value,
+        ):
+            candidates.append(CHECKPOINTS_PATH / get_checkpoint_filename(model_name, strategy))
+        candidates.append(CHECKPOINTS_PATH / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
+        return candidates
+
+    candidates.append(CHECKPOINTS_PATH / get_checkpoint_filename(model_name, strategy_id))
+    if strategy_id in (FineTuningStrategy.FULL.value, FineTuningStrategy.LINEAR_PROBE.value):
+        candidates.append(CHECKPOINTS_PATH / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
+    return candidates
 
 
 # =============================================================================
@@ -93,6 +139,8 @@ class FineTuningConfig:
         weight_decay: Weight decay for AdamW optimizer.
         freeze_backbone: If True, only train classification head (linear probe).
         val_split: Fraction of data to use for validation.
+        exclude_annotated_eval: If True, exclude bbox-annotated images from
+            training/validation splits to avoid data leakage in Q2 evaluation.
         seed: Random seed for reproducibility.
         warmup_ratio: Fraction of total training steps for linear LR warmup.
         max_grad_norm: Maximum gradient norm for clipping (0 disables clipping).
@@ -112,6 +160,7 @@ class FineTuningConfig:
     weight_decay: float = 0.01
     freeze_backbone: bool = False
     val_split: float = 0.2
+    exclude_annotated_eval: bool = True
     seed: int = 42
     warmup_ratio: float = 0.1
     max_grad_norm: float = 1.0
@@ -137,6 +186,18 @@ class FineTuningConfig:
         if self.use_lora and self.learning_rate_backbone == 1e-5:
             self.learning_rate_backbone = 1e-4
 
+        valid_strategies = {s.value for s in FINETUNE_STRATEGIES}
+        if self.strategy_id not in valid_strategies:
+            raise ValueError(f"Invalid strategy_id: {self.strategy_id}. Valid: {sorted(valid_strategies)}")
+
+    @property
+    def strategy_id(self) -> str:
+        """Fine-tuning strategy identifier inferred from config flags."""
+        return infer_strategy_id(
+            freeze_backbone=self.freeze_backbone,
+            use_lora=self.use_lora,
+        )
+
 
 @dataclass
 class FineTuningResult:
@@ -152,10 +213,15 @@ class FineTuningResult:
     """
 
     model_name: str
+    strategy_id: str
     best_val_acc: float
     best_epoch: int
     train_history: list[dict[str, float]]
     checkpoint_path: Path
+    manifest_path: Path
+    num_train_samples: int = 0
+    num_val_samples: int = 0
+    num_excluded_eval_samples: int = 0
     config: dict[str, Any] = field(default_factory=dict)
 
 
@@ -692,19 +758,33 @@ class FineTuner:
         # Create output directories
         CHECKPOINTS_PATH.mkdir(parents=True, exist_ok=True)
         RESULTS_PATH.mkdir(parents=True, exist_ok=True)
+        MANIFESTS_PATH.mkdir(parents=True, exist_ok=True)
 
-        # Load bbox-annotated image IDs to exclude from training (avoid data leakage)
-        from ssl_attention.data import load_annotations
+        # Optionally exclude bbox-annotated image IDs to avoid data leakage.
+        eval_image_ids: set[str] | None = None
+        if self.config.exclude_annotated_eval:
+            from ssl_attention.data import load_annotations
 
-        annotations = load_annotations(ANNOTATIONS_PATH)
-        eval_image_ids = set(annotations.keys())
+            annotations = load_annotations(ANNOTATIONS_PATH)
+            eval_image_ids = set(annotations.keys())
 
-        # Split data (excluding bbox-annotated evaluation images)
+        # Split data
         train_subset, val_subset, n_excluded = self._stratified_split(
             dataset, self.config.val_split, exclude_image_ids=eval_image_ids
         )
-        print(f"Excluded {n_excluded} bbox-annotated eval images from training")
+        if self.config.exclude_annotated_eval:
+            print(f"Excluded {n_excluded} bbox-annotated eval images from training")
+        else:
+            print("Using annotated images for training/validation (leakage-safe mode disabled)")
         print(f"Train size: {len(train_subset)}, Val size: {len(val_subset)}")
+
+        if self.config.exclude_annotated_eval and (len(train_subset) == 0 or len(val_subset) == 0):
+            raise ValueError(
+                "No training samples available after excluding bbox-annotated eval images. "
+                "This usually means dataset/images only contains the 139 annotated evaluation images. "
+                "Fine-tuning requires the full WikiChurches image set (not just the annotated subset), "
+                "or set exclude_annotated_eval=False to train on the 139 annotated images."
+            )
 
         # Build augmentation transform
         train_transform = self._build_train_transform() if self.config.use_augmentation else None
@@ -758,10 +838,11 @@ class FineTuner:
         train_history: list[dict[str, float]] = []
         best_val_acc = 0.0
         best_epoch = 0
-        if self.config.use_lora:
-            checkpoint_path = CHECKPOINTS_PATH / f"{self.config.model_name}_lora_finetuned.pt"
-        else:
-            checkpoint_path = CHECKPOINTS_PATH / f"{self.config.model_name}_finetuned.pt"
+        strategy_id = self.config.strategy_id
+        checkpoint_path = CHECKPOINTS_PATH / get_checkpoint_filename(
+            self.config.model_name,
+            strategy_id,
+        )
 
         for epoch in range(self.config.num_epochs):
             # Train
@@ -860,12 +941,25 @@ class FineTuner:
         # Final cleanup
         clear_memory()
 
+        manifest_path = self._save_run_manifest(
+            checkpoint_path=checkpoint_path,
+            strategy_id=strategy_id,
+            num_train_samples=len(train_subset),
+            num_val_samples=len(val_subset),
+            num_excluded_eval_samples=n_excluded,
+        )
+
         return FineTuningResult(
             model_name=self.config.model_name,
+            strategy_id=strategy_id,
             best_val_acc=best_val_acc,
             best_epoch=best_epoch,
             train_history=train_history,
             checkpoint_path=checkpoint_path,
+            manifest_path=manifest_path,
+            num_train_samples=len(train_subset),
+            num_val_samples=len(val_subset),
+            num_excluded_eval_samples=n_excluded,
             config=asdict(self.config),
         )
 
@@ -890,6 +984,7 @@ class FineTuner:
         """
         checkpoint = {
             "model_name": self.config.model_name,
+            "strategy_id": self.config.strategy_id,
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
@@ -898,6 +993,33 @@ class FineTuner:
             "config": asdict(self.config),
         }
         torch.save(checkpoint, path)
+
+    def _save_run_manifest(
+        self,
+        checkpoint_path: Path,
+        strategy_id: str,
+        num_train_samples: int,
+        num_val_samples: int,
+        num_excluded_eval_samples: int,
+    ) -> Path:
+        """Persist run manifest for reproducibility and downstream analysis."""
+        manifest_path = MANIFESTS_PATH / f"{self.config.model_name}_{strategy_id}_manifest.json"
+        manifest = {
+            "model": self.config.model_name,
+            "strategy": strategy_id,
+            "seed": self.config.seed,
+            "epochs": self.config.num_epochs,
+            "checkpoint_path": str(checkpoint_path),
+            "split": {
+                "train_samples": num_train_samples,
+                "val_samples": num_val_samples,
+                "excluded_eval_samples": num_excluded_eval_samples,
+                "val_split": self.config.val_split,
+            },
+        }
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        return manifest_path
 
 
 # =============================================================================
@@ -908,6 +1030,7 @@ class FineTuner:
 def load_finetuned_model(
     model_name: str,
     checkpoint_path: Path | None = None,
+    strategy_id: str | None = None,
     device: torch.device | None = None,
 ) -> FineTunableModel:
     """Load a fine-tuned model from checkpoint.
@@ -915,6 +1038,8 @@ def load_finetuned_model(
     Args:
         model_name: Name of the model (dinov2, dinov3, mae, clip, siglip, siglip2).
         checkpoint_path: Path to checkpoint. If None, uses default path.
+        strategy_id: Optional strategy selector ("linear_probe", "lora", "full").
+            If omitted, uses first available checkpoint in default priority order.
         device: Target device. Auto-detects if None.
 
     Returns:
@@ -924,15 +1049,15 @@ def load_finetuned_model(
         FileNotFoundError: If checkpoint does not exist.
     """
     if checkpoint_path is None:
-        lora_path = CHECKPOINTS_PATH / f"{model_name}_lora_finetuned.pt"
-        full_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
-        if lora_path.exists():
-            checkpoint_path = lora_path
-        elif full_path.exists():
-            checkpoint_path = full_path
-        else:
+        candidates = get_checkpoint_candidates(model_name, strategy_id=strategy_id)
+        checkpoint_path = next((path for path in candidates if path.exists()), None)
+        if checkpoint_path is None:
+            if strategy_id is None:
+                raise FileNotFoundError(
+                    f"No checkpoint found for {model_name} in {CHECKPOINTS_PATH}"
+                )
             raise FileNotFoundError(
-                f"No checkpoint found for {model_name} in {CHECKPOINTS_PATH}"
+                f"No checkpoint found for {model_name}/{strategy_id} in {CHECKPOINTS_PATH}"
             )
 
     if not checkpoint_path.exists():
@@ -986,10 +1111,15 @@ def save_training_results(
     for result in results:
         data.append({
             "model_name": result.model_name,
+            "strategy_id": result.strategy_id,
             "best_val_acc": result.best_val_acc,
             "best_epoch": result.best_epoch,
             "train_history": result.train_history,
             "checkpoint_path": str(result.checkpoint_path),
+            "manifest_path": str(result.manifest_path),
+            "num_train_samples": result.num_train_samples,
+            "num_val_samples": result.num_val_samples,
+            "num_excluded_eval_samples": result.num_excluded_eval_samples,
             "config": result.config,
         })
 
@@ -997,3 +1127,18 @@ def save_training_results(
         json.dump(data, f, indent=2)
 
     print(f"Saved training results to {output_path}")
+
+
+def load_run_manifest(
+    model_name: str,
+    strategy_id: str,
+    manifests_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Load strategy-specific fine-tuning run manifest."""
+    base_dir = manifests_dir or MANIFESTS_PATH
+    manifest_path = base_dir / f"{model_name}_{strategy_id}_manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Run manifest not found: {manifest_path}")
+    with open(manifest_path, encoding="utf-8") as f:
+        data: dict[str, Any] = json.load(f)
+        return data

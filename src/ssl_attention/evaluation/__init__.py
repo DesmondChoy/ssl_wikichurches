@@ -37,7 +37,11 @@ from ssl_attention.evaluation.fine_tuning import (
     FineTuner,
     FineTuningConfig,
     FineTuningResult,
+    get_checkpoint_candidates,
+    get_finetuned_cache_key,
+    infer_strategy_id,
     load_finetuned_model,
+    load_run_manifest,
     save_training_results,
 )
 from ssl_attention.evaluation.linear_probe import (
@@ -62,6 +66,10 @@ __all__ = [
     "ClassificationHead",
     "FineTunableModel",
     "FineTuner",
+    "infer_strategy_id",
+    "get_checkpoint_candidates",
+    "get_finetuned_cache_key",
+    "load_run_manifest",
     "load_finetuned_model",
     "save_training_results",
 ]

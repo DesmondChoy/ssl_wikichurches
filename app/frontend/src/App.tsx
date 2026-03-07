@@ -8,6 +8,7 @@ import { HomePage } from './pages/Home';
 import { ImageDetailPage } from './pages/ImageDetail';
 import { ComparePage } from './pages/Compare';
 import { DashboardPage } from './pages/Dashboard';
+import { Q2Page } from './pages/Q2';
 import { RouteErrorBoundary } from './components/ui/ErrorBoundary';
 
 const queryClient = new QueryClient({
@@ -71,6 +72,18 @@ export default function App() {
                   >
                     Dashboard
                   </NavLink>
+                  <NavLink
+                    to="/q2"
+                    className={({ isActive }) =>
+                      `px-3 py-2 text-sm font-medium rounded-md ${
+                        isActive
+                          ? 'bg-primary-100 text-primary-700'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`
+                    }
+                  >
+                    Q2
+                  </NavLink>
                 </div>
               </div>
             </div>
@@ -83,6 +96,7 @@ export default function App() {
               <Route path="/image/:imageId" element={<RouteErrorBoundary><ImageDetailPage /></RouteErrorBoundary>} />
               <Route path="/compare" element={<RouteErrorBoundary><ComparePage /></RouteErrorBoundary>} />
               <Route path="/dashboard" element={<RouteErrorBoundary><DashboardPage /></RouteErrorBoundary>} />
+              <Route path="/q2" element={<RouteErrorBoundary><Q2Page /></RouteErrorBoundary>} />
             </Routes>
           </main>
 

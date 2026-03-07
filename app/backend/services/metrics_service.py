@@ -12,6 +12,7 @@ from app.backend.config import (
     DEFAULT_METHOD,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
+    Q2_RESULTS_PATH,
     display_model_name,
     resolve_model_name,
 )
@@ -296,6 +297,64 @@ class MetricsService:
         with open(METRICS_SUMMARY_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             return data
+
+    def get_q2_summary(
+        self,
+        percentile: int | None = None,
+        model: str | None = None,
+        strategy: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Load Q2 strategy-aware delta-IoU results with optional filters."""
+        if not Q2_RESULTS_PATH.exists():
+            return None
+
+        with open(Q2_RESULTS_PATH, encoding="utf-8") as f:
+            data: dict[str, Any] = json.load(f)
+
+        models = data.get("models", {})
+        filtered_models: dict[str, Any] = {}
+
+        for model_name, strategies in models.items():
+            if model and model_name != resolve_model_name(model):
+                continue
+
+            filtered_strategies: dict[str, Any] = {}
+            for strategy_id, percentile_rows in strategies.items():
+                if strategy and strategy_id != strategy:
+                    continue
+
+                if percentile is None:
+                    filtered_strategies[strategy_id] = percentile_rows
+                    continue
+
+                key = str(percentile)
+                if key in percentile_rows:
+                    filtered_strategies[strategy_id] = {key: percentile_rows[key]}
+
+            if filtered_strategies:
+                filtered_models[model_name] = filtered_strategies
+
+        strategy_comparisons = data.get("strategy_comparisons", {})
+        if model:
+            resolved = resolve_model_name(model)
+            strategy_comparisons = (
+                {resolved: strategy_comparisons.get(resolved, {})}
+                if resolved in strategy_comparisons
+                else {}
+            )
+
+        if percentile is not None:
+            p_key = str(percentile)
+            strategy_comparisons = {
+                m: {p_key: rows[p_key]} for m, rows in strategy_comparisons.items() if p_key in rows
+            }
+
+        return {
+            "percentiles": data.get("percentiles", []),
+            "timestamp": data.get("timestamp"),
+            "models": filtered_models,
+            "strategy_comparisons": strategy_comparisons,
+        }
 
     def get_feature_breakdown(
         self,

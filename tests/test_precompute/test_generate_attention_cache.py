@@ -9,6 +9,7 @@ import pytest
 from app.precompute.generate_attention_cache import (
     FINETUNE_MODELS,
     discover_checkpoints,
+    discover_checkpoints_by_strategy,
 )
 from ssl_attention.config import MODELS
 
@@ -68,6 +69,31 @@ class TestDiscoverCheckpoints:
         assert "mae" not in result
         captured = capsys.readouterr()
         assert "mae" in captured.out
+
+
+class TestDiscoverCheckpointsByStrategy:
+    """Tests for strategy-aware checkpoint discovery."""
+
+    def test_discovers_multiple_strategies_per_model(self, tmp_path: Path) -> None:
+        (tmp_path / "dinov2_lora_finetuned.pt").touch()
+        (tmp_path / "dinov2_full_finetuned.pt").touch()
+
+        result = discover_checkpoints_by_strategy(tmp_path, model_names=["dinov2"])
+
+        assert "dinov2" in result
+        assert set(result["dinov2"]) == {"lora", "full"}
+
+    def test_uses_legacy_checkpoint_for_full_and_linear_probe(self, tmp_path: Path) -> None:
+        (tmp_path / "clip_finetuned.pt").touch()
+
+        result = discover_checkpoints_by_strategy(
+            tmp_path,
+            model_names=["clip"],
+            strategies=["full", "linear_probe"],
+        )
+
+        assert result["clip"]["full"] == tmp_path / "clip_finetuned.pt"
+        assert result["clip"]["linear_probe"] == tmp_path / "clip_finetuned.pt"
 
 
 class TestCacheModelKey:

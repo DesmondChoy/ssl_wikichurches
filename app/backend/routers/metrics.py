@@ -12,6 +12,7 @@ from app.backend.schemas import (
     IoUResultSchema,
     LayerProgressionSchema,
     LeaderboardEntry,
+    Q2SummaryResponse,
     StyleBreakdownSchema,
 )
 from app.backend.services.attention_service import attention_service
@@ -21,6 +22,32 @@ from app.backend.validators import validate_layer_for_model, validate_method, va
 from ssl_attention.metrics.iou import compute_coverage, compute_iou
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
+
+
+@router.get("/q2_summary", response_model=Q2SummaryResponse)
+async def get_q2_summary(
+    percentile: Annotated[int | None, Query(ge=50, le=95)] = None,
+    model: Annotated[str | None, Query()] = None,
+    strategy: Annotated[str | None, Query(description="Fine-tuning strategy")] = None,
+) -> Q2SummaryResponse:
+    """Get strategy-aware Q2 delta-IoU analysis summary."""
+    if model is not None:
+        validate_model(model)
+
+    data = metrics_service.get_q2_summary(
+        percentile=percentile,
+        model=model,
+        strategy=strategy,
+    )
+    if not data:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Q2 summary not available. Run "
+                "experiments/scripts/analyze_delta_iou.py first."
+            ),
+        )
+    return Q2SummaryResponse(**data)
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])

@@ -15,8 +15,13 @@ export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const imageId = searchParams.get('image') || '';
   const comparisonType = searchParams.get('type') || 'models';
+  const strategy = searchParams.get('strategy') || '';
+  const modelParam = searchParams.get('model') || '';
+  const layerParam = searchParams.get('layer') || '';
 
-  const { model, layer, percentile } = useViewStore();
+  const { model, layer, percentile, setModel, setLayer } = useViewStore();
+  const compareModel = modelParam || model;
+  const compareLayer = layerParam ? Number(layerParam) : layer;
 
   // Fetch image list for selection
   const { data: images } = useQuery({
@@ -40,6 +45,12 @@ export function ComparePage() {
     { value: 'models', label: 'Model vs Model' },
     { value: 'frozen', label: 'Frozen vs Fine-tuned' },
   ];
+  const strategyOptions = [
+    { value: '', label: 'Auto (legacy)' },
+    { value: 'linear_probe', label: 'Linear Probe' },
+    { value: 'lora', label: 'LoRA' },
+    { value: 'full', label: 'Full Fine-tune' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -60,28 +71,100 @@ export function ComparePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
               value={imageId}
-              onChange={(v) => setSearchParams({ image: v, type: comparisonType })}
+              onChange={(v) =>
+                setSearchParams({
+                  image: v,
+                  type: comparisonType,
+                  strategy,
+                  model: compareModel,
+                  layer: String(compareLayer),
+                })
+              }
               options={[{ value: '', label: 'Select an image...' }, ...imageOptions]}
               label="Image"
             />
 
             <Select
               value={comparisonType}
-              onChange={(v) => setSearchParams({ image: imageId, type: v })}
+              onChange={(v) =>
+                setSearchParams({
+                  image: imageId,
+                  type: v,
+                  strategy,
+                  model: compareModel,
+                  layer: String(compareLayer),
+                })
+              }
               options={comparisonTypes}
               label="Comparison Type"
             />
 
-            <div className="flex items-end">
-              {imageId && (
-                <Link
-                  to={`/image/${encodeURIComponent(imageId)}`}
-                  className="px-4 py-2 text-sm text-primary-600 hover:underline"
-                >
-                  View Details &rarr;
-                </Link>
-              )}
-            </div>
+            {comparisonType === 'frozen' ? (
+              <Select
+                value={compareModel}
+                onChange={(v) => {
+                  setModel(v);
+                  setSearchParams({
+                    image: imageId,
+                    type: comparisonType,
+                    strategy,
+                    model: v,
+                    layer: String(compareLayer),
+                  });
+                }}
+                options={(imageDetail?.available_models || ['dinov2']).filter((m) => m !== 'resnet50').map((m) => ({
+                  value: m,
+                  label: m,
+                }))}
+                label="Model"
+              />
+            ) : (
+              <div className="flex items-end">
+                {imageId && (
+                  <Link
+                    to={`/image/${encodeURIComponent(imageId)}`}
+                    className="px-4 py-2 text-sm text-primary-600 hover:underline"
+                  >
+                    View Details &rarr;
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {comparisonType === 'frozen' && (
+              <Select
+                value={strategy}
+                onChange={(v) =>
+                  setSearchParams({
+                    image: imageId,
+                    type: comparisonType,
+                    strategy: v,
+                    model: compareModel,
+                    layer: String(compareLayer),
+                  })
+                }
+                options={strategyOptions}
+                label="Strategy"
+              />
+            )}
+            {comparisonType === 'frozen' && (
+              <Select
+                value={String(compareLayer)}
+                onChange={(v) => {
+                  const nextLayer = Number(v);
+                  setLayer(nextLayer);
+                  setSearchParams({
+                    image: imageId,
+                    type: comparisonType,
+                    strategy,
+                    model: compareModel,
+                    layer: String(nextLayer),
+                  });
+                }}
+                options={Array.from({ length: 12 }, (_, i) => ({ value: String(i), label: `Layer ${i}` }))}
+                label="Layer"
+              />
+            )}
           </div>
         </CardContent>
       </Card>
@@ -106,8 +189,9 @@ export function ComparePage() {
       {imageId && comparisonType === 'frozen' && (
         <FrozenVsFinetuned
           imageId={imageId}
-          model={model}
-          layer={layer}
+          model={compareModel}
+          layer={compareLayer}
+          strategy={strategy || undefined}
         />
       )}
     </div>

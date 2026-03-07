@@ -40,12 +40,14 @@ from ssl_attention.config import (
     DATASET_PATH,
     DEFAULT_METHOD,
     FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     IMAGES_PATH,
     MODEL_METHODS,
     MODELS,
     AttentionMethod,
 )
 from ssl_attention.data import AnnotatedSubset
+from ssl_attention.evaluation.fine_tuning import get_finetuned_cache_key
 from ssl_attention.visualization import (
     create_attention_overlay,
     draw_bboxes,
@@ -330,6 +332,16 @@ def main() -> int:
         action="store_true",
         help="Generate heatmaps for fine-tuned cache keys ({model}_finetuned)",
     )
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        default=["auto"],
+        choices=["auto", "all", "linear_probe", "lora", "full"],
+        help=(
+            "Fine-tuning strategies to render in --finetuned mode. "
+            "'auto' preserves legacy {model}_finetuned behavior."
+        ),
+    )
     args = parser.parse_args()
 
     # Parse methods (None = all available per model)
@@ -383,26 +395,39 @@ def main() -> int:
     # Process each model
     total_stats = {"processed": 0, "skipped": 0, "errors": 0}
 
-    for model_name in models_to_process:
-        cache_key = f"{model_name}_finetuned" if args.finetuned else model_name
-        stats = generate_heatmaps_for_model(
-            model_name=model_name,
-            dataset=dataset,
-            attention_cache=attention_cache,
-            output_dir=output_dir,
-            colormap=args.colormap,
-            alpha=args.alpha,
-            layers=args.layers,
-            methods=methods_to_use,
-            skip_existing=not args.no_skip,
-            cache_model_key=cache_key,
-            output_model_key=cache_key,
+    strategy_targets: list[str | None] = [None]
+    if args.finetuned and "auto" not in args.strategies:
+        strategy_targets = (
+            [s.value for s in FINETUNE_STRATEGIES]
+            if "all" in args.strategies
+            else args.strategies
         )
 
-        for key in total_stats:
-            total_stats[key] += stats[key]
+    for model_name in models_to_process:
+        for strategy_id in strategy_targets:
+            cache_key = (
+                get_finetuned_cache_key(model_name, strategy_id)
+                if args.finetuned
+                else model_name
+            )
+            stats = generate_heatmaps_for_model(
+                model_name=model_name,
+                dataset=dataset,
+                attention_cache=attention_cache,
+                output_dir=output_dir,
+                colormap=args.colormap,
+                alpha=args.alpha,
+                layers=args.layers,
+                methods=methods_to_use,
+                skip_existing=not args.no_skip,
+                cache_model_key=cache_key,
+                output_model_key=cache_key,
+            )
 
-        print(f"{cache_key} complete: {stats}")
+            for key in total_stats:
+                total_stats[key] += stats[key]
+
+            print(f"{cache_key} complete: {stats}")
 
     print(f"\n{'='*60}")
     print("SUMMARY")

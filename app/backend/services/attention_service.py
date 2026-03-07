@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from app.backend.config import ATTENTION_CACHE_PATH, resolve_model_name
+from app.backend.config import ATTENTION_CACHE_PATH, resolve_model_name, split_model_name
 from ssl_attention.cache import AttentionCache
 
 # Patch grid sizes per model (based on 224x224 input / patch_size)
@@ -25,7 +25,6 @@ MODEL_ATTENTION_GRIDS: dict[str, tuple[int, int]] = {
     "siglip2": (14, 14),  # 196 patches
     "resnet50": (7, 7),  # 49 feature positions
 }
-_FINETUNED_SUFFIX = "_finetuned"
 
 
 class AttentionService:
@@ -59,10 +58,9 @@ class AttentionService:
         """
         if model in MODEL_ATTENTION_GRIDS:
             return MODEL_ATTENTION_GRIDS[model]
-        if model.endswith(_FINETUNED_SUFFIX):
-            base_model = model[: -len(_FINETUNED_SUFFIX)]
-            if base_model in MODEL_ATTENTION_GRIDS:
-                return MODEL_ATTENTION_GRIDS[base_model]
+        base_model, _, _ = split_model_name(model)
+        if base_model in MODEL_ATTENTION_GRIDS:
+            return MODEL_ATTENTION_GRIDS[base_model]
         # Default to 14x14
         return (14, 14)
 

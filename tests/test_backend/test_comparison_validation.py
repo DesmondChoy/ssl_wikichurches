@@ -176,3 +176,23 @@ class TestFrozenVsFinetunedEndpoint:
         assert payload["finetuned"]["url"] is not None
         assert "method=cls" in payload["frozen"]["url"]
         assert "model=dinov2_finetuned" in payload["finetuned"]["url"]
+
+    def test_strategy_specific_variant_is_used(self, _mock_services):
+        """Strategy query should target strategy-specific fine-tuned key."""
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant != "overlay" or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned_lora"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/frozen_vs_finetuned",
+            params={"image_id": IMAGE_ID, "model": "dinov2", "layer": 0, "strategy": "lora"},
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["finetuned"]["available"] is True
+        assert "model=dinov2_finetuned_lora" in payload["finetuned"]["url"]

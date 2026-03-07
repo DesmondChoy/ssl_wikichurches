@@ -215,6 +215,17 @@ export const metricsAPI = {
       num_images: number;
     }>(`/metrics/model/${model}/aggregate?${params}`);
   },
+
+  getQ2Summary: (params?: { percentile?: number; model?: string; strategy?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.percentile !== undefined) query.set('percentile', String(params.percentile));
+    if (params?.model) query.set('model', params.model);
+    if (params?.strategy) query.set('strategy', params.strategy);
+    const queryStr = query.toString();
+    return fetchJSON<import('../types').Q2SummaryResponse>(
+      `/metrics/q2_summary${queryStr ? `?${queryStr}` : ''}`
+    );
+  },
 };
 
 // Comparison API
@@ -226,14 +237,18 @@ export const comparisonAPI = {
     );
   },
 
-  compareFrozenVsFinetuned: (imageId: string, model: string, layer: number) =>
-    fetchJSON<{
+  compareFrozenVsFinetuned: (imageId: string, model: string, layer: number, strategy?: string) => {
+    const query = new URLSearchParams({ image_id: imageId, model, layer: String(layer) });
+    if (strategy) query.set('strategy', strategy);
+    return fetchJSON<{
       image_id: string;
       model: string;
+      strategy?: string | null;
       layer: string;
       frozen: { available: boolean; url: string | null };
       finetuned: { available: boolean; url: string | null; note: string };
-    }>(`/compare/frozen_vs_finetuned?image_id=${imageId}&model=${model}&layer=${layer}`),
+    }>(`/compare/frozen_vs_finetuned?${query}`);
+  },
 
   compareLayers: (imageId: string, model: string, percentile = 90) =>
     fetchJSON<import('../types').LayerComparison>(

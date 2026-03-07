@@ -10,16 +10,17 @@ interface FrozenVsFinetunedProps {
   imageId: string;
   model: string;
   layer: number;
+  strategy?: string;
 }
 
-export function FrozenVsFinetuned({ imageId, model, layer }: FrozenVsFinetunedProps) {
+export function FrozenVsFinetuned({ imageId, model, layer, strategy }: FrozenVsFinetunedProps) {
   const {
     data,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['frozen-vs-finetuned', imageId, model, layer],
-    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, layer),
+    queryKey: ['frozen-vs-finetuned', imageId, model, layer, strategy],
+    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, layer, strategy),
     enabled: Boolean(imageId && model),
   });
 
@@ -84,7 +85,13 @@ export function FrozenVsFinetuned({ imageId, model, layer }: FrozenVsFinetunedPr
     <div className="space-y-2">
       <div className="flex justify-between text-sm text-gray-600">
         <span>Frozen (Pretrained)</span>
-        <span>Fine-tuned</span>
+        <span>
+          {data.strategy
+            ? `Fine-tuned (${data.strategy})`
+            : strategy
+              ? `Fine-tuned (${strategy})`
+              : 'Fine-tuned'}
+        </span>
       </div>
 
       <ReactCompareSlider
@@ -107,6 +114,11 @@ export function FrozenVsFinetuned({ imageId, model, layer }: FrozenVsFinetunedPr
       <p className="text-xs text-gray-500 text-center">
         Drag slider to compare frozen vs fine-tuned attention
       </p>
+      {data.strategy === 'linear_probe' && (
+        <p className="text-xs text-amber-700 text-center">
+          Linear probe trains only the classifier head, so attention maps can look identical.
+        </p>
+      )}
     </div>
   );
 }

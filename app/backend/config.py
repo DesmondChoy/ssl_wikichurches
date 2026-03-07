@@ -23,6 +23,7 @@ FEATURE_CACHE_PATH = CACHE_PATH / "features.h5"
 HEATMAPS_PATH = CACHE_PATH / "heatmaps"
 METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
+Q2_RESULTS_PATH = PROJECT_ROOT / "outputs" / "results" / "q2_delta_iou_analysis.json"
 
 # Available models (must match ssl_attention.config.MODELS)
 AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"]
@@ -54,12 +55,28 @@ STANDARD_IMAGE_SIZE = (224, 224)
 # Model name resolution and attention method configuration
 # Re-exported for use by routers (F401 false positive - these are used externally)
 from ssl_attention.config import DEFAULT_METHOD as DEFAULT_METHOD
+from ssl_attention.config import FINETUNE_STRATEGIES as FINETUNE_STRATEGIES
 from ssl_attention.config import MODEL_ALIASES
 from ssl_attention.config import MODEL_METHODS as MODEL_METHODS
 from ssl_attention.config import MODELS as MODELS
 from ssl_attention.config import AttentionMethod as AttentionMethod
 
 _FINETUNED_SUFFIX = "_finetuned"
+_FINETUNED_MARKER = "_finetuned_"
+VALID_FINETUNE_STRATEGIES = {s.value for s in FINETUNE_STRATEGIES}
+
+
+def split_model_name(model: str) -> tuple[str, bool, str | None]:
+    """Split model identifier into base model, finetuned flag, and strategy."""
+    if _FINETUNED_MARKER in model:
+        base, strategy = model.split(_FINETUNED_MARKER, maxsplit=1)
+        if strategy:
+            return base, True, strategy
+        return base, True, None
+    if model.endswith(_FINETUNED_SUFFIX):
+        base = model[: -len(_FINETUNED_SUFFIX)]
+        return base, True, None
+    return model, False, None
 
 
 def resolve_model_name(model: str) -> str:
@@ -71,13 +88,13 @@ def resolve_model_name(model: str) -> str:
     Returns:
         Canonical model name (e.g., 'siglip').
     """
-    if model.endswith(_FINETUNED_SUFFIX):
-        base_model = model[: -len(_FINETUNED_SUFFIX)]
-        resolved_base = MODEL_ALIASES.get(base_model, base_model)
-        return f"{resolved_base}{_FINETUNED_SUFFIX}"
-
-    resolved: str = MODEL_ALIASES.get(model, model)
-    return resolved
+    base_model, is_finetuned, strategy = split_model_name(model)
+    resolved_base = MODEL_ALIASES.get(base_model, base_model)
+    if not is_finetuned:
+        return resolved_base
+    if strategy:
+        return f"{resolved_base}{_FINETUNED_MARKER}{strategy}"
+    return f"{resolved_base}{_FINETUNED_SUFFIX}"
 
 
 # Reverse mapping: canonical DB name → frontend display name
@@ -107,8 +124,8 @@ def get_model_num_layers(model: str) -> int:
         Number of layers for the model.
     """
     resolved = resolve_model_name(model)
-    if resolved.endswith(_FINETUNED_SUFFIX):
-        resolved = resolved[: -len(_FINETUNED_SUFFIX)]
+    resolved_base, _, _ = split_model_name(resolved)
+    resolved = resolved_base
     if resolved in MODELS:
         return MODELS[resolved].num_layers
     return NUM_LAYERS  # Fallback to default

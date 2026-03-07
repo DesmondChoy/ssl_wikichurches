@@ -92,11 +92,12 @@ async def compare_frozen_vs_finetuned(
     image_id: str,
     model: Annotated[str, Query()] = "dinov2",
     layer: Annotated[int, Query(ge=0)] = 0,
+    strategy: Annotated[str | None, Query(description="Fine-tuning strategy (linear_probe, lora, full)")] = None,
 ) -> dict:
     """Compare frozen (pretrained) vs fine-tuned model attention.
     """
     resolved_model = validate_model(model)
-    base_model, _ = split_model_variant(resolved_model)
+    base_model, _, _ = split_model_variant(resolved_model)
     layer_key = validate_layer_for_model(layer, base_model)
 
     if not image_service.get_annotation(image_id):
@@ -107,13 +108,38 @@ async def compare_frozen_vs_finetuned(
     # Frozen model (always available after pre-computation)
     frozen_available = image_service.heatmap_exists(base_model, layer_key, image_id, method=method, variant="overlay")
 
-    # Fine-tuned variant key (uses explicit *_finetuned model IDs)
-    finetuned_model = f"{base_model}_finetuned"
-    finetuned_available = image_service.heatmap_exists(finetuned_model, layer_key, image_id, method=method, variant="overlay")
+    # Fine-tuned variant key:
+    # - If strategy is provided, use it directly.
+    # - Otherwise auto-select the first available strategy (lora > full > linear_probe),
+    #   then fallback to legacy "{model}_finetuned".
+    resolved_strategy = strategy
+    if strategy:
+        finetuned_model = validate_model(f"{base_model}_finetuned_{strategy}")
+        finetuned_available = image_service.heatmap_exists(
+            finetuned_model, layer_key, image_id, method=method, variant="overlay"
+        )
+    else:
+        auto_candidates = [
+            ("lora", f"{base_model}_finetuned_lora"),
+            ("full", f"{base_model}_finetuned_full"),
+            ("linear_probe", f"{base_model}_finetuned_linear_probe"),
+            (None, f"{base_model}_finetuned"),  # legacy key
+        ]
+        finetuned_model = f"{base_model}_finetuned"
+        finetuned_available = False
+        for candidate_strategy, candidate_model in auto_candidates:
+            if image_service.heatmap_exists(
+                candidate_model, layer_key, image_id, method=method, variant="overlay"
+            ):
+                finetuned_model = candidate_model
+                finetuned_available = True
+                resolved_strategy = candidate_strategy
+                break
 
     return {
         "image_id": image_id,
         "model": base_model,
+        "strategy": resolved_strategy,
         "layer": layer_key,
         "frozen": {
             "available": frozen_available,

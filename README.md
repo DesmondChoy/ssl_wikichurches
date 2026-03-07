@@ -130,6 +130,32 @@ result = tuner.train(FineTunableModel("dinov2"), dataset)
 
 See `src/ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/checkpoints/`. LoRA support requires the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
 
+### Pilot Fine-tuning
+1. Train pilot checkpoints
+```
+uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-backbone
+uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora
+uv run python experiments/scripts/fine_tune_models.py --model dinov2
+uv run python experiments/scripts/fine_tune_models.py --model siglip2 --freeze-backbone
+uv run python experiments/scripts/fine_tune_models.py --model siglip2 --lora
+uv run python experiments/scripts/fine_tune_models.py --model siglip2
+```
+2. Run fine-tuning analysis with strategy-aware artifact
+```
+uv run python experiments/scripts/analyze_delta_iou.py --models dinov2 siglip2 --strategies linear_probe lora full
+```
+- Output: `outputs/results/q2_delta_iou_analysis.json`
+
+3. Precompute attention + heatmaps for those strategies
+```
+uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_heatmap_images --finetuned --models dinov2 siglip2 --strategies linear_probe lora full
+```
+4. Build metrics cache for dashboard APIs
+```
+uv run python -m app.precompute.generate_metrics_cache
+```
+
 ## Data Exploration
 
 Explore the dataset with Jupyter:

@@ -108,6 +108,47 @@ export interface LayerComparison {
   best_iou: number;
 }
 
+export interface Q2StrategyResult {
+  model_name: string;
+  strategy_id: string;
+  percentile: number;
+  method: string;
+  frozen_mean_iou: number;
+  finetuned_mean_iou: number;
+  mean_delta_iou: number;
+  std_delta_iou: number;
+  delta_ci_lower: number;
+  delta_ci_upper: number;
+  cohens_d: number;
+  p_value: number;
+  corrected_p_value: number | null;
+  significant: boolean;
+  test_name: string;
+  iou_retention_ratio: number | null;
+  num_images: number;
+  per_image_deltas: Record<string, number>;
+}
+
+export interface Q2StrategyComparison {
+  model_name: string;
+  percentile: number;
+  strategy_a: string;
+  strategy_b: string;
+  mean_delta_difference: number;
+  cohens_d: number;
+  p_value: number;
+  corrected_p_value: number | null;
+  significant: boolean;
+  test_name: string;
+}
+
+export interface Q2SummaryResponse {
+  percentiles: number[];
+  timestamp: string | null;
+  models: Record<string, Record<string, Record<string, Q2StrategyResult>>>;
+  strategy_comparisons: Record<string, Record<string, Q2StrategyComparison[]>>;
+}
+
 // App State Types
 
 export type HeatmapStyle = 'smooth' | 'squares' | 'circles';
