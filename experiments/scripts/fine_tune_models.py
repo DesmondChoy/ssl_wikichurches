@@ -155,12 +155,21 @@ def parse_args() -> argparse.Namespace:
         default=0.2,
         help="Validation split fraction (default: 0.2)",
     )
-    parser.add_argument(
+    eval_mode_group = parser.add_mutually_exclusive_group()
+    eval_mode_group.add_argument(
         "--include-annotated-eval",
         action="store_true",
         help=(
             "Include bbox-annotated images in training/validation split. "
             "Use this when dataset/images only contains the 139 annotated images."
+        ),
+    )
+    eval_mode_group.add_argument(
+        "--val-on-annotated-eval",
+        action="store_true",
+        help=(
+            "Train on non-annotated labeled images and use annotated eval images "
+            "as the validation set."
         ),
     )
 
@@ -196,6 +205,7 @@ def train_single_model(
         freeze_backbone=args.freeze_backbone,
         val_split=args.val_split,
         exclude_annotated_eval=not args.include_annotated_eval,
+        val_on_annotated_eval=args.val_on_annotated_eval,
         seed=args.seed,
         use_lora=args.lora,
         lora_rank=args.lora_rank,
@@ -251,6 +261,8 @@ def main() -> None:
     print(f"Epochs: {args.epochs}")
     print(f"Freeze backbone: {args.freeze_backbone}")
     print(f"Exclude annotated eval images: {not args.include_annotated_eval}")
+    if args.val_on_annotated_eval:
+        print("Validation mode: annotated eval holdout")
 
     # Train models
     results: list[FineTuningResult] = []

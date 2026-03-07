@@ -141,6 +141,8 @@ class FineTuningConfig:
         val_split: Fraction of data to use for validation.
         exclude_annotated_eval: If True, exclude bbox-annotated images from
             training/validation splits to avoid data leakage in Q2 evaluation.
+        val_on_annotated_eval: If True, use bbox-annotated images as the
+            validation set and train on remaining labeled images.
         seed: Random seed for reproducibility.
         warmup_ratio: Fraction of total training steps for linear LR warmup.
         max_grad_norm: Maximum gradient norm for clipping (0 disables clipping).
@@ -161,6 +163,7 @@ class FineTuningConfig:
     freeze_backbone: bool = False
     val_split: float = 0.2
     exclude_annotated_eval: bool = True
+    val_on_annotated_eval: bool = False
     seed: int = 42
     warmup_ratio: float = 0.1
     max_grad_norm: float = 1.0
@@ -189,6 +192,11 @@ class FineTuningConfig:
         valid_strategies = {s.value for s in FINETUNE_STRATEGIES}
         if self.strategy_id not in valid_strategies:
             raise ValueError(f"Invalid strategy_id: {self.strategy_id}. Valid: {sorted(valid_strategies)}")
+        if self.val_on_annotated_eval and not self.exclude_annotated_eval:
+            raise ValueError(
+                "val_on_annotated_eval=True requires exclude_annotated_eval=True "
+                "so annotated eval images are not used in training."
+            )
 
     @property
     def strategy_id(self) -> str:
@@ -701,6 +709,34 @@ class FineTuner:
 
         return Subset(dataset, train_indices), Subset(dataset, val_indices), n_excluded
 
+    def _split_with_annotated_eval_validation(
+        self,
+        dataset: FullDataset,
+        eval_image_ids: set[str],
+    ) -> tuple[Subset, Subset, int]:
+        """Use annotated images as fixed validation set; others for training.
+
+        Args:
+            dataset: Full dataset with style labels.
+            eval_image_ids: Image IDs in annotated subset.
+
+        Returns:
+            Tuple of (train_subset, val_subset, n_val_annotated).
+        """
+        train_indices: list[int] = []
+        val_indices: list[int] = []
+
+        for i in range(len(dataset)):
+            sample = dataset.get_metadata(i)
+            if sample["style_label"] is None:
+                continue
+            if sample["image_id"] in eval_image_ids:
+                val_indices.append(i)
+            else:
+                train_indices.append(i)
+
+        return Subset(dataset, train_indices), Subset(dataset, val_indices), len(val_indices)
+
     def _collate_fn(self, batch: list[dict]) -> dict[str, Any]:
         """Collate function for DataLoader.
 
@@ -769,21 +805,31 @@ class FineTuner:
             eval_image_ids = set(annotations.keys())
 
         # Split data
-        train_subset, val_subset, n_excluded = self._stratified_split(
-            dataset, self.config.val_split, exclude_image_ids=eval_image_ids
-        )
-        if self.config.exclude_annotated_eval:
-            print(f"Excluded {n_excluded} bbox-annotated eval images from training")
+        if self.config.val_on_annotated_eval:
+            if eval_image_ids is None:
+                raise ValueError(
+                    "val_on_annotated_eval=True requires annotated eval metadata, but none was loaded."
+                )
+            train_subset, val_subset, n_excluded = self._split_with_annotated_eval_validation(
+                dataset, eval_image_ids
+            )
+            print("Validation set source: annotated eval images (139 target)")
+            print(f"Held out {n_excluded} annotated eval images for validation")
         else:
-            print("Using annotated images for training/validation (leakage-safe mode disabled)")
+            train_subset, val_subset, n_excluded = self._stratified_split(
+                dataset, self.config.val_split, exclude_image_ids=eval_image_ids
+            )
+            if self.config.exclude_annotated_eval:
+                print(f"Excluded {n_excluded} bbox-annotated eval images from training")
+            else:
+                print("Using annotated images for training/validation (leakage-safe mode disabled)")
         print(f"Train size: {len(train_subset)}, Val size: {len(val_subset)}")
 
-        if self.config.exclude_annotated_eval and (len(train_subset) == 0 or len(val_subset) == 0):
+        if len(train_subset) == 0 or len(val_subset) == 0:
             raise ValueError(
-                "No training samples available after excluding bbox-annotated eval images. "
-                "This usually means dataset/images only contains the 139 annotated evaluation images. "
-                "Fine-tuning requires the full WikiChurches image set (not just the annotated subset), "
-                "or set exclude_annotated_eval=False to train on the 139 annotated images."
+                "Train/validation split produced an empty subset. "
+                "For full-dataset fine-tuning, ensure dataset/images includes non-annotated labeled images. "
+                "For annotated-only runs, use exclude_annotated_eval=False."
             )
 
         # Build augmentation transform
@@ -947,6 +993,7 @@ class FineTuner:
             num_train_samples=len(train_subset),
             num_val_samples=len(val_subset),
             num_excluded_eval_samples=n_excluded,
+            val_source="annotated_eval" if self.config.val_on_annotated_eval else "stratified_split",
         )
 
         return FineTuningResult(
@@ -1001,6 +1048,7 @@ class FineTuner:
         num_train_samples: int,
         num_val_samples: int,
         num_excluded_eval_samples: int,
+        val_source: str,
     ) -> Path:
         """Persist run manifest for reproducibility and downstream analysis."""
         manifest_path = MANIFESTS_PATH / f"{self.config.model_name}_{strategy_id}_manifest.json"
@@ -1015,6 +1063,7 @@ class FineTuner:
                 "val_samples": num_val_samples,
                 "excluded_eval_samples": num_excluded_eval_samples,
                 "val_split": self.config.val_split,
+                "val_source": val_source,
             },
         }
         with open(manifest_path, "w", encoding="utf-8") as f:

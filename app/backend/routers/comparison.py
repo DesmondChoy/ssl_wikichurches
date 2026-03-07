@@ -93,6 +93,7 @@ async def compare_frozen_vs_finetuned(
     model: Annotated[str, Query()] = "dinov2",
     layer: Annotated[int, Query(ge=0)] = 0,
     strategy: Annotated[str | None, Query(description="Fine-tuning strategy (linear_probe, lora, full)")] = None,
+    show_bboxes: Annotated[bool, Query(description="Render overlays with annotation boxes/labels")] = True,
 ) -> dict:
     """Compare frozen (pretrained) vs fine-tuned model attention.
     """
@@ -105,8 +106,16 @@ async def compare_frozen_vs_finetuned(
 
     method = resolve_default_method(base_model)
 
+    overlay_variant = "overlay_bbox" if show_bboxes else "overlay"
+
     # Frozen model (always available after pre-computation)
-    frozen_available = image_service.heatmap_exists(base_model, layer_key, image_id, method=method, variant="overlay")
+    frozen_available = image_service.heatmap_exists(
+        base_model,
+        layer_key,
+        image_id,
+        method=method,
+        variant=overlay_variant,
+    )
 
     # Fine-tuned variant key:
     # - If strategy is provided, use it directly.
@@ -116,7 +125,7 @@ async def compare_frozen_vs_finetuned(
     if strategy:
         finetuned_model = validate_model(f"{base_model}_finetuned_{strategy}")
         finetuned_available = image_service.heatmap_exists(
-            finetuned_model, layer_key, image_id, method=method, variant="overlay"
+            finetuned_model, layer_key, image_id, method=method, variant=overlay_variant
         )
     else:
         auto_candidates = [
@@ -129,7 +138,7 @@ async def compare_frozen_vs_finetuned(
         finetuned_available = False
         for candidate_strategy, candidate_model in auto_candidates:
             if image_service.heatmap_exists(
-                candidate_model, layer_key, image_id, method=method, variant="overlay"
+                candidate_model, layer_key, image_id, method=method, variant=overlay_variant
             ):
                 finetuned_model = candidate_model
                 finetuned_available = True
@@ -141,10 +150,12 @@ async def compare_frozen_vs_finetuned(
         "model": base_model,
         "strategy": resolved_strategy,
         "layer": layer_key,
+        "show_bboxes": show_bboxes,
         "frozen": {
             "available": frozen_available,
             "url": (
-                f"/api/attention/{image_id}/overlay?model={base_model}&layer={layer}&method={method}"
+                f"/api/attention/{image_id}/overlay?"
+                f"model={base_model}&layer={layer}&method={method}&show_bboxes={str(show_bboxes).lower()}"
                 if frozen_available
                 else None
             ),
@@ -152,7 +163,8 @@ async def compare_frozen_vs_finetuned(
         "finetuned": {
             "available": finetuned_available,
             "url": (
-                f"/api/attention/{image_id}/overlay?model={finetuned_model}&layer={layer}&method={method}"
+                f"/api/attention/{image_id}/overlay?"
+                f"model={finetuned_model}&layer={layer}&method={method}&show_bboxes={str(show_bboxes).lower()}"
                 if finetuned_available
                 else None
             ),

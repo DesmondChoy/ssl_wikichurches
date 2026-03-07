@@ -237,14 +237,22 @@ export const comparisonAPI = {
     );
   },
 
-  compareFrozenVsFinetuned: (imageId: string, model: string, layer: number, strategy?: string) => {
+  compareFrozenVsFinetuned: (
+    imageId: string,
+    model: string,
+    layer: number,
+    strategy?: string,
+    showBboxes = true
+  ) => {
     const query = new URLSearchParams({ image_id: imageId, model, layer: String(layer) });
     if (strategy) query.set('strategy', strategy);
+    query.set('show_bboxes', String(showBboxes));
     return fetchJSON<{
       image_id: string;
       model: string;
       strategy?: string | null;
       layer: string;
+      show_bboxes?: boolean;
       frozen: { available: boolean; url: string | null };
       finetuned: { available: boolean; url: string | null; note: string };
     }>(`/compare/frozen_vs_finetuned?${query}`);

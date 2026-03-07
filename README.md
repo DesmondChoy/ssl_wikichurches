@@ -132,13 +132,16 @@ See `src/ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/c
 
 ### Pilot Fine-tuning
 1. Train pilot checkpoints
-```
+```bash
+# To train on images without bounding boxes, use the --val-on-annotated-eval flag
+uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-backbone --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model dinov2 --val-on-annotated-eval
+
+# Example commands to run fine tuning on various models with different methods only on annotated images
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-backbone
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora
 uv run python experiments/scripts/fine_tune_models.py --model dinov2
-uv run python experiments/scripts/fine_tune_models.py --model siglip2 --freeze-backbone
-uv run python experiments/scripts/fine_tune_models.py --model siglip2 --lora
-uv run python experiments/scripts/fine_tune_models.py --model siglip2
 ```
 2. Run fine-tuning analysis with strategy-aware artifact
 ```

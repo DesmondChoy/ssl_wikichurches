@@ -5,22 +5,32 @@
 import { useQuery } from '@tanstack/react-query';
 import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 import { comparisonAPI } from '../../api/client';
+import type { BoundingBox } from '../../types';
 
 interface FrozenVsFinetunedProps {
   imageId: string;
   model: string;
   layer: number;
   strategy?: string;
+  bboxes?: BoundingBox[];
+  showBboxes?: boolean;
 }
 
-export function FrozenVsFinetuned({ imageId, model, layer, strategy }: FrozenVsFinetunedProps) {
+export function FrozenVsFinetuned({
+  imageId,
+  model,
+  layer,
+  strategy,
+  bboxes = [],
+  showBboxes = true,
+}: FrozenVsFinetunedProps) {
   const {
     data,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['frozen-vs-finetuned', imageId, model, layer, strategy],
-    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, layer, strategy),
+    queryKey: ['frozen-vs-finetuned', imageId, model, layer, strategy, showBboxes],
+    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, layer, strategy, showBboxes),
     enabled: Boolean(imageId && model),
   });
 
@@ -46,6 +56,9 @@ export function FrozenVsFinetuned({ imageId, model, layer, strategy }: FrozenVsF
 
   const frozenUrl = data.frozen.url;
   const finetunedUrl = data.finetuned.url;
+  const labels = Array.from(new Set(
+    bboxes.map((bbox) => bbox.label_name || `Feature ${bbox.label}`)
+  ));
   const sliderAvailable =
     data.frozen.available &&
     data.finetuned.available &&
@@ -113,11 +126,27 @@ export function FrozenVsFinetuned({ imageId, model, layer, strategy }: FrozenVsF
 
       <p className="text-xs text-gray-500 text-center">
         Drag slider to compare frozen vs fine-tuned attention
+        {showBboxes ? ' with annotated boxes' : ''}
       </p>
       {data.strategy === 'linear_probe' && (
         <p className="text-xs text-amber-700 text-center">
           Linear probe trains only the classifier head, so attention maps can look identical.
         </p>
+      )}
+      {labels.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs text-gray-600 mb-1">Annotated features:</p>
+          <div className="flex flex-wrap gap-1">
+            {labels.map((label) => (
+              <span
+                key={label}
+                className="px-2 py-0.5 text-xs bg-gray-100 border border-gray-200 rounded"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

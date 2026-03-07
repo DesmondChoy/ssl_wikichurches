@@ -192,6 +192,8 @@ export function ComparePage() {
           model={compareModel}
           layer={compareLayer}
           strategy={strategy || undefined}
+          bboxes={imageDetail?.annotation.bboxes || []}
+          showBboxes
         />
       )}
     </div>
