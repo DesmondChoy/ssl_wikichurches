@@ -59,6 +59,8 @@ Before finishing work or preparing to commit, run all relevant checks for touche
 - If something goes sideways, STOP and re-plan immediately - don't keep pushing
 - Use plan mode for verification steps, not just building
 - Write detailed specs upfront to reduce ambiguity
+- Before implementation, identify and flag the 3 most critical or technical aspects of the plan
+- Use available user-input tools to ask whether the user wants to go deeper on any of them; if yes, keep narrowing to the exact scoped implementation areas they want to understand before coding
 
 ### 2. Subagent Strategy
 - Use subagents liberally to keep main context window clean
