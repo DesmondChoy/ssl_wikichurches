@@ -151,3 +151,124 @@
   - clarify MSE directionality in the chart because lower is better
   - document that percentile changes affect IoU but intentionally leave Coverage and MSE unchanged for a fixed image/model/method
   - use a stable, data-driven y-axis ceiling for the selected metric series so low-valued trends stay readable without axis jitter during playback
+
+## Image Detail Metric Chart Implementation
+
+- [x] Tracker: move Beads issue `ssl_wikichurches-336` to `in_progress` and sync
+- [x] Backend API/contracts: add image-detail progression endpoint with extensible metric descriptors and per-layer values
+- [x] Backend services: share bbox metric computation and support union + bbox progression queries without new persistence
+- [x] Frontend layout: move `View Settings` above `Annotations`, dedicate the right column to the metrics panel, and remove the page-local `Compare Models` CTA
+- [x] Frontend metrics panel: replace image-detail metric cards with a descriptor-driven line chart, metric toggles, and percentile semantics copy
+- [x] Playback sync: lift `isPlaying` into the page so chart reveal/highlight stays synced with slider controls
+- [x] Tests: add targeted backend progression coverage and frontend Playwright E2E for the image-detail desktop flow
+- [x] Docs/skill updates: document the new API shape and update the Playwright skill checklist for the chart layout/behavior
+- [x] Verification: run required Python/frontend checks, targeted Playwright E2E, and the manual Playwright skill flow
+
+### Implementation Notes
+
+- Added `GET /api/metrics/{image_id}/progression` with a descriptor-driven payload (`selection`, `metrics`, `layers`) and new backend schemas for the image-detail chart contract.
+- Extended `MetricsService` with:
+  - union progression reads from existing `image_metrics` rows in one ordered query
+  - bbox progression computed on demand across all layers from cached attention
+  - shared bbox metric computation reused by both the new progression endpoint and the existing single-bbox endpoint
+- Refactored the image detail page to a desktop-first 3-column layout:
+  - left: `View Settings` above a new `AnnotationsCard`
+  - center: `AttentionViewer` plus a controlled `LayerSlider`
+  - right: new `ImageDetailMetricsPanel` only
+- Replaced the image-detail static metric-card usage with a `recharts` line chart that:
+  - uses backend metric descriptors for toggle labels and directionality
+  - keeps a stable nice-number y-axis ceiling based on all visible series
+  - reveals progressively during play while still using the shared layer state
+  - switches cleanly between union and bbox progression modes
+- Added frontend Playwright coverage with `@playwright/test`, `playwright.config.ts`, and a focused image-detail E2E spec.
+- Updated docs and local testing guidance:
+  - normalized the methodology framing sentence exactly
+  - documented the new API reference contract
+  - refreshed the Playwright skill checklist for the new image-detail layout/chart flow
+
+### Verification Notes
+
+- Python/backend:
+  - `uv run pytest tests/test_services/test_metrics_service.py tests/test_backend/test_image_detail_progression_api.py tests/test_backend/test_metrics_mse_api.py`
+  - `uv run pytest tests/test_services tests/test_backend`
+  - `uv run ruff check .`
+  - `uv run mypy`
+- Frontend:
+  - `cd app/frontend && npm install`
+  - `cd app/frontend && npm run lint`
+  - `cd app/frontend && npm run build`
+  - `cd app/frontend && npx playwright install chromium`
+  - `cd app/frontend && npm run test:e2e -- image-detail-metrics.spec.ts`
+- Manual Playwright skill-style verification on `http://127.0.0.1:5173/image/Q2034923_wd0.jpg` confirmed:
+  - `View Settings` sits above `Annotations`
+  - the right column contains only the metrics panel and no page-local `Compare Models` CTA
+  - bbox selection switches the panel to bbox mode
+  - next/play controls update the active-layer indicator and reveal-state text in sync
+  - no browser console errors were emitted during the manual pass
+
+## Image Detail Metric Chart Polish
+
+- [x] Tracker: reopen `ssl_wikichurches-336` for chart-axis polish
+- [x] Chart axes: round y-axis ticks to readable values, simplify x-axis labels to numeric layer ticks, and add a `Layers` caption
+- [x] Layout polish: widen the metrics chart area on desktop if needed to reduce crowding
+- [x] Verification: rerun the affected frontend checks and visually confirm the updated chart rendering
+
+### Polish Notes
+
+- Updated the chart tick logic so the y-axis uses explicit nice-number steps and trims trailing zero noise, preventing labels like `0.0501` and rendering clean values such as `0.05` and `0.1`.
+- Simplified the x-axis to numeric layer ticks (`0, 2, 4, 6, 8, 10` when available) and added a centered `Layers` caption below the chart for clearer reading.
+- Gave the image-detail desktop layout more room by widening the shell on `/image/*` routes and shifting the `xl` grid allocation so the metrics column grows relative to the viewer column.
+- Verification completed:
+  - `cd app/frontend && npm run lint`
+  - `cd app/frontend && npm run build`
+  - `cd app/frontend && npm run test:e2e -- image-detail-metrics.spec.ts`
+  - `uv run ruff check .`
+  - `uv run mypy`
+  - Manual Playwright check on `http://127.0.0.1:5173/image/Q2034923_wd0.jpg` confirmed clean y-axis ticks, numeric x-axis labels, the `Layers` caption, wider chart rendering, and no console errors
+
+## Image Detail Visual Hierarchy Polish
+
+- [x] Tracker: reopen `ssl_wikichurches-336` for viewer prominence and metric-toggle color polish
+- [x] Layout balance: make the attention viewer the visual focal point again by equalizing the center and metrics columns on desktop while keeping the left rail narrower
+- [x] Metric toggle styling: match selected metric pills to the chart palette so IoU, Coverage, and MSE read as the same color-coded system
+- [x] Verification: rerun the affected frontend checks and visually confirm layout balance plus toggle styling on the image-detail page
+
+### Visual Hierarchy Notes
+
+- Rebalanced the desktop image-detail grid so the left rail becomes a fixed-width support column while the attention viewer and metrics panel split the remaining space evenly at `xl`, restoring the viewer as a first-glance focal area without removing the metrics prominence.
+- Increased the image-detail route shell width so the equal center/right columns have enough room to breathe on large screens; in manual browser verification at desktop width, the viewer and metrics columns both rendered at roughly `528px` wide.
+- Updated selected metric pills to use chart-matched gradients and accent colors:
+  - `IoU`: blue gradient
+  - `Coverage`: teal/green gradient
+  - `MSE`: red gradient
+- Verification completed:
+  - `cd app/frontend && npm run lint`
+  - `cd app/frontend && npm run build`
+  - `cd app/frontend && npm run test:e2e -- image-detail-metrics.spec.ts`
+  - `uv run ruff check .`
+  - `uv run mypy`
+  - Manual Playwright check on `http://127.0.0.1:5173/image/Q1537302_wd0.jpg` confirmed equal center/right desktop widths, a larger square heatmap viewer, color-coded selected metric pills, clean chart axes, and no console errors
+
+## Image Detail Metric Tooltip Polish
+
+- [x] Tracker: reopen `ssl_wikichurches-336` for metric-pill tooltip restoration
+- [x] Shared tooltip support: let the tooltip attach to arbitrary hover/focus children without breaking existing `?` usages
+- [x] Metric help copy: restore per-metric help on the image-detail pills with updated chart-first descriptions and a short "why this matters" line
+- [x] Verification: rerun the affected frontend checks and confirm tooltip hover/focus behavior in the image-detail page
+
+### Tooltip Notes
+
+- Extended the shared tooltip so it can keep the existing question-mark trigger pattern for controls while also supporting arbitrary child triggers like the metric pills.
+- Restored image-detail metric help by attaching tooltips directly to the `IoU`, `Coverage`, and `MSE` pills on hover and focus instead of reintroducing a separate icon.
+- Rewrote the metric glossary copy to match the line-chart UI:
+  - removed the legacy red/orange/green performance-band explanation
+  - kept line colors as metric identity only
+  - added a short "why this matters" sentence for each metric
+- Verification completed:
+  - `cd app/frontend && npm run lint`
+  - `cd app/frontend && npm run build`
+  - `cd app/frontend && npm run test:e2e -- image-detail-metrics.spec.ts`
+  - `uv run ruff check .`
+  - `uv run mypy`
+  - Updated Playwright E2E assertions now cover tooltip appearance on pill hover plus the refreshed `IoU`, `Coverage`, and `MSE` copy
+  - An additional manual Playwright MCP pass was attempted, but the browser harness hit an existing Chrome-session launch conflict after the code and E2E checks had already passed

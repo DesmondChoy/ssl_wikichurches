@@ -2,7 +2,7 @@
 
 This document provides a detailed technical reference for the quantitative metrics used to evaluate attention-annotation alignment in this project. It covers metric definitions, thresholding methodology, ground truth construction, worked examples from live testing, and known limitations.
 
-For presentation, the intended interpretation is: **the heatmap shows what the model is attending to, and the metric chart shows how well that attention aligns with the annotation at each layer.**
+For presentation, the intended interpretation is: The heatmap shows what the model is attending to, and the metric chart shows how well that attention aligns with the annotation at each layer.
 
 > **Related documents:**
 > - [Attention Methods Guide](../research/attention_methods.md) — Attention extraction methods, model considerations, and the plausibility vs. faithfulness distinction

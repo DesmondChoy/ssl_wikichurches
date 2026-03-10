@@ -22,35 +22,18 @@ export function useLayerUrls(imageId: string | undefined, model: string, showBbo
   });
 }
 
-export function useImageMetrics(
+export function useImageLayerProgression(
   imageId: string | undefined,
   model: string,
-  layer: number,
   percentile: number,
   method?: string,
+  bboxIndex?: number | null,
   enabled = true
 ) {
   return useQuery({
-    queryKey: ['imageMetrics', imageId, model, layer, percentile, method],
-    queryFn: () => metricsAPI.getImageMetrics(imageId!, model, layer, percentile, method),
+    queryKey: ['imageLayerProgression', imageId, model, percentile, method, bboxIndex],
+    queryFn: () => metricsAPI.getImageLayerProgression(imageId!, model, percentile, method, bboxIndex),
     enabled: !!imageId && enabled,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useBboxMetrics(
-  imageId: string | undefined,
-  model: string,
-  layer: number,
-  bboxIndex: number | null,
-  percentile: number,
-  method?: string,
-  enabled = true
-) {
-  return useQuery({
-    queryKey: ['bboxMetrics', imageId, model, layer, bboxIndex, percentile, method],
-    queryFn: () => metricsAPI.getBboxMetrics(imageId!, model, layer, bboxIndex!, percentile, method),
-    enabled: !!imageId && bboxIndex !== null && enabled,
     placeholderData: keepPreviousData,
   });
 }

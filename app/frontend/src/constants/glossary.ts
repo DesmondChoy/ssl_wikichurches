@@ -18,12 +18,15 @@ export const GLOSSARY: Record<string, string> = {
   Model: 'Vision model for feature extraction. Each has different architecture and training.',
   'Show Bounding Boxes': 'Toggle visibility of annotated bounding boxes on the image.',
   'IoU Score':
-    'Overlap between thresholded attention and annotations. '
-    + 'The bar shows observed IoU relative to the theoretical maximum — '
-    + 'the best possible overlap given the size difference between attention and annotation regions. '
-    + 'Color reflects relative performance: green ≥75%, yellow ≥50%, orange ≥25%, red <25% of max.',
+    'Overlap between thresholded attention and the annotation. '
+    + 'Higher is better. Changes when percentile changes. '
+    + 'Use it to judge how tightly the highlighted region lines up with the labeled feature.',
   Coverage:
-    'Fraction of total attention energy falling inside annotated regions. Unlike IoU, this is threshold-free — it uses raw attention values directly. Higher = more attention focused on annotated features.',
+    'Fraction of attention mass inside the annotation. '
+    + 'Higher is better. Threshold-free for a fixed image/model/method. '
+    + 'Use it to see whether the model is spending its attention on the feature rather than the background.',
   MSE:
-    'Mean squared error between the attention heatmap and a Gaussian soft-union ground truth built from the bounding boxes. This metric is threshold-free, and lower values mean closer alignment.',
+    'Mean squared error against the Gaussian soft-union target. '
+    + 'Lower is better. Threshold-free for a fixed image/model/method. '
+    + 'Use it to judge whether the overall attention shape matches the annotated feature, not just the thresholded overlap.',
 };

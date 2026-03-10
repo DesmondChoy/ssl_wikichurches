@@ -63,6 +63,44 @@ class IoUResultSchema(BaseModel):
     method: str | None = None
 
 
+class ImageMetricDescriptorSchema(BaseModel):
+    """Descriptor for one image-detail metric series."""
+
+    key: str
+    label: str
+    direction: Literal["higher", "lower"]
+    default_enabled: bool
+    percentile_dependent: bool
+
+
+class ImageMetricSelectionSchema(BaseModel):
+    """Current metric selection context for image-detail progression."""
+
+    mode: Literal["union", "bbox"]
+    bbox_index: int | None = None
+    bbox_label: str | None = None
+
+
+class ImageLayerMetricPointSchema(BaseModel):
+    """Metric values for a single layer in image-detail progression."""
+
+    layer: int
+    layer_key: str
+    values: dict[str, float | None]
+
+
+class ImageLayerProgressionSchema(BaseModel):
+    """Extensible per-image metric progression across layers."""
+
+    image_id: str
+    model: str
+    method: str
+    percentile: int
+    selection: ImageMetricSelectionSchema
+    metrics: list[ImageMetricDescriptorSchema]
+    layers: list[ImageLayerMetricPointSchema]
+
+
 class MetricsQueryParams(BaseModel):
     """Query parameters for metrics endpoints."""
 

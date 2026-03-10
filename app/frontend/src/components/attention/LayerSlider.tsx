@@ -2,14 +2,15 @@
  * Layer progression slider with animation support.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Slider } from '../ui/Slider';
 
 interface LayerSliderProps {
   currentLayer: number;
   maxLayers?: number;
   onChange: (layer: number) => void;
-  autoPlay?: boolean;
+  isPlaying: boolean;
+  onPlayingChange: (isPlaying: boolean) => void;
   playSpeed?: number; // ms between frames
 }
 
@@ -17,10 +18,10 @@ export function LayerSlider({
   currentLayer,
   maxLayers = 12,
   onChange,
-  autoPlay = false,
+  isPlaying,
+  onPlayingChange,
   playSpeed = 500,
 }: LayerSliderProps) {
-  const [isPlaying, setIsPlaying] = useState(autoPlay);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function LayerSlider({
       intervalRef.current = window.setInterval(() => {
         // Stop at last layer instead of looping
         if (currentLayer >= maxLayers - 1) {
-          setIsPlaying(false);
+          onPlayingChange(false);
           return;
         }
         onChange(currentLayer + 1);
@@ -44,18 +45,20 @@ export function LayerSlider({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, currentLayer, maxLayers, playSpeed, onChange]);
+  }, [isPlaying, currentLayer, maxLayers, playSpeed, onChange, onPlayingChange]);
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-4">
         <button
+          type="button"
+          data-testid="layer-play-toggle"
           onClick={() => {
             // Reset to layer 0 when at end and not playing
             if (currentLayer >= maxLayers - 1 && !isPlaying) {
               onChange(0);
             }
-            setIsPlaying(!isPlaying);
+            onPlayingChange(!isPlaying);
           }}
           className="px-3 py-1 text-sm font-medium bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
         >
@@ -63,6 +66,8 @@ export function LayerSlider({
         </button>
 
         <button
+          type="button"
+          data-testid="layer-first"
           onClick={() => onChange(0)}
           className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900"
           disabled={isPlaying}
@@ -71,6 +76,8 @@ export function LayerSlider({
         </button>
 
         <button
+          type="button"
+          data-testid="layer-prev"
           onClick={() => onChange(Math.max(0, currentLayer - 1))}
           className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900"
           disabled={isPlaying}
@@ -79,6 +86,8 @@ export function LayerSlider({
         </button>
 
         <button
+          type="button"
+          data-testid="layer-next"
           onClick={() => onChange(Math.min(maxLayers - 1, currentLayer + 1))}
           className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900"
           disabled={isPlaying}
@@ -87,6 +96,8 @@ export function LayerSlider({
         </button>
 
         <button
+          type="button"
+          data-testid="layer-last"
           onClick={() => onChange(maxLayers - 1)}
           className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900"
           disabled={isPlaying}
