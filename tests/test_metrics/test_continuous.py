@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
 from ssl_attention.metrics.continuous import (
     annotation_to_gaussian_heatmap,
+    compute_image_kl,
     compute_image_mse,
+    compute_kl_divergence,
     compute_mse,
     gaussian_bbox_heatmap,
     soft_union_heatmap,
@@ -99,3 +102,50 @@ class TestComputeMse:
 
         assert torch.isfinite(torch.tensor(mse))
         assert 0.0 <= mse <= 1.0
+
+
+class TestComputeKlDivergence:
+    """Verify KL(GT || attention) behaves sensibly and stays finite."""
+
+    def test_identical_distributions_have_near_zero_kl(self):
+        annotation = _make_annotation((0.25, 0.25, 0.5, 0.5, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+
+        kl = compute_kl_divergence(gt, gt)
+
+        assert kl == pytest.approx(0.0, abs=1e-8)
+
+    def test_kl_is_non_negative_and_finite_for_sparse_inputs(self):
+        annotation = _make_annotation((0.2, 0.2, 0.3, 0.3, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 32, 32)
+        attention = torch.tensor(
+            [[float("nan"), -1.0], [float("inf"), 0.0]],
+            dtype=torch.float32,
+        )
+
+        kl = compute_kl_divergence(attention, gt[:2, :2])
+
+        assert torch.isfinite(torch.tensor(kl))
+        assert kl >= 0.0
+
+    def test_controlled_probability_mass_shift_increases_kl(self):
+        annotation = _make_annotation((0.2, 0.2, 0.3, 0.3, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+        shifted_small = torch.roll(gt, shifts=4, dims=1)
+        shifted_large = torch.roll(gt, shifts=12, dims=1)
+
+        aligned = compute_kl_divergence(gt, gt)
+        small_shift = compute_kl_divergence(shifted_small, gt)
+        large_shift = compute_kl_divergence(shifted_large, gt)
+
+        assert aligned <= small_shift
+        assert small_shift < large_shift
+
+    def test_empty_annotations_stay_finite(self):
+        annotation = ImageAnnotation(image_id="empty.jpg", styles=(), bboxes=())
+        attention = torch.rand(32, 32)
+
+        kl = compute_image_kl(attention, annotation)
+
+        assert torch.isfinite(torch.tensor(kl))
+        assert kl >= 0.0

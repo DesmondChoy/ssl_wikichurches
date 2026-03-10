@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-MetricName = Literal["iou", "mse"]
+MetricName = Literal["iou", "mse", "kl"]
 
 IMAGE_DETAIL_METRICS = (
     {
@@ -42,6 +42,13 @@ IMAGE_DETAIL_METRICS = (
     {
         "key": "mse",
         "label": "MSE",
+        "direction": "lower",
+        "default_enabled": True,
+        "percentile_dependent": False,
+    },
+    {
+        "key": "kl",
+        "label": "KL Divergence",
         "direction": "lower",
         "default_enabled": True,
         "percentile_dependent": False,
@@ -94,14 +101,15 @@ class MetricsService:
         """Get metrics for a specific image/model/layer combination.
 
         Returns:
-            Dict with iou, coverage, mse, attention_area, annotation_area or None.
+            Dict with iou, coverage, mse, kl, attention_area, annotation_area or None.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
             cursor.execute(
-                """SELECT iou, coverage, mse, attention_area, annotation_area
+                f"""SELECT iou, coverage, mse, {kl_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND layer = ? AND method = ? AND percentile = ?""",
                 (image_id, db_model, layer, resolved_method, percentile),
@@ -117,7 +125,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None:
+                kl = row["kl"]
+                if kl is None:
+                    kl = self._compute_image_kl_from_cache(
+                        image_id=image_id,
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None:
                     return None
 
                 return {
@@ -129,6 +145,7 @@ class MetricsService:
                     "iou": row["iou"],
                     "coverage": row["coverage"],
                     "mse": mse,
+                    "kl": kl,
                     "attention_area": row["attention_area"],
                     "annotation_area": row["annotation_area"],
                 }
@@ -148,8 +165,9 @@ class MetricsService:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
             cursor.execute(
-                """SELECT layer, iou, coverage, mse
+                f"""SELECT layer, iou, coverage, mse, {kl_select}
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND method = ? AND percentile = ?
                    ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
@@ -174,11 +192,20 @@ class MetricsService:
                     layer=layer_key,
                     method=resolved_method,
                 )
+            kl = row["kl"]
+            if kl is None:
+                kl = self._compute_image_kl_from_cache(
+                    image_id=image_id,
+                    model=model,
+                    layer=layer_key,
+                    method=resolved_method,
+                )
 
             values = layer_points[layer_key]["values"]
             values["iou"] = row["iou"]
             values["coverage"] = row["coverage"]
             values["mse"] = mse
+            values["kl"] = kl
             has_values = has_values or any(value is not None for value in values.values())
 
         if not has_values:
@@ -233,6 +260,7 @@ class MetricsService:
             values["iou"] = metrics["iou"]
             values["coverage"] = metrics["coverage"]
             values["mse"] = metrics["mse"]
+            values["kl"] = metrics["kl"]
             has_values = True
 
         if not has_values:
@@ -286,15 +314,26 @@ class MetricsService:
 
         Returns:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, mean_mse,
-            std_mse, median_mse, num_images.
+            std_mse, median_mse, mean_kl, std_kl, median_kl, num_images.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            has_kl_aggregate = all(
+                self._table_has_column(conn, "aggregate_metrics", column_name)
+                for column_name in ("mean_kl", "std_kl", "median_kl")
+            )
+            kl_select = (
+                "mean_kl, std_kl, median_kl"
+                if has_kl_aggregate
+                else "NULL AS mean_kl, NULL AS std_kl, NULL AS median_kl"
+            )
             cursor.execute(
-                """SELECT mean_iou, std_iou, median_iou, mean_coverage,
-                          mean_mse, std_mse, median_mse, num_images
+                f"""SELECT mean_iou, std_iou, median_iou, mean_coverage,
+                          mean_mse, std_mse, median_mse,
+                          {kl_select},
+                          num_images
                    FROM aggregate_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
                 (db_model, layer, resolved_method, percentile),
@@ -307,6 +346,16 @@ class MetricsService:
                 median_mse = row["median_mse"]
                 if mean_mse is None or std_mse is None or median_mse is None:
                     mean_mse, std_mse, median_mse = self._compute_mse_aggregate_from_images(
+                        model=model,
+                        layer=layer,
+                        percentile=percentile,
+                        method=resolved_method,
+                    )
+                mean_kl = row["mean_kl"]
+                std_kl = row["std_kl"]
+                median_kl = row["median_kl"]
+                if mean_kl is None or std_kl is None or median_kl is None:
+                    mean_kl, std_kl, median_kl = self._compute_kl_aggregate_from_images(
                         model=model,
                         layer=layer,
                         percentile=percentile,
@@ -325,6 +374,9 @@ class MetricsService:
                     "mean_mse": mean_mse,
                     "std_mse": std_mse,
                     "median_mse": median_mse,
+                    "mean_kl": mean_kl,
+                    "std_kl": std_kl,
+                    "median_kl": median_kl,
                     "num_images": row["num_images"],
                 }
             return None
@@ -333,7 +385,51 @@ class MetricsService:
         """Resolve aggregate score column, SQL sort direction, and selector."""
         if metric == "mse":
             return "mean_mse", "ASC", "MIN"
+        if metric == "kl":
+            return "mean_kl", "ASC", "MIN"
         return "mean_iou", "DESC", "MAX"
+
+    def _aggregate_metric_value(self, aggregate_metrics: dict[str, Any], metric: MetricName) -> float | None:
+        """Extract the aggregate score for the selected metric."""
+        if metric == "iou":
+            return aggregate_metrics.get("mean_iou")
+        return aggregate_metrics.get(f"mean_{metric}")
+
+    def _aggregate_metric_column_available(self, conn: sqlite3.Connection, metric: MetricName) -> bool:
+        """Return whether the aggregate table already stores the selected metric."""
+        if metric == "iou":
+            return True
+
+        score_column, _, _ = self._metric_sql_config(metric)
+        return self._table_has_column(conn, "aggregate_metrics", score_column)
+
+    def _legacy_aggregate_rows(
+        self,
+        model: str,
+        percentile: int,
+        method: str,
+        metric: MetricName,
+    ) -> list[tuple[str, float]]:
+        """Recompute aggregate metric rows when legacy DBs lack stored columns."""
+        db_model = resolve_model_name(model)
+        rows: list[tuple[str, float]] = []
+        for layer_idx in range(get_model_num_layers(db_model)):
+            layer_key = f"layer{layer_idx}"
+            aggregate_metrics = self.get_aggregate_metrics(
+                model=model,
+                layer=layer_key,
+                percentile=percentile,
+                method=method,
+            )
+            if not aggregate_metrics:
+                continue
+
+            score = self._aggregate_metric_value(aggregate_metrics, metric)
+            if score is None:
+                continue
+            rows.append((layer_key, score))
+
+        return rows
 
     def get_leaderboard(self, percentile: int = 90, metric: MetricName = "iou") -> list[dict]:
         """Get model leaderboard ranked by best score for the selected metric.
@@ -358,6 +454,45 @@ class MetricsService:
         filter_clause = " OR ".join(conditions)
 
         with self.get_connection() as conn:
+            if not self._aggregate_metric_column_available(conn, metric):
+                comparator = min if metric in {"mse", "kl"} else max
+                best_rows: list[dict[str, Any]] = []
+
+                for model_name, default_method in DEFAULT_METHOD.items():
+                    layer_scores = self._legacy_aggregate_rows(
+                        model=model_name,
+                        percentile=percentile,
+                        method=default_method.value,
+                        metric=metric,
+                    )
+                    if not layer_scores:
+                        continue
+
+                    best_layer, best_score = comparator(
+                        layer_scores,
+                        key=lambda row: (row[1], int(row[0][5:])) if metric in {"mse", "kl"} else (row[1], -int(row[0][5:])),
+                    )
+                    best_rows.append(
+                        {
+                            "model": display_model_name(resolve_model_name(model_name)),
+                            "metric": metric,
+                            "score": best_score,
+                            "best_layer": best_layer,
+                        }
+                    )
+
+                ordered_rows = sorted(
+                    best_rows,
+                    key=lambda row: (row["score"], row["model"]) if metric in {"mse", "kl"} else (-row["score"], row["model"]),
+                )
+                return [
+                    {
+                        "rank": index + 1,
+                        **row,
+                    }
+                    for index, row in enumerate(ordered_rows)
+                ]
+
             cursor = conn.cursor()
             cursor.execute(
                 f"""SELECT model, {aggregate_fn}({score_column}) as score,
@@ -401,22 +536,32 @@ class MetricsService:
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"""SELECT layer, {score_column} AS score FROM aggregate_metrics
-                   WHERE model = ? AND method = ? AND percentile = ?
-                     AND {score_column} IS NOT NULL
-                   ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
-                (db_model, resolved_method, percentile),
-            )
-            rows = cursor.fetchall()
+            if not self._aggregate_metric_column_available(conn, metric):
+                legacy_rows = self._legacy_aggregate_rows(
+                    model=model,
+                    percentile=percentile,
+                    method=resolved_method,
+                    metric=metric,
+                )
+                layers = [layer for layer, _ in legacy_rows]
+                scores = [score for _, score in legacy_rows]
+            else:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""SELECT layer, {score_column} AS score FROM aggregate_metrics
+                       WHERE model = ? AND method = ? AND percentile = ?
+                         AND {score_column} IS NOT NULL
+                       ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
+                    (db_model, resolved_method, percentile),
+                )
+                db_rows = cursor.fetchall()
 
-            layers = [row["layer"] for row in rows]
-            scores = [row["score"] for row in rows]
+                layers = [row["layer"] for row in db_rows]
+                scores = [row["score"] for row in db_rows]
 
             best_idx = 0
             if scores:
-                comparator = min if metric == "mse" else max
+                comparator = min if metric in {"mse", "kl"} else max
                 best_idx = scores.index(comparator(scores))
             best_layer = layers[best_idx] if layers else "layer11"
             best_score = scores[best_idx] if scores else 0.0
@@ -479,14 +624,15 @@ class MetricsService:
         """Get metrics for all images for a model/layer.
 
         Returns:
-            List of dicts with image_id, iou, coverage, mse.
+            List of dicts with image_id, iou, coverage, mse, kl.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
             cursor.execute(
-                """SELECT image_id, iou, coverage, mse, attention_area, annotation_area
+                f"""SELECT image_id, iou, coverage, mse, {kl_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?
                    ORDER BY iou DESC""",
@@ -502,7 +648,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None:
+                kl = row["kl"]
+                if kl is None:
+                    kl = self._compute_image_kl_from_cache(
+                        image_id=row["image_id"],
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None:
                     continue
 
                 results.append(
@@ -511,6 +665,7 @@ class MetricsService:
                         "iou": row["iou"],
                         "coverage": row["coverage"],
                         "mse": mse,
+                        "kl": kl,
                         "attention_area": row["attention_area"],
                         "annotation_area": row["annotation_area"],
                     }
@@ -599,9 +754,42 @@ class MetricsService:
         method: str,
     ) -> float | None:
         """Compute MSE directly from cached attention for legacy DB rows."""
+        return self._compute_image_continuous_metric_from_cache(
+            metric_name="mse",
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            method=method,
+        )
+
+    def _compute_image_kl_from_cache(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        method: str,
+    ) -> float | None:
+        """Compute KL divergence directly from cached attention for legacy DB rows."""
+        return self._compute_image_continuous_metric_from_cache(
+            metric_name="kl",
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            method=method,
+        )
+
+    def _compute_image_continuous_metric_from_cache(
+        self,
+        metric_name: Literal["mse", "kl"],
+        image_id: str,
+        model: str,
+        layer: str,
+        method: str,
+    ) -> float | None:
+        """Compute a threshold-free continuous metric from cached attention."""
         from app.backend.services.attention_service import attention_service
         from app.backend.services.image_service import image_service
-        from ssl_attention.metrics import compute_image_mse
+        from ssl_attention.metrics import compute_image_kl, compute_image_mse
 
         annotation = image_service.get_annotation(image_id)
         if annotation is None:
@@ -617,6 +805,8 @@ class MetricsService:
             grid_rows, grid_cols = attention_service.get_attention_grid(cache_model)
             attention = attention.reshape(grid_rows, grid_cols)
 
+        if metric_name == "kl":
+            return compute_image_kl(attention=attention, annotation=annotation)
         return compute_image_mse(attention=attention, annotation=annotation)
 
     def _compute_bbox_metrics(
@@ -630,7 +820,11 @@ class MetricsService:
         annotation: Any,
     ) -> dict[str, Any] | None:
         """Compute bbox metrics from cached attention for a single layer."""
-        from ssl_attention.metrics.continuous import compute_mse, gaussian_bbox_heatmap
+        from ssl_attention.metrics.continuous import (
+            compute_kl_divergence,
+            compute_mse,
+            gaussian_bbox_heatmap,
+        )
         from ssl_attention.metrics.iou import compute_coverage, compute_iou
 
         resolved_method = method if method else resolve_default_method(model)
@@ -657,6 +851,7 @@ class MetricsService:
         iou, attention_area, annotation_area = compute_iou(attention_tensor, bbox_mask, percentile)
         coverage = compute_coverage(attention_tensor, bbox_mask)
         mse = compute_mse(attention_tensor, bbox_heatmap)
+        kl = compute_kl_divergence(attention_tensor, bbox_heatmap)
 
         return {
             "image_id": image_id,
@@ -667,6 +862,7 @@ class MetricsService:
             "iou": iou,
             "coverage": coverage,
             "mse": mse,
+            "kl": kl,
             "attention_area": attention_area,
             "annotation_area": annotation_area,
         }
@@ -676,6 +872,17 @@ class MetricsService:
         from app.backend.services.image_service import image_service
 
         return image_service.get_annotation(image_id)
+
+    def _table_has_column(
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+    ) -> bool:
+        """Check whether a SQLite table currently exposes a given column."""
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        return any(row[1] == column_name for row in cursor.fetchall())
 
     def _load_attention_tensor(
         self,
@@ -757,6 +964,39 @@ class MetricsService:
         method: str,
     ) -> tuple[float | None, float | None, float | None]:
         """Derive aggregate MSE stats from per-image rows when the DB is not backfilled."""
+        return self._compute_continuous_aggregate_from_images(
+            model=model,
+            layer=layer,
+            percentile=percentile,
+            method=method,
+            value_key="mse",
+        )
+
+    def _compute_kl_aggregate_from_images(
+        self,
+        model: str,
+        layer: str,
+        percentile: int,
+        method: str,
+    ) -> tuple[float | None, float | None, float | None]:
+        """Derive aggregate KL stats from per-image rows when the DB is not backfilled."""
+        return self._compute_continuous_aggregate_from_images(
+            model=model,
+            layer=layer,
+            percentile=percentile,
+            method=method,
+            value_key="kl",
+        )
+
+    def _compute_continuous_aggregate_from_images(
+        self,
+        model: str,
+        layer: str,
+        percentile: int,
+        method: str,
+        value_key: Literal["mse", "kl"],
+    ) -> tuple[float | None, float | None, float | None]:
+        """Derive aggregate continuous-metric stats from per-image rows."""
         import torch
 
         image_metrics = self.get_all_image_metrics(
@@ -765,12 +1005,16 @@ class MetricsService:
             percentile=percentile,
             method=method,
         )
-        mse_values = [row["mse"] for row in image_metrics if row["mse"] is not None]
-        if not mse_values:
+        values = [row[value_key] for row in image_metrics if row[value_key] is not None]
+        if not values:
             return None, None, None
 
-        mses = torch.tensor(mse_values, dtype=torch.float32)
-        return mses.mean().item(), mses.std().item(), mses.median().item()
+        tensor_values = torch.tensor(values, dtype=torch.float32)
+        return (
+            tensor_values.mean().item(),
+            tensor_values.std().item(),
+            tensor_values.median().item(),
+        )
 
 
 # Global instance

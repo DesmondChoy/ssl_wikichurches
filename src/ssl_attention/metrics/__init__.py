@@ -8,6 +8,7 @@ Primary Metrics:
 - IoU (percentile-thresholded): Primary alignment metric at 90/80/70/60/50 percentiles
 - Coverage (Energy): Threshold-free metric - % of attention inside bboxes
 - MSE (Gaussian GT): Threshold-free mean squared error against soft bbox targets
+- KL Divergence (Gaussian GT): Threshold-free KL(GT || attention) distribution alignment
 - Pointing Game: Binary metric - does max attention hit any bbox?
 
 Secondary Metrics:
@@ -49,10 +50,13 @@ from ssl_attention.metrics.baselines import (
 )
 from ssl_attention.metrics.continuous import (
     annotation_to_gaussian_heatmap,
+    compute_image_kl,
     compute_image_mse,
+    compute_kl_divergence,
     compute_mse,
     gaussian_bbox_heatmap,
     normalize_attention_for_mse,
+    prepare_probability_distribution,
     soft_union_heatmap,
 )
 from ssl_attention.metrics.iou import (
@@ -101,11 +105,14 @@ __all__ = [
     "compute_image_iou",
     "compute_mse",
     "compute_image_mse",
+    "compute_kl_divergence",
+    "compute_image_kl",
     "compute_batch_iou",
     "compute_per_bbox_iou",
     "compute_corloc",
     "aggregate_by_feature_type",
     "normalize_attention_for_mse",
+    "prepare_probability_distribution",
     "gaussian_bbox_heatmap",
     "soft_union_heatmap",
     "annotation_to_gaussian_heatmap",

@@ -5,6 +5,7 @@
 import { useLeaderboard } from '../../hooks/useMetrics';
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import type { DashboardMetric } from '../../types';
+import { DASHBOARD_METRIC_METADATA } from '../../constants/metricMetadata';
 
 interface ModelLeaderboardProps {
   percentile: number;
@@ -14,8 +15,9 @@ interface ModelLeaderboardProps {
 
 export function ModelLeaderboard({ percentile, metric, onModelSelect }: ModelLeaderboardProps) {
   const { data: leaderboard, isLoading, error } = useLeaderboard(percentile, metric);
-  const metricLabel = metric === 'mse' ? 'MSE' : 'IoU';
-  const metricHint = metric === 'mse' ? 'Lower is better' : `Top ${100 - percentile}% threshold`;
+  const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
+  const metricLabel = metricMetadata.shortLabel;
+  const metricHint = metricMetadata.hint(percentile);
 
   if (isLoading) {
     return (

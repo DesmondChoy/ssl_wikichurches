@@ -36,6 +36,13 @@ def _metric_descriptors() -> list[dict]:
             "default_enabled": True,
             "percentile_dependent": False,
         },
+        {
+            "key": "kl",
+            "label": "KL Divergence",
+            "direction": "lower",
+            "default_enabled": True,
+            "percentile_dependent": False,
+        },
     ]
 
 
@@ -55,12 +62,12 @@ def _union_progression_payload() -> dict:
             {
                 "layer": 0,
                 "layer_key": "layer0",
-                "values": {"iou": 0.12, "coverage": 0.44, "mse": 0.08},
+                "values": {"iou": 0.12, "coverage": 0.44, "mse": 0.08, "kl": 0.11},
             },
             {
                 "layer": 1,
                 "layer_key": "layer1",
-                "values": {"iou": 0.18, "coverage": 0.46, "mse": 0.06},
+                "values": {"iou": 0.18, "coverage": 0.46, "mse": 0.06, "kl": 0.08},
             },
         ],
     }
@@ -82,22 +89,22 @@ def _bbox_progression_payload() -> dict:
             {
                 "layer": 0,
                 "layer_key": "layer0",
-                "values": {"iou": 0.22, "coverage": 0.51, "mse": 0.03},
+                "values": {"iou": 0.22, "coverage": 0.51, "mse": 0.03, "kl": 0.05},
             },
             {
                 "layer": 1,
                 "layer_key": "layer1",
-                "values": {"iou": 0.24, "coverage": 0.52, "mse": 0.028},
+                "values": {"iou": 0.24, "coverage": 0.52, "mse": 0.028, "kl": 0.046},
             },
             {
                 "layer": 2,
                 "layer_key": "layer2",
-                "values": {"iou": 0.27, "coverage": 0.55, "mse": 0.024},
+                "values": {"iou": 0.27, "coverage": 0.55, "mse": 0.024, "kl": 0.039},
             },
             {
                 "layer": 3,
                 "layer_key": "layer3",
-                "values": {"iou": 0.29, "coverage": 0.57, "mse": 0.022},
+                "values": {"iou": 0.29, "coverage": 0.57, "mse": 0.022, "kl": 0.034},
             },
         ],
     }
@@ -123,7 +130,7 @@ class TestImageDetailProgressionEndpoint:
         assert response.status_code == 200
         payload = response.json()
         assert payload["selection"]["mode"] == "union"
-        assert [metric["key"] for metric in payload["metrics"]] == ["iou", "coverage", "mse"]
+        assert [metric["key"] for metric in payload["metrics"]] == ["iou", "coverage", "mse", "kl"]
         assert payload["layers"][0]["values"]["coverage"] == 0.44
 
     def test_bbox_progression_returns_bbox_selection_and_short_model_layers(self):

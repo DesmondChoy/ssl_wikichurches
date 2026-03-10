@@ -207,7 +207,7 @@ async def compare_layers(
 @router.get("/all_models_summary", response_model=AllModelsSummarySchema)
 async def compare_all_models_summary(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "mse", "kl"], Query()] = "iou",
 ) -> AllModelsSummarySchema:
     """Get summary comparison of all models for the selected metric.
 

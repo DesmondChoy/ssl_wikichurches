@@ -25,7 +25,7 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def get_leaderboard(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "mse", "kl"], Query()] = "iou",
 ) -> list[LeaderboardEntry]:
     """Get model rankings by best score for the selected metric.
 
@@ -64,9 +64,9 @@ async def get_image_metrics(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> IoUResultSchema:
-    """Get IoU metrics for a specific image.
+    """Get alignment metrics for a specific image.
 
-    Returns IoU, coverage, and area statistics.
+    Returns IoU, coverage, continuous metrics, and area statistics.
     """
     validate_model(model)
     layer_key = validate_layer_for_model(layer, model)
@@ -199,10 +199,10 @@ async def get_bbox_metrics(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> IoUResultSchema:
-    """Get IoU metrics for a specific bounding box.
+    """Get alignment metrics for a specific bounding box.
 
-    Computes IoU and coverage on-the-fly for a single bbox
-    against the attention map (rather than the union of all bboxes).
+    Computes IoU, coverage, and continuous metrics on-the-fly for a single
+    bbox against the attention map (rather than the union of all bboxes).
     """
     validate_model(model)
     layer_key = validate_layer_for_model(layer, model)
@@ -236,7 +236,7 @@ async def get_bbox_metrics(
 async def get_layer_progression(
     model: str,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "mse", "kl"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> LayerProgressionSchema:
     """Get metric progression across all layers for a model.

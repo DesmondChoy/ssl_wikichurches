@@ -1,9 +1,9 @@
 """Continuous metrics for threshold-free attention alignment.
 
-This module adds Gaussian soft ground-truth generation and mean squared error
-evaluation on the cached 224x224 attention heatmaps used by the visualization
-app. Unlike percentile-thresholded IoU, these metrics compare dense heatmaps
-directly and therefore do not depend on a threshold selection.
+This module adds Gaussian soft ground-truth generation plus dense,
+threshold-free metrics on the cached 224x224 attention heatmaps used by the
+visualization app. Unlike percentile-thresholded IoU, these metrics compare
+dense heatmaps directly and therefore do not depend on a threshold selection.
 """
 
 from __future__ import annotations
@@ -35,6 +35,24 @@ def normalize_attention_for_mse(attention: Tensor) -> Tensor:
             normalized = torch.ones_like(normalized)
 
     return normalized.clamp(0.0, 1.0)
+
+
+def prepare_probability_distribution(values: Tensor) -> Tensor:
+    """Convert a heatmap into a numerically safe probability distribution.
+
+    The KL metric treats both attention and Gaussian ground truth as
+    distributions. To keep the divergence finite, values are sanitized,
+    clamped non-negative, epsilon-smoothed, and normalized to sum to 1.
+    """
+    distribution = values.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
+    distribution = distribution.clamp_min(0.0)
+    distribution = distribution + EPSILON
+
+    total = distribution.sum()
+    if not torch.isfinite(total) or total <= 0:
+        return torch.full_like(distribution, 1.0 / distribution.numel())
+
+    return distribution / total
 
 
 def gaussian_bbox_heatmap(
@@ -122,3 +140,28 @@ def compute_image_mse(attention: Tensor, annotation: ImageAnnotation) -> float:
     height, width = attention.shape[-2:]
     gt_heatmap = annotation_to_gaussian_heatmap(annotation, height, width, device=attention.device)
     return compute_mse(attention, gt_heatmap)
+
+
+def compute_kl_divergence(attention: Tensor, gt_heatmap: Tensor) -> float:
+    """Compute KL divergence with the reporting direction KL(GT || attention)."""
+    if attention.shape != gt_heatmap.shape:
+        raise ValueError(
+            f"Attention and GT heatmap must have the same shape, got {attention.shape} vs {gt_heatmap.shape}"
+        )
+
+    if gt_heatmap.device != attention.device:
+        gt_heatmap = gt_heatmap.to(attention.device)
+
+    attention_distribution = prepare_probability_distribution(attention)
+    gt_distribution = prepare_probability_distribution(gt_heatmap)
+    divergence = torch.sum(
+        gt_distribution * (torch.log(gt_distribution) - torch.log(attention_distribution))
+    )
+    return divergence.item()
+
+
+def compute_image_kl(attention: Tensor, annotation: ImageAnnotation) -> float:
+    """Compute KL(GT || attention) for an annotation's Gaussian soft union."""
+    height, width = attention.shape[-2:]
+    gt_heatmap = annotation_to_gaussian_heatmap(annotation, height, width, device=attention.device)
+    return compute_kl_divergence(attention, gt_heatmap)

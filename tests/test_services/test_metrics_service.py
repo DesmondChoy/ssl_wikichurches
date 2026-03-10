@@ -26,6 +26,9 @@ def _create_progression_db(conn: sqlite3.Connection, num_layers: int = 12) -> No
             mean_mse REAL,
             std_mse REAL,
             median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
             num_images INTEGER
         )"""
     )
@@ -33,7 +36,7 @@ def _create_progression_db(conn: sqlite3.Connection, num_layers: int = 12) -> No
     for idx in reversed(range(num_layers)):
         conn.execute(
             """INSERT INTO aggregate_metrics
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 "dinov2",
                 f"layer{idx}",
@@ -46,6 +49,9 @@ def _create_progression_db(conn: sqlite3.Connection, num_layers: int = 12) -> No
                 0.30 - idx * 0.01,
                 0.02,
                 0.30 - idx * 0.01,
+                0.42 - idx * 0.015,
+                0.03,
+                0.42 - idx * 0.015,
                 139,
             ),
         )
@@ -67,17 +73,20 @@ def _create_leaderboard_db(conn: sqlite3.Connection) -> None:
             mean_mse REAL,
             std_mse REAL,
             median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
             num_images INTEGER
         )"""
     )
 
     rows = [
-        ("dinov2", "layer0", "cls", 90, 0.40, 0.01, 0.40, 0.5, 0.20, 0.01, 0.20, 139),
-        ("dinov2", "layer1", "cls", 90, 0.55, 0.01, 0.55, 0.5, 0.12, 0.01, 0.12, 139),
-        ("clip", "layer0", "cls", 90, 0.45, 0.01, 0.45, 0.5, 0.18, 0.01, 0.18, 139),
-        ("clip", "layer1", "cls", 90, 0.50, 0.01, 0.50, 0.5, 0.16, 0.01, 0.16, 139),
+        ("dinov2", "layer0", "cls", 90, 0.40, 0.01, 0.40, 0.5, 0.20, 0.01, 0.20, 0.14, 0.01, 0.14, 139),
+        ("dinov2", "layer1", "cls", 90, 0.55, 0.01, 0.55, 0.5, 0.12, 0.01, 0.12, 0.08, 0.01, 0.08, 139),
+        ("clip", "layer0", "cls", 90, 0.45, 0.01, 0.45, 0.5, 0.18, 0.01, 0.18, 0.15, 0.01, 0.15, 139),
+        ("clip", "layer1", "cls", 90, 0.50, 0.01, 0.50, 0.5, 0.16, 0.01, 0.16, 0.10, 0.01, 0.10, 139),
     ]
-    conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
 
 
@@ -97,6 +106,7 @@ def _create_image_progression_db(
             iou REAL,
             coverage REAL,
             mse REAL,
+            kl REAL,
             attention_area REAL,
             annotation_area REAL
         )"""
@@ -114,6 +124,7 @@ def _create_image_progression_db(
                 0.15 + idx * 0.01,
                 0.42 + idx * 0.005,
                 0.12 - idx * 0.004,
+                0.09 - idx * 0.003,
                 0.20,
                 0.10,
             )
@@ -128,12 +139,13 @@ def _create_image_progression_db(
                 0.05 + idx * 0.008,
                 0.42 + idx * 0.005,
                 0.12 - idx * 0.004,
+                0.09 - idx * 0.003,
                 0.20,
                 0.10,
             )
         )
 
-    conn.executemany("INSERT INTO image_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.executemany("INSERT INTO image_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
 
 
@@ -199,6 +211,22 @@ class TestLayerProgression:
         assert result["best_layer"] == "layer11"
         assert result["best_score"] == pytest.approx(0.30 - 11 * 0.01, abs=1e-9)
 
+    def test_kl_uses_lowest_score_for_best_layer(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_layer_progression(
+                model="dinov2",
+                percentile=90,
+                method="cls",
+                metric="kl",
+            )
+
+        assert result["metric"] == "kl"
+        assert result["best_layer"] == "layer11"
+        assert result["best_score"] == pytest.approx(0.42 - 11 * 0.015, abs=1e-9)
+
 
 class TestLeaderboardOrdering:
     """Verify leaderboard ordering for selectable metrics."""
@@ -224,6 +252,228 @@ class TestLeaderboardOrdering:
         assert leaderboard[0]["score"] == pytest.approx(0.12, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
         assert all(entry["metric"] == "mse" for entry in leaderboard)
+        conn.close()
+
+    def test_kl_leaderboard_sorts_ascending(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_leaderboard_db(conn)
+
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="kl")
+
+        assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
+        assert leaderboard[0]["score"] == pytest.approx(0.08, abs=1e-9)
+        assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["metric"] == "kl" for entry in leaderboard)
+        conn.close()
+
+
+class TestLegacyKlFallback:
+    """Verify KL fallbacks work for DBs that predate the KL columns."""
+
+    @pytest.fixture
+    def service(self):
+        from app.backend.services.metrics_service import MetricsService
+
+        return object.__new__(MetricsService)
+
+    def test_get_image_metrics_recomputes_kl_when_column_missing(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """CREATE TABLE image_metrics (
+                image_id TEXT,
+                model TEXT,
+                layer TEXT,
+                method TEXT,
+                percentile INTEGER,
+                iou REAL,
+                coverage REAL,
+                mse REAL,
+                attention_area REAL,
+                annotation_area REAL
+            )"""
+        )
+        conn.execute(
+            """INSERT INTO image_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("Q123_test.jpg", "dinov2", "layer0", "cls", 90, 0.2, 0.4, 0.05, 0.2, 0.1),
+        )
+        conn.commit()
+
+        with (
+            patch.object(type(service), "get_connection") as mock_ctx,
+            patch.object(type(service), "_compute_image_kl_from_cache", return_value=0.07),
+        ):
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_image_metrics(
+                image_id="Q123_test.jpg",
+                model="dinov2",
+                layer="layer0",
+                percentile=90,
+                method="cls",
+            )
+
+        assert result is not None
+        assert result["kl"] == pytest.approx(0.07, abs=1e-9)
+        conn.close()
+
+    def test_get_aggregate_metrics_recomputes_kl_when_columns_missing(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """CREATE TABLE aggregate_metrics (
+                model TEXT,
+                layer TEXT,
+                method TEXT,
+                percentile INTEGER,
+                mean_iou REAL,
+                std_iou REAL,
+                median_iou REAL,
+                mean_coverage REAL,
+                mean_mse REAL,
+                std_mse REAL,
+                median_mse REAL,
+                num_images INTEGER
+            )"""
+        )
+        conn.execute(
+            """INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("dinov2", "layer0", "cls", 90, 0.3, 0.02, 0.3, 0.5, 0.07, 0.01, 0.07, 139),
+        )
+        conn.commit()
+
+        with (
+            patch.object(type(service), "get_connection") as mock_ctx,
+            patch.object(type(service), "_compute_kl_aggregate_from_images", return_value=(0.09, 0.02, 0.08)),
+        ):
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_aggregate_metrics(
+                model="dinov2",
+                layer="layer0",
+                percentile=90,
+                method="cls",
+            )
+
+        assert result is not None
+        assert result["mean_kl"] == pytest.approx(0.09, abs=1e-9)
+        assert result["std_kl"] == pytest.approx(0.02, abs=1e-9)
+        assert result["median_kl"] == pytest.approx(0.08, abs=1e-9)
+        conn.close()
+
+    def test_get_leaderboard_recomputes_kl_when_columns_missing(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """CREATE TABLE aggregate_metrics (
+                model TEXT,
+                layer TEXT,
+                method TEXT,
+                percentile INTEGER,
+                mean_iou REAL,
+                std_iou REAL,
+                median_iou REAL,
+                mean_coverage REAL,
+                mean_mse REAL,
+                std_mse REAL,
+                median_mse REAL,
+                num_images INTEGER
+            )"""
+        )
+        conn.executemany(
+            """INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                ("dinov2", "layer0", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("dinov2", "layer1", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("clip", "layer0", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("clip", "layer1", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+            ],
+        )
+        conn.commit()
+
+        def kl_side_effect(*, model: str, layer: str, percentile: int, method: str):
+            values = {
+                ("dinov2", "layer0"): (0.30, 0.01, 0.30),
+                ("dinov2", "layer1"): (0.18, 0.01, 0.18),
+                ("clip", "layer0"): (0.26, 0.01, 0.26),
+                ("clip", "layer1"): (0.22, 0.01, 0.22),
+            }
+            return values[(model, layer)]
+
+        with (
+            patch.object(type(service), "get_connection") as mock_ctx,
+            patch.object(type(service), "_compute_kl_aggregate_from_images", side_effect=kl_side_effect),
+        ):
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="kl")
+
+        assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
+        assert leaderboard[0]["score"] == pytest.approx(0.18, abs=1e-9)
+        assert leaderboard[0]["best_layer"] == "layer1"
+        conn.close()
+
+    def test_get_layer_progression_recomputes_kl_when_columns_missing(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """CREATE TABLE aggregate_metrics (
+                model TEXT,
+                layer TEXT,
+                method TEXT,
+                percentile INTEGER,
+                mean_iou REAL,
+                std_iou REAL,
+                median_iou REAL,
+                mean_coverage REAL,
+                mean_mse REAL,
+                std_mse REAL,
+                median_mse REAL,
+                num_images INTEGER
+            )"""
+        )
+        conn.executemany(
+            """INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                ("dinov2", "layer0", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("dinov2", "layer1", "cls", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+            ],
+        )
+        conn.commit()
+
+        def kl_side_effect(*, model: str, layer: str, percentile: int, method: str):
+            values = {
+                ("dinov2", "layer0"): (0.24, 0.01, 0.24),
+                ("dinov2", "layer1"): (0.16, 0.01, 0.16),
+            }
+            return values[(model, layer)]
+
+        with (
+            patch.object(type(service), "get_connection") as mock_ctx,
+            patch.object(type(service), "_compute_kl_aggregate_from_images", side_effect=kl_side_effect),
+        ):
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_layer_progression(
+                model="dinov2",
+                percentile=90,
+                method="cls",
+                metric="kl",
+            )
+
+        assert result["layers"] == ["layer0", "layer1"]
+        assert result["scores"] == pytest.approx([0.24, 0.16], abs=1e-9)
+        assert result["best_layer"] == "layer1"
+        assert result["best_score"] == pytest.approx(0.16, abs=1e-9)
         conn.close()
 
 
@@ -258,9 +508,9 @@ class TestImageDetailLayerProgression:
 
         assert result is not None
         assert result["selection"]["mode"] == "union"
-        assert [metric["key"] for metric in result["metrics"]] == ["iou", "coverage", "mse"]
-        assert [metric["direction"] for metric in result["metrics"]] == ["higher", "higher", "lower"]
-        assert [metric["percentile_dependent"] for metric in result["metrics"]] == [True, False, False]
+        assert [metric["key"] for metric in result["metrics"]] == ["iou", "coverage", "mse", "kl"]
+        assert [metric["direction"] for metric in result["metrics"]] == ["higher", "higher", "lower", "lower"]
+        assert [metric["percentile_dependent"] for metric in result["metrics"]] == [True, False, False, False]
         assert [point["layer_key"] for point in result["layers"]] == [f"layer{i}" for i in range(12)]
 
     def test_union_progression_respects_model_specific_layer_count(self, service):
@@ -295,6 +545,7 @@ class TestImageDetailLayerProgression:
         assert p90["layers"][0]["values"]["iou"] != p50["layers"][0]["values"]["iou"]
         assert p90["layers"][0]["values"]["coverage"] == pytest.approx(p50["layers"][0]["values"]["coverage"], abs=1e-9)
         assert p90["layers"][0]["values"]["mse"] == pytest.approx(p50["layers"][0]["values"]["mse"], abs=1e-9)
+        assert p90["layers"][0]["values"]["kl"] == pytest.approx(p50["layers"][0]["values"]["kl"], abs=1e-9)
 
     def test_bbox_progression_returns_metric_values_for_each_layer(self, service):
         annotation = ImageAnnotation(
@@ -331,6 +582,7 @@ class TestImageDetailLayerProgression:
         assert result["selection"] == {"mode": "bbox", "bbox_index": 0, "bbox_label": "Window"}
         assert [point["layer"] for point in result["layers"]] == [0, 1, 2, 3]
         assert all(point["values"]["mse"] is not None for point in result["layers"])
+        assert all(point["values"]["kl"] is not None for point in result["layers"])
 
     def test_bbox_progression_rejects_out_of_range_index(self, service):
         annotation = ImageAnnotation(

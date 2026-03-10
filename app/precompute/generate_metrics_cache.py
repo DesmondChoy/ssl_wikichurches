@@ -1,8 +1,8 @@
 """Generate pre-computed metrics cache for the visualization app.
 
-Computes IoU, coverage, and Gaussian-ground-truth MSE metrics for all
-model/layer/image combinations at multiple percentile thresholds, storing
-results in SQLite for fast queries.
+Computes IoU, coverage, Gaussian-ground-truth MSE, and Gaussian-ground-truth
+KL divergence metrics for all model/layer/image combinations at multiple
+percentile thresholds, storing results in SQLite for fast queries.
 
 Usage:
     python -m app.precompute.generate_metrics_cache
@@ -37,15 +37,18 @@ from ssl_attention.config import (
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.data.annotations import load_annotations_with_features
-from ssl_attention.metrics import compute_image_iou, compute_image_mse
+from ssl_attention.metrics import compute_image_iou, compute_image_kl, compute_image_mse
 from ssl_attention.metrics.iou import aggregate_by_feature_type, compute_per_bbox_iou
 
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
-IMAGE_METRIC_MIGRATIONS = {"mse": "REAL"}
+IMAGE_METRIC_MIGRATIONS = {"mse": "REAL", "kl": "REAL"}
 AGGREGATE_METRIC_MIGRATIONS = {
     "mean_mse": "REAL",
     "std_mse": "REAL",
     "median_mse": "REAL",
+    "mean_kl": "REAL",
+    "std_kl": "REAL",
+    "median_kl": "REAL",
 }
 
 
@@ -83,6 +86,7 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             attention_area REAL NOT NULL,
             annotation_area REAL NOT NULL,
             mse REAL,
+            kl REAL,
             UNIQUE(model, layer, method, image_id, percentile)
         )
     """)
@@ -102,6 +106,9 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             mean_mse REAL,
             std_mse REAL,
             median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
             num_images INTEGER NOT NULL,
             UNIQUE(model, layer, method, percentile)
         )
@@ -225,8 +232,9 @@ def compute_metrics_for_model(
 
                 try:
                     image_mse = compute_image_mse(attention=attention, annotation=annotation)
+                    image_kl = compute_image_kl(attention=attention, annotation=annotation)
                 except Exception as e:
-                    print(f"\nError computing MSE for {image_id} layer{layer}/{variant}: {e}")
+                    print(f"\nError computing continuous metrics for {image_id} layer{layer}/{variant}: {e}")
                     stats["errors"] += len(percentiles)
                     continue
 
@@ -234,12 +242,12 @@ def compute_metrics_for_model(
                     # Check if already exists
                     if skip_existing:
                         cursor.execute(
-                            """SELECT mse FROM image_metrics
+                            """SELECT mse, kl FROM image_metrics
                                WHERE model=? AND layer=? AND method=? AND image_id=? AND percentile=?""",
                             (model_name, layer_key, variant, image_id, percentile),
                         )
                         existing_row = cursor.fetchone()
-                        if existing_row and existing_row[0] is not None:
+                        if existing_row and existing_row[0] is not None and existing_row[1] is not None:
                             stats["skipped"] += 1
                             continue
 
@@ -254,8 +262,8 @@ def compute_metrics_for_model(
                         # Insert into database
                         cursor.execute(
                             """INSERT OR REPLACE INTO image_metrics
-                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area, mse)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area, mse, kl)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                             (
                                 model_name,
                                 layer_key,
@@ -267,6 +275,7 @@ def compute_metrics_for_model(
                                 result.attention_area,
                                 result.annotation_area,
                                 image_mse,
+                                image_kl,
                             ),
                         )
 
@@ -285,7 +294,7 @@ def compute_metrics_for_model(
 
             for percentile in percentiles:
                 cursor.execute(
-                    """SELECT iou, coverage, mse FROM image_metrics
+                    """SELECT iou, coverage, mse, kl FROM image_metrics
                        WHERE model=? AND layer=? AND method=? AND percentile=?""",
                     (model_name, layer_key, variant, percentile),
                 )
@@ -294,18 +303,20 @@ def compute_metrics_for_model(
                 if not rows:
                     continue
 
-                complete_rows = [row for row in rows if row[2] is not None]
+                complete_rows = [row for row in rows if row[2] is not None and row[3] is not None]
                 if not complete_rows:
                     continue
 
                 ious = torch.tensor([r[0] for r in complete_rows])
                 coverages = torch.tensor([r[1] for r in complete_rows])
                 mses = torch.tensor([r[2] for r in complete_rows], dtype=torch.float32)
+                kls = torch.tensor([r[3] for r in complete_rows], dtype=torch.float32)
 
                 cursor.execute(
                     """INSERT OR REPLACE INTO aggregate_metrics
-                       (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage, mean_mse, std_mse, median_mse, num_images)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage,
+                        mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl, num_images)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         model_name,
                         layer_key,
@@ -318,6 +329,9 @@ def compute_metrics_for_model(
                         mses.mean().item(),
                         mses.std().item(),
                         mses.median().item(),
+                        kls.mean().item(),
+                        kls.std().item(),
+                        kls.median().item(),
                         len(complete_rows),
                     ),
                 )

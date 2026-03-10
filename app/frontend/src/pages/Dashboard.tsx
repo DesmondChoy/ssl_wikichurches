@@ -18,17 +18,17 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 import type { DashboardMetric } from '../types';
-
-const METRIC_OPTIONS = [
-  { value: 'iou', label: 'IoU' },
-  { value: 'mse', label: 'MSE' },
-] as const;
+import {
+  DASHBOARD_METRIC_METADATA,
+  DASHBOARD_METRIC_OPTIONS,
+} from '../constants/metricMetadata';
 
 export function DashboardPage() {
   const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
   const { data: modelsData } = useModels();
   const [metric, setMetric] = useState<DashboardMetric>('iou');
-  const metricLabel = metric === 'mse' ? 'MSE (lower better)' : 'IoU';
+  const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
+  const metricLabel = metricMetadata.chartLabel;
 
   // Populate store with model config (methods, layer counts) so setModel
   // resolves the correct default method (e.g. gradcam for ResNet-50)
@@ -74,6 +74,7 @@ export function DashboardPage() {
     }
     return layerData;
   });
+  const yAxisConfig = getYAxisConfig(metric, chartData);
 
   // Style breakdown data
   const styleData = styleBreakdown
@@ -99,7 +100,7 @@ export function DashboardPage() {
           <Select
             value={metric}
             onChange={(value) => setMetric(value as DashboardMetric)}
-            options={METRIC_OPTIONS.map((option) => ({ ...option }))}
+            options={DASHBOARD_METRIC_OPTIONS.map((option) => ({ ...option }))}
             label="Metric"
           />
           <Select
@@ -111,9 +112,9 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {metric === 'mse' && (
+      {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
         <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          MSE compares each attention heatmap against a Gaussian soft-union ground truth and is threshold-free, so changing the percentile keeps the dashboard scores the same.
+          {metricMetadata.infoBanner}
         </div>
       )}
 
@@ -153,9 +154,10 @@ export function DashboardPage() {
                         tickMargin={10}
                       />
                       <YAxis 
-                        domain={[0, 1]} 
+                        domain={yAxisConfig.domain}
+                        ticks={yAxisConfig.ticks}
                         tick={{ fontSize: 12 }}
-                        tickFormatter={(v) => v.toFixed(1)}
+                        tickFormatter={formatAxisTick}
                       />
                       <Tooltip 
                         formatter={(value: number) => [value.toFixed(3), metricLabel]}
@@ -275,4 +277,68 @@ export function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+interface YAxisConfig {
+  domain: [number, number];
+  ticks: number[];
+}
+
+function getYAxisConfig(
+  metric: DashboardMetric,
+  chartData: Record<string, number | string>[]
+): YAxisConfig {
+  const axisMode = DASHBOARD_METRIC_METADATA[metric].axisMode;
+  if (axisMode === 'unit') {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const values = chartData.flatMap((point) =>
+    Object.entries(point)
+      .filter(([key]) => key !== 'layer')
+      .map(([, value]) => value)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  );
+
+  if (!values.length) {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const maxValue = Math.max(...values);
+  if (maxValue <= 0) {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const roughStep = maxValue / 5;
+  const step = getNiceStep(roughStep);
+  const max = roundAxisValue(Math.ceil(maxValue / step) * step);
+  const tickCount = Math.max(1, Math.round(max / step));
+  const ticks = Array.from({ length: tickCount + 1 }, (_, index) =>
+    roundAxisValue(index * step)
+  );
+
+  return { domain: [0, max], ticks };
+}
+
+function getNiceStep(value: number): number {
+  const exponent = Math.floor(Math.log10(value));
+  const magnitude = 10 ** exponent;
+  const normalized = value / magnitude;
+
+  if (normalized <= 1) return 1 * magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function roundAxisValue(value: number): number {
+  return Number(value.toFixed(6));
+}
+
+function formatAxisTick(value: number): string {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  return value.toFixed(3).replace(/\.?0+$/, '');
 }

@@ -29,4 +29,8 @@ export const GLOSSARY: Record<string, string> = {
     'Mean squared error against the Gaussian soft-union target. '
     + 'Lower is better. Threshold-free for a fixed image/model/method. '
     + 'Use it to judge whether the overall attention shape matches the annotated feature, not just the thresholded overlap.',
+  KL:
+    'KL divergence using KL(GT || attention) after both heatmaps are converted into smoothed probability distributions. '
+    + 'Lower is better. Threshold-free for a fixed image/model/method. '
+    + 'Use it to judge how much probability mass the model misses or spreads away from the Gaussian ground-truth target.',
 };

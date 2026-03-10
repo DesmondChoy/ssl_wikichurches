@@ -66,11 +66,13 @@ export function useModelComparison(
   imageId: string | undefined,
   models: string[],
   layer: number,
-  percentile: number
+  percentile: number,
+  method?: string,
+  enabled = true
 ) {
   return useQuery({
-    queryKey: ['modelComparison', imageId, models, layer, percentile],
-    queryFn: () => comparisonAPI.compareModels(imageId!, models, layer, percentile),
-    enabled: !!imageId && models.length > 0,
+    queryKey: ['modelComparison', imageId, models, layer, percentile, method],
+    queryFn: () => comparisonAPI.compareModels(imageId!, models, layer, percentile, method),
+    enabled: !!imageId && models.length > 0 && enabled,
   });
 }

@@ -7,7 +7,7 @@ import sqlite3
 from app.precompute.generate_metrics_cache import create_database
 
 
-def test_create_database_migrates_existing_schema_with_mse_columns(tmp_path):
+def test_create_database_migrates_existing_schema_with_continuous_metric_columns(tmp_path):
     db_path = tmp_path / "metrics.db"
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -64,10 +64,12 @@ def test_create_database_migrates_existing_schema_with_mse_columns(tmp_path):
     migrated_cursor.execute("PRAGMA table_info(image_metrics)")
     image_columns = {row[1] for row in migrated_cursor.fetchall()}
     assert "mse" in image_columns
+    assert "kl" in image_columns
 
     migrated_cursor.execute("PRAGMA table_info(aggregate_metrics)")
     aggregate_columns = {row[1] for row in migrated_cursor.fetchall()}
     assert {"mean_mse", "std_mse", "median_mse"}.issubset(aggregate_columns)
+    assert {"mean_kl", "std_kl", "median_kl"}.issubset(aggregate_columns)
 
     migrated_cursor.execute("SELECT COUNT(*) FROM image_metrics")
     assert migrated_cursor.fetchone()[0] == 1

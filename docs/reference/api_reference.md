@@ -473,6 +473,7 @@ Get model rankings by best IoU score at a given percentile threshold.
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `mse`, `kl` | Aggregate metric to rank by |
 
 **Response**: `list[LeaderboardEntry]`
 
@@ -481,7 +482,8 @@ Get model rankings by best IoU score at a given percentile threshold.
   {
     "rank": 1,
     "model": "dinov2",
-    "best_iou": 0.342,
+    "metric": "kl",
+    "score": 0.093,
     "best_layer": "layer11"
   }
 ]
@@ -513,7 +515,7 @@ Get the pre-computed metrics summary including leaderboard and per-model best la
 
 ### `GET /api/metrics/{image_id}`
 
-Get IoU metrics for a specific image with a given model/layer/percentile.
+Get alignment metrics for a specific image with a given model/layer/percentile.
 
 **Path Parameters**
 
@@ -528,6 +530,7 @@ Get IoU metrics for a specific image with a given model/layer/percentile.
 | `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
 | `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `method` | string | No | model default | Must be valid for model | Attention method |
 
 **Response**: `IoUResultSchema`
 
@@ -540,6 +543,7 @@ Get IoU metrics for a specific image with a given model/layer/percentile.
   "iou": 0.285,
   "coverage": 0.72,
   "mse": 0.041,
+  "kl": 0.093,
   "attention_area": 0.15,
   "annotation_area": 0.21,
   "method": "cls"
@@ -609,6 +613,13 @@ Get per-image metric progression across all layers for the image-detail chart. W
       "direction": "lower",
       "default_enabled": true,
       "percentile_dependent": false
+    },
+    {
+      "key": "kl",
+      "label": "KL Divergence",
+      "direction": "lower",
+      "default_enabled": true,
+      "percentile_dependent": false
     }
   ],
   "layers": [
@@ -618,7 +629,8 @@ Get per-image metric progression across all layers for the image-detail chart. W
       "values": {
         "iou": 0.18,
         "coverage": 0.41,
-        "mse": 0.08
+        "mse": 0.08,
+        "kl": 0.12
       }
     },
     {
@@ -627,7 +639,8 @@ Get per-image metric progression across all layers for the image-detail chart. W
       "values": {
         "iou": 0.23,
         "coverage": 0.44,
-        "mse": 0.06
+        "mse": 0.06,
+        "kl": 0.09
       }
     }
   ]
@@ -646,7 +659,7 @@ Get per-image metric progression across all layers for the image-detail chart. W
 
 ### `GET /api/metrics/{image_id}/bbox/{bbox_index}`
 
-Get IoU metrics for a specific bounding box (rather than the union of all bboxes). Computed on-the-fly from the attention cache — not pre-cached in the metrics database.
+Get alignment metrics for a specific bounding box (rather than the union of all bboxes). Computed on-the-fly from the attention cache — not pre-cached in the metrics database.
 
 **Path Parameters**
 
@@ -674,8 +687,11 @@ Get IoU metrics for a specific bounding box (rather than the union of all bboxes
   "percentile": 90,
   "iou": 0.185,
   "coverage": 0.42,
+  "mse": 0.019,
+  "kl": 0.051,
   "attention_area": 0.10,
-  "annotation_area": 0.04
+  "annotation_area": 0.04,
+  "method": "cls"
 }
 ```
 
@@ -743,7 +759,7 @@ Get aggregate metric progression across all layers for a model. Shows how attent
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
-| `metric` | string | No | `iou` | `iou`, `mse` | Aggregate metric to chart |
+| `metric` | string | No | `iou` | `iou`, `mse`, `kl` | Aggregate metric to chart |
 | `method` | string | No | model default | Must be valid for model | Attention method |
 
 **Response**: `LayerProgressionSchema`
@@ -868,7 +884,7 @@ Get IoU breakdown by architectural feature type (e.g., windows, doors, arches) a
 
 ### `GET /api/metrics/model/{model}/aggregate`
 
-Get aggregate statistics (mean, std, median IoU) for a model/layer combination across all images.
+Get aggregate statistics for a model/layer combination across all images, including IoU, MSE, and KL summaries.
 
 **Path Parameters**
 
@@ -882,8 +898,9 @@ Get aggregate statistics (mean, std, median IoU) for a model/layer combination a
 |-----------|------|----------|---------|-------------|-------------|
 | `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `method` | string | No | model default | Must be valid for model | Attention method |
 
-**Response**: `dict` (keys: `mean_iou`, `std_iou`, `median_iou`, etc.)
+**Response**: `dict` (keys include `mean_iou`, `std_iou`, `median_iou`, `mean_mse`, `median_mse`, `mean_kl`, `median_kl`, etc.)
 
 **Errors**
 
@@ -913,6 +930,7 @@ Get metrics for all images for a given model/layer, with sorting and pagination.
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
 | `sort_by` | string | No | `iou` | `iou`, `coverage` | Sort order |
 | `limit` | int | No | `139` | 1–200 | Maximum results |
+| `method` | string | No | model default | Must be valid for model | Attention method |
 
 **Response**: `dict`
 
@@ -927,6 +945,8 @@ Get metrics for all images for a given model/layer, with sorting and pagination.
       "image_id": "Q2270_0.jpg",
       "iou": 0.42,
       "coverage": 0.85,
+      "mse": 0.031,
+      "kl": 0.074,
       "attention_area": 0.18,
       "annotation_area": 0.22
     }
@@ -947,7 +967,7 @@ Get metrics for all images for a given model/layer, with sorting and pagination.
 
 ### `GET /api/compare/models`
 
-Compare multiple models side-by-side on a single image. Returns IoU metrics and heatmap URLs for each model.
+Compare multiple models side-by-side on a single image. Returns alignment metrics and heatmap URLs for each model.
 
 > **Method validation**: When a `method` is specified, it is validated against *each* selected model. If any model does not support the requested method, the endpoint returns **400** (strict validation). Use `/api/metrics/{image_id}/all_models` if you want incompatible models to be skipped instead.
 
@@ -978,6 +998,8 @@ Compare multiple models side-by-side on a single image. Returns IoU metrics and 
       "method": "cls",
       "iou": 0.285,
       "coverage": 0.72,
+      "mse": 0.041,
+      "kl": 0.093,
       "attention_area": 0.15,
       "annotation_area": 0.21
     }
@@ -1094,32 +1116,34 @@ Get IoU progression across all layers for a single model/image, with heatmap URL
 
 ### `GET /api/compare/all_models_summary`
 
-Get a full comparison summary of all models: leaderboard rankings plus per-layer IoU progressions.
+Get a full comparison summary of all models: leaderboard rankings plus per-layer metric progressions for the selected aggregate metric.
 
 **Query Parameters**
 
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `mse`, `kl` | Aggregate metric to rank and chart |
 
 **Response**: `dict`
 
 ```json
 {
   "percentile": 90,
+  "metric": "kl",
   "models": {
     "dinov2": {
       "rank": 1,
-      "best_iou": 0.342,
+      "best_score": 0.093,
       "best_layer": "layer11",
       "layer_progression": {
-        "layer0": 0.12,
-        "layer11": 0.34
+        "layer0": 0.181,
+        "layer11": 0.093
       }
     }
   },
   "leaderboard": [
-    { "rank": 1, "model": "dinov2", "best_iou": 0.342, "best_layer": "layer11" }
+    { "rank": 1, "model": "dinov2", "metric": "kl", "score": 0.093, "best_layer": "layer11" }
   ]
 }
 ```
@@ -1222,6 +1246,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `iou` | float | Intersection over Union score |
 | `coverage` | float | Fraction of annotation area covered by attention |
 | `mse` | float | Gaussian soft-target mean squared error |
+| `kl` | float | Gaussian soft-target KL divergence reported as `KL(GT || attention)` |
 | `attention_area` | float | Fraction of image area above attention threshold |
 | `annotation_area` | float | Fraction of image area covered by annotations |
 | `method` | string \| null | Attention method used |
@@ -1289,7 +1314,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 |-------|------|-------------|
 | `rank` | int | Position in ranking |
 | `model` | string | Model name |
-| `metric` | string | Metric used for ranking (`iou`, `mse`) |
+| `metric` | string | Metric used for ranking (`iou`, `mse`, `kl`) |
 | `score` | float | Best score achieved for the selected metric |
 | `best_layer` | string | Layer with the best score for the selected metric |
 
@@ -1298,7 +1323,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `model` | string | Model name |
-| `metric` | string | Aggregate metric being charted (`iou`, `mse`) |
+| `metric` | string | Aggregate metric being charted (`iou`, `mse`, `kl`) |
 | `percentile` | int | Percentile threshold used |
 | `method` | string \| null | Attention method used |
 | `layers` | list[string] | Layer keys in order |
@@ -1344,7 +1369,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `models` | list[string] | Models compared |
 | `layer` | string | Layer key |
 | `percentile` | int | Percentile threshold used |
-| `results` | list[IoUResultSchema] | Per-model IoU results |
+| `results` | list[IoUResultSchema] | Per-model alignment results |
 | `heatmap_urls` | dict[string, string] | Model name → heatmap overlay URL |
 
 ### `BboxInput`

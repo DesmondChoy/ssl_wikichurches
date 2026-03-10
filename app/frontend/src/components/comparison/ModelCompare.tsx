@@ -6,8 +6,8 @@
  * to compare how different models "see" the same architectural feature.
  */
 
-import { useState, useMemo } from 'react';
-import { useModelComparison } from '../../hooks/useAttention';
+import { useMemo, useState } from 'react';
+import { useModelComparison, useModels } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Card, CardContent } from '../ui/Card';
 import { SimilarityViewer } from './SimilarityViewer';
@@ -33,12 +33,25 @@ export function ModelCompare({
   const [leftModel, setLeftModel] = useState(availableModels[0] || 'dinov2');
   const [rightModel, setRightModel] = useState(availableModels[1] || 'clip');
   const [selectedBboxIndex, setSelectedBboxIndex] = useState<number | null>(null);
+  const { data: modelsData, isLoading: modelsLoading } = useModels();
+
+  const effectiveLayer = useMemo(() => {
+    const numLayersByModel = modelsData?.num_layers_per_model;
+    if (!numLayersByModel) {
+      return layer;
+    }
+
+    const leftMaxLayer = Math.max((numLayersByModel[leftModel] ?? layer + 1) - 1, 0);
+    const rightMaxLayer = Math.max((numLayersByModel[rightModel] ?? layer + 1) - 1, 0);
+    return Math.min(layer, leftMaxLayer, rightMaxLayer);
+  }, [layer, leftModel, modelsData?.num_layers_per_model, rightModel]);
 
   const { data: comparison, isLoading, error } = useModelComparison(
     imageId,
     [leftModel, rightModel],
-    layer,
-    percentile
+    effectiveLayer,
+    percentile,
+    !modelsLoading
   );
 
   const modelOptions = availableModels.map((m) => ({
@@ -76,11 +89,11 @@ export function ModelCompare({
       <div className="grid grid-cols-2 gap-4">
         {/* Left model */}
         <Card>
-          <ErrorBoundary resetKeys={[imageId, leftModel, layer]}>
+          <ErrorBoundary resetKeys={[imageId, leftModel, effectiveLayer]}>
             <SimilarityViewer
               imageId={imageId}
               model={leftModel}
-              layer={layer}
+              layer={effectiveLayer}
               bboxes={bboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={setSelectedBboxIndex}
@@ -97,6 +110,12 @@ export function ModelCompare({
                   <span className="font-medium">MSE:</span>{' '}
                   {leftResult.mse.toFixed(4)}
                 </div>
+                {Number.isFinite(leftResult.kl) && (
+                  <div>
+                    <span className="font-medium">KL:</span>{' '}
+                    {leftResult.kl.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -104,11 +123,11 @@ export function ModelCompare({
 
         {/* Right model */}
         <Card>
-          <ErrorBoundary resetKeys={[imageId, rightModel, layer]}>
+          <ErrorBoundary resetKeys={[imageId, rightModel, effectiveLayer]}>
             <SimilarityViewer
               imageId={imageId}
               model={rightModel}
-              layer={layer}
+              layer={effectiveLayer}
               bboxes={bboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={setSelectedBboxIndex}
@@ -125,6 +144,12 @@ export function ModelCompare({
                   <span className="font-medium">MSE:</span>{' '}
                   {rightResult.mse.toFixed(4)}
                 </div>
+                {Number.isFinite(rightResult.kl) && (
+                  <div>
+                    <span className="font-medium">KL:</span>{' '}
+                    {rightResult.kl.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -163,7 +188,7 @@ export function ModelCompare({
         </p>
       )}
 
-      {isLoading && (
+      {(modelsLoading || isLoading) && (
         <div className="text-center text-gray-500">Loading comparison...</div>
       )}
       {error && (

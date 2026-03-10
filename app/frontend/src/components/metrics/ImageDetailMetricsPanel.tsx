@@ -11,6 +11,7 @@ const METRIC_COLORS: Record<string, string> = {
   iou: '#2563eb',
   coverage: '#0f766e',
   mse: '#dc2626',
+  kl: '#7c3aed',
 };
 
 const DEFAULT_TOGGLE_THEME: MetricToggleTheme = {
@@ -22,6 +23,7 @@ const METRIC_GLOSSARY_KEYS: Record<string, keyof typeof GLOSSARY> = {
   iou: 'IoU Score',
   coverage: 'Coverage',
   mse: 'MSE',
+  kl: 'KL',
 };
 
 const METRIC_TOGGLE_THEMES: Record<string, MetricToggleTheme> = {
@@ -36,6 +38,10 @@ const METRIC_TOGGLE_THEMES: Record<string, MetricToggleTheme> = {
   mse: {
     accentColor: METRIC_COLORS.mse,
     checkedClassName: 'border-red-300 bg-gradient-to-r from-rose-50 via-red-50 to-red-100 text-red-800 shadow-sm shadow-red-100/80',
+  },
+  kl: {
+    accentColor: METRIC_COLORS.kl,
+    checkedClassName: 'border-violet-300 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-100 text-violet-900 shadow-sm shadow-violet-100/80',
   },
 };
 

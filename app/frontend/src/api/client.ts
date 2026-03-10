@@ -225,6 +225,9 @@ export const metricsAPI = {
       mean_mse: number;
       std_mse: number;
       median_mse: number;
+      mean_kl: number;
+      std_kl: number;
+      median_kl: number;
       num_images: number;
     }>(`/metrics/model/${model}/aggregate?${params}`);
   },
@@ -232,10 +235,26 @@ export const metricsAPI = {
 
 // Comparison API
 export const comparisonAPI = {
-  compareModels: (imageId: string, models: string[], layer: number, percentile = 90) => {
-    const modelsParam = models.map(m => `models=${m}`).join('&');
+  compareModels: (
+    imageId: string,
+    models: string[],
+    layer: number,
+    percentile = 90,
+    method?: string
+  ) => {
+    const params = new URLSearchParams({
+      image_id: imageId,
+      layer: String(layer),
+      percentile: String(percentile),
+    });
+    for (const model of models) {
+      params.append('models', model);
+    }
+    if (method) {
+      params.set('method', method);
+    }
     return fetchJSON<import('../types').ModelComparison>(
-      `/compare/models?image_id=${imageId}&${modelsParam}&layer=${layer}&percentile=${percentile}`
+      `/compare/models?${params.toString()}`
     );
   },
 
