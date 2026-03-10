@@ -160,10 +160,10 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Back navigation returns to gallery
 
 #### Layout
-- [ ] Three-column layout: annotations (left), visualization (center), controls (right)
-- [ ] Left column (2/10) shows Annotations panel with styles and bbox list
-- [ ] Center column (5/10) displays the main image with attention overlay
-- [ ] Right column (3/10) contains control panel and metrics
+- [ ] Three-column desktop layout: View Settings + Annotations (left), visualization (center), Metrics (right)
+- [ ] Left column shows the View Settings panel above the Annotations panel
+- [ ] Center column displays the main image with attention overlay plus the playback slider card
+- [ ] Right column is dedicated to the Metrics panel only
 
 #### Annotations Panel (Left Column)
 - [ ] Architectural styles are listed as badges
@@ -179,8 +179,8 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Info badges display: current model, layer number
 - [ ] Colormap legend is visible below the image
 
-#### Control Panel (Right Column)
-- [ ] Model selector dropdown shows all 6 models (dinov2, dinov3, mae, clip, siglip2, resnet50)
+#### Control Panel (Left Column)
+- [ ] Model selector dropdown shows all 7 models (dinov2, dinov3, mae, clip, siglip, siglip2, resnet50)
 - [ ] Layer slider range adjusts per model (e.g., 0-11 for ViTs, 0-3 for ResNet-50)
 - [ ] Percentile threshold selector shows options: 90%, 85%, 80%, 70%, 60%, 50%
 - [ ] "Show Bounding Boxes" toggle is present (defaults to ON)
@@ -193,7 +193,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Attention Method dropdown is hidden for single-method models (e.g., SigLIP shows only Mean Attention)
 - [ ] Changing attention method updates the attention visualization and metrics
 
-#### Similarity Heatmap Controls (Right Column - below Control Panel)
+#### Similarity Heatmap Controls (Left Column - below Core Controls)
 - [ ] "Similarity Heatmap" section header is visible
 - [ ] Heatmap Style dropdown shows options: Smooth Gradient, Squares, Circles
 - [ ] Opacity slider allows adjusting heatmap transparency (20%-90%)
@@ -209,17 +209,17 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Pause button stops the animation
 - [ ] "Early layers" and "Late layers" labels are visible
 
-#### IoU Metrics Display
-- [ ] IoU Score card is displayed with value
-- [ ] Max IoU progress bar shows IoU relative to theoretical maximum
-- [ ] Progress bar is color-coded: green ≥75%, yellow ≥50%, orange ≥25%, red <25% of max
-- [ ] "X% of theoretical max" label appears below progress bar
-- [ ] Coverage percentage card is shown
-- [ ] Tooltip help icons (?) appear on IoU Score and Coverage cards
-- [ ] Metrics update when model/layer/percentile changes
-- [ ] Selecting a bbox updates metrics to show per-bbox IoU/Coverage
-- [ ] Green context indicator shows "Showing metrics for: [bbox name]" when bbox selected
-- [ ] Deselecting bbox reverts to union-of-all-bboxes metrics instantly
+#### Metrics Chart Panel
+- [ ] Metrics panel shows the interpretation copy relating the heatmap and chart
+- [ ] Active-layer indicator updates between focused and playing states
+- [ ] Metric toggles render IoU, Coverage, and MSE enabled by default
+- [ ] Metric toggle labels make directionality explicit (for example, "IoU Score (Higher better)")
+- [ ] Chart renders layer-by-layer lines instead of the old static metric cards
+- [ ] Chart highlight follows the current layer when the user scrubs or clicks first/prev/next/last
+- [ ] While playing, the reveal status switches to "Revealing layers 0-N" and advances with the animation
+- [ ] Percentile semantics note explains that IoU changes while threshold-free metrics stay fixed
+- [ ] Selecting a bbox switches the metrics panel to bbox mode with bbox-specific context
+- [ ] Deselecting bbox reverts the chart to union-of-all-bboxes metrics
 
 #### Bounding Box Interaction
 - [ ] Bounding boxes are shown by default (toggle defaults ON)
@@ -231,7 +231,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Clicking outside or re-clicking deselects the bbox
 
 #### Navigation Links
-- [ ] "Compare Models" link navigates to /compare with current image pre-selected
+- [ ] No page-local "Compare Models" CTA appears beneath the image-detail metrics panel
 
 ---
 
@@ -427,10 +427,10 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Layout (4 items) - three-column layout
    └── Annotations Panel (5 items) - left column
    └── Attention Viewer (5 items) - center column
-   └── Control Panel (12 items) - includes tooltips, attention method
+   └── Control Panel (12 items) - left column settings and tooltips
    └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
    └── Layer Animation Slider (7 items) - includes stop-at-end behavior
-   └── IoU Metrics Display (10 items) - includes max IoU bar, per-bbox metrics
+   └── Metrics Chart Panel (10 items) - directionality, playback reveal, bbox mode
    └── Bounding Box Interaction (7 items) - includes per-bbox metrics
    └── Navigation Links (1 item)
 

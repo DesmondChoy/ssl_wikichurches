@@ -144,16 +144,19 @@ export const metricsAPI = {
     leaderboard: Array<{ model: string; best_iou: number }>;
   }>('/metrics/summary'),
 
-  getImageMetrics: (imageId: string, model: string, layer: number, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ model, layer: String(layer), percentile: String(percentile) });
+  getImageLayerProgression: (
+    imageId: string,
+    model: string,
+    percentile = 90,
+    method?: string,
+    bboxIndex?: number | null
+  ) => {
+    const params = new URLSearchParams({ model, percentile: String(percentile) });
     if (method) params.set('method', method);
-    return fetchJSON<import('../types').IoUResult>(`/metrics/${imageId}?${params}`);
-  },
-
-  getBboxMetrics: (imageId: string, model: string, layer: number, bboxIndex: number, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ model, layer: String(layer), percentile: String(percentile) });
-    if (method) params.set('method', method);
-    return fetchJSON<import('../types').IoUResult>(`/metrics/${imageId}/bbox/${bboxIndex}?${params}`);
+    if (bboxIndex !== null && bboxIndex !== undefined) params.set('bbox_index', String(bboxIndex));
+    return fetchJSON<import('../types').ImageLayerProgression>(
+      `/metrics/${imageId}/progression?${params}`
+    );
   },
 
   getImageMetricsAllModels: (imageId: string, layer: number, percentile = 90, method?: string) => {

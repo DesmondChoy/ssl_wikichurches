@@ -48,6 +48,38 @@ export interface IoUResult {
   method?: string;
 }
 
+export type MetricDirection = 'higher' | 'lower';
+
+export interface ImageMetricDescriptor {
+  key: string;
+  label: string;
+  direction: MetricDirection;
+  default_enabled: boolean;
+  percentile_dependent: boolean;
+}
+
+export interface ImageMetricSelection {
+  mode: 'union' | 'bbox';
+  bbox_index: number | null;
+  bbox_label: string | null;
+}
+
+export interface ImageLayerMetricPoint {
+  layer: number;
+  layer_key: string;
+  values: Record<string, number | null>;
+}
+
+export interface ImageLayerProgression {
+  image_id: string;
+  model: string;
+  method: string;
+  percentile: number;
+  selection: ImageMetricSelection;
+  metrics: ImageMetricDescriptor[];
+  layers: ImageLayerMetricPoint[];
+}
+
 export interface LeaderboardEntry {
   rank: number;
   model: string;

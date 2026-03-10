@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import torch
 from fastapi.testclient import TestClient
 
 from app.backend.main import app
@@ -57,10 +56,10 @@ class TestMetricsEndpointsExposeMse:
 
         with (
             patch("app.backend.routers.metrics.image_service") as mock_image_service,
-            patch("app.backend.routers.metrics.attention_service") as mock_attention_service,
+            patch("app.backend.routers.metrics.metrics_service") as mock_metrics_service,
         ):
             mock_image_service.get_annotation.return_value = annotation
-            mock_attention_service.cache.load.return_value = torch.ones(224, 224)
+            mock_metrics_service.get_bbox_metrics.return_value = _image_metrics_payload("dinov2")
 
             response = client.get(
                 f"/api/metrics/{IMAGE_ID}/bbox/0",

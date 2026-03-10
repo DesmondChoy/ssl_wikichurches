@@ -24,10 +24,11 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | POST | `/api/attention/{image_id}/similarity` | Bbox cosine similarity across patches |
 | GET | `/api/metrics/leaderboard` | Model rankings by best IoU |
 | GET | `/api/metrics/summary` | Pre-computed metrics summary |
-| GET | `/api/metrics/{image_id}` | Per-image IoU metrics |
+| GET | `/api/metrics/{image_id}` | Per-image alignment metrics |
+| GET | `/api/metrics/{image_id}/progression` | Extensible per-image layer progression |
 | GET | `/api/metrics/{image_id}/bbox/{bbox_index}` | Per-bbox IoU metrics (computed on-the-fly) |
 | GET | `/api/metrics/{image_id}/all_models` | Per-image metrics across all models |
-| GET | `/api/metrics/model/{model}/progression` | Layer-by-layer IoU progression |
+| GET | `/api/metrics/model/{model}/progression` | Layer-by-layer aggregate metric progression |
 | GET | `/api/metrics/model/{model}/style_breakdown` | IoU by architectural style |
 | GET | `/api/metrics/model/{model}/feature_breakdown` | IoU by feature type |
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
@@ -538,8 +539,10 @@ Get IoU metrics for a specific image with a given model/layer/percentile.
   "percentile": 90,
   "iou": 0.285,
   "coverage": 0.72,
+  "mse": 0.041,
   "attention_area": 0.15,
-  "annotation_area": 0.21
+  "annotation_area": 0.21,
+  "method": "cls"
 }
 ```
 
@@ -550,6 +553,94 @@ Get IoU metrics for a specific image with a given model/layer/percentile.
 | 400 | Invalid model or layer |
 | 404 | Metrics not found for this image/model/layer combination |
 | 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/{image_id}/progression`
+
+Get per-image metric progression across all layers for the image-detail chart. Without `bbox_index`, this returns union-of-all-bboxes metrics from the metrics database. With `bbox_index`, it computes bbox-specific progression on demand from cached attention.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `image_id` | string | Image filename |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile for thresholded metrics |
+| `bbox_index` | int | No | `null` | ≥ 0 | Optional bbox index for bbox-specific progression |
+| `method` | string | No | model default | Must be valid for model | Attention method |
+
+**Response**: `ImageLayerProgressionSchema`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "method": "cls",
+  "percentile": 90,
+  "selection": {
+    "mode": "union",
+    "bbox_index": null,
+    "bbox_label": null
+  },
+  "metrics": [
+    {
+      "key": "iou",
+      "label": "IoU Score",
+      "direction": "higher",
+      "default_enabled": true,
+      "percentile_dependent": true
+    },
+    {
+      "key": "coverage",
+      "label": "Coverage",
+      "direction": "higher",
+      "default_enabled": true,
+      "percentile_dependent": false
+    },
+    {
+      "key": "mse",
+      "label": "MSE",
+      "direction": "lower",
+      "default_enabled": true,
+      "percentile_dependent": false
+    }
+  ],
+  "layers": [
+    {
+      "layer": 0,
+      "layer_key": "layer0",
+      "values": {
+        "iou": 0.18,
+        "coverage": 0.41,
+        "mse": 0.08
+      }
+    },
+    {
+      "layer": 1,
+      "layer_key": "layer1",
+      "values": {
+        "iou": 0.23,
+        "coverage": 0.44,
+        "mse": 0.06
+      }
+    }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, method, or `bbox_index` out of range |
+| 404 | Annotation not found or no progression data available |
+| 503 | Metrics database not available for union progression |
 
 ---
 
@@ -639,7 +730,7 @@ Get metrics for a single image across all models. Models that don't support the 
 
 ### `GET /api/metrics/model/{model}/progression`
 
-Get IoU progression across all layers for a model. Shows how attention alignment evolves through transformer depth.
+Get aggregate metric progression across all layers for a model. Shows how attention alignment evolves through transformer depth.
 
 **Path Parameters**
 
@@ -652,17 +743,21 @@ Get IoU progression across all layers for a model. Shows how attention alignment
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `mse` | Aggregate metric to chart |
+| `method` | string | No | model default | Must be valid for model | Attention method |
 
 **Response**: `LayerProgressionSchema`
 
 ```json
 {
   "model": "dinov2",
+  "metric": "iou",
   "percentile": 90,
+  "method": "cls",
   "layers": ["layer0", "layer1", "...", "layer11"],
-  "ious": [0.12, 0.15, "...", 0.34],
+  "scores": [0.12, 0.15, "...", 0.34],
   "best_layer": "layer11",
-  "best_iou": 0.342
+  "best_score": 0.342
 }
 ```
 
@@ -1126,8 +1221,48 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `percentile` | int | Percentile threshold used |
 | `iou` | float | Intersection over Union score |
 | `coverage` | float | Fraction of annotation area covered by attention |
+| `mse` | float | Gaussian soft-target mean squared error |
 | `attention_area` | float | Fraction of image area above attention threshold |
 | `annotation_area` | float | Fraction of image area covered by annotations |
+| `method` | string \| null | Attention method used |
+
+### `ImageMetricDescriptorSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `key` | string | Stable metric identifier used for series mapping |
+| `label` | string | Human-readable metric label |
+| `direction` | string | Whether higher or lower values are better (`higher`, `lower`) |
+| `default_enabled` | bool | Whether the metric line should start enabled in the UI |
+| `percentile_dependent` | bool | Whether changing percentile should alter this metric |
+
+### `ImageMetricSelectionSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | string | `union` or `bbox` |
+| `bbox_index` | int \| null | Selected bbox index when `mode=bbox` |
+| `bbox_label` | string \| null | Human-readable bbox label when `mode=bbox` |
+
+### `ImageLayerMetricPointSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `layer` | int | Zero-based layer index |
+| `layer_key` | string | Layer key (e.g., `layer3`) |
+| `values` | dict[string, float \| null] | Metric-keyed raw values for this layer |
+
+### `ImageLayerProgressionSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `image_id` | string | Image filename |
+| `model` | string | Model name |
+| `method` | string | Attention method used |
+| `percentile` | int | Percentile threshold used for thresholded metrics |
+| `selection` | ImageMetricSelectionSchema | Whether the chart is showing union or bbox metrics |
+| `metrics` | list[ImageMetricDescriptorSchema] | Ordered metric descriptors for toggle/render metadata |
+| `layers` | list[ImageLayerMetricPointSchema] | Ordered per-layer metric values |
 
 ### `RawAttentionResponse`
 
@@ -1154,19 +1289,22 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 |-------|------|-------------|
 | `rank` | int | Position in ranking |
 | `model` | string | Model name |
-| `best_iou` | float | Best IoU achieved |
-| `best_layer` | string | Layer with best IoU |
+| `metric` | string | Metric used for ranking (`iou`, `mse`) |
+| `score` | float | Best score achieved for the selected metric |
+| `best_layer` | string | Layer with the best score for the selected metric |
 
 ### `LayerProgressionSchema`
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `model` | string | Model name |
+| `metric` | string | Aggregate metric being charted (`iou`, `mse`) |
 | `percentile` | int | Percentile threshold used |
+| `method` | string \| null | Attention method used |
 | `layers` | list[string] | Layer keys in order |
-| `ious` | list[float] | IoU values per layer |
-| `best_layer` | string | Layer key with highest IoU |
-| `best_iou` | float | Highest IoU value |
+| `scores` | list[float] | Metric values per layer |
+| `best_layer` | string | Layer key with best score |
+| `best_score` | float | Best metric value |
 
 ### `StyleBreakdownSchema`
 

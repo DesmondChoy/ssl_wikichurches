@@ -13,6 +13,7 @@ from app.backend.config import (
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
     display_model_name,
+    get_model_num_layers,
     resolve_model_name,
 )
 from app.backend.validators import resolve_default_method
@@ -22,6 +23,30 @@ if TYPE_CHECKING:
 
 
 MetricName = Literal["iou", "mse"]
+
+IMAGE_DETAIL_METRICS = (
+    {
+        "key": "iou",
+        "label": "IoU Score",
+        "direction": "higher",
+        "default_enabled": True,
+        "percentile_dependent": True,
+    },
+    {
+        "key": "coverage",
+        "label": "Coverage",
+        "direction": "higher",
+        "default_enabled": True,
+        "percentile_dependent": False,
+    },
+    {
+        "key": "mse",
+        "label": "MSE",
+        "direction": "lower",
+        "default_enabled": True,
+        "percentile_dependent": False,
+    },
+)
 
 
 class MetricsService:
@@ -108,6 +133,147 @@ class MetricsService:
                     "annotation_area": row["annotation_area"],
                 }
             return None
+
+    def get_image_layer_progression(
+        self,
+        image_id: str,
+        model: str,
+        percentile: int = 90,
+        method: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get union-of-bboxes metric progression across all layers for one image."""
+        db_model = resolve_model_name(model)
+        resolved_method = method if method else resolve_default_method(model)
+        layer_points = self._initialize_layer_points(model)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT layer, iou, coverage, mse
+                   FROM image_metrics
+                   WHERE image_id = ? AND model = ? AND method = ? AND percentile = ?
+                   ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
+                (image_id, db_model, resolved_method, percentile),
+            )
+            rows = cursor.fetchall()
+
+        if not rows:
+            return None
+
+        has_values = False
+        for row in rows:
+            layer_key = row["layer"]
+            if layer_key not in layer_points:
+                continue
+
+            mse = row["mse"]
+            if mse is None:
+                mse = self._compute_image_mse_from_cache(
+                    image_id=image_id,
+                    model=model,
+                    layer=layer_key,
+                    method=resolved_method,
+                )
+
+            values = layer_points[layer_key]["values"]
+            values["iou"] = row["iou"]
+            values["coverage"] = row["coverage"]
+            values["mse"] = mse
+            has_values = has_values or any(value is not None for value in values.values())
+
+        if not has_values:
+            return None
+
+        return self._build_image_layer_progression_response(
+            image_id=image_id,
+            model=model,
+            method=resolved_method,
+            percentile=percentile,
+            selection={
+                "mode": "union",
+                "bbox_index": None,
+                "bbox_label": None,
+            },
+            layer_points=layer_points,
+        )
+
+    def get_bbox_layer_progression(
+        self,
+        image_id: str,
+        model: str,
+        bbox_index: int,
+        percentile: int = 90,
+        method: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get bbox-specific metric progression across all layers for one image."""
+        annotation = self._get_annotation(image_id)
+        if annotation is None:
+            return None
+
+        resolved_method = method if method else resolve_default_method(model)
+        bbox_label = self._get_bbox_label(annotation, bbox_index)
+        layer_points = self._initialize_layer_points(model)
+        has_values = False
+
+        for layer_index in range(get_model_num_layers(model)):
+            layer_key = f"layer{layer_index}"
+            metrics = self._compute_bbox_metrics(
+                image_id=image_id,
+                model=model,
+                layer=layer_key,
+                bbox_index=bbox_index,
+                percentile=percentile,
+                method=resolved_method,
+                annotation=annotation,
+            )
+            if metrics is None:
+                continue
+
+            values = layer_points[layer_key]["values"]
+            values["iou"] = metrics["iou"]
+            values["coverage"] = metrics["coverage"]
+            values["mse"] = metrics["mse"]
+            has_values = True
+
+        if not has_values:
+            return None
+
+        return self._build_image_layer_progression_response(
+            image_id=image_id,
+            model=model,
+            method=resolved_method,
+            percentile=percentile,
+            selection={
+                "mode": "bbox",
+                "bbox_index": bbox_index,
+                "bbox_label": bbox_label,
+            },
+            layer_points=layer_points,
+        )
+
+    def get_bbox_metrics(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        bbox_index: int,
+        percentile: int = 90,
+        method: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Get bbox-specific metrics for a single layer."""
+        annotation = self._get_annotation(image_id)
+        if annotation is None:
+            return None
+
+        return self._compute_bbox_metrics(
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            bbox_index=bbox_index,
+            percentile=percentile,
+            method=method,
+            annotation=annotation,
+        )
 
     def get_aggregate_metrics(
         self,
@@ -452,6 +618,136 @@ class MetricsService:
             attention = attention.reshape(grid_rows, grid_cols)
 
         return compute_image_mse(attention=attention, annotation=annotation)
+
+    def _compute_bbox_metrics(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        bbox_index: int,
+        percentile: int,
+        method: str | None,
+        annotation: Any,
+    ) -> dict[str, Any] | None:
+        """Compute bbox metrics from cached attention for a single layer."""
+        from ssl_attention.metrics.continuous import compute_mse, gaussian_bbox_heatmap
+        from ssl_attention.metrics.iou import compute_coverage, compute_iou
+
+        resolved_method = method if method else resolve_default_method(model)
+
+        if not 0 <= bbox_index < len(annotation.bboxes):
+            raise ValueError(
+                f"bbox_index {bbox_index} out of range. "
+                f"Image has {len(annotation.bboxes)} bboxes (0-{len(annotation.bboxes) - 1})."
+            )
+
+        attention_tensor = self._load_attention_tensor(
+            model=model,
+            layer=layer,
+            image_id=image_id,
+            method=resolved_method,
+        )
+        if attention_tensor is None:
+            return None
+
+        bbox = annotation.bboxes[bbox_index]
+        height, width = attention_tensor.shape[-2:]
+        bbox_mask = bbox.to_mask(height, width)
+        bbox_heatmap = gaussian_bbox_heatmap(bbox, height, width, device=attention_tensor.device)
+        iou, attention_area, annotation_area = compute_iou(attention_tensor, bbox_mask, percentile)
+        coverage = compute_coverage(attention_tensor, bbox_mask)
+        mse = compute_mse(attention_tensor, bbox_heatmap)
+
+        return {
+            "image_id": image_id,
+            "model": model,
+            "layer": layer,
+            "percentile": percentile,
+            "method": resolved_method,
+            "iou": iou,
+            "coverage": coverage,
+            "mse": mse,
+            "attention_area": attention_area,
+            "annotation_area": annotation_area,
+        }
+
+    def _get_annotation(self, image_id: str) -> Any | None:
+        """Load image annotation without introducing a module-level import cycle."""
+        from app.backend.services.image_service import image_service
+
+        return image_service.get_annotation(image_id)
+
+    def _load_attention_tensor(
+        self,
+        model: str,
+        layer: str,
+        image_id: str,
+        method: str,
+    ) -> Any | None:
+        """Load cached attention and normalize it to a 2D tensor."""
+        from app.backend.services.attention_service import attention_service
+
+        cache_model = resolve_model_name(model)
+        try:
+            attention = attention_service.cache.load(cache_model, layer, image_id, variant=method)
+        except KeyError:
+            return None
+
+        if attention.dim() == 1:
+            grid_rows, grid_cols = attention_service.get_attention_grid(cache_model)
+            attention = attention.reshape(grid_rows, grid_cols)
+
+        return attention
+
+    def _get_bbox_label(self, annotation: Any, bbox_index: int) -> str:
+        """Resolve a human-readable label for a bbox selection."""
+        from app.backend.services.image_service import image_service
+
+        if not 0 <= bbox_index < len(annotation.bboxes):
+            raise ValueError(
+                f"bbox_index {bbox_index} out of range. "
+                f"Image has {len(annotation.bboxes)} bboxes (0-{len(annotation.bboxes) - 1})."
+            )
+
+        bbox = annotation.bboxes[bbox_index]
+        return image_service.get_feature_name(bbox.label) or f"Feature {bbox.label}"
+
+    def _initialize_layer_points(self, model: str) -> dict[str, dict[str, Any]]:
+        """Create stable layer entries for the full model depth."""
+        num_layers = get_model_num_layers(model)
+        return {
+            f"layer{layer_index}": {
+                "layer": layer_index,
+                "layer_key": f"layer{layer_index}",
+                "values": self._empty_image_detail_metric_values(),
+            }
+            for layer_index in range(num_layers)
+        }
+
+    def _empty_image_detail_metric_values(self) -> dict[str, float | None]:
+        """Build a blank values map for all image-detail metrics."""
+        return {str(metric["key"]): None for metric in IMAGE_DETAIL_METRICS}
+
+    def _build_image_layer_progression_response(
+        self,
+        image_id: str,
+        model: str,
+        method: str,
+        percentile: int,
+        selection: dict[str, Any],
+        layer_points: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Assemble the API payload for image-detail layer progression."""
+        ordered_layers = [layer_points[f"layer{layer_index}"] for layer_index in range(get_model_num_layers(model))]
+        return {
+            "image_id": image_id,
+            "model": model,
+            "method": method,
+            "percentile": percentile,
+            "selection": selection,
+            "metrics": [dict(metric) for metric in IMAGE_DETAIL_METRICS],
+            "layers": ordered_layers,
+        }
 
     def _compute_mse_aggregate_from_images(
         self,
