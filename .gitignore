@@ -33,3 +33,5 @@ experiments/results/
 experiments/logs/
 
 .playwright-mcp
+
+tasks/

@@ -32,16 +32,24 @@ export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: I
     );
   }
 
+  const iouValue = metrics.iou.toFixed(3);
+  const coverageValue = `${(metrics.coverage * 100).toFixed(1)}%`;
+  const mseValue = metrics.mse.toFixed(3);
+
   if (compact) {
     return (
-      <div className="flex gap-4 text-sm">
+      <div className="flex flex-wrap gap-4 text-sm">
         <div>
           <span className="text-gray-500">IoU:</span>{' '}
-          <span className="font-semibold">{metrics.iou.toFixed(3)}</span>
+          <span className="font-semibold">{iouValue}</span>
         </div>
         <div>
           <span className="text-gray-500">Coverage:</span>{' '}
-          <span className="font-semibold">{(metrics.coverage * 100).toFixed(1)}%</span>
+          <span className="font-semibold">{coverageValue}</span>
+        </div>
+        <div>
+          <span className="text-gray-500">MSE:</span>{' '}
+          <span className="font-semibold">{mseValue}</span>
         </div>
       </div>
     );
@@ -54,7 +62,7 @@ export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: I
           Showing metrics for: <span className="font-semibold">{bboxLabel}</span>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {(() => {
           const maxIoU = computeMaxIoU(metrics.attention_area, metrics.annotation_area);
           const ratio = computeIoURatio(metrics.iou, maxIoU);
@@ -66,7 +74,7 @@ export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: I
                 <Tooltip content={GLOSSARY['IoU Score']} align="left" />
               </div>
               <div className="mt-1">
-                <span className="text-2xl font-bold">{metrics.iou.toFixed(3)}</span>
+                <span className="text-xl font-bold tracking-tight">{iouValue}</span>
                 {maxIoU > 0 && (
                   <span className="text-sm text-gray-400 ml-1">/ {maxIoU.toFixed(3)} max</span>
                 )}
@@ -89,10 +97,17 @@ export function IoUDisplay({ metrics, isLoading, compact = false, bboxLabel }: I
         })()}
         <MetricCard
           label="Coverage"
-          value={`${(metrics.coverage * 100).toFixed(1)}%`}
+          value={coverageValue}
           description="Attention in annotated regions"
           color={getIoUColor(metrics.coverage)}
           tooltip={GLOSSARY['Coverage']}
+        />
+        <MetricCard
+          label="MSE (lower better)"
+          value={mseValue}
+          description="Gaussian soft-union error"
+          color={getMseColor(metrics.mse)}
+          tooltip={GLOSSARY['MSE']}
           tooltipAlign="right"
         />
       </div>
@@ -127,7 +142,7 @@ function MetricCard({ label, value, description, color, tooltip, tooltipAlign }:
         {label}
         {tooltip && <Tooltip content={tooltip} align={tooltipAlign} />}
       </div>
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="mt-1 text-xl font-bold tracking-tight">{value}</div>
       {description && (
         <div className="text-xs text-gray-500 mt-1">{description}</div>
       )}
@@ -139,6 +154,13 @@ function getIoUColor(value: number): string {
   if (value >= 0.6) return 'bg-green-100';
   if (value >= 0.4) return 'bg-yellow-100';
   if (value >= 0.2) return 'bg-orange-100';
+  return 'bg-red-100';
+}
+
+function getMseColor(value: number): string {
+  if (value <= 0.02) return 'bg-green-100';
+  if (value <= 0.05) return 'bg-yellow-100';
+  if (value <= 0.10) return 'bg-orange-100';
   return 'bg-red-100';
 }
 

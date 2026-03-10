@@ -4,6 +4,7 @@
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { attentionAPI, metricsAPI, comparisonAPI } from '../api/client';
+import type { DashboardMetric } from '../types';
 
 export function useModels() {
   return useQuery({
@@ -26,12 +27,13 @@ export function useImageMetrics(
   model: string,
   layer: number,
   percentile: number,
-  method?: string
+  method?: string,
+  enabled = true
 ) {
   return useQuery({
     queryKey: ['imageMetrics', imageId, model, layer, percentile, method],
     queryFn: () => metricsAPI.getImageMetrics(imageId!, model, layer, percentile, method),
-    enabled: !!imageId,
+    enabled: !!imageId && enabled,
     placeholderData: keepPreviousData,
   });
 }
@@ -42,20 +44,26 @@ export function useBboxMetrics(
   layer: number,
   bboxIndex: number | null,
   percentile: number,
-  method?: string
+  method?: string,
+  enabled = true
 ) {
   return useQuery({
     queryKey: ['bboxMetrics', imageId, model, layer, bboxIndex, percentile, method],
     queryFn: () => metricsAPI.getBboxMetrics(imageId!, model, layer, bboxIndex!, percentile, method),
-    enabled: !!imageId && bboxIndex !== null,
+    enabled: !!imageId && bboxIndex !== null && enabled,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useLayerProgression(model: string, percentile: number, method?: string) {
+export function useLayerProgression(
+  model: string,
+  percentile: number,
+  metric: DashboardMetric,
+  method?: string
+) {
   return useQuery({
-    queryKey: ['layerProgression', model, percentile, method],
-    queryFn: () => metricsAPI.getLayerProgression(model, percentile, method),
+    queryKey: ['layerProgression', model, percentile, metric, method],
+    queryFn: () => metricsAPI.getLayerProgression(model, percentile, metric, method),
   });
 }
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -47,7 +49,7 @@ class ImageDetailSchema(BaseModel):
 
 
 class IoUResultSchema(BaseModel):
-    """IoU computation result."""
+    """Per-image alignment metrics."""
 
     image_id: str
     model: str
@@ -55,6 +57,7 @@ class IoUResultSchema(BaseModel):
     percentile: int
     iou: float
     coverage: float
+    mse: float
     attention_area: float
     annotation_area: float
     method: str | None = None
@@ -69,23 +72,25 @@ class MetricsQueryParams(BaseModel):
 
 
 class LeaderboardEntry(BaseModel):
-    """Model ranking entry."""
+    """Model ranking entry for a selected metric."""
 
     rank: int
     model: str
-    best_iou: float
+    metric: Literal["iou", "mse"]
+    score: float
     best_layer: str
 
 
 class LayerProgressionSchema(BaseModel):
-    """IoU progression across layers."""
+    """Metric progression across layers."""
 
     model: str
+    metric: Literal["iou", "mse"]
     percentile: int
     layers: list[str]
-    ious: list[float]
+    scores: list[float]
     best_layer: str
-    best_iou: float
+    best_score: float
     method: str | None = None
 
 
@@ -109,6 +114,24 @@ class ModelComparisonSchema(BaseModel):
     percentile: int
     results: list[IoUResultSchema]
     heatmap_urls: dict[str, str]  # model -> heatmap URL
+
+
+class AllModelsSummaryModelEntry(BaseModel):
+    """Summary stats for one model at a selected metric/percentile."""
+
+    rank: int
+    best_layer: str
+    best_score: float
+    layer_progression: dict[str, float]
+
+
+class AllModelsSummarySchema(BaseModel):
+    """Summary comparison across all models for a selected metric."""
+
+    percentile: int
+    metric: Literal["iou", "mse"]
+    models: dict[str, AllModelsSummaryModelEntry]
+    leaderboard: list[LeaderboardEntry]
 
 
 class BboxInput(BaseModel):

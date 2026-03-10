@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,6 +18,7 @@ from app.backend.services.attention_service import attention_service
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import validate_layer_for_model, validate_method, validate_model
+from ssl_attention.metrics.continuous import compute_mse, gaussian_bbox_heatmap
 from ssl_attention.metrics.iou import compute_coverage, compute_iou
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -26,10 +27,11 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def get_leaderboard(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
 ) -> list[LeaderboardEntry]:
-    """Get model rankings by best IoU score.
+    """Get model rankings by best score for the selected metric.
 
-    Returns models ranked by their best IoU at the given percentile.
+    Returns models ranked by their best score at the given percentile.
     """
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -37,7 +39,7 @@ async def get_leaderboard(
             detail="Metrics database not available. Run generate_metrics_cache.py first.",
         )
 
-    data = metrics_service.get_leaderboard(percentile)
+    data = metrics_service.get_leaderboard(percentile, metric=metric)
     return [LeaderboardEntry(**entry) for entry in data]
 
 
@@ -186,14 +188,16 @@ async def get_bbox_metrics(
         grid_rows, grid_cols = attention_service.get_attention_grid(resolved_model)
         attention_tensor = attention_tensor.reshape(grid_rows, grid_cols)
 
-    # Generate mask for the specific bbox
+    # Generate mask / soft target for the specific bbox
     h, w = attention_tensor.shape[-2:]
     bbox = annotation.bboxes[bbox_index]
     bbox_mask = bbox.to_mask(h, w)
+    bbox_heatmap = gaussian_bbox_heatmap(bbox, h, w, device=attention_tensor.device)
 
     # Compute metrics
     iou, attention_area, annotation_area = compute_iou(attention_tensor, bbox_mask, percentile)
     coverage = compute_coverage(attention_tensor, bbox_mask)
+    mse = compute_mse(attention_tensor, bbox_heatmap)
 
     return IoUResultSchema(
         image_id=image_id,
@@ -202,6 +206,7 @@ async def get_bbox_metrics(
         percentile=percentile,
         iou=iou,
         coverage=coverage,
+        mse=mse,
         attention_area=attention_area,
         annotation_area=annotation_area,
         method=resolved_method,
@@ -212,9 +217,10 @@ async def get_bbox_metrics(
 async def get_layer_progression(
     model: str,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> LayerProgressionSchema:
-    """Get IoU progression across all layers for a model.
+    """Get metric progression across all layers for a model.
 
     Shows how attention alignment evolves through transformer layers.
     """
@@ -227,7 +233,7 @@ async def get_layer_progression(
             detail="Metrics database not available.",
         )
 
-    data = metrics_service.get_layer_progression(model, percentile, method=resolved_method)
+    data = metrics_service.get_layer_progression(model, percentile, method=resolved_method, metric=metric)
     return LayerProgressionSchema(**data)
 
 

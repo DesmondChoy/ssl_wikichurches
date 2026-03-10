@@ -130,8 +130,10 @@ export const attentionAPI = {
 
 // Metrics API
 export const metricsAPI = {
-  getLeaderboard: (percentile = 90) =>
-    fetchJSON<import('../types').LeaderboardEntry[]>(`/metrics/leaderboard?percentile=${percentile}`),
+  getLeaderboard: (percentile = 90, metric: import('../types').DashboardMetric = 'iou') =>
+    fetchJSON<import('../types').LeaderboardEntry[]>(
+      `/metrics/leaderboard?percentile=${percentile}&metric=${metric}`
+    ),
 
   getSummary: () => fetchJSON<{
     models: Record<string, {
@@ -165,8 +167,13 @@ export const metricsAPI = {
     }>(`/metrics/${imageId}/all_models?${params}`);
   },
 
-  getLayerProgression: (model: string, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ percentile: String(percentile) });
+  getLayerProgression: (
+    model: string,
+    percentile = 90,
+    metric: import('../types').DashboardMetric = 'iou',
+    method?: string
+  ) => {
+    const params = new URLSearchParams({ percentile: String(percentile), metric });
     if (method) params.set('method', method);
     return fetchJSON<import('../types').LayerProgression>(
       `/metrics/model/${model}/progression?${params}`
@@ -212,6 +219,9 @@ export const metricsAPI = {
       std_iou: number;
       median_iou: number;
       mean_coverage: number;
+      mean_mse: number;
+      std_mse: number;
+      median_mse: number;
       num_images: number;
     }>(`/metrics/model/${model}/aggregate?${params}`);
   },
@@ -240,17 +250,13 @@ export const comparisonAPI = {
       `/compare/layers?image_id=${imageId}&model=${model}&percentile=${percentile}`
     ),
 
-  getAllModelsSummary: (percentile = 90) =>
-    fetchJSON<{
-      percentile: number;
-      models: Record<string, {
-        rank: number;
-        best_iou: number;
-        best_layer: string;
-        layer_progression: Record<string, number>;
-      }>;
-      leaderboard: import('../types').LeaderboardEntry[];
-    }>(`/compare/all_models_summary?percentile=${percentile}`),
+  getAllModelsSummary: (
+    percentile = 90,
+    metric: import('../types').DashboardMetric = 'iou'
+  ) =>
+    fetchJSON<import('../types').AllModelsSummary>(
+      `/compare/all_models_summary?percentile=${percentile}&metric=${metric}`
+    ),
 };
 
 export { APIError };

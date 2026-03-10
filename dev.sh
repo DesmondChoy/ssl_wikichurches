@@ -52,7 +52,7 @@ kill_existing 5173
 
 # Start backend
 echo -e "${GREEN}[Backend]${NC} Starting FastAPI on http://localhost:8000"
-uvicorn app.backend.main:app --reload --port 8000 &
+uv run uvicorn app.backend.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
 # Give backend a moment to start

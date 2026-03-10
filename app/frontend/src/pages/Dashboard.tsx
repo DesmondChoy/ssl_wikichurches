@@ -2,7 +2,7 @@
  * Dashboard page with overall metrics and leaderboard.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -17,10 +17,18 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
+import type { DashboardMetric } from '../types';
+
+const METRIC_OPTIONS = [
+  { value: 'iou', label: 'IoU' },
+  { value: 'mse', label: 'MSE' },
+] as const;
 
 export function DashboardPage() {
   const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
   const { data: modelsData } = useModels();
+  const [metric, setMetric] = useState<DashboardMetric>('iou');
+  const metricLabel = metric === 'mse' ? 'MSE (lower better)' : 'IoU';
 
   // Populate store with model config (methods, layer counts) so setModel
   // resolves the correct default method (e.g. gradcam for ResNet-50)
@@ -36,7 +44,7 @@ export function DashboardPage() {
     }
   }, [modelsData, setNumLayersPerModel]);
 
-  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
+  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile, metric);
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
 
   // Collect all unique layers from API response (handles models with different layer counts)
@@ -70,7 +78,7 @@ export function DashboardPage() {
   // Style breakdown data
   const styleData = styleBreakdown
     ? Object.entries(styleBreakdown.styles).map(([style, iou]) => ({
-        style,
+        styleLabel: style,
         iou,
         count: styleBreakdown.style_counts[style] || 0,
       }))
@@ -87,21 +95,36 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <Select
-          value={percentile}
-          onChange={(v) => setPercentile(Number(v))}
-          options={PERCENTILE_OPTIONS}
-          label="Threshold"
-        />
+        <div className="flex gap-3">
+          <Select
+            value={metric}
+            onChange={(value) => setMetric(value as DashboardMetric)}
+            options={METRIC_OPTIONS.map((option) => ({ ...option }))}
+            label="Metric"
+          />
+          <Select
+            value={percentile}
+            onChange={(v) => setPercentile(Number(v))}
+            options={PERCENTILE_OPTIONS}
+            label="Threshold"
+          />
+        </div>
       </div>
+
+      {metric === 'mse' && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          MSE compares each attention heatmap against a Gaussian soft-union ground truth and is threshold-free, so changing the percentile keeps the dashboard scores the same.
+        </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard */}
         <div>
-          <ErrorBoundary resetKeys={[percentile]}>
+          <ErrorBoundary resetKeys={[percentile, metric]}>
             <ModelLeaderboard
               percentile={percentile}
+              metric={metric}
               onModelSelect={setModel}
             />
           </ErrorBoundary>
@@ -111,7 +134,10 @@ export function DashboardPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <h3 className="font-semibold">Layer Progression (All Models)</h3>
+              <div className="flex justify-between items-center gap-4">
+                <h3 className="font-semibold">Layer Progression (All Models)</h3>
+                <span className="text-xs text-gray-500">{metricLabel}</span>
+              </div>
             </CardHeader>
             <CardContent>
               {summaryLoading ? (
@@ -132,7 +158,7 @@ export function DashboardPage() {
                         tickFormatter={(v) => v.toFixed(1)}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [value.toFixed(3), 'IoU']}
+                        formatter={(value: number) => [value.toFixed(3), metricLabel]}
                         labelStyle={{ color: '#374151', fontWeight: 600 }}
                       />
                       <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
@@ -164,7 +190,7 @@ export function DashboardPage() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">IoU by Architectural Style</h3>
-              <span className="text-xs text-gray-500 capitalize">{model}</span>
+              <span className="text-xs text-gray-500 capitalize">{model} • IoU only</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -178,7 +204,7 @@ export function DashboardPage() {
                     <XAxis type="number" domain={[0, 1]} tick={{ fontSize: 12 }} />
                     <YAxis 
                       type="category" 
-                      dataKey="style" 
+                      dataKey="styleLabel" 
                       tick={{ fontSize: 12 }}
                       width={80}
                     />

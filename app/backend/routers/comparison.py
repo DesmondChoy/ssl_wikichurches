@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.backend.config import get_model_num_layers, resolve_model_name
-from app.backend.schemas import IoUResultSchema, ModelComparisonSchema
+from app.backend.schemas import (
+    AllModelsSummaryModelEntry,
+    AllModelsSummarySchema,
+    IoUResultSchema,
+    LeaderboardEntry,
+    ModelComparisonSchema,
+)
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import (
@@ -198,13 +204,14 @@ async def compare_layers(
     }
 
 
-@router.get("/all_models_summary")
+@router.get("/all_models_summary", response_model=AllModelsSummarySchema)
 async def compare_all_models_summary(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-) -> dict:
-    """Get summary comparison of all models.
+    metric: Annotated[Literal["iou", "mse"], Query()] = "iou",
+) -> AllModelsSummarySchema:
+    """Get summary comparison of all models for the selected metric.
 
-    Returns best layer and IoU for each model.
+    Returns best layer and score for each model.
     """
     if not metrics_service.db_exists:
         raise HTTPException(
@@ -212,22 +219,23 @@ async def compare_all_models_summary(
             detail="Metrics database not available.",
         )
 
-    leaderboard = metrics_service.get_leaderboard(percentile)
+    leaderboard = metrics_service.get_leaderboard(percentile, metric=metric)
 
     # Get layer progression for each model
-    models_data = {}
+    models_data: dict[str, AllModelsSummaryModelEntry] = {}
     for entry in leaderboard:
         model = entry["model"]
-        progression = metrics_service.get_layer_progression(model, percentile)
-        models_data[model] = {
-            "rank": entry["rank"],
-            "best_iou": entry["best_iou"],
-            "best_layer": entry["best_layer"],
-            "layer_progression": dict(zip(progression["layers"], progression["ious"], strict=True)),
-        }
+        progression = metrics_service.get_layer_progression(model, percentile, metric=metric)
+        models_data[model] = AllModelsSummaryModelEntry(
+            rank=entry["rank"],
+            best_layer=entry["best_layer"],
+            best_score=entry["score"],
+            layer_progression=dict(zip(progression["layers"], progression["scores"], strict=True)),
+        )
 
-    return {
-        "percentile": percentile,
-        "models": models_data,
-        "leaderboard": leaderboard,
-    }
+    return AllModelsSummarySchema(
+        percentile=percentile,
+        metric=metric,
+        models=models_data,
+        leaderboard=[LeaderboardEntry(**entry) for entry in leaderboard],
+    )

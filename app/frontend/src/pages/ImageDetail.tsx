@@ -35,6 +35,7 @@ export function ImageDetailPage() {
     queryFn: () => imagesAPI.getDetail(decodedId),
     enabled: !!decodedId,
   });
+  const canQueryDerivedMetrics = !!decodedId && !!imageDetail;
 
   // Fetch metrics (union of all bboxes — always running for instant fallback)
   const { data: metrics, isLoading: metricsLoading } = useImageMetrics(
@@ -42,12 +43,13 @@ export function ImageDetailPage() {
     model,
     layer,
     percentile,
-    method
+    method,
+    canQueryDerivedMetrics
   );
 
   // Fetch per-bbox metrics (only when a bbox is selected)
   const { data: bboxMetrics, isLoading: bboxMetricsLoading } = useBboxMetrics(
-    decodedId, model, layer, selectedBboxIndex, percentile, method
+    decodedId, model, layer, selectedBboxIndex, percentile, method, canQueryDerivedMetrics
   );
 
   // Choose which metrics to display based on bbox selection
@@ -69,6 +71,19 @@ export function ImageDetailPage() {
         </Link>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
           Failed to load image: {decodedId}
+        </div>
+      </div>
+    );
+  }
+
+  if (!detailLoading && !imageDetail) {
+    return (
+      <div className="space-y-4">
+        <Link to="/" className="text-primary-600 hover:underline">
+          &larr; Back to gallery
+        </Link>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          Image not found: {decodedId}
         </div>
       </div>
     );

@@ -51,6 +51,8 @@ export function ModelCompare({
 
   // Get selected bbox for display
   const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
+  const leftResult = comparison?.results.find((result) => result.model === leftModel);
+  const rightResult = comparison?.results.find((result) => result.model === rightModel);
 
   return (
     <div className="space-y-4">
@@ -85,12 +87,16 @@ export function ModelCompare({
             />
           </ErrorBoundary>
           <CardContent>
-            {comparison?.results.find((r) => r.model === leftModel) && (
-              <div className="text-sm">
-                <span className="font-medium">IoU:</span>{' '}
-                {comparison.results
-                  .find((r) => r.model === leftModel)
-                  ?.iou.toFixed(3)}
+            {leftResult && (
+              <div className="space-y-1 text-sm">
+                <div>
+                  <span className="font-medium">IoU:</span>{' '}
+                  {leftResult.iou.toFixed(3)}
+                </div>
+                <div>
+                  <span className="font-medium">MSE:</span>{' '}
+                  {leftResult.mse.toFixed(4)}
+                </div>
               </div>
             )}
           </CardContent>
@@ -109,12 +115,16 @@ export function ModelCompare({
             />
           </ErrorBoundary>
           <CardContent>
-            {comparison?.results.find((r) => r.model === rightModel) && (
-              <div className="text-sm">
-                <span className="font-medium">IoU:</span>{' '}
-                {comparison.results
-                  .find((r) => r.model === rightModel)
-                  ?.iou.toFixed(3)}
+            {rightResult && (
+              <div className="space-y-1 text-sm">
+                <div>
+                  <span className="font-medium">IoU:</span>{' '}
+                  {rightResult.iou.toFixed(3)}
+                </div>
+                <div>
+                  <span className="font-medium">MSE:</span>{' '}
+                  {rightResult.mse.toFixed(4)}
+                </div>
               </div>
             )}
           </CardContent>

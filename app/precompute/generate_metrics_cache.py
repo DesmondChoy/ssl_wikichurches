@@ -1,7 +1,8 @@
 """Generate pre-computed metrics cache for the visualization app.
 
-Computes IoU and coverage metrics for all model/layer/image combinations
-at multiple percentile thresholds, storing results in SQLite for fast queries.
+Computes IoU, coverage, and Gaussian-ground-truth MSE metrics for all
+model/layer/image combinations at multiple percentile thresholds, storing
+results in SQLite for fast queries.
 
 Usage:
     python -m app.precompute.generate_metrics_cache
@@ -36,10 +37,31 @@ from ssl_attention.config import (
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.data.annotations import load_annotations_with_features
-from ssl_attention.metrics import compute_image_iou
+from ssl_attention.metrics import compute_image_iou, compute_image_mse
 from ssl_attention.metrics.iou import aggregate_by_feature_type, compute_per_bbox_iou
 
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
+IMAGE_METRIC_MIGRATIONS = {"mse": "REAL"}
+AGGREGATE_METRIC_MIGRATIONS = {
+    "mean_mse": "REAL",
+    "std_mse": "REAL",
+    "median_mse": "REAL",
+}
+
+
+def ensure_table_columns(
+    conn: sqlite3.Connection,
+    table_name: str,
+    expected_columns: dict[str, str],
+) -> None:
+    """Add missing columns to an existing SQLite table in place."""
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    for column_name, column_type in expected_columns.items():
+        if column_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
 
 
 def create_database(db_path: Path) -> sqlite3.Connection:
@@ -60,6 +82,7 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             coverage REAL NOT NULL,
             attention_area REAL NOT NULL,
             annotation_area REAL NOT NULL,
+            mse REAL,
             UNIQUE(model, layer, method, image_id, percentile)
         )
     """)
@@ -76,6 +99,9 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             std_iou REAL NOT NULL,
             median_iou REAL NOT NULL,
             mean_coverage REAL NOT NULL,
+            mean_mse REAL,
+            std_mse REAL,
+            median_mse REAL,
             num_images INTEGER NOT NULL,
             UNIQUE(model, layer, method, percentile)
         )
@@ -120,6 +146,9 @@ def create_database(db_path: Path) -> sqlite3.Connection:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_model_layer ON image_metrics(model, layer, method)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_image_id ON image_metrics(image_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_agg_model ON aggregate_metrics(model, method)")
+
+    ensure_table_columns(conn, "image_metrics", IMAGE_METRIC_MIGRATIONS)
+    ensure_table_columns(conn, "aggregate_metrics", AGGREGATE_METRIC_MIGRATIONS)
 
     conn.commit()
     return conn
@@ -194,14 +223,23 @@ def compute_metrics_for_model(
                     stats["skipped"] += len(percentiles)
                     continue
 
+                try:
+                    image_mse = compute_image_mse(attention=attention, annotation=annotation)
+                except Exception as e:
+                    print(f"\nError computing MSE for {image_id} layer{layer}/{variant}: {e}")
+                    stats["errors"] += len(percentiles)
+                    continue
+
                 for percentile in percentiles:
                     # Check if already exists
                     if skip_existing:
                         cursor.execute(
-                            "SELECT 1 FROM image_metrics WHERE model=? AND layer=? AND method=? AND image_id=? AND percentile=?",
+                            """SELECT mse FROM image_metrics
+                               WHERE model=? AND layer=? AND method=? AND image_id=? AND percentile=?""",
                             (model_name, layer_key, variant, image_id, percentile),
                         )
-                        if cursor.fetchone():
+                        existing_row = cursor.fetchone()
+                        if existing_row and existing_row[0] is not None:
                             stats["skipped"] += 1
                             continue
 
@@ -216,8 +254,8 @@ def compute_metrics_for_model(
                         # Insert into database
                         cursor.execute(
                             """INSERT OR REPLACE INTO image_metrics
-                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area, mse)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                             (
                                 model_name,
                                 layer_key,
@@ -228,6 +266,7 @@ def compute_metrics_for_model(
                                 result.coverage,
                                 result.attention_area,
                                 result.annotation_area,
+                                image_mse,
                             ),
                         )
 
@@ -246,7 +285,8 @@ def compute_metrics_for_model(
 
             for percentile in percentiles:
                 cursor.execute(
-                    "SELECT iou, coverage FROM image_metrics WHERE model=? AND layer=? AND method=? AND percentile=?",
+                    """SELECT iou, coverage, mse FROM image_metrics
+                       WHERE model=? AND layer=? AND method=? AND percentile=?""",
                     (model_name, layer_key, variant, percentile),
                 )
                 rows = cursor.fetchall()
@@ -254,13 +294,18 @@ def compute_metrics_for_model(
                 if not rows:
                     continue
 
-                ious = torch.tensor([r[0] for r in rows])
-                coverages = torch.tensor([r[1] for r in rows])
+                complete_rows = [row for row in rows if row[2] is not None]
+                if not complete_rows:
+                    continue
+
+                ious = torch.tensor([r[0] for r in complete_rows])
+                coverages = torch.tensor([r[1] for r in complete_rows])
+                mses = torch.tensor([r[2] for r in complete_rows], dtype=torch.float32)
 
                 cursor.execute(
                     """INSERT OR REPLACE INTO aggregate_metrics
-                       (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage, num_images)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage, mean_mse, std_mse, median_mse, num_images)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         model_name,
                         layer_key,
@@ -270,7 +315,10 @@ def compute_metrics_for_model(
                         ious.std().item(),
                         ious.median().item(),
                         coverages.mean().item(),
-                        len(rows),
+                        mses.mean().item(),
+                        mses.std().item(),
+                        mses.median().item(),
+                        len(complete_rows),
                     ),
                 )
 

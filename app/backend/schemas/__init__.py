@@ -1,6 +1,8 @@
 """Pydantic schemas for API request/response models."""
 
 from app.backend.schemas.models import (
+    AllModelsSummaryModelEntry,
+    AllModelsSummarySchema,
     BoundingBoxSchema,
     FeatureBreakdownSchema,
     FeatureIoUEntry,
@@ -16,6 +18,8 @@ from app.backend.schemas.models import (
 )
 
 __all__ = [
+    "AllModelsSummaryModelEntry",
+    "AllModelsSummarySchema",
     "BoundingBoxSchema",
     "FeatureBreakdownSchema",
     "FeatureIoUEntry",

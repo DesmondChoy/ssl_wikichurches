@@ -24,4 +24,6 @@ export const GLOSSARY: Record<string, string> = {
     + 'Color reflects relative performance: green ≥75%, yellow ≥50%, orange ≥25%, red <25% of max.',
   Coverage:
     'Fraction of total attention energy falling inside annotated regions. Unlike IoU, this is threshold-free — it uses raw attention values directly. Higher = more attention focused on annotated features.',
+  MSE:
+    'Mean squared error between the attention heatmap and a Gaussian soft-union ground truth built from the bounding boxes. This metric is threshold-free, and lower values mean closer alignment.',
 };

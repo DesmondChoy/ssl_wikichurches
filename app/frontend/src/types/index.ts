@@ -1,5 +1,7 @@
 // API Response Types
 
+export type DashboardMetric = 'iou' | 'mse';
+
 export interface BoundingBox {
   left: number;
   top: number;
@@ -40,24 +42,29 @@ export interface IoUResult {
   percentile: number;
   iou: number;
   coverage: number;
+  mse: number;
   attention_area: number;
   annotation_area: number;
+  method?: string;
 }
 
 export interface LeaderboardEntry {
   rank: number;
   model: string;
-  best_iou: number;
+  metric: DashboardMetric;
+  score: number;
   best_layer: string;
 }
 
 export interface LayerProgression {
   model: string;
+  metric: DashboardMetric;
   percentile: number;
   layers: string[];
-  ious: number[];
+  scores: number[];
   best_layer: string;
-  best_iou: number;
+  best_score: number;
+  method?: string;
 }
 
 export interface StyleBreakdown {
@@ -91,6 +98,20 @@ export interface ModelComparison {
   percentile: number;
   results: IoUResult[];
   heatmap_urls: Record<string, string>;
+}
+
+export interface AllModelsSummaryModelEntry {
+  rank: number;
+  best_layer: string;
+  best_score: number;
+  layer_progression: Record<string, number>;
+}
+
+export interface AllModelsSummary {
+  percentile: number;
+  metric: DashboardMetric;
+  models: Record<string, AllModelsSummaryModelEntry>;
+  leaderboard: LeaderboardEntry[];
 }
 
 export interface LayerComparison {
