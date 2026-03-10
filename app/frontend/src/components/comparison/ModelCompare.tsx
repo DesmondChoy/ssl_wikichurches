@@ -19,6 +19,7 @@ interface ModelCompareProps {
   imageId: string;
   layer: number;
   percentile: number;
+  method?: string;
   availableModels: string[];
   bboxes: BoundingBox[];
 }
@@ -27,6 +28,7 @@ export function ModelCompare({
   imageId,
   layer,
   percentile,
+  method,
   availableModels,
   bboxes,
 }: ModelCompareProps) {
@@ -46,11 +48,39 @@ export function ModelCompare({
     return Math.min(layer, leftMaxLayer, rightMaxLayer);
   }, [layer, leftModel, modelsData?.num_layers_per_model, rightModel]);
 
+  const comparisonMethod = useMemo(() => {
+    if (!method) {
+      return undefined;
+    }
+
+    const methodsByModel = modelsData?.methods;
+    if (!methodsByModel) {
+      return undefined;
+    }
+
+    const leftMethods = methodsByModel[leftModel] ?? [];
+    const rightMethods = methodsByModel[rightModel] ?? [];
+    return leftMethods.includes(method) && rightMethods.includes(method) ? method : undefined;
+  }, [leftModel, method, modelsData?.methods, rightModel]);
+
+  const compareMethodCopy = useMemo(() => {
+    if (comparisonMethod) {
+      return `Comparing with shared method: ${comparisonMethod}`;
+    }
+
+    if (method) {
+      return `Using each model's default attention method because ${method} is not shared by both selected models.`;
+    }
+
+    return "Using each model's default attention method.";
+  }, [comparisonMethod, method]);
+
   const { data: comparison, isLoading, error } = useModelComparison(
     imageId,
     [leftModel, rightModel],
     effectiveLayer,
     percentile,
+    comparisonMethod,
     !modelsLoading
   );
 
@@ -86,6 +116,13 @@ export function ModelCompare({
         />
       </div>
 
+      <div
+        className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700"
+        data-testid="comparison-method-context"
+      >
+        {compareMethodCopy}
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         {/* Left model */}
         <Card>
@@ -106,6 +143,12 @@ export function ModelCompare({
                   <span className="font-medium">IoU:</span>{' '}
                   {leftResult.iou.toFixed(3)}
                 </div>
+                {leftResult.method && (
+                  <div>
+                    <span className="font-medium">Method:</span>{' '}
+                    {leftResult.method}
+                  </div>
+                )}
                 <div>
                   <span className="font-medium">MSE:</span>{' '}
                   {leftResult.mse.toFixed(4)}
@@ -140,6 +183,12 @@ export function ModelCompare({
                   <span className="font-medium">IoU:</span>{' '}
                   {rightResult.iou.toFixed(3)}
                 </div>
+                {rightResult.method && (
+                  <div>
+                    <span className="font-medium">Method:</span>{' '}
+                    {rightResult.method}
+                  </div>
+                )}
                 <div>
                   <span className="font-medium">MSE:</span>{' '}
                   {rightResult.mse.toFixed(4)}
