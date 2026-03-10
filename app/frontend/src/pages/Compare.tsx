@@ -16,7 +16,7 @@ export function ComparePage() {
   const imageId = searchParams.get('image') || '';
   const comparisonType = searchParams.get('type') || 'models';
 
-  const { model, layer, percentile } = useViewStore();
+  const { model, layer, method, percentile } = useViewStore();
 
   // Fetch image list for selection
   const { data: images } = useQuery({
@@ -98,6 +98,7 @@ export function ComparePage() {
           imageId={imageId}
           layer={layer}
           percentile={percentile}
+          method={method}
           availableModels={imageDetail.available_models}
           bboxes={imageDetail.annotation.bboxes}
         />
