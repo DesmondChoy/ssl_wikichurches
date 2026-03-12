@@ -2,7 +2,7 @@
  * Dashboard page with overall metrics and leaderboard.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -17,10 +17,18 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
+import type { DashboardMetric } from '../types';
+import {
+  DASHBOARD_METRIC_METADATA,
+  DASHBOARD_METRIC_OPTIONS,
+} from '../constants/metricMetadata';
 
 export function DashboardPage() {
   const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
   const { data: modelsData } = useModels();
+  const [metric, setMetric] = useState<DashboardMetric>('iou');
+  const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
+  const metricLabel = metricMetadata.chartLabel;
 
   // Populate store with model config (methods, layer counts) so setModel
   // resolves the correct default method (e.g. gradcam for ResNet-50)
@@ -36,7 +44,7 @@ export function DashboardPage() {
     }
   }, [modelsData, setNumLayersPerModel]);
 
-  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile);
+  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile, metric);
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
 
   // Collect all unique layers from API response (handles models with different layer counts)
@@ -66,11 +74,12 @@ export function DashboardPage() {
     }
     return layerData;
   });
+  const yAxisConfig = getYAxisConfig(metric, chartData);
 
   // Style breakdown data
   const styleData = styleBreakdown
     ? Object.entries(styleBreakdown.styles).map(([style, iou]) => ({
-        style,
+        styleLabel: style,
         iou,
         count: styleBreakdown.style_counts[style] || 0,
       }))
@@ -87,21 +96,36 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <Select
-          value={percentile}
-          onChange={(v) => setPercentile(Number(v))}
-          options={PERCENTILE_OPTIONS}
-          label="Threshold"
-        />
+        <div className="flex gap-3">
+          <Select
+            value={metric}
+            onChange={(value) => setMetric(value as DashboardMetric)}
+            options={DASHBOARD_METRIC_OPTIONS.map((option) => ({ ...option }))}
+            label="Metric"
+          />
+          <Select
+            value={percentile}
+            onChange={(v) => setPercentile(Number(v))}
+            options={PERCENTILE_OPTIONS}
+            label="Threshold"
+          />
+        </div>
       </div>
+
+      {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          {metricMetadata.infoBanner}
+        </div>
+      )}
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard */}
         <div>
-          <ErrorBoundary resetKeys={[percentile]}>
+          <ErrorBoundary resetKeys={[percentile, metric]}>
             <ModelLeaderboard
               percentile={percentile}
+              metric={metric}
               onModelSelect={setModel}
             />
           </ErrorBoundary>
@@ -111,7 +135,10 @@ export function DashboardPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
-              <h3 className="font-semibold">Layer Progression (All Models)</h3>
+              <div className="flex justify-between items-center gap-4">
+                <h3 className="font-semibold">Layer Progression (All Models)</h3>
+                <span className="text-xs text-gray-500">{metricLabel}</span>
+              </div>
             </CardHeader>
             <CardContent>
               {summaryLoading ? (
@@ -127,12 +154,13 @@ export function DashboardPage() {
                         tickMargin={10}
                       />
                       <YAxis 
-                        domain={[0, 1]} 
+                        domain={yAxisConfig.domain}
+                        ticks={yAxisConfig.ticks}
                         tick={{ fontSize: 12 }}
-                        tickFormatter={(v) => v.toFixed(1)}
+                        tickFormatter={formatAxisTick}
                       />
                       <Tooltip 
-                        formatter={(value: number) => [value.toFixed(3), 'IoU']}
+                        formatter={(value: number) => [value.toFixed(3), metricLabel]}
                         labelStyle={{ color: '#374151', fontWeight: 600 }}
                       />
                       <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
@@ -164,7 +192,7 @@ export function DashboardPage() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <h3 className="font-semibold">IoU by Architectural Style</h3>
-              <span className="text-xs text-gray-500 capitalize">{model}</span>
+              <span className="text-xs text-gray-500 capitalize">{model} • IoU only</span>
             </div>
           </CardHeader>
           <CardContent>
@@ -178,7 +206,7 @@ export function DashboardPage() {
                     <XAxis type="number" domain={[0, 1]} tick={{ fontSize: 12 }} />
                     <YAxis 
                       type="category" 
-                      dataKey="style" 
+                      dataKey="styleLabel" 
                       tick={{ fontSize: 12 }}
                       width={80}
                     />
@@ -259,4 +287,68 @@ export function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+interface YAxisConfig {
+  domain: [number, number];
+  ticks: number[];
+}
+
+function getYAxisConfig(
+  metric: DashboardMetric,
+  chartData: Record<string, number | string>[]
+): YAxisConfig {
+  const axisMode = DASHBOARD_METRIC_METADATA[metric].axisMode;
+  if (axisMode === 'unit') {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const values = chartData.flatMap((point) =>
+    Object.entries(point)
+      .filter(([key]) => key !== 'layer')
+      .map(([, value]) => value)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  );
+
+  if (!values.length) {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const maxValue = Math.max(...values);
+  if (maxValue <= 0) {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
+
+  const roughStep = maxValue / 5;
+  const step = getNiceStep(roughStep);
+  const max = roundAxisValue(Math.ceil(maxValue / step) * step);
+  const tickCount = Math.max(1, Math.round(max / step));
+  const ticks = Array.from({ length: tickCount + 1 }, (_, index) =>
+    roundAxisValue(index * step)
+  );
+
+  return { domain: [0, max], ticks };
+}
+
+function getNiceStep(value: number): number {
+  const exponent = Math.floor(Math.log10(value));
+  const magnitude = 10 ** exponent;
+  const normalized = value / magnitude;
+
+  if (normalized <= 1) return 1 * magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function roundAxisValue(value: number): number {
+  return Number(value.toFixed(6));
+}
+
+function formatAxisTick(value: number): string {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  return value.toFixed(3).replace(/\.?0+$/, '');
 }

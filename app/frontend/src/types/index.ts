@@ -1,5 +1,7 @@
 // API Response Types
 
+export type DashboardMetric = 'iou' | 'mse' | 'kl';
+
 export interface BoundingBox {
   left: number;
   top: number;
@@ -40,24 +42,62 @@ export interface IoUResult {
   percentile: number;
   iou: number;
   coverage: number;
+  mse: number;
+  kl: number;
   attention_area: number;
   annotation_area: number;
+  method?: string;
+}
+
+export type MetricDirection = 'higher' | 'lower';
+
+export interface ImageMetricDescriptor {
+  key: string;
+  label: string;
+  direction: MetricDirection;
+  default_enabled: boolean;
+  percentile_dependent: boolean;
+}
+
+export interface ImageMetricSelection {
+  mode: 'union' | 'bbox';
+  bbox_index: number | null;
+  bbox_label: string | null;
+}
+
+export interface ImageLayerMetricPoint {
+  layer: number;
+  layer_key: string;
+  values: Record<string, number | null>;
+}
+
+export interface ImageLayerProgression {
+  image_id: string;
+  model: string;
+  method: string;
+  percentile: number;
+  selection: ImageMetricSelection;
+  metrics: ImageMetricDescriptor[];
+  layers: ImageLayerMetricPoint[];
 }
 
 export interface LeaderboardEntry {
   rank: number;
   model: string;
-  best_iou: number;
+  metric: DashboardMetric;
+  score: number;
   best_layer: string;
 }
 
 export interface LayerProgression {
   model: string;
+  metric: DashboardMetric;
   percentile: number;
   layers: string[];
-  ious: number[];
+  scores: number[];
   best_layer: string;
-  best_iou: number;
+  best_score: number;
+  method?: string;
 }
 
 export interface StyleBreakdown {
@@ -91,6 +131,20 @@ export interface ModelComparison {
   percentile: number;
   results: IoUResult[];
   heatmap_urls: Record<string, string>;
+}
+
+export interface AllModelsSummaryModelEntry {
+  rank: number;
+  best_layer: string;
+  best_score: number;
+  layer_progression: Record<string, number>;
+}
+
+export interface AllModelsSummary {
+  percentile: number;
+  metric: DashboardMetric;
+  models: Record<string, AllModelsSummaryModelEntry>;
+  leaderboard: LeaderboardEntry[];
 }
 
 export interface LayerComparison {

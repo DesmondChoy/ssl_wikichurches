@@ -5,7 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 import { comparisonAPI } from '../../api/client';
-import type { BoundingBox } from '../../types';
+import { useModels } from '../../hooks/useAttention';
 
 interface FrozenVsFinetunedProps {
   imageId: string;
@@ -16,25 +16,22 @@ interface FrozenVsFinetunedProps {
   showBboxes?: boolean;
 }
 
-export function FrozenVsFinetuned({
-  imageId,
-  model,
-  layer,
-  strategy,
-  bboxes = [],
-  showBboxes = true,
-}: FrozenVsFinetunedProps) {
+export function FrozenVsFinetuned({ imageId, model, layer }: FrozenVsFinetunedProps) {
+  const { data: modelsData, isLoading: modelsLoading } = useModels();
+  const maxLayer = modelsData?.num_layers_per_model?.[model];
+  const effectiveLayer = typeof maxLayer === 'number' ? Math.min(layer, maxLayer - 1) : layer;
+
   const {
     data,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['frozen-vs-finetuned', imageId, model, layer, strategy, showBboxes],
-    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, layer, strategy, showBboxes),
-    enabled: Boolean(imageId && model),
+    queryKey: ['frozen-vs-finetuned', imageId, model, effectiveLayer],
+    queryFn: () => comparisonAPI.compareFrozenVsFinetuned(imageId, model, effectiveLayer),
+    enabled: Boolean(imageId && model && !modelsLoading),
   });
 
-  if (isLoading) {
+  if (modelsLoading || isLoading) {
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
         Loading frozen vs fine-tuned availability...

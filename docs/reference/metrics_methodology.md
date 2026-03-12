@@ -2,6 +2,8 @@
 
 This document provides a detailed technical reference for the quantitative metrics used to evaluate attention-annotation alignment in this project. It covers metric definitions, thresholding methodology, ground truth construction, worked examples from live testing, and known limitations.
 
+For presentation, the intended interpretation is: The heatmap shows what the model is attending to, and the metric chart shows how well that attention aligns with the annotation at each layer.
+
 > **Related documents:**
 > - [Attention Methods Guide](../research/attention_methods.md) — Attention extraction methods, model considerations, and the plausibility vs. faithfulness distinction
 > - [API Reference](api_reference.md) — REST endpoints for querying metrics (`/api/metrics/...`)
@@ -93,6 +95,41 @@ Where:
 
 ```
 Source: src/ssl_attention/metrics/iou.py → compute_coverage()
+```
+
+### Continuous Gaussian-Target Metrics (MSE and KL Divergence)
+
+The continuous metrics compare attention against a **Gaussian soft-union ground truth** derived from the expert bounding boxes. For each bbox, the backend renders an anisotropic Gaussian centered on the box, combines multiple boxes with a pixelwise `max`, and re-normalizes the result into the heatmap range.
+
+**MSE** measures pointwise error between the normalized attention heatmap and that Gaussian soft target:
+
+```
+MSE = mean((attention - gaussian_gt)^2)
+```
+
+**KL divergence** measures distribution-level mismatch after both maps are treated as probability distributions:
+
+```
+KL(GT || attention) = Σ GT × log(GT / attention)
+```
+
+Where:
+- **GT** = Gaussian soft-union ground truth
+- **attention** = model attention heatmap
+- Both maps are clamped to non-negative values, `nan_to_num`-sanitized, epsilon-smoothed, and normalized to sum to 1 before KL is computed
+
+**Properties:**
+- **Threshold-free**: changing the percentile slider does not change MSE or KL for a fixed image/model/layer/method
+- **Lower is better** for both metrics
+- **MSE** is bounded by the normalized heatmap range used here
+- **KL divergence** is non-negative and unbounded above
+- Identical prepared distributions produce KL ≈ 0
+- Epsilon smoothing keeps KL finite even when either map is sparse or nearly zero
+
+**Design note on direction:** The API and UI report **`KL(GT || attention)`**, not the reverse direction. This means the Gaussian target distribution is treated as the reference distribution, and the model attention is measured by how much probability mass it fails to place where the annotations say it should.
+
+```
+Source: src/ssl_attention/metrics/continuous.py → gaussian_bbox_heatmap(), soft_union_heatmap(), compute_mse(), compute_kl_divergence()
 ```
 
 ### Supporting Metrics

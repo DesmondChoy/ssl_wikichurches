@@ -1,12 +1,18 @@
 """Pydantic schemas for API request/response models."""
 
 from app.backend.schemas.models import (
+    AllModelsSummaryModelEntry,
+    AllModelsSummarySchema,
     BoundingBoxSchema,
     FeatureBreakdownSchema,
     FeatureIoUEntry,
     ImageAnnotationSchema,
     ImageDetailSchema,
+    ImageLayerMetricPointSchema,
+    ImageLayerProgressionSchema,
     ImageListItem,
+    ImageMetricDescriptorSchema,
+    ImageMetricSelectionSchema,
     IoUResultSchema,
     LayerProgressionSchema,
     LeaderboardEntry,
@@ -17,12 +23,18 @@ from app.backend.schemas.models import (
 )
 
 __all__ = [
+    "AllModelsSummaryModelEntry",
+    "AllModelsSummarySchema",
     "BoundingBoxSchema",
     "FeatureBreakdownSchema",
     "FeatureIoUEntry",
     "ImageAnnotationSchema",
     "ImageDetailSchema",
+    "ImageLayerMetricPointSchema",
+    "ImageLayerProgressionSchema",
     "ImageListItem",
+    "ImageMetricDescriptorSchema",
+    "ImageMetricSelectionSchema",
     "IoUResultSchema",
     "LayerProgressionSchema",
     "LeaderboardEntry",

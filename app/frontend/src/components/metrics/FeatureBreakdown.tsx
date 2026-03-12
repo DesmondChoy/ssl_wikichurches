@@ -58,7 +58,10 @@ export function FeatureBreakdown({ model, layer, percentile, method }: FeatureBr
     return (
       <Card>
         <CardHeader>
-          <h3 className="font-semibold">Feature Type Breakdown</h3>
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold">Feature Type Breakdown</h3>
+            <span className="text-xs text-gray-500">IoU only</span>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-2">
@@ -75,7 +78,10 @@ export function FeatureBreakdown({ model, layer, percentile, method }: FeatureBr
     return (
       <Card>
         <CardHeader>
-          <h3 className="font-semibold">Feature Type Breakdown</h3>
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold">Feature Type Breakdown</h3>
+            <span className="text-xs text-gray-500">IoU only</span>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-red-500 text-sm">Failed to load feature breakdown</div>
@@ -89,7 +95,7 @@ export function FeatureBreakdown({ model, layer, percentile, method }: FeatureBr
       <CardHeader>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Feature Type Breakdown</h3>
-          <span className="text-xs text-gray-500 capitalize">{model} • Layer {layer}</span>
+          <span className="text-xs text-gray-500 capitalize">{model} • Layer {layer} • IoU only</span>
         </div>
       </CardHeader>
       <CardContent className="p-0">

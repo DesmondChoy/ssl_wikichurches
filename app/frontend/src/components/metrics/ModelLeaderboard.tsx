@@ -4,14 +4,20 @@
 
 import { useLeaderboard } from '../../hooks/useMetrics';
 import { Card, CardHeader, CardContent } from '../ui/Card';
+import type { DashboardMetric } from '../../types';
+import { DASHBOARD_METRIC_METADATA } from '../../constants/metricMetadata';
 
 interface ModelLeaderboardProps {
   percentile: number;
+  metric: DashboardMetric;
   onModelSelect?: (model: string) => void;
 }
 
-export function ModelLeaderboard({ percentile, onModelSelect }: ModelLeaderboardProps) {
-  const { data: leaderboard, isLoading, error } = useLeaderboard(percentile);
+export function ModelLeaderboard({ percentile, metric, onModelSelect }: ModelLeaderboardProps) {
+  const { data: leaderboard, isLoading, error } = useLeaderboard(percentile, metric);
+  const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
+  const metricLabel = metricMetadata.shortLabel;
+  const metricHint = metricMetadata.hint(percentile);
 
   if (isLoading) {
     return (
@@ -48,7 +54,7 @@ export function ModelLeaderboard({ percentile, onModelSelect }: ModelLeaderboard
       <CardHeader>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Model Leaderboard</h3>
-          <span className="text-xs text-gray-500">Top {100 - percentile}% threshold</span>
+          <span className="text-xs text-gray-500">{metricHint}</span>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -84,12 +90,12 @@ export function ModelLeaderboard({ percentile, onModelSelect }: ModelLeaderboard
                 </div>
               </div>
 
-              {/* IoU score */}
+              {/* Metric score */}
               <div className="text-right">
                 <div className="text-lg font-bold text-primary-600">
-                  {entry.best_iou.toFixed(3)}
+                  {entry.score.toFixed(3)}
                 </div>
-                <div className="text-xs text-gray-500">IoU</div>
+                <div className="text-xs text-gray-500">{metricLabel}</div>
               </div>
             </div>
           ))}

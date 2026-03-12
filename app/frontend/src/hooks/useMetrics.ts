@@ -4,11 +4,12 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
+import type { DashboardMetric } from '../types';
 
-export function useLeaderboard(percentile: number) {
+export function useLeaderboard(percentile: number, metric: DashboardMetric) {
   return useQuery({
-    queryKey: ['leaderboard', percentile],
-    queryFn: () => metricsAPI.getLeaderboard(percentile),
+    queryKey: ['leaderboard', percentile, metric],
+    queryFn: () => metricsAPI.getLeaderboard(percentile, metric),
   });
 }
 
@@ -48,10 +49,10 @@ export function useAggregateMetrics(model: string, layer: number, percentile: nu
   });
 }
 
-export function useAllModelsSummary(percentile: number) {
+export function useAllModelsSummary(percentile: number, metric: DashboardMetric) {
   return useQuery({
-    queryKey: ['allModelsSummary', percentile],
-    queryFn: () => comparisonAPI.getAllModelsSummary(percentile),
+    queryKey: ['allModelsSummary', percentile, metric],
+    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric),
   });
 }
 

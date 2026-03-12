@@ -5,22 +5,26 @@
  * containers (e.g. Card).
  */
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   content: string;
   /** Horizontal alignment of the popup relative to the "?" button. */
   align?: 'center' | 'left' | 'right';
+  /** Optional custom trigger. If omitted, renders the default "?" button. */
+  children?: ReactNode;
+  /** Popup width in pixels. */
+  width?: number;
 }
 
-export function Tooltip({ content, align = 'center' }: TooltipProps) {
+export function Tooltip({ content, align = 'center', children, width = 256 }: TooltipProps) {
   const [position, setPosition] = useState<DOMRect | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
 
   const show = () => {
-    if (buttonRef.current) {
-      setPosition(buttonRef.current.getBoundingClientRect());
+    if (triggerRef.current) {
+      setPosition(triggerRef.current.getBoundingClientRect());
     }
   };
 
@@ -35,27 +39,28 @@ export function Tooltip({ content, align = 'center' }: TooltipProps) {
     if (align === 'left') {
       left = position.left;
     } else if (align === 'right') {
-      left = position.right - 256; // w-64 = 256px
+      left = position.right - width;
     } else {
-      left = position.left + position.width / 2 - 128; // center
+      left = position.left + position.width / 2 - width / 2;
     }
 
     let arrowLeft: number;
     if (align === 'left') {
-      arrowLeft = position.width / 2;
+      arrowLeft = clampArrowOffset(position.width / 2, width);
     } else if (align === 'right') {
-      arrowLeft = 256 - position.width / 2;
+      arrowLeft = clampArrowOffset(width - position.width / 2, width);
     } else {
-      arrowLeft = 128; // center
+      arrowLeft = width / 2;
     }
 
     popup = createPortal(
       <div
-        className="fixed z-50 w-64 p-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none"
+        className="fixed z-50 p-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none"
         style={{
           left,
           top: position.top - 8, // 8px gap (mb-2)
           transform: 'translateY(-100%)',
+          width,
         }}
       >
         {content}
@@ -69,20 +74,28 @@ export function Tooltip({ content, align = 'center' }: TooltipProps) {
   }
 
   return (
-    <span className="relative inline-flex items-center">
-      <button
-        ref={buttonRef}
-        type="button"
-        className="ml-1 inline-flex items-center justify-center w-4 h-4 text-xs text-gray-500 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        onFocus={show}
-        onBlur={hide}
-        aria-label="Help"
-      >
-        ?
-      </button>
+    <span
+      ref={triggerRef}
+      className="relative inline-flex items-center"
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocusCapture={show}
+      onBlurCapture={hide}
+    >
+      {children ?? (
+        <button
+          type="button"
+          className="ml-1 inline-flex items-center justify-center w-4 h-4 text-xs text-gray-500 bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary-500"
+          aria-label="Help"
+        >
+          ?
+        </button>
+      )}
       {popup}
     </span>
   );
+}
+
+function clampArrowOffset(offset: number, width: number): number {
+  return Math.max(16, Math.min(offset, width - 16));
 }

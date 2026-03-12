@@ -15,7 +15,7 @@ export function HomePage() {
   const [styleFilter, setStyleFilter] = useState<string>('');
 
   // Fetch styles
-  const { data: styles } = useQuery({
+  const { data: styles, error: stylesError } = useQuery({
     queryKey: ['styles'],
     queryFn: () => imagesAPI.getStyles(),
   });
@@ -25,6 +25,7 @@ export function HomePage() {
     queryKey: ['images', styleFilter],
     queryFn: () => imagesAPI.list({ style: styleFilter || undefined }),
   });
+  const hasLoadError = !!stylesError || !!error;
 
   const styleOptions = [
     { value: '', label: 'All Styles' },
@@ -38,7 +39,9 @@ export function HomePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">WikiChurches Attention Analysis</h1>
           <p className="text-gray-600 mt-1">
-            {images?.length || 0} annotated images with {images?.reduce((sum, img) => sum + img.num_bboxes, 0) || 0} bounding boxes
+            {hasLoadError
+              ? 'Dataset summary unavailable while the backend is offline.'
+              : `${images?.length || 0} annotated images with ${images?.reduce((sum, img) => sum + img.num_bboxes, 0) || 0} bounding boxes`}
           </p>
         </div>
 
@@ -63,14 +66,14 @@ export function HomePage() {
       )}
 
       {/* Error state */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          Failed to load images. Make sure the backend is running.
+      {hasLoadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+          Failed to load gallery data. Make sure the backend is running, then refresh this page to retry.
         </div>
       )}
 
       {/* Image grid */}
-      {images && (
+      {images && !hasLoadError && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {images.map((image) => (
             <ImageCard

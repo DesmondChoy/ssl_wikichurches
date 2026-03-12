@@ -6,8 +6,8 @@
  * to compare how different models "see" the same architectural feature.
  */
 
-import { useState, useMemo } from 'react';
-import { useModelComparison } from '../../hooks/useAttention';
+import { useMemo, useState } from 'react';
+import { useModelComparison, useModels } from '../../hooks/useAttention';
 import { Select } from '../ui/Select';
 import { Card, CardContent } from '../ui/Card';
 import { SimilarityViewer } from './SimilarityViewer';
@@ -19,6 +19,7 @@ interface ModelCompareProps {
   imageId: string;
   layer: number;
   percentile: number;
+  method?: string;
   availableModels: string[];
   bboxes: BoundingBox[];
 }
@@ -27,18 +28,60 @@ export function ModelCompare({
   imageId,
   layer,
   percentile,
+  method,
   availableModels,
   bboxes,
 }: ModelCompareProps) {
   const [leftModel, setLeftModel] = useState(availableModels[0] || 'dinov2');
   const [rightModel, setRightModel] = useState(availableModels[1] || 'clip');
   const [selectedBboxIndex, setSelectedBboxIndex] = useState<number | null>(null);
+  const { data: modelsData, isLoading: modelsLoading } = useModels();
+
+  const effectiveLayer = useMemo(() => {
+    const numLayersByModel = modelsData?.num_layers_per_model;
+    if (!numLayersByModel) {
+      return layer;
+    }
+
+    const leftMaxLayer = Math.max((numLayersByModel[leftModel] ?? layer + 1) - 1, 0);
+    const rightMaxLayer = Math.max((numLayersByModel[rightModel] ?? layer + 1) - 1, 0);
+    return Math.min(layer, leftMaxLayer, rightMaxLayer);
+  }, [layer, leftModel, modelsData?.num_layers_per_model, rightModel]);
+
+  const comparisonMethod = useMemo(() => {
+    if (!method) {
+      return undefined;
+    }
+
+    const methodsByModel = modelsData?.methods;
+    if (!methodsByModel) {
+      return undefined;
+    }
+
+    const leftMethods = methodsByModel[leftModel] ?? [];
+    const rightMethods = methodsByModel[rightModel] ?? [];
+    return leftMethods.includes(method) && rightMethods.includes(method) ? method : undefined;
+  }, [leftModel, method, modelsData?.methods, rightModel]);
+
+  const compareMethodCopy = useMemo(() => {
+    if (comparisonMethod) {
+      return `Comparing with shared method: ${comparisonMethod}`;
+    }
+
+    if (method) {
+      return `Using each model's default attention method because ${method} is not shared by both selected models.`;
+    }
+
+    return "Using each model's default attention method.";
+  }, [comparisonMethod, method]);
 
   const { data: comparison, isLoading, error } = useModelComparison(
     imageId,
     [leftModel, rightModel],
-    layer,
-    percentile
+    effectiveLayer,
+    percentile,
+    comparisonMethod,
+    !modelsLoading
   );
 
   const modelOptions = availableModels.map((m) => ({
@@ -51,6 +94,8 @@ export function ModelCompare({
 
   // Get selected bbox for display
   const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
+  const leftResult = comparison?.results.find((result) => result.model === leftModel);
+  const rightResult = comparison?.results.find((result) => result.model === rightModel);
 
   return (
     <div className="space-y-4">
@@ -71,26 +116,49 @@ export function ModelCompare({
         />
       </div>
 
+      <div
+        className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700"
+        data-testid="comparison-method-context"
+      >
+        {compareMethodCopy}
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         {/* Left model */}
         <Card>
-          <ErrorBoundary resetKeys={[imageId, leftModel, layer]}>
+          <ErrorBoundary resetKeys={[imageId, leftModel, effectiveLayer]}>
             <SimilarityViewer
               imageId={imageId}
               model={leftModel}
-              layer={layer}
+              layer={effectiveLayer}
               bboxes={bboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={setSelectedBboxIndex}
             />
           </ErrorBoundary>
           <CardContent>
-            {comparison?.results.find((r) => r.model === leftModel) && (
-              <div className="text-sm">
-                <span className="font-medium">IoU:</span>{' '}
-                {comparison.results
-                  .find((r) => r.model === leftModel)
-                  ?.iou.toFixed(3)}
+            {leftResult && (
+              <div className="space-y-1 text-sm">
+                <div>
+                  <span className="font-medium">IoU:</span>{' '}
+                  {leftResult.iou.toFixed(3)}
+                </div>
+                {leftResult.method && (
+                  <div>
+                    <span className="font-medium">Method:</span>{' '}
+                    {leftResult.method}
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">MSE:</span>{' '}
+                  {leftResult.mse.toFixed(4)}
+                </div>
+                {Number.isFinite(leftResult.kl) && (
+                  <div>
+                    <span className="font-medium">KL:</span>{' '}
+                    {leftResult.kl.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -98,23 +166,39 @@ export function ModelCompare({
 
         {/* Right model */}
         <Card>
-          <ErrorBoundary resetKeys={[imageId, rightModel, layer]}>
+          <ErrorBoundary resetKeys={[imageId, rightModel, effectiveLayer]}>
             <SimilarityViewer
               imageId={imageId}
               model={rightModel}
-              layer={layer}
+              layer={effectiveLayer}
               bboxes={bboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={setSelectedBboxIndex}
             />
           </ErrorBoundary>
           <CardContent>
-            {comparison?.results.find((r) => r.model === rightModel) && (
-              <div className="text-sm">
-                <span className="font-medium">IoU:</span>{' '}
-                {comparison.results
-                  .find((r) => r.model === rightModel)
-                  ?.iou.toFixed(3)}
+            {rightResult && (
+              <div className="space-y-1 text-sm">
+                <div>
+                  <span className="font-medium">IoU:</span>{' '}
+                  {rightResult.iou.toFixed(3)}
+                </div>
+                {rightResult.method && (
+                  <div>
+                    <span className="font-medium">Method:</span>{' '}
+                    {rightResult.method}
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">MSE:</span>{' '}
+                  {rightResult.mse.toFixed(4)}
+                </div>
+                {Number.isFinite(rightResult.kl) && (
+                  <div>
+                    <span className="font-medium">KL:</span>{' '}
+                    {rightResult.kl.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -153,7 +237,7 @@ export function ModelCompare({
         </p>
       )}
 
-      {isLoading && (
+      {(modelsLoading || isLoading) && (
         <div className="text-center text-gray-500">Loading comparison...</div>
       )}
       {error && (
