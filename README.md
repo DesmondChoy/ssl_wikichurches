@@ -138,6 +138,14 @@ uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-ba
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora --val-on-annotated-eval
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --val-on-annotated-eval
 
+uv run python experiments/scripts/fine_tune_models.py --model dinov3 --freeze-backbone --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model dinov3 --lora --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model dinov3 --val-on-annotated-eval
+
+uv run python experiments/scripts/fine_tune_models.py --model clip --freeze-backbone --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model clip --lora --val-on-annotated-eval
+uv run python experiments/scripts/fine_tune_models.py --model clip --val-on-annotated-eval
+
 # Example commands to run fine tuning on various models with different methods only on annotated images
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --freeze-backbone
 uv run python experiments/scripts/fine_tune_models.py --model dinov2 --lora

@@ -410,7 +410,126 @@ Linear probe and full fine-tuning share the same checkpoint path — the differe
 
 ---
 
-## 10. Alternative Perspective: Why NOT to Fine-Tune
+
+## 10. Fine-tuning Approaches
+
+
+### Context: What Fine-Tuning Does in This Project
+
+The SSL models (DINOv2, CLIP, etc.) are pretrained vision backbones that produce **attention maps** — heatmaps showing which parts of an image the model "looks at." Fine-tuning on a classification task is **not the goal** — it's an **intervention** that reshapes the model's internal attention. The actual evaluation is always the same: do the attention maps align better or worse with the 631 expert bounding boxes on the 139 annotated images?
+
+```
+1. Frozen model     → extract attention → IoU with expert bboxes → "frozen IoU"
+2. Fine-tune on classification task (style, country, etc.)
+3. Fine-tuned model → extract attention → IoU with expert bboxes → "fine-tuned IoU"
+4. Δ IoU = fine-tuned IoU − frozen IoU
+```
+
+Each classification task applies a **different learning pressure** on the model's attention:
+- **Style →** Pressure to distinguish Romanesque from Gothic → model should attend to style-diagnostic features (pointed arches, rose windows, buttresses)
+- **Country →** Pressure to distinguish Germany from France → model might attend to non-architectural cues (landscape, sky, surroundings) → attention likely drifts *away* from expert features
+- **More classes →** Finer distinctions (e.g., Gothic vs. Gothic Revival) → must attend to subtler architectural details
+
+The interesting finding isn't "which task gets the best classification accuracy" — it's **how each task reshapes attention relative to the same expert annotations**.
+
+---
+
+### 1. Country Classification (Geographic Proxy)
+
+Classify churches by **country** instead of architectural style.
+
+- **Top classes:** Germany (3,557), France (1,063), UK (943), Spain (717), Italy (538)
+- **Why interesting:** Acts as a **negative control** for the Preserve/Enhance/Destroy taxonomy. Country classification likely pushes models toward background/landscape cues rather than architectural features. If country fine-tuning *destroys* attention alignment (Δ IoU drops) while style fine-tuning enhances it, that's strong evidence attention alignment is task-driven rather than incidental.
+
+**Implementation effort: Low**
+- Add a `COUNTRY_MAPPING` in `config.py` analogous to `STYLE_MAPPING`
+- Extend `FullDataset` to expose country labels by reading `country.id` from `churches.json`
+- Update `_compute_class_weights` in `FineTuner` to accept `num_classes` instead of hardcoding `NUM_STYLES`
+- `ClassificationHead` and `FineTunableModel` already accept `num_classes` as a parameter
+- Δ IoU analysis script is task-agnostic — **no changes needed**
+
+---
+
+### 2. Expanded Style Taxonomy (More Than 4 Classes)
+
+Expand from **4 styles to 8–10** by including additional architectural styles.
+
+- **Candidates:** Gothic Revival (Q186363: 1,636), Modern Architecture (Q245188: 500), Romanesque Revival (Q744373: 492), Neoclassical (Q54111: 381), Brick Gothic (Q695863: 272)
+- **Why interesting:** Finer-grained style distinctions force models to attend to subtler discriminative features. If Δ IoU increases more with 10 classes than 4, it suggests the classification objective's **granularity directly modulates attention specificity**.
+
+**Implementation effort: Very Low**
+- Expand `STYLE_MAPPING` and `STYLE_NAMES` in `config.py`
+- Everything downstream (`FullDataset`, `FineTunableModel`, `ClassificationHead`) derives from `NUM_STYLES = len(STYLE_MAPPING)` automatically
+- **No structural code changes needed**
+
+---
+
+### 3. Multi-Label Style Classification
+
+Treat churches with **multiple styles as multi-label** instead of picking the first style.
+
+- **Scope:** 433 of 9,346 churches have >1 style label
+- **Why interesting:** A church labeled both Gothic *and* Romanesque should make the model attend to diagnostic features from **both** styles. Tests whether multi-label pressure produces more spatially distributed attention patterns compared to single-label.
+
+**Implementation effort: Medium-High**
+- Replace `CrossEntropyLoss` → `BCEWithLogitsLoss` for multi-label loss
+- Labels become binary vectors instead of scalar class indices
+- Rework `_stratified_split` (can't stratify on a single label)
+- Replace accuracy with **per-label F1 / mAP** as training metrics
+- Rework `_compute_class_weights` for multi-label weighting
+
+---
+
+### Post-Fine-Tuning Evaluation
+
+The existing `analyze_delta_iou.py` script is **task-agnostic** — it compares attention maps between frozen and fine-tuned models regardless of the classification objective.
+
+#### Key Metrics
+
+| Metric | What it measures | How to interpret |
+|--------|-----------------|------------------|
+| **Δ IoU** (fine-tuned − frozen) | Whether attention shifts toward/away from expert bboxes | Positive = Enhance, ≈0 = Preserve, Negative = Destroy |
+| **Paired statistical test** | Whether Δ IoU is significant after Holm correction | p < 0.05 after correction = confident claim |
+| **Cohen's d** | Practical magnitude of the shift | Small (0.2), Medium (0.5), Large (0.8) |
+| **Validation accuracy** | How well the model learned the task | Confirms fine-tuning worked before interpreting Δ IoU |
+
+#### Expected Outcomes
+
+- **Country →** Expect **Δ IoU ≤ 0 (Destroy)**. The model should shift attention to non-architectural cues (landscape, urban context). High val accuracy + negative Δ IoU = strong evidence of shortcut learning.
+- **Expanded styles →** Expect **Δ IoU ≥ current 4-class Δ IoU (stronger Enhance)**. More classes = more pressure to find discriminative architectural features. Compare Δ IoU magnitude against the existing 4-class baseline.
+- **Multi-label →** Expect **more spatially distributed attention** (attention entropy increases). Δ IoU could increase if the model learns to attend to multiple feature types simultaneously rather than just the dominant one.
+
+#### Core Experimental Design
+
+> Same frozen baseline → different fine-tuning objectives → same Δ IoU evaluation on the 139 annotated images. This isolates the effect of the classification task on attention alignment.
+
+### UI Support: Feature-Local Frozen vs Fine-Tuned Comparison
+
+The Compare page now supports a **feature-focused inspection mode** for frozen vs fine-tuned overlays:
+
+- By default, the user sees the cached frozen/fine-tuned attention overlay pair for the full image
+- Clicking an expert bounding box switches the view to **bbox-conditioned similarity heatmaps** for both variants, matching the gallery-style interaction
+- The UI also computes **bbox-local IoU and coverage** for both variants inside the selected expert region
+- The page then shows a **feature-local delta** (fine-tuned minus frozen)
+
+This matters because the user can move between two complementary views:
+
+- **Global overlay mode:** Where does each model attend overall?
+- **Feature-conditioned similarity mode:** What other regions become similar to this selected expert feature?
+
+If the full-image overlays look visually similar, users can still ask a sharper question:
+
+> Did fine-tuning increase attention on this specific architectural cue?
+
+That teaches us something more precise than a global slider:
+
+- **Positive local Δ IoU**: fine-tuning strengthened alignment on that expert feature
+- **Near-zero local Δ IoU**: the objective left that feature largely unchanged
+- **Negative local Δ IoU**: fine-tuning pulled attention away from that feature
+
+In other words, bbox selection now changes both the **visualization mode** and the **measurement slice**. This is aligned with the core research framing in this section: classification is only an intervention, while the real object of study is how attention shifts relative to expert-defined architectural regions.
+
+## 11. Alternative Perspective: Why NOT to Fine-Tune
 
 Before committing to fine-tuning, consider this counter-argument:
 
@@ -428,7 +547,7 @@ Before committing to fine-tuning, consider this counter-argument:
 
 ---
 
-## 11. References
+## 12. References
 
 ### Parameter-Efficient Fine-Tuning
 - [Parameter-Efficient Fine-Tuning of DINOv2 for Lung Nodule Classification (IEEE 2024)](https://ieeexplore.ieee.org/document/10635887/)
