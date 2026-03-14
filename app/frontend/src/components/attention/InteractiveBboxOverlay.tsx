@@ -35,6 +35,7 @@ export function InteractiveBboxOverlay({
               width={bbox.width}
               height={bbox.height}
               fill="transparent"
+              data-testid={`bbox-hitbox-${index}`}
               className="pointer-events-auto cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();

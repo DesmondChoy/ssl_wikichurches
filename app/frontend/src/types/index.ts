@@ -130,8 +130,10 @@ export interface ModelComparison {
   models: string[];
   layer: string;
   percentile: number;
+  selection: ImageMetricSelection;
   results: IoUResult[];
   heatmap_urls: Record<string, string>;
+  unavailable_models: Record<string, string>;
 }
 
 export interface AllModelsSummaryModelEntry {

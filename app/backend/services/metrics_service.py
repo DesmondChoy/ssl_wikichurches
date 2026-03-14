@@ -331,6 +331,14 @@ class MetricsService:
             annotation=annotation,
         )
 
+    def get_bbox_label(self, image_id: str, bbox_index: int) -> str:
+        """Get the display label for a bbox on an image."""
+        annotation = self._get_annotation(image_id)
+        if annotation is None:
+            raise ValueError(f"Annotation not found for {image_id}")
+
+        return self._get_bbox_label(annotation, bbox_index)
+
     def get_aggregate_metrics(
         self,
         model: str,

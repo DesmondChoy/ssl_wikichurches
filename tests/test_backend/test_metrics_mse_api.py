@@ -111,9 +111,16 @@ class TestComparisonEndpointsExposeMse:
             )
 
         assert response.status_code == 200
-        assert all("mse" in result for result in response.json()["results"])
-        assert all("kl" in result for result in response.json()["results"])
-        assert all("emd" in result for result in response.json()["results"])
+        payload = response.json()
+        assert payload["selection"] == {
+            "mode": "union",
+            "bbox_index": None,
+            "bbox_label": None,
+        }
+        assert payload["unavailable_models"] == {}
+        assert all("mse" in result for result in payload["results"])
+        assert all("kl" in result for result in payload["results"])
+        assert all("emd" in result for result in payload["results"])
 
     def test_all_models_summary_uses_metric_and_best_score_fields(self):
         with patch("app.backend.routers.comparison.metrics_service") as mock_metrics_service:
