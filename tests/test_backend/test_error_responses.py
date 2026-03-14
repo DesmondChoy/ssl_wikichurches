@@ -8,10 +8,13 @@ Verifies that:
 
 from __future__ import annotations
 
+import importlib
+import json
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 IMAGE_ID = "Q1234_test"
 
@@ -22,6 +25,31 @@ def _make_client():
     from app.backend.main import app
 
     return TestClient(app)
+
+
+def _make_request(path: str = "/boom") -> Request:
+    """Create a minimal ASGI request for exception-handler unit tests."""
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": path,
+            "headers": [],
+            "query_string": b"",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "scheme": "http",
+            "root_path": "",
+            "http_version": "1.1",
+        }
+    )
+
+
+def _reload_backend_config():
+    """Reload backend config so DEBUG re-reads SSL_DEBUG from the environment."""
+    import app.backend.config as config_module
+
+    return importlib.reload(config_module)
 
 
 @pytest.fixture()
@@ -156,33 +184,59 @@ class TestDebugModeErrorExposure:
         assert "Feature shape mismatch for dinov2/layer5" in resp.json()["detail"]
 
 
+class TestGenericExceptionHandler:
+    """Generic 500 handler should gate detail behind DEBUG."""
+
+    @pytest.mark.anyio
+    async def test_debug_off_hides_uncaught_exception_detail(self) -> None:
+        from app.backend.main import generic_exception_handler
+
+        with (
+            patch("app.backend.main.DEBUG", False),
+            patch("app.backend.main.logger.exception"),
+        ):
+            response = await generic_exception_handler(
+                _make_request(),
+                RuntimeError("sensitive internal detail"),
+            )
+
+        assert response.status_code == 500
+        assert json.loads(response.body) == {"detail": "Internal server error"}
+
+    @pytest.mark.anyio
+    async def test_debug_on_exposes_uncaught_exception_detail(self) -> None:
+        from app.backend.main import generic_exception_handler
+
+        with (
+            patch("app.backend.main.DEBUG", True),
+            patch("app.backend.main.logger.exception"),
+        ):
+            response = await generic_exception_handler(
+                _make_request(),
+                RuntimeError("sensitive internal detail"),
+            )
+
+        assert response.status_code == 500
+        assert json.loads(response.body) == {"detail": "sensitive internal detail"}
+
+
 class TestDebugDefaultOff:
     """Verify the config module defaults DEBUG to False."""
 
     def test_debug_defaults_to_false(self, monkeypatch):
         """When SSL_DEBUG is unset, DEBUG should be False."""
         monkeypatch.delenv("SSL_DEBUG", raising=False)
-
-        # Re-evaluate the expression directly (avoids import caching issues)
-        import os
-
-        result = os.environ.get("SSL_DEBUG", "0").lower() in ("1", "true", "yes")
-        assert result is False
+        config = _reload_backend_config()
+        assert config.DEBUG is False
 
     def test_debug_true_when_set(self, monkeypatch):
         """When SSL_DEBUG=1, DEBUG should be True."""
         monkeypatch.setenv("SSL_DEBUG", "1")
-
-        import os
-
-        result = os.environ.get("SSL_DEBUG", "0").lower() in ("1", "true", "yes")
-        assert result is True
+        config = _reload_backend_config()
+        assert config.DEBUG is True
 
     def test_debug_false_when_explicitly_zero(self, monkeypatch):
         """When SSL_DEBUG=0, DEBUG should be False."""
         monkeypatch.setenv("SSL_DEBUG", "0")
-
-        import os
-
-        result = os.environ.get("SSL_DEBUG", "0").lower() in ("1", "true", "yes")
-        assert result is False
+        config = _reload_backend_config()
+        assert config.DEBUG is False

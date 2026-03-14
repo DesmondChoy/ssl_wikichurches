@@ -67,7 +67,7 @@ Visualization tools like [BertViz](https://github.com/jessevig/bertviz) render a
 
 This transforms subjective "the model seems to look at the right things" into quantitative "Model A achieves 0.42 IoU with expert annotations at layer 11."
 
-**IoU thresholding methodology:** Since attention maps are continuous (values in [0, 1]) while IoU requires binary masks, we apply **percentile-based thresholding** to binarize attention maps before computing IoU. The frontend implements this via `applyPercentileThreshold()` in `renderHeatmap.ts`, which zeros out attention values below a configurable percentile (e.g., keeping only the top 30% of attention mass). The choice of threshold significantly affects absolute IoU values, so all model comparisons must use the same threshold to be valid.
+**IoU thresholding methodology:** Since attention maps are continuous (values in [0, 1]) while IoU requires binary masks, we apply **percentile-based thresholding** to binarize attention maps before computing IoU. The frontend implements this via `applyPercentileThreshold()` in `renderHeatmap.ts`, which keeps the exact top-*k* pixels by count for the selected percentile (for example, percentile=70 keeps the top 30% of pixels) and zeros out the rest. This matches the backend `torch.topk` contract, so all model comparisons use the same pixel-count semantics under ties.
 
 ---
 
