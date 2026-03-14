@@ -20,6 +20,7 @@ interface ViewStore extends ViewSettings {
   setModel: (model: string) => void;
   setLayer: (layer: number) => void;
   setMethod: (method: string) => void;
+  setModelWithPreferredMethod: (model: string, preferredMethod: string) => void;
   setPercentile: (percentile: number) => void;
   setShowBboxes: (show: boolean) => void;
   setHeatmapOpacity: (opacity: number) => void;
@@ -49,15 +50,23 @@ export const useViewStore = create<ViewStore>((set, get) => ({
 
   setModel: (model) => {
     const { defaultMethods, numLayersPerModel, layer } = get();
-    // Reset method to default for new model
     const newMethod = defaultMethods[model] || 'cls';
-    // Clamp layer synchronously to prevent 404s from invalid layer requests
     const maxLayer = (numLayersPerModel[model] || 12) - 1;
     const clampedLayer = Math.min(layer, maxLayer);
     set({ model, method: newMethod, layer: clampedLayer, selectedBboxIndex: null });
   },
   setLayer: (layer) => set({ layer }), // Keep selection on layer change to compare
   setMethod: (method) => set({ method }),
+  setModelWithPreferredMethod: (model, preferredMethod) => {
+    const { availableMethods, defaultMethods, numLayersPerModel, layer } = get();
+    const modelMethods = availableMethods[model] || [];
+    const nextMethod = modelMethods.includes(preferredMethod)
+      ? preferredMethod
+      : (defaultMethods[model] || preferredMethod || 'cls');
+    const maxLayer = (numLayersPerModel[model] || 12) - 1;
+    const clampedLayer = Math.min(layer, maxLayer);
+    set({ model, method: nextMethod, layer: clampedLayer, selectedBboxIndex: null });
+  },
   setPercentile: (percentile) => set({ percentile }),
   setShowBboxes: (showBboxes) => set({ showBboxes }),
   setHeatmapOpacity: (heatmapOpacity) => set({ heatmapOpacity }),

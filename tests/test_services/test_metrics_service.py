@@ -99,6 +99,43 @@ def _create_leaderboard_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _create_method_filtered_leaderboard_db(conn: sqlite3.Connection) -> None:
+    """Populate rows for method-filtered leaderboard tests."""
+    conn.execute(
+        """CREATE TABLE aggregate_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            percentile INTEGER,
+            mean_iou REAL,
+            std_iou REAL,
+            median_iou REAL,
+            mean_coverage REAL,
+            mean_mse REAL,
+            std_mse REAL,
+            median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
+            mean_emd REAL,
+            std_emd REAL,
+            median_emd REAL,
+            num_images INTEGER
+        )"""
+    )
+
+    rows = [
+        ("dinov2", "layer0", "rollout", 90, 0.38, 0.01, 0.38, 0.5, 0.22, 0.01, 0.22, 0.20, 0.01, 0.20, 0.16, 0.01, 0.16, 139),
+        ("dinov2", "layer1", "rollout", 90, 0.52, 0.01, 0.52, 0.5, 0.14, 0.01, 0.14, 0.12, 0.01, 0.12, 0.09, 0.01, 0.09, 139),
+        ("clip", "layer0", "rollout", 90, 0.33, 0.01, 0.33, 0.5, 0.28, 0.01, 0.28, 0.21, 0.01, 0.21, 0.18, 0.01, 0.18, 139),
+        ("clip", "layer1", "rollout", 90, 0.46, 0.01, 0.46, 0.5, 0.20, 0.01, 0.20, 0.15, 0.01, 0.15, 0.11, 0.01, 0.11, 139),
+        ("siglip2", "layer0", "mean", 90, 0.41, 0.01, 0.41, 0.5, 0.18, 0.01, 0.18, 0.19, 0.01, 0.19, 0.17, 0.01, 0.17, 139),
+        ("resnet50", "layer0", "gradcam", 90, 0.44, 0.01, 0.44, 0.5, 0.16, 0.01, 0.16, 0.13, 0.01, 0.13, 0.10, 0.01, 0.10, 139),
+    ]
+    conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.commit()
+
+
 def _create_image_progression_db(
     conn: sqlite3.Connection,
     model: str = "dinov2",
@@ -316,6 +353,37 @@ class TestLeaderboardOrdering:
         assert all(entry["metric"] == "emd" for entry in leaderboard)
         conn.close()
 
+    def test_rollout_leaderboard_only_includes_rollout_compatible_models(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_method_filtered_leaderboard_db(conn)
+
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="iou", method="rollout")
+
+        assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
+        assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["metric"] == "iou" for entry in leaderboard)
+        conn.close()
+
+    def test_gradcam_leaderboard_only_includes_resnet50(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_method_filtered_leaderboard_db(conn)
+
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="iou", method="gradcam")
+
+        assert [entry["model"] for entry in leaderboard] == ["resnet50"]
+        assert leaderboard[0]["best_layer"] == "layer0"
+        conn.close()
+
 
 class TestLegacyContinuousMetricFallback:
     """Verify continuous-metric fallbacks work for DBs that predate new columns."""
@@ -467,6 +535,61 @@ class TestLegacyContinuousMetricFallback:
             mock_ctx.return_value.__exit__ = lambda *_: None
 
             leaderboard = service.get_leaderboard(percentile=90, metric="kl")
+
+        assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
+        assert leaderboard[0]["score"] == pytest.approx(0.18, abs=1e-9)
+        assert leaderboard[0]["best_layer"] == "layer1"
+        conn.close()
+
+    def test_get_leaderboard_recomputes_kl_when_columns_missing_for_shared_method(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """CREATE TABLE aggregate_metrics (
+                model TEXT,
+                layer TEXT,
+                method TEXT,
+                percentile INTEGER,
+                mean_iou REAL,
+                std_iou REAL,
+                median_iou REAL,
+                mean_coverage REAL,
+                mean_mse REAL,
+                std_mse REAL,
+                median_mse REAL,
+                num_images INTEGER
+            )"""
+        )
+        conn.executemany(
+            """INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                ("dinov2", "layer0", "rollout", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("dinov2", "layer1", "rollout", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("clip", "layer0", "rollout", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("clip", "layer1", "rollout", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+                ("siglip2", "layer0", "mean", 90, 0.2, 0.01, 0.2, 0.4, 0.10, 0.01, 0.10, 139),
+            ],
+        )
+        conn.commit()
+
+        def kl_side_effect(*, model: str, layer: str, percentile: int, method: str):
+            values = {
+                ("dinov2", "layer0", "rollout"): (0.27, 0.01, 0.27),
+                ("dinov2", "layer1", "rollout"): (0.18, 0.01, 0.18),
+                ("clip", "layer0", "rollout"): (0.23, 0.01, 0.23),
+                ("clip", "layer1", "rollout"): (0.21, 0.01, 0.21),
+            }
+            return values[(model, layer, method)]
+
+        with (
+            patch.object(type(service), "get_connection") as mock_ctx,
+            patch.object(type(service), "_compute_kl_aggregate_from_images", side_effect=kl_side_effect),
+            patch.object(type(service), "_compute_emd_aggregate_from_images", return_value=(0.31, 0.01, 0.31)),
+        ):
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="kl", method="rollout")
 
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.18, abs=1e-9)

@@ -84,6 +84,28 @@ def validate_method(model: str, method: str | None) -> str:
     return method
 
 
+def validate_attention_method(method: str | None) -> str | None:
+    """Validate an attention method string without binding it to a model."""
+    if method is None:
+        return None
+
+    try:
+        return AttentionMethod(method).value
+    except ValueError:
+        valid_methods = [m.value for m in AttentionMethod]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid method: '{method}'. Valid methods: {valid_methods}",
+        ) from None
+
+
+def model_supports_method(model: str, method: str) -> bool:
+    """Return whether the requested model supports the given attention method."""
+    base_model, _ = split_model_variant(model)
+    available = MODEL_METHODS.get(base_model, [])
+    return AttentionMethod(method) in available
+
+
 def validate_model(model: str) -> str:
     """Validate model name and return resolved canonical name.
 

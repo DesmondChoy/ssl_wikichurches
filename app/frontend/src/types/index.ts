@@ -146,6 +146,8 @@ export interface AllModelsSummaryModelEntry {
 export interface AllModelsSummary {
   percentile: number;
   metric: DashboardMetric;
+  method: string | null;
+  excluded_models: string[];
   models: Record<string, AllModelsSummaryModelEntry>;
   leaderboard: LeaderboardEntry[];
 }

@@ -7,7 +7,7 @@ Verifies that:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -170,6 +170,76 @@ class TestAllModelsMethodFiltering:
         # ViT models don't support gradcam
         for m in ("dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"):
             assert m not in models, f"{m} should not appear for method=gradcam"
+
+
+class TestAllModelsSummaryMethodFiltering:
+    """all_models_summary should stay method-consistent when scoped."""
+
+    def test_rollout_summary_filters_incompatible_models_and_forwards_method(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.52,
+                "best_layer": "layer1",
+            },
+            {
+                "rank": 2,
+                "model": "clip",
+                "metric": "iou",
+                "score": 0.46,
+                "best_layer": "layer1",
+            },
+        ]
+        mock_met_cmp.get_layer_progression.side_effect = [
+            {
+                "model": "dinov2",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer1"],
+                "scores": [0.38, 0.52],
+                "best_layer": "layer1",
+                "best_score": 0.52,
+            },
+            {
+                "model": "clip",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer1"],
+                "scores": [0.33, 0.46],
+                "best_layer": "layer1",
+                "best_score": 0.46,
+            },
+        ]
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "rollout"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["method"] == "rollout"
+        assert payload["excluded_models"] == ["siglip", "siglip2", "resnet50"]
+        assert [entry["model"] for entry in payload["leaderboard"]] == ["dinov2", "clip"]
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", method="rollout")
+        assert mock_met_cmp.get_layer_progression.call_args_list == [
+            call("dinov2", 90, method="rollout", metric="iou"),
+            call("clip", 90, method="rollout", metric="iou"),
+        ]
+
+    def test_invalid_summary_method_returns_400(self):
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "invalid_method"},
+        )
+
+        assert resp.status_code == 400
+        assert "Invalid method" in resp.json()["detail"]
 
 
 class TestFrozenVsFinetunedEndpoint:

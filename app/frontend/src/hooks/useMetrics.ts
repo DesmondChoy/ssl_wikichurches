@@ -6,13 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
 import type { DashboardMetric } from '../types';
 
-export function useLeaderboard(percentile: number, metric: DashboardMetric) {
-  return useQuery({
-    queryKey: ['leaderboard', percentile, metric],
-    queryFn: () => metricsAPI.getLeaderboard(percentile, metric),
-  });
-}
-
 export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
     queryKey: ['styleBreakdown', model, layer, percentile, method],
@@ -34,9 +27,9 @@ export function useFeatureBreakdown(
   });
 }
 
-export function useAllModelsSummary(percentile: number, metric: DashboardMetric) {
+export function useAllModelsSummary(percentile: number, metric: DashboardMetric, method?: string) {
   return useQuery({
-    queryKey: ['allModelsSummary', percentile, metric],
-    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric),
+    queryKey: ['allModelsSummary', percentile, metric, method],
+    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric, method),
   });
 }

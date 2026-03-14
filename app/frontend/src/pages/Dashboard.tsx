@@ -16,6 +16,7 @@ import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
+import { getAttentionMethodLabel } from '../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 import type { DashboardMetric } from '../types';
 import {
@@ -24,7 +25,16 @@ import {
 } from '../constants/metricMetadata';
 
 export function DashboardPage() {
-  const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
+  const {
+    model,
+    layer,
+    method,
+    percentile,
+    setModelWithPreferredMethod,
+    setPercentile,
+    setMethodsConfig,
+    setNumLayersPerModel,
+  } = useViewStore();
   const { data: modelsData } = useModels();
   const [metric, setMetric] = useState<DashboardMetric>('iou');
   const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
@@ -44,8 +54,22 @@ export function DashboardPage() {
     }
   }, [modelsData, setNumLayersPerModel]);
 
-  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile, metric);
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    error: summaryError,
+  } = useAllModelsSummary(percentile, metric, method);
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
+  const summaryMethodLabel = summary?.method ? getAttentionMethodLabel(summary.method) : null;
+  const excludedModelsText = summary?.excluded_models.length
+    ? ` Excluded models: ${summary.excluded_models.join(', ')}.`
+    : '';
+  const leaderboardEmptyMessage = summaryMethodLabel
+    ? `No compatible models available for ${summaryMethodLabel}.`
+    : 'No compatible models available for this method.';
+  const handleLeaderboardModelSelect = (selectedModel: string) => {
+    setModelWithPreferredMethod(selectedModel, method);
+  };
 
   // Collect all unique layers from API response (handles models with different layer counts)
   const allLayers = new Set<string>();
@@ -118,15 +142,28 @@ export function DashboardPage() {
         </div>
       )}
 
+      {summaryMethodLabel && (
+        <div
+          className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+          data-testid="dashboard-method-context"
+        >
+          {`Summary panels are using ${summaryMethodLabel}.${excludedModelsText}`}
+        </div>
+      )}
+
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard */}
         <div>
-          <ErrorBoundary resetKeys={[percentile, metric]}>
+          <ErrorBoundary resetKeys={[percentile, metric, method]}>
             <ModelLeaderboard
+              leaderboard={summary?.leaderboard}
               percentile={percentile}
               metric={metric}
-              onModelSelect={setModel}
+              isLoading={summaryLoading}
+              hasError={!!summaryError}
+              emptyMessage={leaderboardEmptyMessage}
+              onModelSelect={handleLeaderboardModelSelect}
             />
           </ErrorBoundary>
         </div>
@@ -143,6 +180,14 @@ export function DashboardPage() {
             <CardContent>
               {summaryLoading ? (
                 <div className="h-64 animate-pulse bg-gray-100 rounded" />
+              ) : summaryError ? (
+                <div className="h-64 flex items-center justify-center text-sm text-red-500">
+                  Failed to load layer progression
+                </div>
+              ) : !summary?.leaderboard.length ? (
+                <div className="h-64 flex items-center justify-center text-sm text-gray-500">
+                  {leaderboardEmptyMessage}
+                </div>
               ) : (
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">

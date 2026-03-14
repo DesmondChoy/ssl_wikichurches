@@ -150,6 +150,8 @@ class TestComparisonEndpointsExposeMse:
         assert response.status_code == 200
         payload = response.json()
         assert payload["metric"] == "emd"
+        assert payload["method"] is None
+        assert payload["excluded_models"] == []
         assert payload["leaderboard"][0]["score"] == 0.08
         assert payload["models"]["dinov2"]["best_score"] == 0.08
         assert "best_iou" not in payload["models"]["dinov2"]

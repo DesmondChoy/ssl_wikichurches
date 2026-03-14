@@ -135,11 +135,6 @@ export const attentionAPI = {
 
 // Metrics API
 export const metricsAPI = {
-  getLeaderboard: (percentile = 90, metric: import('../types').DashboardMetric = 'iou') =>
-    fetchJSON<import('../types').LeaderboardEntry[]>(
-      `/metrics/leaderboard?percentile=${percentile}&metric=${metric}`
-    ),
-
   getImageLayerProgression: (
     imageId: string,
     model: string,
@@ -248,11 +243,18 @@ export const comparisonAPI = {
 
   getAllModelsSummary: (
     percentile = 90,
-    metric: import('../types').DashboardMetric = 'iou'
-  ) =>
-    fetchJSON<import('../types').AllModelsSummary>(
-      `/compare/all_models_summary?percentile=${percentile}&metric=${metric}`
-    ),
+    metric: import('../types').DashboardMetric = 'iou',
+    method?: string
+  ) => {
+    const params = new URLSearchParams({
+      percentile: String(percentile),
+      metric,
+    });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').AllModelsSummary>(
+      `/compare/all_models_summary?${params.toString()}`
+    );
+  },
 };
 
 export { APIError };

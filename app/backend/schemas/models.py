@@ -175,6 +175,8 @@ class AllModelsSummarySchema(BaseModel):
 
     percentile: int
     metric: Literal["iou", "mse", "kl", "emd"]
+    method: str | None = None
+    excluded_models: list[str] = Field(default_factory=list)
     models: dict[str, AllModelsSummaryModelEntry]
     leaderboard: list[LeaderboardEntry]
 

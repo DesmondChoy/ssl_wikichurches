@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from app.backend.config import (
+    AVAILABLE_MODELS,
     DEFAULT_METHOD,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
@@ -16,7 +17,7 @@ from app.backend.config import (
     get_model_num_layers,
     resolve_model_name,
 )
-from app.backend.validators import resolve_default_method
+from app.backend.validators import model_supports_method, resolve_default_method
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -493,22 +494,41 @@ class MetricsService:
 
         return rows
 
-    def get_leaderboard(self, percentile: int = 90, metric: MetricName = "iou") -> list[dict]:
+    def get_leaderboard(
+        self,
+        percentile: int = 90,
+        metric: MetricName = "iou",
+        method: str | None = None,
+    ) -> list[dict]:
         """Get model leaderboard ranked by best score for the selected metric.
 
-        Uses each model's default method for ranking (CLS for ViTs, etc.).
+        Uses each model's default method for ranking unless an explicit shared
+        method filter is provided.
 
         Returns:
             List of dicts with rank, model, metric, score, best_layer.
         """
         score_column, order_direction, aggregate_fn = self._metric_sql_config(metric)
 
-        # Build a dynamic filter so each model uses its canonical default method
+        leaderboard_models: list[tuple[str, str]]
+        if method is None:
+            # Build a dynamic filter so each model uses its canonical default method.
+            leaderboard_models = [
+                (model_name, default_method.value)
+                for model_name, default_method in DEFAULT_METHOD.items()
+            ]
+        else:
+            leaderboard_models = [
+                (model_name, method)
+                for model_name in AVAILABLE_MODELS
+                if model_supports_method(model_name, method)
+            ]
+
         conditions = []
         params: list[str | int] = []
-        for model_name, default_method in DEFAULT_METHOD.items():
+        for model_name, selected_method in leaderboard_models:
             conditions.append("(model = ? AND method = ?)")
-            params.extend([model_name, default_method.value])
+            params.extend([resolve_model_name(model_name), selected_method])
 
         if not conditions:
             return []
@@ -520,11 +540,11 @@ class MetricsService:
                 comparator = min if metric in {"mse", "kl", "emd"} else max
                 best_rows: list[dict[str, Any]] = []
 
-                for model_name, default_method in DEFAULT_METHOD.items():
+                for model_name, selected_method in leaderboard_models:
                     layer_scores = self._legacy_aggregate_rows(
                         model=model_name,
                         percentile=percentile,
-                        method=default_method.value,
+                        method=selected_method,
                         metric=metric,
                     )
                     if not layer_scores:
