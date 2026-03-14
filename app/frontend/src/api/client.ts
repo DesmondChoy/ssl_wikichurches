@@ -135,15 +135,6 @@ export const metricsAPI = {
       `/metrics/leaderboard?percentile=${percentile}&metric=${metric}`
     ),
 
-  getSummary: () => fetchJSON<{
-    models: Record<string, {
-      best_layer: string;
-      best_iou: number;
-      layer_progression: Record<string, number>;
-    }>;
-    leaderboard: Array<{ model: string; best_iou: number }>;
-  }>('/metrics/summary'),
-
   getImageLayerProgression: (
     imageId: string,
     model: string,
@@ -210,27 +201,6 @@ export const metricsAPI = {
       `/metrics/model/${model}/feature_breakdown?${params}`
     );
   },
-
-  getAggregate: (model: string, layer: number, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
-    if (method) params.set('method', method);
-    return fetchJSON<{
-      model: string;
-      layer: string;
-      percentile: number;
-      mean_iou: number;
-      std_iou: number;
-      median_iou: number;
-      mean_coverage: number;
-      mean_mse: number;
-      std_mse: number;
-      median_mse: number;
-      mean_kl: number;
-      std_kl: number;
-      median_kl: number;
-      num_images: number;
-    }>(`/metrics/model/${model}/aggregate?${params}`);
-  },
 };
 
 // Comparison API
@@ -266,11 +236,6 @@ export const comparisonAPI = {
       frozen: { available: boolean; url: string | null };
       finetuned: { available: boolean; url: string | null; note: string };
     }>(`/compare/frozen_vs_finetuned?image_id=${imageId}&model=${model}&layer=${layer}`),
-
-  compareLayers: (imageId: string, model: string, percentile = 90) =>
-    fetchJSON<import('../types').LayerComparison>(
-      `/compare/layers?image_id=${imageId}&model=${model}&percentile=${percentile}`
-    ),
 
   getAllModelsSummary: (
     percentile = 90,

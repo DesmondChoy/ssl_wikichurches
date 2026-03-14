@@ -50,18 +50,6 @@ export function useLayerProgression(
   });
 }
 
-export function useLayerComparison(
-  imageId: string | undefined,
-  model: string,
-  percentile: number
-) {
-  return useQuery({
-    queryKey: ['layerComparison', imageId, model, percentile],
-    queryFn: () => comparisonAPI.compareLayers(imageId!, model, percentile),
-    enabled: !!imageId,
-  });
-}
-
 export function useModelComparison(
   imageId: string | undefined,
   models: string[],

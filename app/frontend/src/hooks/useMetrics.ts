@@ -13,14 +13,6 @@ export function useLeaderboard(percentile: number, metric: DashboardMetric) {
   });
 }
 
-export function useMetricsSummary() {
-  return useQuery({
-    queryKey: ['metricsSummary'],
-    queryFn: () => metricsAPI.getSummary(),
-    staleTime: 60000, // 1 minute
-  });
-}
-
 export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
     queryKey: ['styleBreakdown', model, layer, percentile, method],
@@ -39,13 +31,6 @@ export function useFeatureBreakdown(
   return useQuery({
     queryKey: ['featureBreakdown', model, layer, percentile, sortBy, minCount, method],
     queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, sortBy, minCount, method),
-  });
-}
-
-export function useAggregateMetrics(model: string, layer: number, percentile: number, method?: string) {
-  return useQuery({
-    queryKey: ['aggregate', model, layer, percentile, method],
-    queryFn: () => metricsAPI.getAggregate(model, layer, percentile, method),
   });
 }
 

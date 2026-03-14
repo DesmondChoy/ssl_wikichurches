@@ -147,21 +147,6 @@ export interface AllModelsSummary {
   leaderboard: LeaderboardEntry[];
 }
 
-export interface LayerComparison {
-  image_id: string;
-  model: string;
-  percentile: number;
-  layers: Array<{
-    layer: number;
-    layer_key: string;
-    iou: number;
-    coverage: number;
-    heatmap_url: string | null;
-  }>;
-  best_layer: number;
-  best_iou: number;
-}
-
 // App State Types
 
 export type HeatmapStyle = 'smooth' | 'squares' | 'circles';
