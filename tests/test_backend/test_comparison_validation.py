@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image as PILImage
 
 from app.backend.main import app
 
@@ -461,6 +462,39 @@ class TestFrozenVsFinetunedEndpoint:
         assert payload["finetuned"]["url"] is not None
         assert "method=cls" in payload["frozen"]["url"]
         assert "model=dinov2_finetuned" in payload["finetuned"]["url"]
+
+    def test_compare_urls_resolve_to_overlay_success(self, _mock_services):
+        """Returned compare URLs should serve overlay images for both variants."""
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _comparison_exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant != "overlay" or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _comparison_exists
+
+        with patch("app.backend.routers.attention.image_service") as mock_attention_image_service:
+            mock_attention_image_service.heatmap_exists.side_effect = _comparison_exists
+            mock_attention_image_service.load_heatmap.return_value = PILImage.new("RGB", (8, 8), color=(10, 20, 30))
+
+            compare_resp = client.get(
+                "/api/compare/frozen_vs_finetuned",
+                params={"image_id": IMAGE_ID, "model": "dinov2", "layer": 0},
+            )
+
+            assert compare_resp.status_code == 200
+            payload = compare_resp.json()
+
+            frozen_resp = client.get(payload["frozen"]["url"])
+            finetuned_resp = client.get(payload["finetuned"]["url"])
+
+        assert frozen_resp.status_code == 200
+        assert finetuned_resp.status_code == 200
+        assert frozen_resp.headers["content-type"] == "image/png"
+        assert finetuned_resp.headers["content-type"] == "image/png"
+        assert frozen_resp.content
+        assert finetuned_resp.content
 
 
 class TestCompareModelsBboxMetrics:

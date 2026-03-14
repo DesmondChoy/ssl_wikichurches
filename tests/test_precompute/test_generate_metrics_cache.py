@@ -1,10 +1,15 @@
-"""Tests for metrics-cache schema creation and migration."""
+"""Tests for metrics-cache schema creation, export, and fine-tuned support."""
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from app.precompute.generate_metrics_cache import create_database
+import torch
+
+from app.precompute import generate_metrics_cache as gm
 
 
 def test_create_database_migrates_existing_schema_with_continuous_metric_columns(tmp_path):
@@ -58,7 +63,7 @@ def test_create_database_migrates_existing_schema_with_continuous_metric_columns
     conn.commit()
     conn.close()
 
-    migrated = create_database(db_path)
+    migrated = gm.create_database(db_path)
     migrated_cursor = migrated.cursor()
 
     migrated_cursor.execute("PRAGMA table_info(image_metrics)")
@@ -79,3 +84,129 @@ def test_create_database_migrates_existing_schema_with_continuous_metric_columns
     assert migrated_cursor.fetchone()[0] == 1
 
     migrated.close()
+
+
+def test_compute_metrics_for_finetuned_model_uses_suffixed_storage_key(tmp_path, monkeypatch):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+
+    image_id = "Q1234_test.jpg"
+    annotation = SimpleNamespace(styles=(), bboxes=())
+    dataset = SimpleNamespace(
+        image_ids=[image_id],
+        annotations={image_id: annotation},
+    )
+    attention_cache = MagicMock()
+    attention_cache.load.return_value = torch.ones(14, 14)
+
+    monkeypatch.setattr(gm, "compute_image_mse", lambda **_kwargs: 0.01)
+    monkeypatch.setattr(gm, "compute_image_kl", lambda **_kwargs: 0.02)
+    monkeypatch.setattr(gm, "compute_image_emd", lambda **_kwargs: 0.03)
+    monkeypatch.setattr(
+        gm,
+        "compute_image_iou",
+        lambda **_kwargs: SimpleNamespace(
+            iou=0.5,
+            coverage=0.6,
+            attention_area=0.4,
+            annotation_area=0.3,
+        ),
+    )
+    monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, []))
+    monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(gm, "aggregate_by_feature_type", lambda *_args, **_kwargs: {})
+
+    stats = gm.compute_metrics_for_model(
+        base_model_name="dinov2",
+        dataset=dataset,  # type: ignore[arg-type]
+        attention_cache=attention_cache,
+        conn=conn,
+        percentiles=[90],
+        layers=[0],
+        methods=["cls"],
+        skip_existing=False,
+        storage_model_key="dinov2_finetuned",
+    )
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT model, layer, method, image_id FROM image_metrics")
+    image_row = cursor.fetchone()
+    cursor.execute("SELECT model, layer, method FROM aggregate_metrics")
+    aggregate_row = cursor.fetchone()
+
+    assert stats["processed"] == 1
+    assert stats["errors"] == 0
+    assert image_row == ("dinov2_finetuned", "layer0", "cls", image_id)
+    assert aggregate_row == ("dinov2_finetuned", "layer0", "cls")
+    attention_cache.load.assert_any_call("dinov2_finetuned", "layer0", image_id, variant="cls")
+
+    conn.close()
+
+
+def test_resolve_models_to_process_filters_finetuned_models():
+    models, invalid, non_finetunable = gm.resolve_models_to_process(["all"], finetuned=True)
+    assert models == sorted(gm.FINETUNE_MODELS)
+    assert invalid == []
+    assert non_finetunable == []
+
+    models, invalid, non_finetunable = gm.resolve_models_to_process(
+        ["dinov2", "resnet50", "unknown"],
+        finetuned=True,
+    )
+    assert models == ["dinov2"]
+    assert invalid == ["unknown"]
+    assert non_finetunable == ["resnet50"]
+
+
+def test_export_summary_json_excludes_finetuned_rows(tmp_path):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+    cursor = conn.cursor()
+
+    aggregate_row = (
+        "layer0",
+        "cls",
+        90,
+        0.5,
+        0.1,
+        0.5,
+        0.6,
+        0.01,
+        0.001,
+        0.01,
+        0.02,
+        0.002,
+        0.02,
+        0.03,
+        0.003,
+        0.03,
+        1,
+    )
+
+    cursor.execute(
+        """INSERT INTO aggregate_metrics
+           (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage,
+            mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl,
+            mean_emd, std_emd, median_emd, num_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("dinov2", *aggregate_row),
+    )
+    cursor.execute(
+        """INSERT INTO aggregate_metrics
+           (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage,
+            mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl,
+            mean_emd, std_emd, median_emd, num_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("dinov2_finetuned", *aggregate_row),
+    )
+    conn.commit()
+
+    output_path = tmp_path / "metrics_summary.json"
+    gm.export_summary_json(conn, output_path)
+
+    summary = json.loads(output_path.read_text(encoding="utf-8"))
+    assert set(summary["models"]) == {"dinov2"}
+    assert [entry["model"] for entry in summary["leaderboard"]] == ["dinov2"]
+    assert all(entry["model"] != "dinov2_finetuned" for entry in summary["leaderboards"]["iou"])
+
+    conn.close()

@@ -49,6 +49,26 @@ class TestMetricsEndpointsExposeMse:
         assert response.json()["kl"] == 0.034
         assert response.json()["emd"] == 0.056
 
+    def test_image_metrics_accepts_finetuned_model(self):
+        with patch("app.backend.routers.metrics.metrics_service") as mock_metrics:
+            mock_metrics.db_exists = True
+            mock_metrics.get_image_metrics.return_value = _image_metrics_payload("dinov2_finetuned")
+
+            response = client.get(
+                f"/api/metrics/{IMAGE_ID}",
+                params={"model": "dinov2_finetuned", "layer": 0, "percentile": 90, "method": "cls"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["model"] == "dinov2_finetuned"
+        mock_metrics.get_image_metrics.assert_called_once_with(
+            IMAGE_ID,
+            "dinov2_finetuned",
+            "layer0",
+            90,
+            method="cls",
+        )
+
     def test_bbox_metrics_response_includes_computed_mse(self):
         annotation = ImageAnnotation(
             image_id=IMAGE_ID,
