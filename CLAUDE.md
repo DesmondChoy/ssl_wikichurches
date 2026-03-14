@@ -9,12 +9,38 @@ This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get sta
 ## Quick Reference
 
 ```bash
+bd list               # List open issues
 bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
 bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
+
+## Issue Tracking Rules
+
+Before starting work:
+
+- Run `bd list` or `bd ready` to find relevant existing work.
+- If the work maps to an existing issue, use that issue ID.
+- If no matching issue exists, create a bead before starting implementation.
+
+During implementation:
+
+- Reference the bead or issue ID in commit messages when relevant.
+
+After completing work:
+
+- Close finished beads with a reason via `bd close <id> -r "reason"`.
+- Optionally use `bd close <id> --suggest-next` to surface newly unblocked follow-up work.
+
+## Git Workspace Safety
+
+- Do NOT use git worktrees.
+- Work only in the main working directory.
+- Stay on the current branch by default.
+- Do NOT create or switch to a new branch unless the user explicitly tells you to.
+- If branch isolation seems safer, ask first instead of deciding unilaterally.
 
 ## Development
 
@@ -31,18 +57,19 @@ pytest                # Run tests
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run tests before any commit** - `pytest` must pass before committing code changes
-3. **Run quality gates** (if code changed) - Linters, builds
-4. **Update issue status** - Close finished work, update in-progress items
-5. **PUSH TO REMOTE** - This is MANDATORY:
+3. **Review complete changed files** - Read whole changed files, not only diffs, before committing
+4. **Run quality gates** (if code changed) - Linters, builds
+5. **Update issue status** - Close finished work, update in-progress items with reasons
+6. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
    bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
-6. **Clean up** - Clear stashes, prune remote branches
-7. **Verify** - All changes committed AND pushed
-8. **Hand off** - Provide context for next session
+7. **Clean up** - Clear stashes, prune remote branches
+8. **Verify** - All changes committed AND pushed
+9. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
@@ -91,6 +118,10 @@ pytest                # Run tests
 - Point at logs, errors, failing tests - then resolve them
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
+
+### 7. Ambiguity Handling
+- If ambiguity is low-risk and non-blocking, proceed with explicit assumptions and note them.
+- If ambiguity affects correctness or design direction, ask one concise clarifying question before continuing.
 
 ---
 
