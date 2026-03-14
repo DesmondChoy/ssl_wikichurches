@@ -152,8 +152,13 @@ class ModelComparisonSchema(BaseModel):
     models: list[str]
     layer: str
     percentile: int
+    selection: ImageMetricSelectionSchema
     results: list[IoUResultSchema]
     heatmap_urls: dict[str, str]  # model -> heatmap URL
+    unavailable_models: dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-model reasons why scoped metrics are unavailable",
+    )
 
 
 class AllModelsSummaryModelEntry(BaseModel):

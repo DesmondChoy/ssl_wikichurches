@@ -76,6 +76,23 @@ def _mock_services():
         }
 
 
+def _bbox_metrics_payload(model: str) -> dict:
+    return {
+        "image_id": IMAGE_ID,
+        "model": model,
+        "layer": "layer0",
+        "percentile": 90,
+        "iou": 0.31,
+        "coverage": 0.48,
+        "mse": 0.022,
+        "kl": 0.08,
+        "emd": 0.06,
+        "attention_area": 0.21,
+        "annotation_area": 0.14,
+        "method": "cls",
+    }
+
+
 class TestCompareModelsMethodValidation:
     """compare_models should reject incompatible model+method combos."""
 
@@ -182,3 +199,101 @@ class TestFrozenVsFinetunedEndpoint:
         assert payload["finetuned"]["url"] is not None
         assert "method=cls" in payload["frozen"]["url"]
         assert "model=dinov2_finetuned" in payload["finetuned"]["url"]
+
+
+class TestCompareModelsBboxMetrics:
+    """compare_models should support bbox-scoped metrics without DB dependence."""
+
+    def test_union_compare_includes_selection_metadata(self):
+        resp = client.get(
+            "/api/compare/models",
+            params={"image_id": IMAGE_ID, "models": ["dinov2"], "method": "cls"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["selection"] == {
+            "mode": "union",
+            "bbox_index": None,
+            "bbox_label": None,
+        }
+        assert payload["unavailable_models"] == {}
+
+    def test_bbox_compare_returns_bbox_selection_without_metrics_db(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.return_value = "Window"
+        mock_met_cmp.get_bbox_metrics.side_effect = [
+            _bbox_metrics_payload("dinov2"),
+            _bbox_metrics_payload("clip"),
+        ]
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 0,
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["selection"] == {
+            "mode": "bbox",
+            "bbox_index": 0,
+            "bbox_label": "Window",
+        }
+        assert {result["model"] for result in payload["results"]} == {"dinov2", "clip"}
+        assert payload["unavailable_models"] == {}
+
+    def test_bbox_compare_invalid_index_returns_400(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.side_effect = ValueError("bbox_index 3 out of range")
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 3,
+            },
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "bbox_index 3 out of range"
+
+    def test_bbox_compare_reports_unavailable_models_without_failing(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.return_value = "Window"
+        mock_met_cmp.get_bbox_metrics.side_effect = [
+            _bbox_metrics_payload("dinov2"),
+            None,
+        ]
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 0,
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert [result["model"] for result in payload["results"]] == ["dinov2"]
+        assert payload["selection"]["mode"] == "bbox"
+        assert "clip" in payload["unavailable_models"]
+        assert "Feature-level metrics unavailable" in payload["unavailable_models"]["clip"]

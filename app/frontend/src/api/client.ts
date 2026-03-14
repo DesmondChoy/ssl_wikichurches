@@ -215,7 +215,8 @@ export const comparisonAPI = {
     models: string[],
     layer: number,
     percentile = 90,
-    method?: string
+    method?: string,
+    bboxIndex?: number | null
   ) => {
     const params = new URLSearchParams({
       image_id: imageId,
@@ -227,6 +228,9 @@ export const comparisonAPI = {
     }
     if (method) {
       params.set('method', method);
+    }
+    if (bboxIndex !== null && bboxIndex !== undefined) {
+      params.set('bbox_index', String(bboxIndex));
     }
     return fetchJSON<import('../types').ModelComparison>(
       `/compare/models?${params.toString()}`

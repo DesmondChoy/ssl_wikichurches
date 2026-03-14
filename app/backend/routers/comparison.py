@@ -10,6 +10,7 @@ from app.backend.config import get_model_num_layers, resolve_model_name
 from app.backend.schemas import (
     AllModelsSummaryModelEntry,
     AllModelsSummarySchema,
+    ImageMetricSelectionSchema,
     IoUResultSchema,
     LeaderboardEntry,
     ModelComparisonSchema,
@@ -33,6 +34,7 @@ async def compare_models(
     models: Annotated[list[str] | None, Query(description="Models to compare")] = None,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    bbox_index: Annotated[int | None, Query(ge=0)] = None,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> ModelComparisonSchema:
     """Compare multiple models on a single image.
@@ -50,34 +52,75 @@ async def compare_models(
         validate_layer_for_model(layer, model)
 
     # Check image exists
-    if not image_service.get_annotation(image_id):
+    annotation = image_service.get_annotation(image_id)
+    if annotation is None:
         raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
 
-    if not metrics_service.db_exists:
+    if bbox_index is None and not metrics_service.db_exists:
         raise HTTPException(
             status_code=503,
             detail="Metrics database not available.",
         )
 
     layer_key = f"layer{layer}"
+    selection = ImageMetricSelectionSchema(
+        mode="union",
+        bbox_index=None,
+        bbox_label=None,
+    )
+    if bbox_index is not None:
+        try:
+            selection = ImageMetricSelectionSchema(
+                mode="bbox",
+                bbox_index=bbox_index,
+                bbox_label=metrics_service.get_bbox_label(image_id, bbox_index),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     results = []
     heatmap_urls = {}
+    unavailable_models: dict[str, str] = {}
 
     for model in models:
         resolved_model = resolve_model_name(model)
 
         resolved_method = validate_method(model, method)
 
-        # Get metrics
-        metrics = metrics_service.get_image_metrics(image_id, model, layer_key, percentile, method=resolved_method)
+        if bbox_index is None:
+            metrics = metrics_service.get_image_metrics(
+                image_id,
+                model,
+                layer_key,
+                percentile,
+                method=resolved_method,
+            )
+        else:
+            try:
+                metrics = metrics_service.get_bbox_metrics(
+                    image_id=image_id,
+                    model=model,
+                    layer=layer_key,
+                    bbox_index=bbox_index,
+                    percentile=percentile,
+                    method=resolved_method,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
         if metrics:
             results.append(IoUResultSchema(**metrics))
+        elif bbox_index is not None:
+            unavailable_models[model] = (
+                "Feature-level metrics unavailable because cached attention is missing "
+                f"for {model}/{layer_key}/{resolved_method}/{image_id}."
+            )
 
         # Get heatmap URL (include method)
         if image_service.heatmap_exists(resolved_model, layer_key, image_id, method=resolved_method, variant="overlay"):
             heatmap_urls[model] = f"/api/attention/{image_id}/overlay?model={model}&layer={layer}&method={resolved_method}"
 
-    if not results:
+    if not results and (bbox_index is None or not unavailable_models):
         raise HTTPException(
             status_code=404,
             detail=f"No metrics found for {image_id}",
@@ -88,8 +131,10 @@ async def compare_models(
         models=models,
         layer=layer_key,
         percentile=percentile,
+        selection=selection,
         results=results,
         heatmap_urls=heatmap_urls,
+        unavailable_models=unavailable_models,
     )
 
 
