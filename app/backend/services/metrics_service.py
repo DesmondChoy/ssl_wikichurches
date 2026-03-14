@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-MetricName = Literal["iou", "mse", "kl"]
+MetricName = Literal["iou", "mse", "kl", "emd"]
 
 IMAGE_DETAIL_METRICS = (
     {
@@ -49,6 +49,13 @@ IMAGE_DETAIL_METRICS = (
     {
         "key": "kl",
         "label": "KL Divergence",
+        "direction": "lower",
+        "default_enabled": True,
+        "percentile_dependent": False,
+    },
+    {
+        "key": "emd",
+        "label": "EMD",
         "direction": "lower",
         "default_enabled": True,
         "percentile_dependent": False,
@@ -101,15 +108,16 @@ class MetricsService:
         """Get metrics for a specific image/model/layer combination.
 
         Returns:
-            Dict with iou, coverage, mse, kl, attention_area, annotation_area or None.
+            Dict with iou, coverage, mse, kl, emd, attention_area, annotation_area or None.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT iou, coverage, mse, {kl_select}, attention_area, annotation_area
+                f"""SELECT iou, coverage, mse, {kl_select}, {emd_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND layer = ? AND method = ? AND percentile = ?""",
                 (image_id, db_model, layer, resolved_method, percentile),
@@ -133,7 +141,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None or kl is None:
+                emd = row["emd"]
+                if emd is None:
+                    emd = self._compute_image_emd_from_cache(
+                        image_id=image_id,
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None or emd is None:
                     return None
 
                 return {
@@ -146,6 +162,7 @@ class MetricsService:
                     "coverage": row["coverage"],
                     "mse": mse,
                     "kl": kl,
+                    "emd": emd,
                     "attention_area": row["attention_area"],
                     "annotation_area": row["annotation_area"],
                 }
@@ -166,8 +183,9 @@ class MetricsService:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT layer, iou, coverage, mse, {kl_select}
+                f"""SELECT layer, iou, coverage, mse, {kl_select}, {emd_select}
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND method = ? AND percentile = ?
                    ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
@@ -200,12 +218,21 @@ class MetricsService:
                     layer=layer_key,
                     method=resolved_method,
                 )
+            emd = row["emd"]
+            if emd is None:
+                emd = self._compute_image_emd_from_cache(
+                    image_id=image_id,
+                    model=model,
+                    layer=layer_key,
+                    method=resolved_method,
+                )
 
             values = layer_points[layer_key]["values"]
             values["iou"] = row["iou"]
             values["coverage"] = row["coverage"]
             values["mse"] = mse
             values["kl"] = kl
+            values["emd"] = emd
             has_values = has_values or any(value is not None for value in values.values())
 
         if not has_values:
@@ -261,6 +288,7 @@ class MetricsService:
             values["coverage"] = metrics["coverage"]
             values["mse"] = metrics["mse"]
             values["kl"] = metrics["kl"]
+            values["emd"] = metrics["emd"]
             has_values = True
 
         if not has_values:
@@ -314,7 +342,8 @@ class MetricsService:
 
         Returns:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, mean_mse,
-            std_mse, median_mse, mean_kl, std_kl, median_kl, num_images.
+            std_mse, median_mse, mean_kl, std_kl, median_kl, mean_emd,
+            std_emd, median_emd, num_images.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
@@ -329,10 +358,20 @@ class MetricsService:
                 if has_kl_aggregate
                 else "NULL AS mean_kl, NULL AS std_kl, NULL AS median_kl"
             )
+            has_emd_aggregate = all(
+                self._table_has_column(conn, "aggregate_metrics", column_name)
+                for column_name in ("mean_emd", "std_emd", "median_emd")
+            )
+            emd_select = (
+                "mean_emd, std_emd, median_emd"
+                if has_emd_aggregate
+                else "NULL AS mean_emd, NULL AS std_emd, NULL AS median_emd"
+            )
             cursor.execute(
                 f"""SELECT mean_iou, std_iou, median_iou, mean_coverage,
                           mean_mse, std_mse, median_mse,
                           {kl_select},
+                          {emd_select},
                           num_images
                    FROM aggregate_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
@@ -361,6 +400,16 @@ class MetricsService:
                         percentile=percentile,
                         method=resolved_method,
                     )
+                mean_emd = row["mean_emd"]
+                std_emd = row["std_emd"]
+                median_emd = row["median_emd"]
+                if mean_emd is None or std_emd is None or median_emd is None:
+                    mean_emd, std_emd, median_emd = self._compute_emd_aggregate_from_images(
+                        model=model,
+                        layer=layer,
+                        percentile=percentile,
+                        method=resolved_method,
+                    )
 
                 return {
                     "model": model,  # Return original name for display
@@ -377,6 +426,9 @@ class MetricsService:
                     "mean_kl": mean_kl,
                     "std_kl": std_kl,
                     "median_kl": median_kl,
+                    "mean_emd": mean_emd,
+                    "std_emd": std_emd,
+                    "median_emd": median_emd,
                     "num_images": row["num_images"],
                 }
             return None
@@ -387,6 +439,8 @@ class MetricsService:
             return "mean_mse", "ASC", "MIN"
         if metric == "kl":
             return "mean_kl", "ASC", "MIN"
+        if metric == "emd":
+            return "mean_emd", "ASC", "MIN"
         return "mean_iou", "DESC", "MAX"
 
     def _aggregate_metric_value(self, aggregate_metrics: dict[str, Any], metric: MetricName) -> float | None:
@@ -455,7 +509,7 @@ class MetricsService:
 
         with self.get_connection() as conn:
             if not self._aggregate_metric_column_available(conn, metric):
-                comparator = min if metric in {"mse", "kl"} else max
+                comparator = min if metric in {"mse", "kl", "emd"} else max
                 best_rows: list[dict[str, Any]] = []
 
                 for model_name, default_method in DEFAULT_METHOD.items():
@@ -470,7 +524,9 @@ class MetricsService:
 
                     best_layer, best_score = comparator(
                         layer_scores,
-                        key=lambda row: (row[1], int(row[0][5:])) if metric in {"mse", "kl"} else (row[1], -int(row[0][5:])),
+                        key=lambda row: (row[1], int(row[0][5:]))
+                        if metric in {"mse", "kl", "emd"}
+                        else (row[1], -int(row[0][5:])),
                     )
                     best_rows.append(
                         {
@@ -483,7 +539,9 @@ class MetricsService:
 
                 ordered_rows = sorted(
                     best_rows,
-                    key=lambda row: (row["score"], row["model"]) if metric in {"mse", "kl"} else (-row["score"], row["model"]),
+                    key=lambda row: (row["score"], row["model"])
+                    if metric in {"mse", "kl", "emd"}
+                    else (-row["score"], row["model"]),
                 )
                 return [
                     {
@@ -561,7 +619,7 @@ class MetricsService:
 
             best_idx = 0
             if scores:
-                comparator = min if metric in {"mse", "kl"} else max
+                comparator = min if metric in {"mse", "kl", "emd"} else max
                 best_idx = scores.index(comparator(scores))
             best_layer = layers[best_idx] if layers else "layer11"
             best_score = scores[best_idx] if scores else 0.0
@@ -624,15 +682,16 @@ class MetricsService:
         """Get metrics for all images for a model/layer.
 
         Returns:
-            List of dicts with image_id, iou, coverage, mse, kl.
+            List of dicts with image_id, iou, coverage, mse, kl, emd.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT image_id, iou, coverage, mse, {kl_select}, attention_area, annotation_area
+                f"""SELECT image_id, iou, coverage, mse, {kl_select}, {emd_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?
                    ORDER BY iou DESC""",
@@ -656,7 +715,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None or kl is None:
+                emd = row["emd"]
+                if emd is None:
+                    emd = self._compute_image_emd_from_cache(
+                        image_id=row["image_id"],
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None or emd is None:
                     continue
 
                 results.append(
@@ -666,6 +733,7 @@ class MetricsService:
                         "coverage": row["coverage"],
                         "mse": mse,
                         "kl": kl,
+                        "emd": emd,
                         "attention_area": row["attention_area"],
                         "annotation_area": row["annotation_area"],
                     }
@@ -778,9 +846,25 @@ class MetricsService:
             method=method,
         )
 
+    def _compute_image_emd_from_cache(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        method: str,
+    ) -> float | None:
+        """Compute EMD directly from cached attention for legacy DB rows."""
+        return self._compute_image_continuous_metric_from_cache(
+            metric_name="emd",
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            method=method,
+        )
+
     def _compute_image_continuous_metric_from_cache(
         self,
-        metric_name: Literal["mse", "kl"],
+        metric_name: Literal["mse", "kl", "emd"],
         image_id: str,
         model: str,
         layer: str,
@@ -789,7 +873,7 @@ class MetricsService:
         """Compute a threshold-free continuous metric from cached attention."""
         from app.backend.services.attention_service import attention_service
         from app.backend.services.image_service import image_service
-        from ssl_attention.metrics import compute_image_kl, compute_image_mse
+        from ssl_attention.metrics import compute_image_emd, compute_image_kl, compute_image_mse
 
         annotation = image_service.get_annotation(image_id)
         if annotation is None:
@@ -807,6 +891,8 @@ class MetricsService:
 
         if metric_name == "kl":
             return compute_image_kl(attention=attention, annotation=annotation)
+        if metric_name == "emd":
+            return compute_image_emd(attention=attention, annotation=annotation)
         return compute_image_mse(attention=attention, annotation=annotation)
 
     def _compute_bbox_metrics(
@@ -821,6 +907,7 @@ class MetricsService:
     ) -> dict[str, Any] | None:
         """Compute bbox metrics from cached attention for a single layer."""
         from ssl_attention.metrics.continuous import (
+            compute_emd,
             compute_kl_divergence,
             compute_mse,
             gaussian_bbox_heatmap,
@@ -852,6 +939,7 @@ class MetricsService:
         coverage = compute_coverage(attention_tensor, bbox_mask)
         mse = compute_mse(attention_tensor, bbox_heatmap)
         kl = compute_kl_divergence(attention_tensor, bbox_heatmap)
+        emd = compute_emd(attention_tensor, bbox_heatmap)
 
         return {
             "image_id": image_id,
@@ -863,6 +951,7 @@ class MetricsService:
             "coverage": coverage,
             "mse": mse,
             "kl": kl,
+            "emd": emd,
             "attention_area": attention_area,
             "annotation_area": annotation_area,
         }
@@ -988,13 +1077,29 @@ class MetricsService:
             value_key="kl",
         )
 
+    def _compute_emd_aggregate_from_images(
+        self,
+        model: str,
+        layer: str,
+        percentile: int,
+        method: str,
+    ) -> tuple[float | None, float | None, float | None]:
+        """Derive aggregate EMD stats from per-image rows when the DB is not backfilled."""
+        return self._compute_continuous_aggregate_from_images(
+            model=model,
+            layer=layer,
+            percentile=percentile,
+            method=method,
+            value_key="emd",
+        )
+
     def _compute_continuous_aggregate_from_images(
         self,
         model: str,
         layer: str,
         percentile: int,
         method: str,
-        value_key: Literal["mse", "kl"],
+        value_key: Literal["mse", "kl", "emd"],
     ) -> tuple[float | None, float | None, float | None]:
         """Derive aggregate continuous-metric stats from per-image rows."""
         import torch

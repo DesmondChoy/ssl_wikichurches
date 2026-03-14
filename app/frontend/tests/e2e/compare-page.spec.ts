@@ -51,5 +51,6 @@ test.describe('Compare page', () => {
       page.locator('.grid.grid-cols-2').getByText(/^Method:\s*gradcam$/)
     ).toHaveCount(1);
     await expect(page.getByText(/KL:/)).toHaveCount(2);
+    await expect(page.getByText(/EMD:/)).toHaveCount(2);
   });
 });

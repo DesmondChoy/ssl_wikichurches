@@ -51,7 +51,7 @@ kill_existing 8000
 kill_existing 5173
 
 # Start backend
-echo -e "${GREEN}[Backend]${NC} Starting FastAPI on http://localhost:8000"
+echo -e "${GREEN}[Backend]${NC} Starting FastAPI on http://127.0.0.1:8000"
 uv run uvicorn app.backend.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
@@ -59,13 +59,13 @@ BACKEND_PID=$!
 sleep 2
 
 # Start frontend
-echo -e "${GREEN}[Frontend]${NC} Starting Vite on http://localhost:5173"
+echo -e "${GREEN}[Frontend]${NC} Starting Vite on http://127.0.0.1:5173"
 cd app/frontend
 if [ ! -d "node_modules" ]; then
     echo -e "${BLUE}[Frontend]${NC} Installing npm dependencies..."
     npm install
 fi
-npm run dev &
+npm run dev -- --host 127.0.0.1 &
 FRONTEND_PID=$!
 
 echo -e "\n${BLUE}Both servers running. Press Ctrl+C to stop.${NC}\n"

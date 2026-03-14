@@ -6,8 +6,11 @@ import pytest
 import torch
 
 from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
+from ssl_attention.metrics import continuous as continuous_module
 from ssl_attention.metrics.continuous import (
     annotation_to_gaussian_heatmap,
+    compute_emd,
+    compute_image_emd,
     compute_image_kl,
     compute_image_mse,
     compute_kl_divergence,
@@ -149,3 +152,57 @@ class TestComputeKlDivergence:
 
         assert torch.isfinite(torch.tensor(kl))
         assert kl >= 0.0
+
+
+class TestComputeEmd:
+    """Verify EMD/Wasserstein-1 behaves sensibly for spatial mismatches."""
+
+    def test_identical_distributions_have_near_zero_emd(self):
+        annotation = _make_annotation((0.25, 0.25, 0.5, 0.5, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+
+        emd = compute_emd(gt, gt)
+
+        assert emd == pytest.approx(0.0, abs=1e-10)
+
+    def test_larger_spatial_shift_increases_emd(self):
+        annotation = _make_annotation((0.2, 0.2, 0.3, 0.3, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+        shifted_small = torch.roll(gt, shifts=4, dims=1)
+        shifted_large = torch.roll(gt, shifts=12, dims=1)
+
+        aligned = compute_emd(gt, gt)
+        small_shift = compute_emd(shifted_small, gt)
+        large_shift = compute_emd(shifted_large, gt)
+
+        assert aligned <= small_shift
+        assert small_shift < large_shift
+
+    def test_near_miss_scores_better_than_far_miss(self):
+        annotation = _make_annotation((0.3, 0.3, 0.25, 0.25, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+        near_miss = torch.roll(gt, shifts=(2, 2), dims=(0, 1))
+        far_miss = torch.roll(gt, shifts=(10, 10), dims=(0, 1))
+
+        assert compute_emd(near_miss, gt) < compute_emd(far_miss, gt)
+
+    def test_falls_back_to_exact_linprog_when_scipy_helper_fails(self, monkeypatch):
+        annotation = _make_annotation((0.25, 0.25, 0.5, 0.5, 1))
+        gt = annotation_to_gaussian_heatmap(annotation, 64, 64)
+        shifted = torch.roll(gt, shifts=6, dims=1)
+
+        monkeypatch.setattr(continuous_module, "wasserstein_distance_nd", lambda *args, **kwargs: None)
+
+        emd = compute_emd(shifted, gt)
+
+        assert torch.isfinite(torch.tensor(emd))
+        assert emd > 0.0
+
+    def test_empty_annotations_stay_finite(self):
+        annotation = ImageAnnotation(image_id="empty.jpg", styles=(), bboxes=())
+        attention = torch.rand(32, 32)
+
+        emd = compute_image_emd(attention, annotation)
+
+        assert torch.isfinite(torch.tensor(emd))
+        assert emd >= 0.0

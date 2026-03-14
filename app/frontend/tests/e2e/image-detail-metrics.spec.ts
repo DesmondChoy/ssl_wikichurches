@@ -5,7 +5,7 @@ const IMAGE_ID = 'Q2034923_wd0.jpg';
 test.describe('Image detail metrics chart', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}`);
-    await expect(page.getByTestId('metrics-panel')).toBeVisible();
+    await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
   });
 
   test('uses the new desktop layout and removes the page-local compare CTA', async ({ page }) => {
@@ -42,14 +42,17 @@ test.describe('Image detail metrics chart', () => {
     const iouToggle = page.getByTestId('metric-toggle-iou');
     const coverageTogglePill = page.getByTestId('metric-toggle-coverage');
     const mseToggle = page.getByTestId('metric-toggle-mse');
+    const emdToggle = page.getByTestId('metric-toggle-emd');
 
     await expect(toggleGroup.getByText('IoU Score (Higher better)')).toBeVisible();
     await expect(toggleGroup.getByText('MSE (Lower better)')).toBeVisible();
+    await expect(toggleGroup.getByText('EMD (Lower better)')).toBeVisible();
     await expect(coverageToggle).toBeChecked();
     await expect(iouToggle).toHaveAttribute('data-selected', 'true');
     await expect(iouToggle).toHaveClass(/from-blue-50/);
     await expect(coverageTogglePill).toHaveClass(/from-teal-50/);
     await expect(mseToggle).toHaveClass(/from-rose-50/);
+    await expect(emdToggle).toHaveClass(/from-orange-50/);
 
     await iouToggle.hover();
     await expect(page.getByText(/Overlap between thresholded attention and the annotation\./)).toBeVisible();
@@ -62,6 +65,10 @@ test.describe('Image detail metrics chart', () => {
     await mseToggle.hover();
     await expect(page.getByText(/Mean squared error against the Gaussian soft-union target\./)).toBeVisible();
     await expect(page.getByText(/Use it to judge whether the overall attention shape matches the annotated feature/)).toBeVisible();
+
+    await emdToggle.hover();
+    await expect(page.getByText(/Earth Mover's Distance \(Wasserstein-1\) on a shared 8x8 support/)).toBeVisible();
+    await expect(page.getByText(/how far the attention mass would need to move spatially/)).toBeVisible();
 
     await coverageToggle.uncheck();
     await expect(coverageToggle).not.toBeChecked();

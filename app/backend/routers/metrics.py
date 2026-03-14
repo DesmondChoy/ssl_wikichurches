@@ -25,7 +25,7 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def get_leaderboard(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse", "kl"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
 ) -> list[LeaderboardEntry]:
     """Get model rankings by best score for the selected metric.
 
@@ -236,7 +236,7 @@ async def get_bbox_metrics(
 async def get_layer_progression(
     model: str,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse", "kl"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> LayerProgressionSchema:
     """Get metric progression across all layers for a model.

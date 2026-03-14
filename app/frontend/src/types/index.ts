@@ -1,6 +1,6 @@
 // API Response Types
 
-export type DashboardMetric = 'iou' | 'mse' | 'kl';
+export type DashboardMetric = 'iou' | 'mse' | 'kl' | 'emd';
 
 export interface BoundingBox {
   left: number;
@@ -44,6 +44,7 @@ export interface IoUResult {
   coverage: number;
   mse: number;
   kl: number;
+  emd: number;
   attention_area: number;
   annotation_area: number;
   method?: string;

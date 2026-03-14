@@ -9,9 +9,10 @@ import { getMetricDirectionLabel } from './layerChartUtils';
 
 const METRIC_COLORS: Record<string, string> = {
   iou: '#2563eb',
-  coverage: '#0f766e',
+  coverage: '#4d7c0f',
   mse: '#dc2626',
   kl: '#7c3aed',
+  emd: '#111827',
 };
 
 const DEFAULT_TOGGLE_THEME: MetricToggleTheme = {
@@ -24,6 +25,7 @@ const METRIC_GLOSSARY_KEYS: Record<string, keyof typeof GLOSSARY> = {
   coverage: 'Coverage',
   mse: 'MSE',
   kl: 'KL',
+  emd: 'EMD',
 };
 
 const METRIC_TOGGLE_THEMES: Record<string, MetricToggleTheme> = {
@@ -33,7 +35,7 @@ const METRIC_TOGGLE_THEMES: Record<string, MetricToggleTheme> = {
   },
   coverage: {
     accentColor: METRIC_COLORS.coverage,
-    checkedClassName: 'border-teal-300 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-100 text-teal-900 shadow-sm shadow-teal-100/80',
+    checkedClassName: 'border-lime-300 bg-gradient-to-r from-lime-50 via-yellow-50 to-lime-100 text-lime-900 shadow-sm shadow-lime-100/80',
   },
   mse: {
     accentColor: METRIC_COLORS.mse,
@@ -42,6 +44,10 @@ const METRIC_TOGGLE_THEMES: Record<string, MetricToggleTheme> = {
   kl: {
     accentColor: METRIC_COLORS.kl,
     checkedClassName: 'border-violet-300 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-indigo-100 text-violet-900 shadow-sm shadow-violet-100/80',
+  },
+  emd: {
+    accentColor: METRIC_COLORS.emd,
+    checkedClassName: 'border-slate-400 bg-gradient-to-r from-slate-50 via-white to-slate-100 text-slate-900 shadow-sm shadow-slate-200/80',
   },
 };
 

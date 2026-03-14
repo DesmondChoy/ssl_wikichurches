@@ -59,6 +59,7 @@ class IoUResultSchema(BaseModel):
     coverage: float
     mse: float
     kl: float
+    emd: float
     attention_area: float
     annotation_area: float
     method: str | None = None
@@ -115,7 +116,7 @@ class LeaderboardEntry(BaseModel):
 
     rank: int
     model: str
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
     score: float
     best_layer: str
 
@@ -124,7 +125,7 @@ class LayerProgressionSchema(BaseModel):
     """Metric progression across layers."""
 
     model: str
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
     percentile: int
     layers: list[str]
     scores: list[float]
@@ -168,7 +169,7 @@ class AllModelsSummarySchema(BaseModel):
     """Summary comparison across all models for a selected metric."""
 
     percentile: int
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
     models: dict[str, AllModelsSummaryModelEntry]
     leaderboard: list[LeaderboardEntry]
 

@@ -8,15 +8,25 @@ dense heatmaps directly and therefore do not depend on a threshold selection.
 
 from __future__ import annotations
 
+from functools import cache
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
+import torch.nn.functional as F
+from scipy import sparse
+from scipy.optimize import linprog
+from scipy.spatial import distance_matrix
+from scipy.stats import wasserstein_distance_nd
 from torch import Tensor
 
 from ssl_attention.config import EPSILON
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
+
+
+EMD_GRID_SIZE = 8
 
 
 def normalize_attention_for_mse(attention: Tensor) -> Tensor:
@@ -53,6 +63,95 @@ def prepare_probability_distribution(values: Tensor) -> Tensor:
         return torch.full_like(distribution, 1.0 / distribution.numel())
 
     return distribution / total
+
+
+def sanitize_nonnegative_heatmap(values: Tensor) -> Tensor:
+    """Sanitize a heatmap for transport-style metrics without smoothing."""
+    return values.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).clamp_min(0.0)
+
+
+def resize_heatmap_for_emd(values: Tensor, size: int = EMD_GRID_SIZE) -> Tensor:
+    """Resize a heatmap to the shared support used by the EMD metric."""
+    sanitized = sanitize_nonnegative_heatmap(values)
+    resized = F.interpolate(
+        sanitized.unsqueeze(0).unsqueeze(0),
+        size=(size, size),
+        mode="bilinear",
+        align_corners=False,
+    )
+    return resized.squeeze(0).squeeze(0)
+
+
+def prepare_emd_distribution(values: Tensor, size: int = EMD_GRID_SIZE) -> Tensor:
+    """Resize and normalize a heatmap into a transport-ready probability map."""
+    distribution = resize_heatmap_for_emd(values, size=size)
+    total = distribution.sum()
+    if not torch.isfinite(total) or total <= 0:
+        return torch.full_like(distribution, 1.0 / distribution.numel())
+
+    return distribution / total
+
+
+@cache
+def emd_support_grid(height: int = EMD_GRID_SIZE, width: int = EMD_GRID_SIZE) -> list[list[float]]:
+    """Build the normalized cell-center support grid for exact 2D Wasserstein."""
+    x_coords = (torch.arange(width, dtype=torch.float64) + 0.5) / width
+    y_coords = (torch.arange(height, dtype=torch.float64) + 0.5) / height
+    yy, xx = torch.meshgrid(y_coords, x_coords, indexing="ij")
+    support = torch.stack((yy.reshape(-1), xx.reshape(-1)), dim=1)
+    return support.tolist()
+
+
+@cache
+def emd_transport_problem(
+    height: int = EMD_GRID_SIZE,
+    width: int = EMD_GRID_SIZE,
+) -> tuple[np.ndarray, np.ndarray, sparse.csr_matrix]:
+    """Cache the shared support, transport cost vector, and non-redundant constraints."""
+    support = np.asarray(emd_support_grid(height, width), dtype=np.float64)
+    num_points = support.shape[0]
+
+    row_indices: list[int] = []
+    col_indices: list[int] = []
+    data: list[float] = []
+    for source_index in range(num_points):
+        row_offset = source_index * num_points
+        for target_index in range(num_points):
+            variable_index = row_offset + target_index
+            row_indices.append(source_index)
+            col_indices.append(variable_index)
+            data.append(1.0)
+            if target_index < num_points - 1:
+                row_indices.append(num_points + target_index)
+                col_indices.append(variable_index)
+                data.append(1.0)
+
+    constraints = sparse.coo_matrix(
+        (data, (row_indices, col_indices)),
+        shape=((num_points * 2) - 1, num_points * num_points),
+    ).tocsr()
+    cost = distance_matrix(support, support, p=2).reshape(-1)
+    return support, cost, constraints
+
+
+def compute_emd_via_linprog(
+    source_weights: np.ndarray,
+    target_weights: np.ndarray,
+    height: int,
+    width: int,
+) -> float:
+    """Solve the exact discrete OT problem via linear programming."""
+    _, cost, constraints = emd_transport_problem(height, width)
+    result = linprog(
+        c=cost,
+        A_eq=constraints,
+        b_eq=np.concatenate((source_weights, target_weights[:-1])),
+        bounds=(0.0, None),
+        method="highs",
+    )
+    if not result.success or result.fun is None:
+        raise RuntimeError(f"Failed to solve exact EMD transport problem: {result.message}")
+    return float(result.fun)
 
 
 def gaussian_bbox_heatmap(
@@ -165,3 +264,46 @@ def compute_image_kl(attention: Tensor, annotation: ImageAnnotation) -> float:
     height, width = attention.shape[-2:]
     gt_heatmap = annotation_to_gaussian_heatmap(annotation, height, width, device=attention.device)
     return compute_kl_divergence(attention, gt_heatmap)
+
+
+def compute_emd(attention: Tensor, gt_heatmap: Tensor) -> float:
+    """Compute exact 2D Wasserstein-1 distance on the shared downsampled support."""
+    if attention.shape != gt_heatmap.shape:
+        raise ValueError(
+            f"Attention and GT heatmap must have the same shape, got {attention.shape} vs {gt_heatmap.shape}"
+        )
+
+    if gt_heatmap.device != attention.device:
+        gt_heatmap = gt_heatmap.to(attention.device)
+
+    attention_distribution = prepare_emd_distribution(attention)
+    gt_distribution = prepare_emd_distribution(gt_heatmap)
+    height, width = attention_distribution.shape[-2:]
+    support, _, _ = emd_transport_problem(height, width)
+    source_weights = attention_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
+    target_weights = gt_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
+    source_weights /= source_weights.sum()
+    target_weights /= target_weights.sum()
+
+    try:
+        distance = wasserstein_distance_nd(
+            support,
+            support,
+            u_weights=source_weights,
+            v_weights=target_weights,
+        )
+        if distance is not None and np.isfinite(distance):
+            return float(distance)
+    except TypeError:
+        pass
+
+    # SciPy's helper can occasionally return an unsolved LP result (`fun=None`)
+    # on real image distributions, so fall back to the exact primal formulation.
+    return compute_emd_via_linprog(source_weights, target_weights, height, width)
+
+
+def compute_image_emd(attention: Tensor, annotation: ImageAnnotation) -> float:
+    """Compute EMD/Wasserstein-1 for an annotation's Gaussian soft union."""
+    height, width = attention.shape[-2:]
+    gt_heatmap = annotation_to_gaussian_heatmap(annotation, height, width, device=attention.device)
+    return compute_emd(attention, gt_heatmap)

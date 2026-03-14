@@ -159,6 +159,12 @@ export function ModelCompare({
                     {leftResult.kl.toFixed(4)}
                   </div>
                 )}
+                {Number.isFinite(leftResult.emd) && (
+                  <div>
+                    <span className="font-medium">EMD:</span>{' '}
+                    {leftResult.emd.toFixed(4)}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -197,6 +203,12 @@ export function ModelCompare({
                   <div>
                     <span className="font-medium">KL:</span>{' '}
                     {rightResult.kl.toFixed(4)}
+                  </div>
+                )}
+                {Number.isFinite(rightResult.emd) && (
+                  <div>
+                    <span className="font-medium">EMD:</span>{' '}
+                    {rightResult.emd.toFixed(4)}
                   </div>
                 )}
               </div>

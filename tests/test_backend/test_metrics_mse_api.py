@@ -24,6 +24,7 @@ def _image_metrics_payload(model: str) -> dict:
         "coverage": 0.6,
         "mse": 0.0125,
         "kl": 0.034,
+        "emd": 0.056,
         "attention_area": 0.4,
         "annotation_area": 0.3,
         "method": "cls",
@@ -46,6 +47,7 @@ class TestMetricsEndpointsExposeMse:
         assert response.status_code == 200
         assert response.json()["mse"] == 0.0125
         assert response.json()["kl"] == 0.034
+        assert response.json()["emd"] == 0.056
 
     def test_bbox_metrics_response_includes_computed_mse(self):
         annotation = ImageAnnotation(
@@ -72,8 +74,10 @@ class TestMetricsEndpointsExposeMse:
         payload = response.json()
         assert "mse" in payload
         assert "kl" in payload
+        assert "emd" in payload
         assert isinstance(payload["mse"], float)
         assert isinstance(payload["kl"], float)
+        assert isinstance(payload["emd"], float)
 
 
 class TestComparisonEndpointsExposeMse:
@@ -109,6 +113,7 @@ class TestComparisonEndpointsExposeMse:
         assert response.status_code == 200
         assert all("mse" in result for result in response.json()["results"])
         assert all("kl" in result for result in response.json()["results"])
+        assert all("emd" in result for result in response.json()["results"])
 
     def test_all_models_summary_uses_metric_and_best_score_fields(self):
         with patch("app.backend.routers.comparison.metrics_service") as mock_metrics_service:
@@ -117,14 +122,14 @@ class TestComparisonEndpointsExposeMse:
                 {
                     "rank": 1,
                     "model": "dinov2",
-                    "metric": "kl",
+                    "metric": "emd",
                     "score": 0.08,
                     "best_layer": "layer1",
                 }
             ]
             mock_metrics_service.get_layer_progression.return_value = {
                 "model": "dinov2",
-                "metric": "kl",
+                "metric": "emd",
                 "percentile": 90,
                 "method": "cls",
                 "layers": ["layer0", "layer1"],
@@ -133,11 +138,11 @@ class TestComparisonEndpointsExposeMse:
                 "best_score": 0.08,
             }
 
-            response = client.get("/api/compare/all_models_summary", params={"percentile": 90, "metric": "kl"})
+            response = client.get("/api/compare/all_models_summary", params={"percentile": 90, "metric": "emd"})
 
         assert response.status_code == 200
         payload = response.json()
-        assert payload["metric"] == "kl"
+        assert payload["metric"] == "emd"
         assert payload["leaderboard"][0]["score"] == 0.08
         assert payload["models"]["dinov2"]["best_score"] == 0.08
         assert "best_iou" not in payload["models"]["dinov2"]

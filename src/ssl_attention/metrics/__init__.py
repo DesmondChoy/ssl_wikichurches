@@ -9,6 +9,7 @@ Primary Metrics:
 - Coverage (Energy): Threshold-free metric - % of attention inside bboxes
 - MSE (Gaussian GT): Threshold-free mean squared error against soft bbox targets
 - KL Divergence (Gaussian GT): Threshold-free KL(GT || attention) distribution alignment
+- EMD / Wasserstein-1 (Gaussian GT): Threshold-free spatial transport distance
 - Pointing Game: Binary metric - does max attention hit any bbox?
 
 Secondary Metrics:
@@ -50,13 +51,19 @@ from ssl_attention.metrics.baselines import (
 )
 from ssl_attention.metrics.continuous import (
     annotation_to_gaussian_heatmap,
+    compute_emd,
+    compute_image_emd,
     compute_image_kl,
     compute_image_mse,
     compute_kl_divergence,
     compute_mse,
+    emd_support_grid,
     gaussian_bbox_heatmap,
     normalize_attention_for_mse,
+    prepare_emd_distribution,
     prepare_probability_distribution,
+    resize_heatmap_for_emd,
+    sanitize_nonnegative_heatmap,
     soft_union_heatmap,
 )
 from ssl_attention.metrics.iou import (
@@ -107,12 +114,18 @@ __all__ = [
     "compute_image_mse",
     "compute_kl_divergence",
     "compute_image_kl",
+    "compute_emd",
+    "compute_image_emd",
     "compute_batch_iou",
     "compute_per_bbox_iou",
     "compute_corloc",
     "aggregate_by_feature_type",
     "normalize_attention_for_mse",
     "prepare_probability_distribution",
+    "sanitize_nonnegative_heatmap",
+    "resize_heatmap_for_emd",
+    "prepare_emd_distribution",
+    "emd_support_grid",
     "gaussian_bbox_heatmap",
     "soft_union_heatmap",
     "annotation_to_gaussian_heatmap",

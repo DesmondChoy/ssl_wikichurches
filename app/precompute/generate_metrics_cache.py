@@ -1,8 +1,9 @@
 """Generate pre-computed metrics cache for the visualization app.
 
-Computes IoU, coverage, Gaussian-ground-truth MSE, and Gaussian-ground-truth
-KL divergence metrics for all model/layer/image combinations at multiple
-percentile thresholds, storing results in SQLite for fast queries.
+Computes IoU, coverage, Gaussian-ground-truth MSE, Gaussian-ground-truth
+KL divergence, and Gaussian-ground-truth EMD/Wasserstein-1 metrics for all
+model/layer/image combinations at multiple percentile thresholds, storing
+results in SQLite for fast queries.
 
 Usage:
     python -m app.precompute.generate_metrics_cache
@@ -37,11 +38,16 @@ from ssl_attention.config import (
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.data.annotations import load_annotations_with_features
-from ssl_attention.metrics import compute_image_iou, compute_image_kl, compute_image_mse
+from ssl_attention.metrics import (
+    compute_image_emd,
+    compute_image_iou,
+    compute_image_kl,
+    compute_image_mse,
+)
 from ssl_attention.metrics.iou import aggregate_by_feature_type, compute_per_bbox_iou
 
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
-IMAGE_METRIC_MIGRATIONS = {"mse": "REAL", "kl": "REAL"}
+IMAGE_METRIC_MIGRATIONS = {"mse": "REAL", "kl": "REAL", "emd": "REAL"}
 AGGREGATE_METRIC_MIGRATIONS = {
     "mean_mse": "REAL",
     "std_mse": "REAL",
@@ -49,6 +55,9 @@ AGGREGATE_METRIC_MIGRATIONS = {
     "mean_kl": "REAL",
     "std_kl": "REAL",
     "median_kl": "REAL",
+    "mean_emd": "REAL",
+    "std_emd": "REAL",
+    "median_emd": "REAL",
 }
 
 
@@ -87,6 +96,7 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             annotation_area REAL NOT NULL,
             mse REAL,
             kl REAL,
+            emd REAL,
             UNIQUE(model, layer, method, image_id, percentile)
         )
     """)
@@ -109,6 +119,9 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             mean_kl REAL,
             std_kl REAL,
             median_kl REAL,
+            mean_emd REAL,
+            std_emd REAL,
+            median_emd REAL,
             num_images INTEGER NOT NULL,
             UNIQUE(model, layer, method, percentile)
         )
@@ -233,6 +246,7 @@ def compute_metrics_for_model(
                 try:
                     image_mse = compute_image_mse(attention=attention, annotation=annotation)
                     image_kl = compute_image_kl(attention=attention, annotation=annotation)
+                    image_emd = compute_image_emd(attention=attention, annotation=annotation)
                 except Exception as e:
                     print(f"\nError computing continuous metrics for {image_id} layer{layer}/{variant}: {e}")
                     stats["errors"] += len(percentiles)
@@ -242,12 +256,17 @@ def compute_metrics_for_model(
                     # Check if already exists
                     if skip_existing:
                         cursor.execute(
-                            """SELECT mse, kl FROM image_metrics
+                            """SELECT mse, kl, emd FROM image_metrics
                                WHERE model=? AND layer=? AND method=? AND image_id=? AND percentile=?""",
                             (model_name, layer_key, variant, image_id, percentile),
                         )
                         existing_row = cursor.fetchone()
-                        if existing_row and existing_row[0] is not None and existing_row[1] is not None:
+                        if (
+                            existing_row
+                            and existing_row[0] is not None
+                            and existing_row[1] is not None
+                            and existing_row[2] is not None
+                        ):
                             stats["skipped"] += 1
                             continue
 
@@ -262,8 +281,8 @@ def compute_metrics_for_model(
                         # Insert into database
                         cursor.execute(
                             """INSERT OR REPLACE INTO image_metrics
-                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area, mse, kl)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                               (model, layer, method, image_id, percentile, iou, coverage, attention_area, annotation_area, mse, kl, emd)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                             (
                                 model_name,
                                 layer_key,
@@ -276,6 +295,7 @@ def compute_metrics_for_model(
                                 result.annotation_area,
                                 image_mse,
                                 image_kl,
+                                image_emd,
                             ),
                         )
 
@@ -294,7 +314,7 @@ def compute_metrics_for_model(
 
             for percentile in percentiles:
                 cursor.execute(
-                    """SELECT iou, coverage, mse, kl FROM image_metrics
+                    """SELECT iou, coverage, mse, kl, emd FROM image_metrics
                        WHERE model=? AND layer=? AND method=? AND percentile=?""",
                     (model_name, layer_key, variant, percentile),
                 )
@@ -303,7 +323,7 @@ def compute_metrics_for_model(
                 if not rows:
                     continue
 
-                complete_rows = [row for row in rows if row[2] is not None and row[3] is not None]
+                complete_rows = [row for row in rows if row[2] is not None and row[3] is not None and row[4] is not None]
                 if not complete_rows:
                     continue
 
@@ -311,12 +331,14 @@ def compute_metrics_for_model(
                 coverages = torch.tensor([r[1] for r in complete_rows])
                 mses = torch.tensor([r[2] for r in complete_rows], dtype=torch.float32)
                 kls = torch.tensor([r[3] for r in complete_rows], dtype=torch.float32)
+                emds = torch.tensor([r[4] for r in complete_rows], dtype=torch.float32)
 
                 cursor.execute(
                     """INSERT OR REPLACE INTO aggregate_metrics
                        (model, layer, method, percentile, mean_iou, std_iou, median_iou, mean_coverage,
-                        mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl, num_images)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl,
+                        mean_emd, std_emd, median_emd, num_images)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         model_name,
                         layer_key,
@@ -332,6 +354,9 @@ def compute_metrics_for_model(
                         kls.mean().item(),
                         kls.std().item(),
                         kls.median().item(),
+                        emds.mean().item(),
+                        emds.std().item(),
+                        emds.median().item(),
                         len(complete_rows),
                     ),
                 )
@@ -431,56 +456,98 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
 
     models_data: dict[str, Any] = {}
     leaderboard: list[dict[str, Any]] = []
+    leaderboards: dict[str, list[dict[str, Any]]] = {}
+    metric_configs = {
+        "iou": {"column": "mean_iou", "order": "DESC", "legacy_key": "best_iou"},
+        "mse": {"column": "mean_mse", "order": "ASC", "legacy_key": "best_mse"},
+        "kl": {"column": "mean_kl", "order": "ASC", "legacy_key": "best_kl"},
+        "emd": {"column": "mean_emd", "order": "ASC", "legacy_key": "best_emd"},
+    }
 
     # Get distinct models
     cursor.execute("SELECT DISTINCT model FROM aggregate_metrics")
     models = [row[0] for row in cursor.fetchall()]
 
-    # Build leaderboard using each model's default method
-    for model in models:
-        default_method = DEFAULT_METHOD[model].value
-        cursor.execute(
-            """SELECT MAX(mean_iou) as best_iou
-               FROM aggregate_metrics
-               WHERE model = ? AND method = ? AND percentile = 90""",
-            (model, default_method),
-        )
-        row = cursor.fetchone()
-        if row and row[0] is not None:
-            leaderboard.append({"model": display_model_name(model), "best_iou": row[0]})
+    # Build metric-specific leaderboards using each model's default method
+    for metric_name, config in metric_configs.items():
+        metric_entries: list[dict[str, Any]] = []
+        score_column = config["column"]
+        order_direction = config["order"]
 
-    leaderboard.sort(key=lambda x: x["best_iou"], reverse=True)
+        for model in models:
+            default_method = DEFAULT_METHOD[model].value
+            cursor.execute(
+                f"""SELECT layer, {score_column}
+                    FROM aggregate_metrics
+                    WHERE model = ? AND method = ? AND percentile = 90 AND {score_column} IS NOT NULL
+                    ORDER BY {score_column} {order_direction}, CAST(SUBSTR(layer, 6) AS INTEGER) ASC
+                    LIMIT 1""",
+                (model, default_method),
+            )
+            row = cursor.fetchone()
+            if row:
+                metric_entries.append(
+                    {
+                        "model": display_model_name(model),
+                        "metric": metric_name,
+                        "best_layer": row[0],
+                        "best_score": row[1],
+                    }
+                )
+
+        metric_entries.sort(
+            key=lambda entry: (entry["best_score"], entry["model"])
+            if order_direction == "ASC"
+            else (-entry["best_score"], entry["model"])
+        )
+        leaderboards[metric_name] = metric_entries
+
+    leaderboard = [
+        {"model": entry["model"], "best_iou": entry["best_score"]}
+        for entry in leaderboards.get("iou", [])
+    ]
 
     # Get per-model summaries (at default method)
     for model in models:
         default_method = DEFAULT_METHOD[model].value
+        metrics_summary: dict[str, Any] = {}
 
-        # Best layer at 90th percentile
-        cursor.execute(
-            """SELECT layer, mean_iou FROM aggregate_metrics
-               WHERE model = ? AND method = ? AND percentile = 90 ORDER BY mean_iou DESC LIMIT 1""",
-            (model, default_method),
-        )
-        row = cursor.fetchone()
-        best_layer = row[0] if row else "layer11"
-        best_iou = row[1] if row else 0
+        for metric_name, config in metric_configs.items():
+            score_column = config["column"]
+            order_direction = config["order"]
+            cursor.execute(
+                f"""SELECT layer, {score_column} FROM aggregate_metrics
+                    WHERE model = ? AND method = ? AND percentile = 90 AND {score_column} IS NOT NULL
+                    ORDER BY {score_column} {order_direction}, CAST(SUBSTR(layer, 6) AS INTEGER) ASC
+                    LIMIT 1""",
+                (model, default_method),
+            )
+            best_row = cursor.fetchone()
+            best_layer = best_row[0] if best_row else "layer11"
+            best_score = best_row[1] if best_row else 0
 
-        # Layer progression
-        cursor.execute(
-            """SELECT layer, mean_iou FROM aggregate_metrics
-               WHERE model = ? AND method = ? AND percentile = 90
-               ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
-            (model, default_method),
-        )
-        layer_progression = {row[0]: row[1] for row in cursor.fetchall()}
+            cursor.execute(
+                f"""SELECT layer, {score_column} FROM aggregate_metrics
+                    WHERE model = ? AND method = ? AND percentile = 90 AND {score_column} IS NOT NULL
+                    ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
+                (model, default_method),
+            )
+            layer_progression = {row[0]: row[1] for row in cursor.fetchall()}
+            metrics_summary[metric_name] = {
+                "best_layer": best_layer,
+                "best_score": best_score,
+                "layer_progression": layer_progression,
+            }
 
+        iou_summary = metrics_summary["iou"]
         models_data[display_model_name(model)] = {
-            "best_layer": best_layer,
-            "best_iou": best_iou,
-            "layer_progression": layer_progression,
+            "best_layer": iou_summary["best_layer"],
+            "best_iou": iou_summary["best_score"],
+            "layer_progression": iou_summary["layer_progression"],
+            "metrics": metrics_summary,
         }
 
-    summary = {"models": models_data, "leaderboard": leaderboard}
+    summary = {"models": models_data, "leaderboard": leaderboard, "leaderboards": leaderboards}
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
