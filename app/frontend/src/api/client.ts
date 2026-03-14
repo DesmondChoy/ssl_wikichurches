@@ -244,13 +244,17 @@ export const comparisonAPI = {
   getAllModelsSummary: (
     percentile = 90,
     metric: import('../types').DashboardMetric = 'iou',
-    method?: string
+    options?: {
+      method?: string;
+      rankingMode?: import('../types').RankingMode;
+    }
   ) => {
     const params = new URLSearchParams({
       percentile: String(percentile),
       metric,
     });
-    if (method) params.set('method', method);
+    if (options?.method) params.set('method', options.method);
+    if (options?.rankingMode) params.set('ranking_mode', options.rankingMode);
     return fetchJSON<import('../types').AllModelsSummary>(
       `/compare/all_models_summary?${params.toString()}`
     );

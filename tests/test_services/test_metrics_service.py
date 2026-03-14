@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from unittest.mock import patch
 
@@ -131,6 +132,77 @@ def _create_method_filtered_leaderboard_db(conn: sqlite3.Connection) -> None:
         ("clip", "layer1", "rollout", 90, 0.46, 0.01, 0.46, 0.5, 0.20, 0.01, 0.20, 0.15, 0.01, 0.15, 0.11, 0.01, 0.11, 139),
         ("siglip2", "layer0", "mean", 90, 0.41, 0.01, 0.41, 0.5, 0.18, 0.01, 0.18, 0.19, 0.01, 0.19, 0.17, 0.01, 0.17, 139),
         ("resnet50", "layer0", "gradcam", 90, 0.44, 0.01, 0.44, 0.5, 0.16, 0.01, 0.16, 0.13, 0.01, 0.13, 0.10, 0.01, 0.10, 139),
+    ]
+    conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.commit()
+
+
+def _create_best_available_leaderboard_db(conn: sqlite3.Connection) -> None:
+    """Populate rows where a non-default method wins for one model."""
+    conn.execute(
+        """CREATE TABLE aggregate_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            percentile INTEGER,
+            mean_iou REAL,
+            std_iou REAL,
+            median_iou REAL,
+            mean_coverage REAL,
+            mean_mse REAL,
+            std_mse REAL,
+            median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
+            mean_emd REAL,
+            std_emd REAL,
+            median_emd REAL,
+            num_images INTEGER
+        )"""
+    )
+
+    rows = [
+        ("dinov2", "layer0", "cls", 90, 0.42, 0.01, 0.42, 0.5, 0.22, 0.01, 0.22, 0.18, 0.01, 0.18, 0.14, 0.01, 0.14, 139),
+        ("dinov2", "layer1", "cls", 90, 0.50, 0.01, 0.50, 0.5, 0.19, 0.01, 0.19, 0.15, 0.01, 0.15, 0.11, 0.01, 0.11, 139),
+        ("dinov2", "layer0", "rollout", 90, 0.71, 0.01, 0.71, 0.5, 0.16, 0.01, 0.16, 0.11, 0.01, 0.11, 0.09, 0.01, 0.09, 139),
+        ("dinov2", "layer1", "rollout", 90, 0.67, 0.01, 0.67, 0.5, 0.18, 0.01, 0.18, 0.12, 0.01, 0.12, 0.10, 0.01, 0.10, 139),
+        ("clip", "layer0", "cls", 90, 0.46, 0.01, 0.46, 0.5, 0.21, 0.01, 0.21, 0.16, 0.01, 0.16, 0.13, 0.01, 0.13, 139),
+        ("clip", "layer1", "cls", 90, 0.60, 0.01, 0.60, 0.5, 0.17, 0.01, 0.17, 0.13, 0.01, 0.13, 0.10, 0.01, 0.10, 139),
+        ("clip", "layer0", "rollout", 90, 0.55, 0.01, 0.55, 0.5, 0.20, 0.01, 0.20, 0.15, 0.01, 0.15, 0.12, 0.01, 0.12, 139),
+    ]
+    conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    conn.commit()
+
+
+def _create_best_available_tie_db(conn: sqlite3.Connection) -> None:
+    """Populate rows where best-available mode should prefer the default method on ties."""
+    conn.execute(
+        """CREATE TABLE aggregate_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            percentile INTEGER,
+            mean_iou REAL,
+            std_iou REAL,
+            median_iou REAL,
+            mean_coverage REAL,
+            mean_mse REAL,
+            std_mse REAL,
+            median_mse REAL,
+            mean_kl REAL,
+            std_kl REAL,
+            median_kl REAL,
+            mean_emd REAL,
+            std_emd REAL,
+            median_emd REAL,
+            num_images INTEGER
+        )"""
+    )
+
+    rows = [
+        ("dinov2", "layer1", "cls", 90, 0.60, 0.01, 0.60, 0.5, 0.18, 0.01, 0.18, 0.14, 0.01, 0.14, 0.10, 0.01, 0.10, 139),
+        ("dinov2", "layer0", "rollout", 90, 0.60, 0.01, 0.60, 0.5, 0.18, 0.01, 0.18, 0.14, 0.01, 0.14, 0.10, 0.01, 0.10, 139),
     ]
     conn.executemany("INSERT INTO aggregate_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
@@ -316,6 +388,7 @@ class TestLeaderboardOrdering:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.12, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "cls" for entry in leaderboard)
         assert all(entry["metric"] == "mse" for entry in leaderboard)
         conn.close()
 
@@ -333,6 +406,7 @@ class TestLeaderboardOrdering:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.08, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "cls" for entry in leaderboard)
         assert all(entry["metric"] == "kl" for entry in leaderboard)
         conn.close()
 
@@ -350,7 +424,42 @@ class TestLeaderboardOrdering:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.06, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "cls" for entry in leaderboard)
         assert all(entry["metric"] == "emd" for entry in leaderboard)
+        conn.close()
+
+    def test_best_available_mode_can_select_non_default_method(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_best_available_leaderboard_db(conn)
+
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="iou", ranking_mode="best_available")
+
+        assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
+        assert leaderboard[0]["score"] == pytest.approx(0.71, abs=1e-9)
+        assert leaderboard[0]["best_layer"] == "layer0"
+        assert leaderboard[0]["method_used"] == "rollout"
+        assert leaderboard[1]["method_used"] == "cls"
+        conn.close()
+
+    def test_best_available_mode_prefers_default_method_on_ties(self, service):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_best_available_tie_db(conn)
+
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: conn
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            leaderboard = service.get_leaderboard(percentile=90, metric="iou", ranking_mode="best_available")
+
+        assert len(leaderboard) == 1
+        assert leaderboard[0]["method_used"] == "cls"
+        assert leaderboard[0]["best_layer"] == "layer1"
         conn.close()
 
     def test_rollout_leaderboard_only_includes_rollout_compatible_models(self, service):
@@ -366,6 +475,7 @@ class TestLeaderboardOrdering:
 
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "rollout" for entry in leaderboard)
         assert all(entry["metric"] == "iou" for entry in leaderboard)
         conn.close()
 
@@ -382,6 +492,7 @@ class TestLeaderboardOrdering:
 
         assert [entry["model"] for entry in leaderboard] == ["resnet50"]
         assert leaderboard[0]["best_layer"] == "layer0"
+        assert leaderboard[0]["method_used"] == "gradcam"
         conn.close()
 
 
@@ -539,6 +650,7 @@ class TestLegacyContinuousMetricFallback:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.18, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "cls" for entry in leaderboard)
         conn.close()
 
     def test_get_leaderboard_recomputes_kl_when_columns_missing_for_shared_method(self, service):
@@ -594,6 +706,7 @@ class TestLegacyContinuousMetricFallback:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.18, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "rollout" for entry in leaderboard)
         conn.close()
 
     def test_get_leaderboard_recomputes_emd_when_columns_missing(self, service):
@@ -648,6 +761,7 @@ class TestLegacyContinuousMetricFallback:
         assert [entry["model"] for entry in leaderboard] == ["dinov2", "clip"]
         assert leaderboard[0]["score"] == pytest.approx(0.14, abs=1e-9)
         assert leaderboard[0]["best_layer"] == "layer1"
+        assert all(entry["method_used"] == "cls" for entry in leaderboard)
         conn.close()
 
     def test_get_layer_progression_recomputes_kl_when_columns_missing(self, service):
@@ -836,3 +950,43 @@ class TestImageDetailLayerProgression:
                 percentile=90,
                 method="cls",
             )
+
+
+class TestSummaryMetadata:
+    """Verify static summary metadata is explicit even for legacy cache files."""
+
+    @pytest.fixture
+    def service(self):
+        from app.backend.services.metrics_service import MetricsService
+
+        return object.__new__(MetricsService)
+
+    def test_get_summary_backfills_default_method_metadata(self, service, tmp_path):
+        summary_path = tmp_path / "metrics_summary.json"
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "models": {
+                        "dinov2": {
+                            "best_layer": "layer11",
+                            "best_iou": 0.81,
+                            "layer_progression": {"layer11": 0.81},
+                        }
+                    },
+                    "leaderboard": [{"model": "dinov2", "best_iou": 0.81}],
+                    "leaderboards": {
+                        "iou": [{"model": "dinov2", "best_layer": "layer11", "best_score": 0.81}],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("app.backend.services.metrics_service.METRICS_SUMMARY_PATH", summary_path):
+            result = service.get_summary()
+
+        assert result is not None
+        assert result["ranking_mode"] == "default_method"
+        assert result["models"]["dinov2"]["method_used"] == "cls"
+        assert result["leaderboard"][0]["method_used"] == "cls"
+        assert result["leaderboards"]["iou"][0]["method_used"] == "cls"

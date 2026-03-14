@@ -184,6 +184,7 @@ class TestAllModelsSummaryMethodFiltering:
                 "metric": "iou",
                 "score": 0.52,
                 "best_layer": "layer1",
+                "method_used": "rollout",
             },
             {
                 "rank": 2,
@@ -191,6 +192,7 @@ class TestAllModelsSummaryMethodFiltering:
                 "metric": "iou",
                 "score": 0.46,
                 "best_layer": "layer1",
+                "method_used": "rollout",
             },
         ]
         mock_met_cmp.get_layer_progression.side_effect = [
@@ -223,13 +225,115 @@ class TestAllModelsSummaryMethodFiltering:
 
         assert resp.status_code == 200
         payload = resp.json()
+        assert payload["ranking_mode"] is None
         assert payload["method"] == "rollout"
         assert payload["excluded_models"] == ["siglip", "siglip2", "resnet50"]
         assert [entry["model"] for entry in payload["leaderboard"]] == ["dinov2", "clip"]
+        assert all(entry["method_used"] == "rollout" for entry in payload["leaderboard"])
+        assert payload["models"]["dinov2"]["method_used"] == "rollout"
         mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", method="rollout")
         assert mock_met_cmp.get_layer_progression.call_args_list == [
             call("dinov2", 90, method="rollout", metric="iou"),
             call("clip", 90, method="rollout", metric="iou"),
+        ]
+
+    def test_default_summary_uses_default_ranking_mode(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.58,
+                "best_layer": "layer11",
+                "method_used": "cls",
+            }
+        ]
+        mock_met_cmp.get_layer_progression.return_value = {
+            "model": "dinov2",
+            "metric": "iou",
+            "percentile": 90,
+            "method": "cls",
+            "layers": ["layer0", "layer11"],
+            "scores": [0.31, 0.58],
+            "best_layer": "layer11",
+            "best_score": 0.58,
+        }
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["ranking_mode"] == "default_method"
+        assert payload["method"] is None
+        assert payload["excluded_models"] == []
+        assert payload["leaderboard"][0]["method_used"] == "cls"
+        assert payload["models"]["dinov2"]["method_used"] == "cls"
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="default_method")
+        mock_met_cmp.get_layer_progression.assert_called_once_with("dinov2", 90, method="cls", metric="iou")
+
+    def test_best_available_summary_uses_entry_methods(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.62,
+                "best_layer": "layer10",
+                "method_used": "rollout",
+            },
+            {
+                "rank": 2,
+                "model": "clip",
+                "metric": "iou",
+                "score": 0.55,
+                "best_layer": "layer8",
+                "method_used": "cls",
+            },
+        ]
+        mock_met_cmp.get_layer_progression.side_effect = [
+            {
+                "model": "dinov2",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer10"],
+                "scores": [0.42, 0.62],
+                "best_layer": "layer10",
+                "best_score": 0.62,
+            },
+            {
+                "model": "clip",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "cls",
+                "layers": ["layer0", "layer8"],
+                "scores": [0.28, 0.55],
+                "best_layer": "layer8",
+                "best_score": 0.55,
+            },
+        ]
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["ranking_mode"] == "best_available"
+        assert payload["method"] is None
+        assert payload["excluded_models"] == []
+        assert payload["leaderboard"][0]["method_used"] == "rollout"
+        assert payload["models"]["dinov2"]["method_used"] == "rollout"
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="best_available")
+        assert mock_met_cmp.get_layer_progression.call_args_list == [
+            call("dinov2", 90, method="rollout", metric="iou"),
+            call("clip", 90, method="cls", metric="iou"),
         ]
 
     def test_invalid_summary_method_returns_400(self):
@@ -240,6 +344,94 @@ class TestAllModelsSummaryMethodFiltering:
 
         assert resp.status_code == 400
         assert "Invalid method" in resp.json()["detail"]
+
+    def test_summary_rejects_method_and_ranking_mode_together(self):
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "cls", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 400
+        assert "cannot be combined" in resp.json()["detail"]
+
+
+class TestMetricsLeaderboardRankingModes:
+    """metrics/leaderboard should validate and forward ranking semantics."""
+
+    def test_default_leaderboard_uses_default_ranking_mode(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.58,
+                "best_layer": "layer11",
+                "method_used": "cls",
+            }
+        ]
+
+        resp = client.get("/api/metrics/leaderboard", params={"percentile": 90, "metric": "iou"})
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "cls"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="default_method")
+
+    def test_best_available_leaderboard_forwards_ranking_mode(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.62,
+                "best_layer": "layer10",
+                "method_used": "rollout",
+            }
+        ]
+
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "rollout"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="best_available")
+
+    def test_shared_method_leaderboard_forwards_method(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.52,
+                "best_layer": "layer1",
+                "method_used": "rollout",
+            }
+        ]
+
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "method": "rollout"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "rollout"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", method="rollout")
+
+    def test_leaderboard_rejects_method_and_ranking_mode_together(self):
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "method": "cls", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 400
+        assert "cannot be combined" in resp.json()["detail"]
 
 
 class TestFrozenVsFinetunedEndpoint:

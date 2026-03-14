@@ -492,6 +492,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
                         "metric": metric_name,
                         "best_layer": row[0],
                         "best_score": row[1],
+                        "method_used": default_method,
                     }
                 )
 
@@ -503,7 +504,11 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         leaderboards[metric_name] = metric_entries
 
     leaderboard = [
-        {"model": entry["model"], "best_iou": entry["best_score"]}
+        {
+            "model": entry["model"],
+            "best_iou": entry["best_score"],
+            "method_used": entry["method_used"],
+        }
         for entry in leaderboards.get("iou", [])
     ]
 
@@ -536,6 +541,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
             metrics_summary[metric_name] = {
                 "best_layer": best_layer,
                 "best_score": best_score,
+                "method_used": default_method,
                 "layer_progression": layer_progression,
             }
 
@@ -543,11 +549,17 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
         models_data[display_model_name(model)] = {
             "best_layer": iou_summary["best_layer"],
             "best_iou": iou_summary["best_score"],
+            "method_used": default_method,
             "layer_progression": iou_summary["layer_progression"],
             "metrics": metrics_summary,
         }
 
-    summary = {"models": models_data, "leaderboard": leaderboard, "leaderboards": leaderboards}
+    summary = {
+        "ranking_mode": "default_method",
+        "models": models_data,
+        "leaderboard": leaderboard,
+        "leaderboards": leaderboards,
+    }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:

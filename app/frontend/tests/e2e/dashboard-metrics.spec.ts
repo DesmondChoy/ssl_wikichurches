@@ -13,7 +13,7 @@ test.describe('Dashboard metrics', () => {
     ).toBeVisible();
   });
 
-  test('keeps the dashboard summary aligned to the selected shared method', async ({ page }) => {
+  test('switches dashboard ranking modes and uses the selected row method', async ({ page }) => {
     await page.route('**/api/attention/models', async (route) => {
       await route.fulfill({
         status: 200,
@@ -53,44 +53,63 @@ test.describe('Dashboard metrics', () => {
     });
 
     await page.route('**/api/compare/all_models_summary?**', async (route) => {
+      const url = new URL(route.request().url());
+      const rankingMode = url.searchParams.get('ranking_mode');
+      const isBestAvailable = rankingMode === 'best_available';
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           percentile: 90,
           metric: 'iou',
-          method: 'cls',
-          excluded_models: ['siglip', 'siglip2', 'resnet50'],
-          leaderboard: [
-            { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11' },
-            { rank: 2, model: 'dinov3', metric: 'iou', score: 0.54, best_layer: 'layer10' },
-            { rank: 3, model: 'mae', metric: 'iou', score: 0.5, best_layer: 'layer9' },
-            { rank: 4, model: 'clip', metric: 'iou', score: 0.46, best_layer: 'layer8' },
-          ],
+          ranking_mode: isBestAvailable ? 'best_available' : 'default_method',
+          method: null,
+          excluded_models: [],
+          leaderboard: isBestAvailable
+            ? [
+                { rank: 1, model: 'dinov2', metric: 'iou', score: 0.64, best_layer: 'layer10', method_used: 'rollout' },
+                { rank: 2, model: 'clip', metric: 'iou', score: 0.57, best_layer: 'layer7', method_used: 'rollout' },
+                { rank: 3, model: 'dinov3', metric: 'iou', score: 0.54, best_layer: 'layer10', method_used: 'cls' },
+                { rank: 4, model: 'mae', metric: 'iou', score: 0.5, best_layer: 'layer9', method_used: 'cls' },
+              ]
+            : [
+                { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11', method_used: 'cls' },
+                { rank: 2, model: 'dinov3', metric: 'iou', score: 0.54, best_layer: 'layer10', method_used: 'cls' },
+                { rank: 3, model: 'mae', metric: 'iou', score: 0.5, best_layer: 'layer9', method_used: 'cls' },
+                { rank: 4, model: 'clip', metric: 'iou', score: 0.46, best_layer: 'layer8', method_used: 'cls' },
+              ],
           models: {
             dinov2: {
               rank: 1,
-              best_layer: 'layer11',
-              best_score: 0.58,
-              layer_progression: { layer0: 0.22, layer1: 0.31, layer11: 0.58 },
+              best_layer: isBestAvailable ? 'layer10' : 'layer11',
+              best_score: isBestAvailable ? 0.64 : 0.58,
+              method_used: isBestAvailable ? 'rollout' : 'cls',
+              layer_progression: isBestAvailable
+                ? { layer0: 0.28, layer1: 0.39, layer10: 0.64 }
+                : { layer0: 0.22, layer1: 0.31, layer11: 0.58 },
             },
             dinov3: {
-              rank: 2,
+              rank: isBestAvailable ? 3 : 2,
               best_layer: 'layer10',
               best_score: 0.54,
+              method_used: 'cls',
               layer_progression: { layer0: 0.2, layer1: 0.29, layer10: 0.54 },
             },
             mae: {
-              rank: 3,
+              rank: 4,
               best_layer: 'layer9',
               best_score: 0.5,
+              method_used: 'cls',
               layer_progression: { layer0: 0.18, layer1: 0.27, layer9: 0.5 },
             },
             clip: {
-              rank: 4,
-              best_layer: 'layer8',
-              best_score: 0.46,
-              layer_progression: { layer0: 0.16, layer1: 0.24, layer8: 0.46 },
+              rank: isBestAvailable ? 2 : 4,
+              best_layer: isBestAvailable ? 'layer7' : 'layer8',
+              best_score: isBestAvailable ? 0.57 : 0.46,
+              method_used: isBestAvailable ? 'rollout' : 'cls',
+              layer_progression: isBestAvailable
+                ? { layer0: 0.21, layer1: 0.33, layer7: 0.57 }
+                : { layer0: 0.16, layer1: 0.24, layer8: 0.46 },
             },
           },
         }),
@@ -147,7 +166,7 @@ test.describe('Dashboard metrics', () => {
     const summaryResponse = page.waitForResponse(
       (response) =>
         response.url().includes('/api/compare/all_models_summary')
-        && response.url().includes('method=cls')
+        && response.url().includes('ranking_mode=default_method')
         && response.status() === 200
     );
 
@@ -156,24 +175,35 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await expect(page.getByTestId('dashboard-method-context')).toContainText(
-      'Summary panels are using CLS Attention.'
+      'Leaderboard and layer progression rank each model by its default attention method.'
     );
-    await expect(page.getByTestId('dashboard-method-context')).toContainText(
-      'Excluded models: siglip, siglip2, resnet50.'
-    );
+    await expect(page.getByTestId('leaderboard-row-meta-clip')).toContainText('CLS Attention');
 
     await expect(page.getByTestId('leaderboard-row-dinov2')).toBeVisible();
     await expect(page.getByTestId('leaderboard-row-dinov3')).toBeVisible();
     await expect(page.getByTestId('leaderboard-row-mae')).toBeVisible();
     await expect(page.getByTestId('leaderboard-row-clip')).toBeVisible();
-    await expect(page.getByTestId('leaderboard-row-siglip')).toHaveCount(0);
-    await expect(page.getByTestId('leaderboard-row-siglip2')).toHaveCount(0);
-    await expect(page.getByTestId('leaderboard-row-resnet50')).toHaveCount(0);
+
+    const bestAvailableResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/compare/all_models_summary')
+        && response.url().includes('ranking_mode=best_available')
+        && response.status() === 200
+    );
+
+    await page.getByTestId('dashboard-ranking-mode-best_available').click();
+    await bestAvailableResponse;
+
+    await expect(page.getByTestId('dashboard-method-context')).toContainText(
+      "Leaderboard and layer progression rank each model by its strongest available attention method."
+    );
+    await expect(page.getByTestId('leaderboard-row-meta-dinov2')).toContainText('Rollout Attention');
+    await expect(page.getByTestId('leaderboard-row-meta-clip')).toContainText('Rollout Attention');
 
     const clipStyleResponse = page.waitForResponse(
       (response) =>
         response.url().includes('/api/metrics/model/clip/style_breakdown')
-        && response.url().includes('method=cls')
+        && response.url().includes('method=rollout')
         && response.status() === 200
     );
 
@@ -181,7 +211,7 @@ test.describe('Dashboard metrics', () => {
     await clipStyleResponse;
 
     await expect(page.getByTestId('dashboard-method-context')).toContainText(
-      'Summary panels are using CLS Attention.'
+      "Leaderboard and layer progression rank each model by its strongest available attention method."
     );
   });
 });

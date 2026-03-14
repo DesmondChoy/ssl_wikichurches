@@ -5,6 +5,7 @@
 import { Card, CardHeader, CardContent } from '../ui/Card';
 import type { DashboardMetric, LeaderboardEntry } from '../../types';
 import { DASHBOARD_METRIC_METADATA } from '../../constants/metricMetadata';
+import { getAttentionMethodLabel } from '../../constants/attentionMethods';
 
 interface ModelLeaderboardProps {
   leaderboard?: LeaderboardEntry[];
@@ -13,7 +14,7 @@ interface ModelLeaderboardProps {
   isLoading?: boolean;
   hasError?: boolean;
   emptyMessage?: string;
-  onModelSelect?: (model: string) => void;
+  onModelSelect?: (entry: LeaderboardEntry) => void;
 }
 
 export function ModelLeaderboard({
@@ -81,7 +82,7 @@ export function ModelLeaderboard({
                 className={`flex items-center gap-3 px-4 py-3 ${
                   onModelSelect ? 'hover:bg-gray-50 cursor-pointer' : ''
                 }`}
-                onClick={() => onModelSelect?.(entry.model)}
+                onClick={() => onModelSelect?.(entry)}
               >
                 {/* Rank badge */}
                 <div
@@ -101,8 +102,8 @@ export function ModelLeaderboard({
                 {/* Model info */}
                 <div className="flex-1">
                   <div className="font-medium capitalize">{entry.model}</div>
-                  <div className="text-xs text-gray-500">
-                    Best: {entry.best_layer}
+                  <div className="text-xs text-gray-500" data-testid={`leaderboard-row-meta-${entry.model}`}>
+                    Best: {entry.best_layer} • {getAttentionMethodLabel(entry.method_used)}
                   </div>
                 </div>
 

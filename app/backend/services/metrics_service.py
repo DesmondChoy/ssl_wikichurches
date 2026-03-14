@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from app.backend.config import (
     AVAILABLE_MODELS,
-    DEFAULT_METHOD,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
+    MODEL_METHODS,
     display_model_name,
     get_model_num_layers,
     resolve_model_name,
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 
 MetricName = Literal["iou", "mse", "kl", "emd"]
+RankingMode = Literal["default_method", "best_available"]
 
 IMAGE_DETAIL_METRICS = (
     {
@@ -466,6 +467,10 @@ class MetricsService:
         score_column, _, _ = self._metric_sql_config(metric)
         return self._table_has_column(conn, "aggregate_metrics", score_column)
 
+    def _metric_prefers_lower(self, metric: MetricName) -> bool:
+        """Return whether the selected metric is optimized by a lower score."""
+        return metric in {"mse", "kl", "emd"}
+
     def _legacy_aggregate_rows(
         self,
         model: str,
@@ -494,117 +499,175 @@ class MetricsService:
 
         return rows
 
+    def _best_layer_score_from_rows(
+        self,
+        layer_scores: list[tuple[str, float]],
+        metric: MetricName,
+    ) -> tuple[str, float]:
+        """Pick the best layer/score pair for a model+method candidate."""
+        if self._metric_prefers_lower(metric):
+            return min(layer_scores, key=lambda row: (row[1], int(row[0][5:])))
+        return max(layer_scores, key=lambda row: (row[1], -int(row[0][5:])))
+
+    def _best_method_entry_for_model(
+        self,
+        conn: sqlite3.Connection,
+        model: str,
+        percentile: int,
+        metric: MetricName,
+        ranking_mode: RankingMode,
+        method: str | None,
+    ) -> dict[str, Any] | None:
+        """Resolve the leaderboard row for one model under the requested ranking semantics."""
+        if method is not None:
+            candidate_methods = [method] if model_supports_method(model, method) else []
+        elif ranking_mode == "best_available":
+            candidate_methods = [candidate.value for candidate in MODEL_METHODS.get(model, [])]
+        else:
+            candidate_methods = [resolve_default_method(model)]
+
+        if not candidate_methods:
+            return None
+
+        db_model = resolve_model_name(model)
+        score_column, order_direction, _ = self._metric_sql_config(metric)
+        has_aggregate_column = self._aggregate_metric_column_available(conn, metric)
+        default_method = resolve_default_method(model)
+        candidate_entries: list[dict[str, Any]] = []
+
+        for selected_method in candidate_methods:
+            if has_aggregate_column:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""SELECT layer, {score_column} AS score
+                       FROM aggregate_metrics
+                       WHERE model = ? AND method = ? AND percentile = ?
+                         AND {score_column} IS NOT NULL
+                       ORDER BY {score_column} {order_direction},
+                                CAST(SUBSTR(layer, 6) AS INTEGER) ASC
+                       LIMIT 1""",
+                    (db_model, selected_method, percentile),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    continue
+                best_layer = row["layer"]
+                best_score = row["score"]
+            else:
+                layer_scores = self._legacy_aggregate_rows(
+                    model=model,
+                    percentile=percentile,
+                    method=selected_method,
+                    metric=metric,
+                )
+                if not layer_scores:
+                    continue
+                best_layer, best_score = self._best_layer_score_from_rows(layer_scores, metric)
+
+            candidate_entries.append(
+                {
+                    "model": display_model_name(db_model),
+                    "metric": metric,
+                    "score": best_score,
+                    "best_layer": best_layer,
+                    "method_used": selected_method,
+                }
+            )
+
+        if not candidate_entries:
+            return None
+
+        def candidate_sort_key(entry: dict[str, Any]) -> tuple[Any, ...]:
+            primary_score: float = entry["score"]
+            if not self._metric_prefers_lower(metric):
+                primary_score = -primary_score
+            return (
+                primary_score,
+                0 if entry["method_used"] == default_method else 1,
+                int(entry["best_layer"][5:]),
+                entry["method_used"],
+            )
+
+        return min(candidate_entries, key=candidate_sort_key)
+
+    def _augment_summary_metadata(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Backfill explicit ranking semantics for legacy summary JSON files."""
+        data.setdefault("ranking_mode", "default_method")
+
+        models = data.get("models")
+        if isinstance(models, dict):
+            for model_name, model_data in models.items():
+                if not isinstance(model_data, dict):
+                    continue
+                default_method = resolve_default_method(model_name)
+                model_data.setdefault("method_used", default_method)
+                metrics = model_data.get("metrics")
+                if isinstance(metrics, dict):
+                    for metric_data in metrics.values():
+                        if isinstance(metric_data, dict):
+                            metric_data.setdefault("method_used", default_method)
+
+        leaderboard = data.get("leaderboard")
+        if isinstance(leaderboard, list):
+            for entry in leaderboard:
+                if isinstance(entry, dict) and "model" in entry:
+                    entry.setdefault("method_used", resolve_default_method(entry["model"]))
+
+        leaderboards = data.get("leaderboards")
+        if isinstance(leaderboards, dict):
+            for metric_entries in leaderboards.values():
+                if not isinstance(metric_entries, list):
+                    continue
+                for entry in metric_entries:
+                    if isinstance(entry, dict) and "model" in entry:
+                        entry.setdefault("method_used", resolve_default_method(entry["model"]))
+
+        return data
+
     def get_leaderboard(
         self,
         percentile: int = 90,
         metric: MetricName = "iou",
         method: str | None = None,
+        ranking_mode: RankingMode = "default_method",
     ) -> list[dict]:
         """Get model leaderboard ranked by best score for the selected metric.
 
-        Uses each model's default method for ranking unless an explicit shared
-        method filter is provided.
+        Uses the selected ranking mode unless an explicit shared method filter is provided.
 
         Returns:
-            List of dicts with rank, model, metric, score, best_layer.
+            List of dicts with rank, model, metric, score, best_layer, method_used.
         """
-        score_column, order_direction, aggregate_fn = self._metric_sql_config(metric)
-
-        leaderboard_models: list[tuple[str, str]]
-        if method is None:
-            # Build a dynamic filter so each model uses its canonical default method.
-            leaderboard_models = [
-                (model_name, default_method.value)
-                for model_name, default_method in DEFAULT_METHOD.items()
-            ]
-        else:
-            leaderboard_models = [
-                (model_name, method)
-                for model_name in AVAILABLE_MODELS
-                if model_supports_method(model_name, method)
-            ]
-
-        conditions = []
-        params: list[str | int] = []
-        for model_name, selected_method in leaderboard_models:
-            conditions.append("(model = ? AND method = ?)")
-            params.extend([resolve_model_name(model_name), selected_method])
-
-        if not conditions:
-            return []
-
-        filter_clause = " OR ".join(conditions)
-
         with self.get_connection() as conn:
-            if not self._aggregate_metric_column_available(conn, metric):
-                comparator = min if metric in {"mse", "kl", "emd"} else max
-                best_rows: list[dict[str, Any]] = []
-
-                for model_name, selected_method in leaderboard_models:
-                    layer_scores = self._legacy_aggregate_rows(
+            rows = [
+                entry
+                for model_name in AVAILABLE_MODELS
+                if (
+                    entry := self._best_method_entry_for_model(
+                        conn=conn,
                         model=model_name,
                         percentile=percentile,
-                        method=selected_method,
                         metric=metric,
+                        ranking_mode=ranking_mode,
+                        method=method,
                     )
-                    if not layer_scores:
-                        continue
-
-                    best_layer, best_score = comparator(
-                        layer_scores,
-                        key=lambda row: (row[1], int(row[0][5:]))
-                        if metric in {"mse", "kl", "emd"}
-                        else (row[1], -int(row[0][5:])),
-                    )
-                    best_rows.append(
-                        {
-                            "model": display_model_name(resolve_model_name(model_name)),
-                            "metric": metric,
-                            "score": best_score,
-                            "best_layer": best_layer,
-                        }
-                    )
-
-                ordered_rows = sorted(
-                    best_rows,
-                    key=lambda row: (row["score"], row["model"])
-                    if metric in {"mse", "kl", "emd"}
-                    else (-row["score"], row["model"]),
                 )
-                return [
-                    {
-                        "rank": index + 1,
-                        **row,
-                    }
-                    for index, row in enumerate(ordered_rows)
-                ]
-
-            cursor = conn.cursor()
-            cursor.execute(
-                f"""SELECT model, {aggregate_fn}({score_column}) as score,
-                   (SELECT layer FROM aggregate_metrics a2
-                    WHERE a2.model = a1.model AND a2.method = a1.method AND a2.percentile = ?
-                      AND a2.{score_column} IS NOT NULL
-                    ORDER BY {score_column} {order_direction},
-                             CAST(SUBSTR(layer, 6) AS INTEGER) ASC
-                    LIMIT 1) as best_layer
-                   FROM aggregate_metrics a1
-                   WHERE percentile = ? AND {score_column} IS NOT NULL AND ({filter_clause})
-                   GROUP BY model
-                   ORDER BY score {order_direction}, model ASC""",
-                (percentile, percentile, *params),
-            )
-
-            return [
-                {
-                    "rank": i + 1,
-                    "model": display_model_name(row["model"]),
-                    "metric": metric,
-                    "score": row["score"],
-                    "best_layer": row["best_layer"],
-                }
-                for i, row in enumerate(cursor.fetchall())
+                is not None
             ]
+
+        ordered_rows = sorted(
+            rows,
+            key=lambda row: (row["score"], row["model"])
+            if self._metric_prefers_lower(metric)
+            else (-row["score"], row["model"]),
+        )
+        return [
+            {
+                "rank": index + 1,
+                **row,
+            }
+            for index, row in enumerate(ordered_rows)
+        ]
 
     def get_layer_progression(
         self,
@@ -776,7 +839,7 @@ class MetricsService:
 
         with open(METRICS_SUMMARY_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
-            return data
+            return self._augment_summary_metadata(data)
 
     def get_feature_breakdown(
         self,

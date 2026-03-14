@@ -82,12 +82,15 @@ export interface ImageLayerProgression {
   layers: ImageLayerMetricPoint[];
 }
 
+export type RankingMode = 'default_method' | 'best_available';
+
 export interface LeaderboardEntry {
   rank: number;
   model: string;
   metric: DashboardMetric;
   score: number;
   best_layer: string;
+  method_used: string;
 }
 
 export interface LayerProgression {
@@ -140,12 +143,14 @@ export interface AllModelsSummaryModelEntry {
   rank: number;
   best_layer: string;
   best_score: number;
+  method_used: string;
   layer_progression: Record<string, number>;
 }
 
 export interface AllModelsSummary {
   percentile: number;
   metric: DashboardMetric;
+  ranking_mode: RankingMode | null;
   method: string | null;
   excluded_models: string[];
   models: Record<string, AllModelsSummaryModelEntry>;

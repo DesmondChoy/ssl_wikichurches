@@ -119,6 +119,7 @@ class LeaderboardEntry(BaseModel):
     metric: Literal["iou", "mse", "kl", "emd"]
     score: float
     best_layer: str
+    method_used: str
 
 
 class LayerProgressionSchema(BaseModel):
@@ -167,6 +168,7 @@ class AllModelsSummaryModelEntry(BaseModel):
     rank: int
     best_layer: str
     best_score: float
+    method_used: str
     layer_progression: dict[str, float]
 
 
@@ -175,6 +177,7 @@ class AllModelsSummarySchema(BaseModel):
 
     percentile: int
     metric: Literal["iou", "mse", "kl", "emd"]
+    ranking_mode: Literal["default_method", "best_available"] | None = None
     method: str | None = None
     excluded_models: list[str] = Field(default_factory=list)
     models: dict[str, AllModelsSummaryModelEntry]

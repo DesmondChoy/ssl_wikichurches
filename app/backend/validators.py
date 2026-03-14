@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import HTTPException
 
 from app.backend.config import (
@@ -15,6 +17,7 @@ from app.backend.config import (
 from ssl_attention.config import FINETUNE_MODELS
 
 _FINETUNED_SUFFIX = "_finetuned"
+RankingMode = Literal["default_method", "best_available"]
 
 
 def split_model_variant(model: str) -> tuple[str, bool]:
@@ -97,6 +100,20 @@ def validate_attention_method(method: str | None) -> str | None:
             status_code=400,
             detail=f"Invalid method: '{method}'. Valid methods: {valid_methods}",
         ) from None
+
+
+def resolve_ranking_mode_request(method: str | None, ranking_mode: RankingMode | None) -> RankingMode | None:
+    """Resolve the requested ranking mode, enforcing mutual exclusivity with method."""
+    if method is not None and ranking_mode is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Query parameters 'method' and 'ranking_mode' cannot be combined.",
+        )
+
+    if method is not None:
+        return None
+
+    return ranking_mode or "default_method"
 
 
 def model_supports_method(model: str, method: str) -> bool:

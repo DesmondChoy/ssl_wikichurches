@@ -132,6 +132,7 @@ class TestComparisonEndpointsExposeMse:
                     "metric": "emd",
                     "score": 0.08,
                     "best_layer": "layer1",
+                    "method_used": "cls",
                 }
             ]
             mock_metrics_service.get_layer_progression.return_value = {
@@ -150,8 +151,11 @@ class TestComparisonEndpointsExposeMse:
         assert response.status_code == 200
         payload = response.json()
         assert payload["metric"] == "emd"
+        assert payload["ranking_mode"] == "default_method"
         assert payload["method"] is None
         assert payload["excluded_models"] == []
         assert payload["leaderboard"][0]["score"] == 0.08
+        assert payload["leaderboard"][0]["method_used"] == "cls"
         assert payload["models"]["dinov2"]["best_score"] == 0.08
+        assert payload["models"]["dinov2"]["method_used"] == "cls"
         assert "best_iou" not in payload["models"]["dinov2"]

@@ -4,7 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
-import type { DashboardMetric } from '../types';
+import type { DashboardMetric, RankingMode } from '../types';
 
 export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
@@ -27,9 +27,13 @@ export function useFeatureBreakdown(
   });
 }
 
-export function useAllModelsSummary(percentile: number, metric: DashboardMetric, method?: string) {
+export function useAllModelsSummary(
+  percentile: number,
+  metric: DashboardMetric,
+  options?: { method?: string; rankingMode?: RankingMode }
+) {
   return useQuery({
-    queryKey: ['allModelsSummary', percentile, metric, method],
-    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric, method),
+    queryKey: ['allModelsSummary', percentile, metric, options?.method, options?.rankingMode],
+    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric, options),
   });
 }

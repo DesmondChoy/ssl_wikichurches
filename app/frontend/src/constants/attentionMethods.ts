@@ -1,6 +1,6 @@
 export const ATTENTION_METHOD_LABELS: Record<string, string> = {
   cls: 'CLS Attention',
-  rollout: 'Attention Rollout',
+  rollout: 'Rollout Attention',
   gradcam: 'Grad-CAM',
   mean: 'Mean Attention',
 };

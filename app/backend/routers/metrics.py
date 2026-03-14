@@ -17,7 +17,13 @@ from app.backend.schemas import (
 )
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
-from app.backend.validators import validate_layer_for_model, validate_method, validate_model
+from app.backend.validators import (
+    resolve_ranking_mode_request,
+    validate_attention_method,
+    validate_layer_for_model,
+    validate_method,
+    validate_model,
+)
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -26,18 +32,30 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 async def get_leaderboard(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
+    method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
+    ranking_mode: Annotated[Literal["default_method", "best_available"] | None, Query()] = None,
 ) -> list[LeaderboardEntry]:
     """Get model rankings by best score for the selected metric.
 
     Returns models ranked by their best score at the given percentile.
     """
+    resolved_method = validate_attention_method(method)
+    resolved_ranking_mode = resolve_ranking_mode_request(resolved_method, ranking_mode)
+
     if not metrics_service.db_exists:
         raise HTTPException(
             status_code=503,
             detail="Metrics database not available. Run generate_metrics_cache.py first.",
         )
 
-    data = metrics_service.get_leaderboard(percentile, metric=metric)
+    if resolved_method is not None:
+        data = metrics_service.get_leaderboard(percentile, metric=metric, method=resolved_method)
+    else:
+        data = metrics_service.get_leaderboard(
+            percentile,
+            metric=metric,
+            ranking_mode=resolved_ranking_mode or "default_method",
+        )
     return [LeaderboardEntry(**entry) for entry in data]
 
 

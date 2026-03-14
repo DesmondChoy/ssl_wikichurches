@@ -20,6 +20,7 @@ from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import (
     model_supports_method,
     resolve_default_method,
+    resolve_ranking_mode_request,
     split_model_variant,
     validate_attention_method,
     validate_layer_for_model,
@@ -256,6 +257,7 @@ async def compare_all_models_summary(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
+    ranking_mode: Annotated[Literal["default_method", "best_available"] | None, Query()] = None,
 ) -> AllModelsSummarySchema:
     """Get summary comparison of all models for the selected metric.
 
@@ -268,17 +270,25 @@ async def compare_all_models_summary(
         )
 
     resolved_method = validate_attention_method(method)
+    resolved_ranking_mode = resolve_ranking_mode_request(resolved_method, ranking_mode)
     excluded_models = (
         [model for model in AVAILABLE_MODELS if not model_supports_method(model, resolved_method)]
         if resolved_method is not None
         else []
     )
 
-    leaderboard = metrics_service.get_leaderboard(
-        percentile,
-        metric=metric,
-        method=resolved_method,
-    )
+    if resolved_method is not None:
+        leaderboard = metrics_service.get_leaderboard(
+            percentile,
+            metric=metric,
+            method=resolved_method,
+        )
+    else:
+        leaderboard = metrics_service.get_leaderboard(
+            percentile,
+            metric=metric,
+            ranking_mode=resolved_ranking_mode or "default_method",
+        )
 
     # Get layer progression for each model
     models_data: dict[str, AllModelsSummaryModelEntry] = {}
@@ -287,19 +297,21 @@ async def compare_all_models_summary(
         progression = metrics_service.get_layer_progression(
             model,
             percentile,
-            method=resolved_method,
+            method=entry["method_used"],
             metric=metric,
         )
         models_data[model] = AllModelsSummaryModelEntry(
             rank=entry["rank"],
             best_layer=entry["best_layer"],
             best_score=entry["score"],
+            method_used=entry["method_used"],
             layer_progression=dict(zip(progression["layers"], progression["scores"], strict=True)),
         )
 
     return AllModelsSummarySchema(
         percentile=percentile,
         metric=metric,
+        ranking_mode=resolved_ranking_mode,
         method=resolved_method,
         excluded_models=excluded_models,
         models=models_data,

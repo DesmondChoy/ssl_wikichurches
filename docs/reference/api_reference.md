@@ -474,6 +474,8 @@ Get model rankings by the best score for the selected aggregate metric at a give
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
 | `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to rank by |
+| `method` | string | No | model default | `cls`, `rollout`, `mean`, `gradcam` | Shared attention method filter; incompatible models are omitted |
+| `ranking_mode` | string | No | `default_method` | `default_method`, `best_available` | Ranking semantics when `method` is not provided |
 
 **Response**: `list[LeaderboardEntry]`
 
@@ -484,7 +486,8 @@ Get model rankings by the best score for the selected aggregate metric at a give
     "model": "dinov2",
     "metric": "kl",
     "score": 0.093,
-    "best_layer": "layer11"
+    "best_layer": "layer11",
+    "method_used": "cls"
   }
 ]
 ```
@@ -500,6 +503,8 @@ Get model rankings by the best score for the selected aggregate metric at a give
 ### `GET /api/metrics/summary`
 
 Get the pre-computed metrics summary including leaderboard and per-model best layers.
+
+This is a static snapshot exported with `ranking_mode = "default_method"`, not a dynamic overall-best leaderboard.
 
 **Parameters**: None
 
@@ -1137,6 +1142,8 @@ Get a full comparison summary of all models: leaderboard rankings plus per-layer
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
 | `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to rank and chart |
+| `method` | string | No | — | `cls`, `rollout`, `mean`, `gradcam` | Shared attention method filter; incompatible models are excluded |
+| `ranking_mode` | string | No | `default_method` | `default_method`, `best_available` | Ranking semantics when `method` is not provided |
 
 **Response**: `dict`
 
@@ -1144,11 +1151,15 @@ Get a full comparison summary of all models: leaderboard rankings plus per-layer
 {
   "percentile": 90,
   "metric": "kl",
+  "ranking_mode": "best_available",
+  "method": null,
+  "excluded_models": [],
   "models": {
     "dinov2": {
       "rank": 1,
       "best_score": 0.093,
       "best_layer": "layer11",
+      "method_used": "rollout",
       "layer_progression": {
         "layer0": 0.181,
         "layer11": 0.093
@@ -1156,7 +1167,14 @@ Get a full comparison summary of all models: leaderboard rankings plus per-layer
     }
   },
   "leaderboard": [
-    { "rank": 1, "model": "dinov2", "metric": "kl", "score": 0.093, "best_layer": "layer11" }
+    {
+      "rank": 1,
+      "model": "dinov2",
+      "metric": "kl",
+      "score": 0.093,
+      "best_layer": "layer11",
+      "method_used": "rollout"
+    }
   ]
 }
 ```
@@ -1331,6 +1349,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `metric` | string | Metric used for ranking (`iou`, `mse`, `kl`, `emd`) |
 | `score` | float | Best score achieved for the selected metric |
 | `best_layer` | string | Layer with the best score for the selected metric |
+| `method_used` | string | Attention method used for this model's ranked score |
 
 ### `LayerProgressionSchema`
 
