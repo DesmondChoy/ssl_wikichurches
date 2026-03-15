@@ -89,9 +89,9 @@ def generate_heatmaps_for_model(
         skip_existing: Skip if PNG already exists.
 
     Returns:
-        Dict with statistics.
+        Dict with statistics (processed, skipped, errors, cache_miss).
     """
-    stats = {"processed": 0, "skipped": 0, "errors": 0}
+    stats = {"processed": 0, "skipped": 0, "errors": 0, "cache_miss": 0}
     cache_key = cache_model_key or model_name
     output_key = output_model_key or cache_key
 
@@ -165,6 +165,7 @@ def generate_heatmaps_for_model(
                     )
                 except KeyError:
                     # Attention not cached for this combination
+                    stats["cache_miss"] += 3
                     stats["skipped"] += 3
                     continue
 
@@ -393,7 +394,7 @@ def main() -> int:
     print(f"Originals complete: {stats}")
 
     # Process each model
-    total_stats = {"processed": 0, "skipped": 0, "errors": 0}
+    total_stats = {"processed": 0, "skipped": 0, "errors": 0, "cache_miss": 0}
 
     strategy_targets: list[str | None] = [None]
     if args.finetuned and "auto" not in args.strategies:
@@ -435,6 +436,13 @@ def main() -> int:
     print(f"Total processed: {total_stats['processed']}")
     print(f"Total skipped: {total_stats['skipped']}")
     print(f"Total errors: {total_stats['errors']}")
+    if total_stats.get("cache_miss", 0):
+        print(f"Total skipped (cache miss): {total_stats['cache_miss']}")
+
+    if args.finetuned and total_stats["processed"] == 0 and total_stats.get("cache_miss", 0) > 0:
+        print("\nNo heatmaps were generated: attention cache has no data for the requested"
+              " fine-tuned keys. Run generate_attention_cache first with the same --finetuned"
+              " and --strategies (and ensure checkpoints exist), then re-run this script.")
 
     return 0 if total_stats["errors"] == 0 else 1
 

@@ -165,11 +165,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     eval_mode_group.add_argument(
-        "--val-on-annotated-eval",
+        "--val-on-random-split",
         action="store_true",
         help=(
-            "Train on non-annotated labeled images and use annotated eval images "
-            "as the validation set."
+            "Use a random stratified validation split instead of the default "
+            "(validation on the 139 bbox-annotated holdout images)."
         ),
     )
 
@@ -205,7 +205,7 @@ def train_single_model(
         freeze_backbone=args.freeze_backbone,
         val_split=args.val_split,
         exclude_annotated_eval=not args.include_annotated_eval,
-        val_on_annotated_eval=args.val_on_annotated_eval,
+        val_on_annotated_eval=not args.val_on_random_split,
         seed=args.seed,
         use_lora=args.lora,
         lora_rank=args.lora_rank,
@@ -261,8 +261,10 @@ def main() -> None:
     print(f"Epochs: {args.epochs}")
     print(f"Freeze backbone: {args.freeze_backbone}")
     print(f"Exclude annotated eval images: {not args.include_annotated_eval}")
-    if args.val_on_annotated_eval:
-        print("Validation mode: annotated eval holdout")
+    if args.val_on_random_split:
+        print("Validation: random stratified split")
+    else:
+        print("Validation: annotated eval holdout (139 images)")
 
     # Train models
     results: list[FineTuningResult] = []

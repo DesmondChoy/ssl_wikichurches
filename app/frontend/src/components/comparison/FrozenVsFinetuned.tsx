@@ -1,5 +1,5 @@
 /**
- * Frozen vs Fine-tuned comparison using react-compare-slider.
+ * Variant comparison slider for frozen-vs-fine-tuned and strategy-vs-strategy views.
  */
 
 import { useMemo, useState } from 'react';
@@ -10,13 +10,18 @@ import { InteractiveBboxOverlay } from '../attention/InteractiveBboxOverlay';
 import { useModels } from '../../hooks/useAttention';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
 import { computeSimilarityStats, renderHeatmap, renderHeatmapLegend } from '../../utils/renderHeatmap';
-import type { BoundingBox } from '../../types';
+import type { BoundingBox, ComparisonVariant } from '../../types';
+
+type ComparisonMode = 'frozen' | 'methods';
 
 interface FrozenVsFinetunedProps {
   imageId: string;
   model: string;
   layer: number;
   strategy?: string;
+  strategyA?: string;
+  strategyB?: string;
+  mode?: ComparisonMode;
   bboxes?: BoundingBox[];
   showBboxes?: boolean;
 }
@@ -26,6 +31,13 @@ interface CompareCanvasProps {
   imageAlt: string;
   overlaySrc?: string | null;
   overlayAlt?: string;
+}
+
+interface NormalizedVariantComparison {
+  left: ComparisonVariant;
+  right: ComparisonVariant;
+  note: string;
+  linearProbeInvolved: boolean;
 }
 
 function CompareCanvas({ imageSrc, imageAlt, overlaySrc, overlayAlt }: CompareCanvasProps) {
@@ -40,11 +52,19 @@ function CompareCanvas({ imageSrc, imageAlt, overlaySrc, overlayAlt }: CompareCa
         <img
           src={overlaySrc}
           alt={overlayAlt || imageAlt}
-          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       )}
     </div>
   );
+}
+
+function strategyLabel(strategy?: string | null) {
+  if (!strategy) return 'Fine-tuned';
+  if (strategy === 'linear_probe') return 'Linear Probe';
+  if (strategy === 'lora') return 'LoRA';
+  if (strategy === 'full') return 'Full Fine-tune';
+  return strategy;
 }
 
 export function FrozenVsFinetuned({
@@ -52,6 +72,9 @@ export function FrozenVsFinetuned({
   model,
   layer,
   strategy,
+  strategyA = 'linear_probe',
+  strategyB = 'full',
+  mode = 'frozen',
   bboxes = [],
   showBboxes = true,
 }: FrozenVsFinetunedProps) {
@@ -67,24 +90,73 @@ export function FrozenVsFinetuned({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['frozen-vs-finetuned', imageId, model, effectiveLayer, strategy, showBboxes],
-    queryFn: () =>
-      comparisonAPI.compareFrozenVsFinetuned(imageId, model, effectiveLayer, strategy, showBboxes),
+    queryKey: [
+      'variant-compare',
+      mode,
+      imageId,
+      model,
+      effectiveLayer,
+      strategy,
+      strategyA,
+      strategyB,
+      showBboxes,
+    ],
+    queryFn: async (): Promise<NormalizedVariantComparison> => {
+      if (mode === 'methods') {
+        const response = await comparisonAPI.compareFinetunedVariants(
+          imageId,
+          model,
+          effectiveLayer,
+          strategyA,
+          strategyB,
+          showBboxes
+        );
+        return {
+          left: response.left,
+          right: response.right,
+          note: response.note,
+          linearProbeInvolved:
+            response.left.strategy === 'linear_probe' || response.right.strategy === 'linear_probe',
+        };
+      }
+
+      const response = await comparisonAPI.compareFrozenVsFinetuned(
+        imageId,
+        model,
+        effectiveLayer,
+        strategy,
+        showBboxes
+      );
+      return {
+        left: {
+          model_key: model,
+          strategy: null,
+          label: 'Frozen (Pretrained)',
+          available: response.frozen.available,
+          url: response.frozen.url,
+        },
+        right: {
+          model_key: response.strategy ? `${model}_finetuned_${response.strategy}` : `${model}_finetuned`,
+          strategy: response.strategy,
+          label: response.strategy ? `Fine-tuned (${strategyLabel(response.strategy)})` : 'Fine-tuned',
+          available: response.finetuned.available,
+          url: response.finetuned.url,
+        },
+        note: response.finetuned.note,
+        linearProbeInvolved: response.strategy === 'linear_probe',
+      };
+    },
     enabled: Boolean(imageId && model && !modelsLoading),
   });
 
-  const frozenUrl = data?.frozen.url ?? null;
-  const finetunedUrl = data?.finetuned.url ?? null;
+  const leftUrl = data?.left.url ?? null;
+  const rightUrl = data?.right.url ?? null;
   const labels = Array.from(new Set(bboxes.map((bbox) => bbox.label_name || `Feature ${bbox.label}`)));
   const sliderAvailable =
-    Boolean(data?.frozen.available) &&
-    Boolean(data?.finetuned.available) &&
-    typeof frozenUrl === 'string' &&
-    typeof finetunedUrl === 'string';
-  const resolvedStrategy = data?.strategy || strategy || null;
-  const finetunedModelKey = resolvedStrategy
-    ? `${model}_finetuned_${resolvedStrategy}`
-    : `${model}_finetuned`;
+    Boolean(data?.left.available) &&
+    Boolean(data?.right.available) &&
+    typeof leftUrl === 'string' &&
+    typeof rightUrl === 'string';
   const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
   const originalUrl = imagesAPI.getImageUrl(imageId, 224);
   const legendUrl = useMemo(() => renderHeatmapLegend(200, 16), []);
@@ -104,26 +176,26 @@ export function FrozenVsFinetuned({
     error: bboxMetricsError,
   } = useQuery({
     queryKey: [
-      'frozen-vs-finetuned-bbox-metrics',
+      'variant-compare-bbox-metrics',
       imageId,
-      model,
       effectiveLayer,
       selectedBboxIndex,
-      finetunedModelKey,
+      data?.left.model_key,
+      data?.right.model_key,
     ],
     queryFn: async () => {
-      if (selectedBboxIndex === null) {
+      if (selectedBboxIndex === null || !data) {
         return null;
       }
 
-      const [frozen, finetuned] = await Promise.all([
-        metricsAPI.getBboxMetrics(imageId, model, effectiveLayer, selectedBboxIndex),
-        metricsAPI.getBboxMetrics(imageId, finetunedModelKey, effectiveLayer, selectedBboxIndex),
+      const [left, right] = await Promise.all([
+        metricsAPI.getBboxMetrics(imageId, data.left.model_key, effectiveLayer, selectedBboxIndex),
+        metricsAPI.getBboxMetrics(imageId, data.right.model_key, effectiveLayer, selectedBboxIndex),
       ]);
 
-      return { frozen, finetuned };
+      return { left, right };
     },
-    enabled: sliderAvailable && selectedBboxIndex !== null,
+    enabled: sliderAvailable && selectedBboxIndex !== null && Boolean(data),
   });
 
   const {
@@ -132,15 +204,15 @@ export function FrozenVsFinetuned({
     error: similarityError,
   } = useQuery({
     queryKey: [
-      'frozen-vs-finetuned-similarity',
+      'variant-compare-similarity',
       imageId,
-      model,
-      finetunedModelKey,
+      data?.left.model_key,
+      data?.right.model_key,
       effectiveLayer,
       selectedBbox,
     ],
     queryFn: async () => {
-      if (!selectedBbox) {
+      if (!selectedBbox || !data) {
         return null;
       }
 
@@ -152,87 +224,87 @@ export function FrozenVsFinetuned({
         label: selectedBbox.label_name || undefined,
       };
 
-      const [frozen, finetuned] = await Promise.all([
-        attentionAPI.getSimilarity(imageId, bboxPayload, model, effectiveLayer),
-        attentionAPI.getSimilarity(imageId, bboxPayload, finetunedModelKey, effectiveLayer),
+      const [left, right] = await Promise.all([
+        attentionAPI.getSimilarity(imageId, bboxPayload, data.left.model_key, effectiveLayer),
+        attentionAPI.getSimilarity(imageId, bboxPayload, data.right.model_key, effectiveLayer),
       ]);
 
-      return { frozen, finetuned };
+      return { left, right };
     },
-    enabled: sliderAvailable && Boolean(selectedBbox),
+    enabled: sliderAvailable && Boolean(selectedBbox) && Boolean(data),
     retry: false,
   });
 
-  const frozenSimilarity = similarityData?.frozen?.similarity;
-  const frozenPatchGrid = similarityData?.frozen?.patch_grid as [number, number] | undefined;
-  const finetunedSimilarity = similarityData?.finetuned?.similarity;
-  const finetunedPatchGrid = similarityData?.finetuned?.patch_grid as [number, number] | undefined;
+  const leftSimilarity = similarityData?.left?.similarity;
+  const leftPatchGrid = similarityData?.left?.patch_grid as [number, number] | undefined;
+  const rightSimilarity = similarityData?.right?.similarity;
+  const rightPatchGrid = similarityData?.right?.patch_grid as [number, number] | undefined;
 
-  const frozenSimilarityHeatmapUrl = useMemo(() => {
-    if (!frozenSimilarity || !frozenPatchGrid) {
+  const leftSimilarityHeatmapUrl = useMemo(() => {
+    if (!leftSimilarity || !leftPatchGrid) {
       return null;
     }
     try {
       return renderHeatmap({
-        similarity: frozenSimilarity,
-        patchGrid: frozenPatchGrid,
+        similarity: leftSimilarity,
+        patchGrid: leftPatchGrid,
         opacity: heatmapOpacity,
         style: heatmapStyle,
       });
     } catch {
       return null;
     }
-  }, [frozenPatchGrid, frozenSimilarity, heatmapOpacity, heatmapStyle]);
+  }, [heatmapOpacity, heatmapStyle, leftPatchGrid, leftSimilarity]);
 
-  const finetunedSimilarityHeatmapUrl = useMemo(() => {
-    if (!finetunedSimilarity || !finetunedPatchGrid) {
+  const rightSimilarityHeatmapUrl = useMemo(() => {
+    if (!rightSimilarity || !rightPatchGrid) {
       return null;
     }
     try {
       return renderHeatmap({
-        similarity: finetunedSimilarity,
-        patchGrid: finetunedPatchGrid,
+        similarity: rightSimilarity,
+        patchGrid: rightPatchGrid,
         opacity: heatmapOpacity,
         style: heatmapStyle,
       });
     } catch {
       return null;
     }
-  }, [finetunedPatchGrid, finetunedSimilarity, heatmapOpacity, heatmapStyle]);
+  }, [heatmapOpacity, heatmapStyle, rightPatchGrid, rightSimilarity]);
 
-  const frozenSimilarityStats = useMemo(() => {
-    if (!frozenSimilarity) {
+  const leftSimilarityStats = useMemo(() => {
+    if (!leftSimilarity) {
       return null;
     }
-    return computeSimilarityStats(frozenSimilarity);
-  }, [frozenSimilarity]);
+    return computeSimilarityStats(leftSimilarity);
+  }, [leftSimilarity]);
 
-  const finetunedSimilarityStats = useMemo(() => {
-    if (!finetunedSimilarity) {
+  const rightSimilarityStats = useMemo(() => {
+    if (!rightSimilarity) {
       return null;
     }
-    return computeSimilarityStats(finetunedSimilarity);
-  }, [finetunedSimilarity]);
+    return computeSimilarityStats(rightSimilarity);
+  }, [rightSimilarity]);
 
   const showSimilarityHeatmaps =
     Boolean(selectedBbox) &&
-    Boolean(frozenSimilarityHeatmapUrl) &&
-    Boolean(finetunedSimilarityHeatmapUrl) &&
+    Boolean(leftSimilarityHeatmapUrl) &&
+    Boolean(rightSimilarityHeatmapUrl) &&
     !similarityLoading &&
     !similarityError;
 
   if (modelsLoading || isLoading) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
-        Loading frozen vs fine-tuned availability...
+      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+        Loading comparison availability...
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
-        Failed to load frozen vs fine-tuned comparison data.
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        Failed to load comparison data.
       </div>
     );
   }
@@ -244,26 +316,24 @@ export function FrozenVsFinetuned({
   if (!sliderAvailable) {
     return (
       <div className="space-y-4">
-        {frozenUrl && (
+        {leftUrl && (
           <div className="relative">
             <img
-              src={frozenUrl}
-              alt={`${model} frozen attention`}
-              className="w-full h-auto rounded-lg"
+              src={leftUrl}
+              alt={`${data.left.label} attention`}
+              className="h-auto w-full rounded-lg"
             />
-            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
-              {model} (Frozen/Pretrained)
+            <div className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
+              {data.left.label}
             </div>
           </div>
         )}
 
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="font-medium text-yellow-800">Fine-tuned Overlay Unavailable</h4>
-          <p className="text-sm text-yellow-700 mt-1">
-            {data.finetuned.note}
-          </p>
-          <p className="text-sm text-yellow-700 mt-1">
-            The slider comparison appears automatically when both frozen and fine-tuned overlays are cached.
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+          <h4 className="font-medium text-yellow-800">Comparison Overlay Unavailable</h4>
+          <p className="mt-1 text-sm text-yellow-700">{data.note}</p>
+          <p className="mt-1 text-sm text-yellow-700">
+            The slider comparison appears automatically when both variant overlays are cached.
           </p>
         </div>
       </div>
@@ -271,60 +341,57 @@ export function FrozenVsFinetuned({
   }
 
   const deltaIoU =
-    bboxMetrics && typeof bboxMetrics.finetuned.iou === 'number' && typeof bboxMetrics.frozen.iou === 'number'
-      ? bboxMetrics.finetuned.iou - bboxMetrics.frozen.iou
+    bboxMetrics && typeof bboxMetrics.right.iou === 'number' && typeof bboxMetrics.left.iou === 'number'
+      ? bboxMetrics.right.iou - bboxMetrics.left.iou
       : null;
   const deltaCoverage =
     bboxMetrics &&
-    typeof bboxMetrics.finetuned.coverage === 'number' &&
-    typeof bboxMetrics.frozen.coverage === 'number'
-      ? bboxMetrics.finetuned.coverage - bboxMetrics.frozen.coverage
+    typeof bboxMetrics.right.coverage === 'number' &&
+    typeof bboxMetrics.left.coverage === 'number'
+      ? bboxMetrics.right.coverage - bboxMetrics.left.coverage
       : null;
 
   const deltaTone =
-    deltaIoU === null ? 'text-gray-700 bg-gray-100 border-gray-200'
-    : deltaIoU > 0 ? 'text-green-700 bg-green-50 border-green-200'
-    : deltaIoU < 0 ? 'text-red-700 bg-red-50 border-red-200'
-    : 'text-gray-700 bg-gray-100 border-gray-200';
+    deltaIoU === null ? 'border-gray-200 bg-gray-100 text-gray-700'
+    : deltaIoU > 0 ? 'border-green-200 bg-green-50 text-green-700'
+    : deltaIoU < 0 ? 'border-red-200 bg-red-50 text-red-700'
+    : 'border-gray-200 bg-gray-100 text-gray-700';
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between text-sm text-gray-600">
-        <span>Frozen (Pretrained)</span>
-        <span>
-          {resolvedStrategy ? `Fine-tuned (${resolvedStrategy})` : 'Fine-tuned'}
-        </span>
+        <span>{data.left.label}</span>
+        <span>{data.right.label}</span>
       </div>
 
       <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
-        Clicking a bounding box switches the slider from the cached global overlays to bbox-conditioned
-        similarity heatmaps, using the selected architectural feature as the query for both frozen and
-        fine-tuned variants.
+        Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
+        similarity heatmaps, using the same architectural feature as the query for both compared variants.
       </div>
 
       <div className="relative mx-auto w-full max-w-3xl">
         <ReactCompareSlider
           itemOne={
             <CompareCanvas
-              imageSrc={showSimilarityHeatmaps ? originalUrl : frozenUrl!}
-              imageAlt={showSimilarityHeatmaps ? 'Frozen similarity heatmap' : 'Frozen model attention'}
-              overlaySrc={showSimilarityHeatmaps ? frozenSimilarityHeatmapUrl : null}
-              overlayAlt="Frozen similarity overlay"
+              imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
+              imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
+              overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
+              overlayAlt={`${data.left.label} similarity overlay`}
             />
           }
           itemTwo={
             <CompareCanvas
-              imageSrc={showSimilarityHeatmaps ? originalUrl : finetunedUrl!}
-              imageAlt={showSimilarityHeatmaps ? 'Fine-tuned similarity heatmap' : 'Fine-tuned model attention'}
-              overlaySrc={showSimilarityHeatmaps ? finetunedSimilarityHeatmapUrl : null}
-              overlayAlt="Fine-tuned similarity overlay"
+              imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
+              imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
+              overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
+              overlayAlt={`${data.right.label} similarity overlay`}
             />
           }
           className="aspect-square overflow-hidden rounded-lg"
           position={50}
         />
         {similarityLoading && selectedBbox && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
           </div>
         )}
@@ -339,20 +406,20 @@ export function FrozenVsFinetuned({
         )}
       </div>
 
-      <p className="text-xs text-gray-500 text-center">
+      <p className="text-center text-xs text-gray-500">
         {showSimilarityHeatmaps
           ? 'Drag slider to compare bbox-conditioned similarity heatmaps'
-          : `Drag slider to compare frozen vs fine-tuned attention${showBboxes ? ' with annotated boxes' : ''}`}
+          : `Drag slider to compare ${data.left.label.toLowerCase()} vs ${data.right.label.toLowerCase()} attention${showBboxes ? ' with annotated boxes' : ''}`}
       </p>
-      {data.strategy === 'linear_probe' && (
-        <p className="text-xs text-amber-700 text-center">
+      {data.linearProbeInvolved && (
+        <p className="text-center text-xs text-amber-700">
           Linear probe trains only the classifier head, so attention maps can look identical.
         </p>
       )}
       {similarityError && selectedBbox && (
-        <p className="text-xs text-amber-700 text-center">
+        <p className="text-center text-xs text-amber-700">
           Similarity heatmaps are unavailable for this selection, so the view stays on the global overlays. Run
-          feature-cache generation for both frozen and fine-tuned variants to enable gallery-style bbox comparison.
+          feature-cache generation for both compared variants to enable bbox-local inspection.
         </p>
       )}
 
@@ -416,8 +483,7 @@ export function FrozenVsFinetuned({
                   <p className="mt-2 text-sm">Loading feature metrics...</p>
                 ) : bboxMetricsError ? (
                   <p className="mt-2 text-sm">
-                    Failed to load bbox metrics for this comparison. Check that both frozen and fine-tuned metrics
-                    are cached.
+                    Failed to load bbox metrics for this comparison. Check that both compared metrics are cached.
                   </p>
                 ) : bboxMetrics ? (
                   <>
@@ -440,10 +506,10 @@ export function FrozenVsFinetuned({
           {selectedBbox && showSimilarityHeatmaps && (
             <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
               <div className="space-y-1">
-                <p className="font-medium text-gray-900">Frozen similarity</p>
+                <p className="font-medium text-gray-900">{data.left.label} similarity</p>
                 <p>
-                  {frozenSimilarityStats
-                    ? `min ${frozenSimilarityStats.min.toFixed(2)} | max ${frozenSimilarityStats.max.toFixed(2)}`
+                  {leftSimilarityStats
+                    ? `min ${leftSimilarityStats.min.toFixed(2)} | max ${leftSimilarityStats.max.toFixed(2)}`
                     : 'No stats available'}
                 </p>
               </div>
@@ -453,10 +519,10 @@ export function FrozenVsFinetuned({
                 <span>High similarity</span>
               </div>
               <div className="space-y-1 text-right">
-                <p className="font-medium text-gray-900">Fine-tuned similarity</p>
+                <p className="font-medium text-gray-900">{data.right.label} similarity</p>
                 <p>
-                  {finetunedSimilarityStats
-                    ? `min ${finetunedSimilarityStats.min.toFixed(2)} | max ${finetunedSimilarityStats.max.toFixed(2)}`
+                  {rightSimilarityStats
+                    ? `min ${rightSimilarityStats.min.toFixed(2)} | max ${rightSimilarityStats.max.toFixed(2)}`
                     : 'No stats available'}
                 </p>
               </div>
@@ -466,25 +532,22 @@ export function FrozenVsFinetuned({
           {selectedBbox && bboxMetrics && !bboxMetricsLoading && !bboxMetricsError && (
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Frozen</p>
-                <p className="mt-2 text-sm text-gray-900">IoU: {bboxMetrics.frozen.iou.toFixed(3)}</p>
-                <p className="text-sm text-gray-700">Coverage: {bboxMetrics.frozen.coverage.toFixed(3)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{data.left.label}</p>
+                <p className="mt-2 text-sm text-gray-900">IoU: {bboxMetrics.left.iou.toFixed(3)}</p>
+                <p className="text-sm text-gray-700">Coverage: {bboxMetrics.left.coverage.toFixed(3)}</p>
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Fine-tuned{resolvedStrategy ? ` (${resolvedStrategy})` : ''}
-                </p>
-                <p className="mt-2 text-sm text-gray-900">IoU: {bboxMetrics.finetuned.iou.toFixed(3)}</p>
-                <p className="text-sm text-gray-700">Coverage: {bboxMetrics.finetuned.coverage.toFixed(3)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{data.right.label}</p>
+                <p className="mt-2 text-sm text-gray-900">IoU: {bboxMetrics.right.iou.toFixed(3)}</p>
+                <p className="text-sm text-gray-700">Coverage: {bboxMetrics.right.coverage.toFixed(3)}</p>
               </div>
             </div>
           )}
 
           {!selectedBbox && (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
-              Global overlays often look similar. Selecting a feature switches the view to the same bbox-conditioned
-              similarity treatment used in the gallery, then asks the more useful question: did fine-tuning increase
-              or decrease attention on this architectural cue?
+              Global overlays often look similar. Selecting a feature switches the view to bbox-conditioned
+              similarity heatmaps so you can compare the same architectural cue across the chosen variants.
             </div>
           )}
         </div>

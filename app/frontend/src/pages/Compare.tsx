@@ -16,6 +16,8 @@ export function ComparePage() {
   const imageId = searchParams.get('image') || '';
   const comparisonType = searchParams.get('type') || 'models';
   const strategy = searchParams.get('strategy') || '';
+  const strategyA = searchParams.get('strategyA') || 'linear_probe';
+  const strategyB = searchParams.get('strategyB') || 'full';
   const modelParam = searchParams.get('model') || '';
   const layerParam = searchParams.get('layer') || '';
 
@@ -44,6 +46,7 @@ export function ComparePage() {
   const comparisonTypes = [
     { value: 'models', label: 'Model vs Model' },
     { value: 'frozen', label: 'Frozen vs Fine-tuned' },
+    { value: 'methods', label: 'Fine-tuning Method vs Method' },
   ];
   const strategyOptions = [
     { value: '', label: 'Auto (legacy)' },
@@ -76,6 +79,8 @@ export function ComparePage() {
                   image: v,
                   type: comparisonType,
                   strategy,
+                  strategyA,
+                  strategyB,
                   model: compareModel,
                   layer: String(compareLayer),
                 })
@@ -91,6 +96,8 @@ export function ComparePage() {
                   image: imageId,
                   type: v,
                   strategy,
+                  strategyA,
+                  strategyB,
                   model: compareModel,
                   layer: String(compareLayer),
                 })
@@ -99,7 +106,7 @@ export function ComparePage() {
               label="Comparison Type"
             />
 
-            {comparisonType === 'frozen' ? (
+            {comparisonType === 'frozen' || comparisonType === 'methods' ? (
               <Select
                 value={compareModel}
                 onChange={(v) => {
@@ -108,6 +115,8 @@ export function ComparePage() {
                     image: imageId,
                     type: comparisonType,
                     strategy,
+                    strategyA,
+                    strategyB,
                     model: v,
                     layer: String(compareLayer),
                   });
@@ -139,6 +148,8 @@ export function ComparePage() {
                     image: imageId,
                     type: comparisonType,
                     strategy: v,
+                    strategyA,
+                    strategyB,
                     model: compareModel,
                     layer: String(compareLayer),
                   })
@@ -147,7 +158,43 @@ export function ComparePage() {
                 label="Strategy"
               />
             )}
-            {comparisonType === 'frozen' && (
+            {comparisonType === 'methods' && (
+              <Select
+                value={strategyA}
+                onChange={(v) =>
+                  setSearchParams({
+                    image: imageId,
+                    type: comparisonType,
+                    strategy,
+                    strategyA: v,
+                    strategyB,
+                    model: compareModel,
+                    layer: String(compareLayer),
+                  })
+                }
+                options={strategyOptions.filter((option) => option.value)}
+                label="Left Method"
+              />
+            )}
+            {comparisonType === 'methods' && (
+              <Select
+                value={strategyB}
+                onChange={(v) =>
+                  setSearchParams({
+                    image: imageId,
+                    type: comparisonType,
+                    strategy,
+                    strategyA,
+                    strategyB: v,
+                    model: compareModel,
+                    layer: String(compareLayer),
+                  })
+                }
+                options={strategyOptions.filter((option) => option.value)}
+                label="Right Method"
+              />
+            )}
+            {(comparisonType === 'frozen' || comparisonType === 'methods') && (
               <Select
                 value={String(compareLayer)}
                 onChange={(v) => {
@@ -157,6 +204,8 @@ export function ComparePage() {
                     image: imageId,
                     type: comparisonType,
                     strategy,
+                    strategyA,
+                    strategyB,
                     model: compareModel,
                     layer: String(nextLayer),
                   });
@@ -192,7 +241,21 @@ export function ComparePage() {
           imageId={imageId}
           model={compareModel}
           layer={compareLayer}
+          mode="frozen"
           strategy={strategy || undefined}
+          bboxes={imageDetail?.annotation.bboxes || []}
+          showBboxes
+        />
+      )}
+
+      {imageId && comparisonType === 'methods' && (
+        <FrozenVsFinetuned
+          imageId={imageId}
+          model={compareModel}
+          layer={compareLayer}
+          mode="methods"
+          strategyA={strategyA}
+          strategyB={strategyB}
           bboxes={imageDetail?.annotation.bboxes || []}
           showBboxes
         />

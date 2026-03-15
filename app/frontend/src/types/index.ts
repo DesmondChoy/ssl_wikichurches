@@ -133,6 +133,25 @@ export interface ModelComparison {
   heatmap_urls: Record<string, string>;
 }
 
+export interface ComparisonVariant {
+  model_key: string;
+  strategy?: string | null;
+  label: string;
+  available: boolean;
+  url: string | null;
+}
+
+export interface VariantComparison {
+  image_id: string;
+  model: string;
+  layer: string;
+  method: string;
+  show_bboxes?: boolean;
+  left: ComparisonVariant;
+  right: ComparisonVariant;
+  note: string;
+}
+
 export interface AllModelsSummaryModelEntry {
   rank: number;
   best_layer: string;

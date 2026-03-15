@@ -503,6 +503,51 @@ The existing `analyze_delta_iou.py` script is **task-agnostic** — it compares 
 
 > Same frozen baseline → different fine-tuning objectives → same Δ IoU evaluation on the 139 annotated images. This isolates the effect of the classification task on attention alignment.
 
+#### Observed Results (Q2 Δ IoU)
+
+The following summarizes results from `analyze_delta_iou.py` over all fine-tunable models and strategies (linear probe, LoRA, full), evaluated on the 139 bbox-annotated images at **percentile 90** with Holm-corrected significance. Output: `outputs/results/q2_delta_iou_analysis.json`.
+
+**Linear probe**
+
+- Δ IoU = 0 for every model (CLIP, DINOv2, DINOv3, MAE, SigLIP, SigLIP2). Attention is unchanged because the backbone is frozen; this is the intended baseline.
+
+**Impact of fine-tuning depends on frozen alignment**
+
+- **Models that gain:** CLIP (frozen IoU ≈ 0.018), SigLIP (≈ 0.036), SigLIP2 (≈ 0.022). Full and LoRA both yield significant, often large positive Δ IoU. For CLIP: full +0.069, LoRA +0.063; for SigLIP/SigLIP2: full slightly better than LoRA; both beat linear probe.
+- **Models that change little or worsen:** DINOv2 (frozen ≈ 0.082), DINOv3 (≈ 0.133), MAE (≈ 0.033). DINOv2 full gives **negative** Δ IoU (−0.007, significant); LoRA +0.002 (not significant). DINOv3 and MAE show tiny, non-significant deltas. Conclusion: when frozen alignment is already strong, classification fine-tuning does not improve (and can slightly reduce) attention–expert alignment.
+
+**Strategy ordering when fine-tuning helps**
+
+- For CLIP, SigLIP, SigLIP2: **Full ≥ LoRA > linear probe**. Full and LoRA are often not significantly different (e.g. CLIP); when they are (SigLIP, SigLIP2), full wins. LoRA is always significantly better than linear probe when there is a real gain.
+
+**DINOv2: full fine-tuning can hurt alignment**
+
+- Full fine-tuning is significantly worse than both linear probe and LoRA; IoU retention (finetuned / frozen) is **0.91** (only model below 1.0). Full fine-tuning may encourage task shortcuts and move attention away from expert-aligned regions; LoRA is safer for preserving alignment.
+
+**IoU retention (finetuned / frozen) at p90 — full fine-tuning**
+
+- DINOv2: 0.91 (only &lt; 1); DINOv3: 1.02; MAE: 1.11; CLIP: 4.81; SigLIP: 1.98; SigLIP2: 2.65. Large retention gains occur where frozen IoU was low; DINOv2 shows a small drop.
+
+**Summary table (percentile 90)**
+
+| Model    | Strategy     | Frozen IoU | Finetuned IoU | Δ IoU   | Significant?        |
+|----------|--------------|------------|---------------|---------|---------------------|
+| CLIP     | linear_probe | 0.018      | 0.018         | 0.000   | —                   |
+| CLIP     | lora         | 0.018      | 0.082         | +0.063  | Yes                 |
+| CLIP     | full         | 0.018      | 0.087         | +0.069  | Yes                 |
+| DINOv2   | full         | 0.082      | 0.074         | −0.007  | Yes (worse)         |
+| DINOv3   | full / lora  | 0.133      | ~0.134        | ~+0.002 | No                  |
+| SigLIP   | full         | 0.036      | 0.072         | +0.036  | Yes                 |
+| SigLIP2  | full         | 0.022      | 0.058         | +0.036  | Yes                 |
+| MAE      | all          | 0.033      | ~0.036        | ~+0.004 | No                  |
+
+**Takeaways**
+
+- Fine-tuning (LoRA or full) **improves** attention–expert IoU for CLIP, SigLIP, and SigLIP2; it **does not** improve it for DINOv2/DINOv3 and can slightly **worsen** it for DINOv2.
+- When improvement occurs, **full and LoRA both help**; full is sometimes better than LoRA; **linear probe never changes alignment**.
+- Pre-training family matters: contrastive models (CLIP, SigLIP) start with weaker alignment and benefit from task adaptation; DINO-style models already align well and gain little or lose under classification fine-tuning.
+- For DINOv2, **full fine-tuning is the only case where alignment significantly decreases**; LoRA is the safer option if the goal is to preserve or improve expert alignment.
+
 ### UI Support: Feature-Local Frozen vs Fine-Tuned Comparison
 
 The Compare page now supports a **feature-focused inspection mode** for frozen vs fine-tuned overlays:

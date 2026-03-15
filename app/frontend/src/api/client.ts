@@ -309,6 +309,27 @@ export const comparisonAPI = {
     }>(`/compare/frozen_vs_finetuned?${query}`);
   },
 
+  compareFinetunedVariants: (
+    imageId: string,
+    model: string,
+    layer: number,
+    strategyA: string,
+    strategyB: string,
+    showBboxes = true
+  ) => {
+    const query = new URLSearchParams({
+      image_id: imageId,
+      model,
+      layer: String(layer),
+      strategy_a: strategyA,
+      strategy_b: strategyB,
+      show_bboxes: String(showBboxes),
+    });
+    return fetchJSON<import('../types').VariantComparison>(
+      `/compare/finetuned_vs_finetuned?${query}`
+    );
+  },
+
   compareLayers: (imageId: string, model: string, percentile = 90) =>
     fetchJSON<import('../types').LayerComparison>(
       `/compare/layers?image_id=${imageId}&model=${model}&percentile=${percentile}`
