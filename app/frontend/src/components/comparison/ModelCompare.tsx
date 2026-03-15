@@ -13,7 +13,7 @@ import { Card, CardContent } from '../ui/Card';
 import { SimilarityViewer } from './SimilarityViewer';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { renderHeatmapLegend } from '../../utils/renderHeatmap';
-import type { BoundingBox } from '../../types';
+import type { BoundingBox, ImageMetricSelection, IoUResult } from '../../types';
 
 interface ModelCompareProps {
   imageId: string;
@@ -81,6 +81,7 @@ export function ModelCompare({
     effectiveLayer,
     percentile,
     comparisonMethod,
+    selectedBboxIndex,
     !modelsLoading
   );
 
@@ -94,8 +95,15 @@ export function ModelCompare({
 
   // Get selected bbox for display
   const selectedBbox = selectedBboxIndex !== null ? bboxes[selectedBboxIndex] : null;
+  const metricSelection: ImageMetricSelection = comparison?.selection ?? {
+    mode: selectedBbox ? 'bbox' : 'union',
+    bbox_index: selectedBboxIndex,
+    bbox_label: selectedBbox?.label_name || (selectedBbox ? `Feature ${selectedBbox.label}` : null),
+  };
   const leftResult = comparison?.results.find((result) => result.model === leftModel);
   const rightResult = comparison?.results.find((result) => result.model === rightModel);
+  const leftUnavailableReason = comparison?.unavailable_models[leftModel];
+  const rightUnavailableReason = comparison?.unavailable_models[rightModel];
 
   return (
     <div className="space-y-4">
@@ -136,32 +144,13 @@ export function ModelCompare({
               onBboxSelect={setSelectedBboxIndex}
             />
           </ErrorBoundary>
-          <CardContent>
-            {leftResult && (
-              <div className="space-y-1 text-sm">
-                <div>
-                  <span className="font-medium">IoU:</span>{' '}
-                  {leftResult.iou.toFixed(3)}
-                </div>
-                {leftResult.method && (
-                  <div>
-                    <span className="font-medium">Method:</span>{' '}
-                    {leftResult.method}
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium">MSE:</span>{' '}
-                  {leftResult.mse.toFixed(4)}
-                </div>
-                {Number.isFinite(leftResult.kl) && (
-                  <div>
-                    <span className="font-medium">KL:</span>{' '}
-                    {leftResult.kl.toFixed(4)}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
+          <ComparisonMetricsPanel
+            panelId="left"
+            selection={metricSelection}
+            result={leftResult}
+            unavailableReason={leftUnavailableReason}
+            isLoading={isLoading}
+          />
         </Card>
 
         {/* Right model */}
@@ -176,32 +165,13 @@ export function ModelCompare({
               onBboxSelect={setSelectedBboxIndex}
             />
           </ErrorBoundary>
-          <CardContent>
-            {rightResult && (
-              <div className="space-y-1 text-sm">
-                <div>
-                  <span className="font-medium">IoU:</span>{' '}
-                  {rightResult.iou.toFixed(3)}
-                </div>
-                {rightResult.method && (
-                  <div>
-                    <span className="font-medium">Method:</span>{' '}
-                    {rightResult.method}
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium">MSE:</span>{' '}
-                  {rightResult.mse.toFixed(4)}
-                </div>
-                {Number.isFinite(rightResult.kl) && (
-                  <div>
-                    <span className="font-medium">KL:</span>{' '}
-                    {rightResult.kl.toFixed(4)}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
+          <ComparisonMetricsPanel
+            panelId="right"
+            selection={metricSelection}
+            result={rightResult}
+            unavailableReason={rightUnavailableReason}
+            isLoading={isLoading}
+          />
         </Card>
       </div>
 
@@ -244,5 +214,95 @@ export function ModelCompare({
         <div className="text-center text-red-500">Failed to load comparison</div>
       )}
     </div>
+  );
+}
+
+interface ComparisonMetricsPanelProps {
+  panelId: 'left' | 'right';
+  selection: ImageMetricSelection;
+  result?: IoUResult;
+  unavailableReason?: string;
+  isLoading: boolean;
+}
+
+function ComparisonMetricsPanel({
+  panelId,
+  selection,
+  result,
+  unavailableReason,
+  isLoading,
+}: ComparisonMetricsPanelProps) {
+  const scopeCopy = selection.mode === 'bbox' ? 'Feature-level metrics' : 'Whole-image metrics';
+
+  return (
+    <CardContent data-testid={`comparison-metrics-${panelId}`}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500"
+            data-testid={`comparison-metric-scope-${panelId}`}
+          >
+            {scopeCopy}
+          </span>
+          {selection.bbox_label && (
+            <span className="rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+              {selection.bbox_label}
+            </span>
+          )}
+        </div>
+
+        {isLoading && (
+          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            Loading metrics for this scope...
+          </div>
+        )}
+
+        {!isLoading && unavailableReason && (
+          <div
+            className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            data-testid={`comparison-metrics-${panelId}-unavailable`}
+          >
+            {unavailableReason}
+          </div>
+        )}
+
+        {!isLoading && !unavailableReason && result && (
+          <div className="space-y-1 text-sm">
+            <div>
+              <span className="font-medium">IoU:</span>{' '}
+              {result.iou.toFixed(3)}
+            </div>
+            {result.method && (
+              <div>
+                <span className="font-medium">Method:</span>{' '}
+                {result.method}
+              </div>
+            )}
+            <div>
+              <span className="font-medium">MSE:</span>{' '}
+              {result.mse.toFixed(4)}
+            </div>
+            {Number.isFinite(result.kl) && (
+              <div>
+                <span className="font-medium">KL:</span>{' '}
+                {result.kl.toFixed(4)}
+              </div>
+            )}
+            {Number.isFinite(result.emd) && (
+              <div>
+                <span className="font-medium">EMD:</span>{' '}
+                {result.emd.toFixed(4)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isLoading && !unavailableReason && !result && (
+          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            Metrics are not available for this selection.
+          </div>
+        )}
+      </div>
+    </CardContent>
   );
 }

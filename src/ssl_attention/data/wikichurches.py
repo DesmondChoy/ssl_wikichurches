@@ -199,12 +199,25 @@ class FullDataset(Dataset):
         for idx in range(len(self)):
             yield self[idx]
 
+    def _resolve_sample(self, idx: int) -> tuple[Path, FullSampleMetadata]:
+        """Resolve image path plus metadata from one index lookup."""
+        image_path = self._image_paths[idx]
+        image_id = image_path.name
+        wikidata_id = self._extract_qid(image_id)
+        style_label = self._qid_to_style.get(wikidata_id)
+
+        metadata: FullSampleMetadata = {
+            "image_id": image_id,
+            "style_label": style_label,
+            "wikidata_id": wikidata_id,
+        }
+        return image_path, metadata
+
     def __getitem__(self, idx: int) -> dict[str, Any]:
-        metadata = self.get_metadata(idx)
+        image_path, metadata = self._resolve_sample(idx)
         image_id = metadata["image_id"]
         wikidata_id = metadata["wikidata_id"]
         style_label = metadata["style_label"]
-        image_path = self._image_paths[idx]
 
         # Lazy load image
         image = Image.open(image_path).convert("RGB")
@@ -225,16 +238,8 @@ class FullDataset(Dataset):
         This is used by split/label bookkeeping code paths to avoid expensive
         image decoding when only identifiers and labels are needed.
         """
-        image_path = self._image_paths[idx]
-        image_id = image_path.name
-        wikidata_id = self._extract_qid(image_id)
-        style_label = self._qid_to_style.get(wikidata_id)
-
-        return {
-            "image_id": image_id,
-            "style_label": style_label,
-            "wikidata_id": wikidata_id,
-        }
+        _, metadata = self._resolve_sample(idx)
+        return metadata
 
 
 def collate_annotated(

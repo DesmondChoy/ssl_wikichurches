@@ -41,6 +41,16 @@ export const DASHBOARD_METRIC_METADATA: Record<DashboardMetric, DashboardMetricM
       'KL divergence reports KL(GT || attention) after both heatmaps are converted into smoothed probability distributions, so changing the percentile keeps the dashboard scores the same.',
     axisMode: 'auto',
   },
+  emd: {
+    optionLabel: 'EMD',
+    shortLabel: 'EMD',
+    chartLabel: 'EMD (lower better)',
+    hint: () => 'Lower is better',
+    thresholdFree: true,
+    infoBanner:
+      'EMD reports Earth Mover\'s Distance / Wasserstein-1 on a shared 8x8 support after both heatmaps are resized and normalized, so changing the percentile keeps the dashboard scores the same.',
+    axisMode: 'auto',
+  },
 };
 
 export const DASHBOARD_METRIC_OPTIONS = (Object.entries(DASHBOARD_METRIC_METADATA) as Array<

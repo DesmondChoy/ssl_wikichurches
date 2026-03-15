@@ -9,21 +9,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from app.backend.config import (
-    DEFAULT_METHOD,
+    AVAILABLE_MODELS,
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
+    MODEL_METHODS,
     Q2_RESULTS_PATH,
     display_model_name,
     get_model_num_layers,
     resolve_model_name,
 )
-from app.backend.validators import resolve_default_method
+from app.backend.validators import model_supports_method, resolve_default_method
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-MetricName = Literal["iou", "mse", "kl"]
+MetricName = Literal["iou", "mse", "kl", "emd"]
+RankingMode = Literal["default_method", "best_available"]
 
 IMAGE_DETAIL_METRICS = (
     {
@@ -50,6 +52,13 @@ IMAGE_DETAIL_METRICS = (
     {
         "key": "kl",
         "label": "KL Divergence",
+        "direction": "lower",
+        "default_enabled": True,
+        "percentile_dependent": False,
+    },
+    {
+        "key": "emd",
+        "label": "EMD",
         "direction": "lower",
         "default_enabled": True,
         "percentile_dependent": False,
@@ -102,15 +111,16 @@ class MetricsService:
         """Get metrics for a specific image/model/layer combination.
 
         Returns:
-            Dict with iou, coverage, mse, kl, attention_area, annotation_area or None.
+            Dict with iou, coverage, mse, kl, emd, attention_area, annotation_area or None.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT iou, coverage, mse, {kl_select}, attention_area, annotation_area
+                f"""SELECT iou, coverage, mse, {kl_select}, {emd_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND layer = ? AND method = ? AND percentile = ?""",
                 (image_id, db_model, layer, resolved_method, percentile),
@@ -134,7 +144,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None or kl is None:
+                emd = row["emd"]
+                if emd is None:
+                    emd = self._compute_image_emd_from_cache(
+                        image_id=image_id,
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None or emd is None:
                     return None
 
                 return {
@@ -147,6 +165,7 @@ class MetricsService:
                     "coverage": row["coverage"],
                     "mse": mse,
                     "kl": kl,
+                    "emd": emd,
                     "attention_area": row["attention_area"],
                     "annotation_area": row["annotation_area"],
                 }
@@ -167,8 +186,9 @@ class MetricsService:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT layer, iou, coverage, mse, {kl_select}
+                f"""SELECT layer, iou, coverage, mse, {kl_select}, {emd_select}
                    FROM image_metrics
                    WHERE image_id = ? AND model = ? AND method = ? AND percentile = ?
                    ORDER BY CAST(SUBSTR(layer, 6) AS INTEGER)""",
@@ -201,12 +221,21 @@ class MetricsService:
                     layer=layer_key,
                     method=resolved_method,
                 )
+            emd = row["emd"]
+            if emd is None:
+                emd = self._compute_image_emd_from_cache(
+                    image_id=image_id,
+                    model=model,
+                    layer=layer_key,
+                    method=resolved_method,
+                )
 
             values = layer_points[layer_key]["values"]
             values["iou"] = row["iou"]
             values["coverage"] = row["coverage"]
             values["mse"] = mse
             values["kl"] = kl
+            values["emd"] = emd
             has_values = has_values or any(value is not None for value in values.values())
 
         if not has_values:
@@ -262,6 +291,7 @@ class MetricsService:
             values["coverage"] = metrics["coverage"]
             values["mse"] = metrics["mse"]
             values["kl"] = metrics["kl"]
+            values["emd"] = metrics["emd"]
             has_values = True
 
         if not has_values:
@@ -304,6 +334,14 @@ class MetricsService:
             annotation=annotation,
         )
 
+    def get_bbox_label(self, image_id: str, bbox_index: int) -> str:
+        """Get the display label for a bbox on an image."""
+        annotation = self._get_annotation(image_id)
+        if annotation is None:
+            raise ValueError(f"Annotation not found for {image_id}")
+
+        return self._get_bbox_label(annotation, bbox_index)
+
     def get_aggregate_metrics(
         self,
         model: str,
@@ -315,7 +353,8 @@ class MetricsService:
 
         Returns:
             Dict with mean_iou, std_iou, median_iou, mean_coverage, mean_mse,
-            std_mse, median_mse, mean_kl, std_kl, median_kl, num_images.
+            std_mse, median_mse, mean_kl, std_kl, median_kl, mean_emd,
+            std_emd, median_emd, num_images.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
@@ -330,10 +369,20 @@ class MetricsService:
                 if has_kl_aggregate
                 else "NULL AS mean_kl, NULL AS std_kl, NULL AS median_kl"
             )
+            has_emd_aggregate = all(
+                self._table_has_column(conn, "aggregate_metrics", column_name)
+                for column_name in ("mean_emd", "std_emd", "median_emd")
+            )
+            emd_select = (
+                "mean_emd, std_emd, median_emd"
+                if has_emd_aggregate
+                else "NULL AS mean_emd, NULL AS std_emd, NULL AS median_emd"
+            )
             cursor.execute(
                 f"""SELECT mean_iou, std_iou, median_iou, mean_coverage,
                           mean_mse, std_mse, median_mse,
                           {kl_select},
+                          {emd_select},
                           num_images
                    FROM aggregate_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
@@ -362,6 +411,16 @@ class MetricsService:
                         percentile=percentile,
                         method=resolved_method,
                     )
+                mean_emd = row["mean_emd"]
+                std_emd = row["std_emd"]
+                median_emd = row["median_emd"]
+                if mean_emd is None or std_emd is None or median_emd is None:
+                    mean_emd, std_emd, median_emd = self._compute_emd_aggregate_from_images(
+                        model=model,
+                        layer=layer,
+                        percentile=percentile,
+                        method=resolved_method,
+                    )
 
                 return {
                     "model": model,  # Return original name for display
@@ -378,6 +437,9 @@ class MetricsService:
                     "mean_kl": mean_kl,
                     "std_kl": std_kl,
                     "median_kl": median_kl,
+                    "mean_emd": mean_emd,
+                    "std_emd": std_emd,
+                    "median_emd": median_emd,
                     "num_images": row["num_images"],
                 }
             return None
@@ -388,6 +450,8 @@ class MetricsService:
             return "mean_mse", "ASC", "MIN"
         if metric == "kl":
             return "mean_kl", "ASC", "MIN"
+        if metric == "emd":
+            return "mean_emd", "ASC", "MIN"
         return "mean_iou", "DESC", "MAX"
 
     def _aggregate_metric_value(self, aggregate_metrics: dict[str, Any], metric: MetricName) -> float | None:
@@ -403,6 +467,10 @@ class MetricsService:
 
         score_column, _, _ = self._metric_sql_config(metric)
         return self._table_has_column(conn, "aggregate_metrics", score_column)
+
+    def _metric_prefers_lower(self, metric: MetricName) -> bool:
+        """Return whether the selected metric is optimized by a lower score."""
+        return metric in {"mse", "kl", "emd"}
 
     def _legacy_aggregate_rows(
         self,
@@ -432,94 +500,175 @@ class MetricsService:
 
         return rows
 
-    def get_leaderboard(self, percentile: int = 90, metric: MetricName = "iou") -> list[dict]:
-        """Get model leaderboard ranked by best score for the selected metric.
+    def _best_layer_score_from_rows(
+        self,
+        layer_scores: list[tuple[str, float]],
+        metric: MetricName,
+    ) -> tuple[str, float]:
+        """Pick the best layer/score pair for a model+method candidate."""
+        if self._metric_prefers_lower(metric):
+            return min(layer_scores, key=lambda row: (row[1], int(row[0][5:])))
+        return max(layer_scores, key=lambda row: (row[1], -int(row[0][5:])))
 
-        Uses each model's default method for ranking (CLS for ViTs, etc.).
+    def _best_method_entry_for_model(
+        self,
+        conn: sqlite3.Connection,
+        model: str,
+        percentile: int,
+        metric: MetricName,
+        ranking_mode: RankingMode,
+        method: str | None,
+    ) -> dict[str, Any] | None:
+        """Resolve the leaderboard row for one model under the requested ranking semantics."""
+        if method is not None:
+            candidate_methods = [method] if model_supports_method(model, method) else []
+        elif ranking_mode == "best_available":
+            candidate_methods = [candidate.value for candidate in MODEL_METHODS.get(model, [])]
+        else:
+            candidate_methods = [resolve_default_method(model)]
 
-        Returns:
-            List of dicts with rank, model, metric, score, best_layer.
-        """
-        score_column, order_direction, aggregate_fn = self._metric_sql_config(metric)
+        if not candidate_methods:
+            return None
 
-        # Build a dynamic filter so each model uses its canonical default method
-        conditions = []
-        params: list[str | int] = []
-        for model_name, default_method in DEFAULT_METHOD.items():
-            conditions.append("(model = ? AND method = ?)")
-            params.extend([model_name, default_method.value])
+        db_model = resolve_model_name(model)
+        score_column, order_direction, _ = self._metric_sql_config(metric)
+        has_aggregate_column = self._aggregate_metric_column_available(conn, metric)
+        default_method = resolve_default_method(model)
+        candidate_entries: list[dict[str, Any]] = []
 
-        if not conditions:
-            return []
-
-        filter_clause = " OR ".join(conditions)
-
-        with self.get_connection() as conn:
-            if not self._aggregate_metric_column_available(conn, metric):
-                comparator = min if metric in {"mse", "kl"} else max
-                best_rows: list[dict[str, Any]] = []
-
-                for model_name, default_method in DEFAULT_METHOD.items():
-                    layer_scores = self._legacy_aggregate_rows(
-                        model=model_name,
-                        percentile=percentile,
-                        method=default_method.value,
-                        metric=metric,
-                    )
-                    if not layer_scores:
-                        continue
-
-                    best_layer, best_score = comparator(
-                        layer_scores,
-                        key=lambda row: (row[1], int(row[0][5:])) if metric in {"mse", "kl"} else (row[1], -int(row[0][5:])),
-                    )
-                    best_rows.append(
-                        {
-                            "model": display_model_name(resolve_model_name(model_name)),
-                            "metric": metric,
-                            "score": best_score,
-                            "best_layer": best_layer,
-                        }
-                    )
-
-                ordered_rows = sorted(
-                    best_rows,
-                    key=lambda row: (row["score"], row["model"]) if metric in {"mse", "kl"} else (-row["score"], row["model"]),
+        for selected_method in candidate_methods:
+            if has_aggregate_column:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""SELECT layer, {score_column} AS score
+                       FROM aggregate_metrics
+                       WHERE model = ? AND method = ? AND percentile = ?
+                         AND {score_column} IS NOT NULL
+                       ORDER BY {score_column} {order_direction},
+                                CAST(SUBSTR(layer, 6) AS INTEGER) ASC
+                       LIMIT 1""",
+                    (db_model, selected_method, percentile),
                 )
-                return [
-                    {
-                        "rank": index + 1,
-                        **row,
-                    }
-                    for index, row in enumerate(ordered_rows)
-                ]
+                row = cursor.fetchone()
+                if row is None:
+                    continue
+                best_layer = row["layer"]
+                best_score = row["score"]
+            else:
+                layer_scores = self._legacy_aggregate_rows(
+                    model=model,
+                    percentile=percentile,
+                    method=selected_method,
+                    metric=metric,
+                )
+                if not layer_scores:
+                    continue
+                best_layer, best_score = self._best_layer_score_from_rows(layer_scores, metric)
 
-            cursor = conn.cursor()
-            cursor.execute(
-                f"""SELECT model, {aggregate_fn}({score_column}) as score,
-                   (SELECT layer FROM aggregate_metrics a2
-                    WHERE a2.model = a1.model AND a2.method = a1.method AND a2.percentile = ?
-                      AND a2.{score_column} IS NOT NULL
-                    ORDER BY {score_column} {order_direction},
-                             CAST(SUBSTR(layer, 6) AS INTEGER) ASC
-                    LIMIT 1) as best_layer
-                   FROM aggregate_metrics a1
-                   WHERE percentile = ? AND {score_column} IS NOT NULL AND ({filter_clause})
-                   GROUP BY model
-                   ORDER BY score {order_direction}, model ASC""",
-                (percentile, percentile, *params),
+            candidate_entries.append(
+                {
+                    "model": display_model_name(db_model),
+                    "metric": metric,
+                    "score": best_score,
+                    "best_layer": best_layer,
+                    "method_used": selected_method,
+                }
             )
 
-            return [
-                {
-                    "rank": i + 1,
-                    "model": display_model_name(row["model"]),
-                    "metric": metric,
-                    "score": row["score"],
-                    "best_layer": row["best_layer"],
-                }
-                for i, row in enumerate(cursor.fetchall())
+        if not candidate_entries:
+            return None
+
+        def candidate_sort_key(entry: dict[str, Any]) -> tuple[Any, ...]:
+            primary_score: float = entry["score"]
+            if not self._metric_prefers_lower(metric):
+                primary_score = -primary_score
+            return (
+                primary_score,
+                0 if entry["method_used"] == default_method else 1,
+                int(entry["best_layer"][5:]),
+                entry["method_used"],
+            )
+
+        return min(candidate_entries, key=candidate_sort_key)
+
+    def _augment_summary_metadata(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Backfill explicit ranking semantics for legacy summary JSON files."""
+        data.setdefault("ranking_mode", "default_method")
+
+        models = data.get("models")
+        if isinstance(models, dict):
+            for model_name, model_data in models.items():
+                if not isinstance(model_data, dict):
+                    continue
+                default_method = resolve_default_method(model_name)
+                model_data.setdefault("method_used", default_method)
+                metrics = model_data.get("metrics")
+                if isinstance(metrics, dict):
+                    for metric_data in metrics.values():
+                        if isinstance(metric_data, dict):
+                            metric_data.setdefault("method_used", default_method)
+
+        leaderboard = data.get("leaderboard")
+        if isinstance(leaderboard, list):
+            for entry in leaderboard:
+                if isinstance(entry, dict) and "model" in entry:
+                    entry.setdefault("method_used", resolve_default_method(entry["model"]))
+
+        leaderboards = data.get("leaderboards")
+        if isinstance(leaderboards, dict):
+            for metric_entries in leaderboards.values():
+                if not isinstance(metric_entries, list):
+                    continue
+                for entry in metric_entries:
+                    if isinstance(entry, dict) and "model" in entry:
+                        entry.setdefault("method_used", resolve_default_method(entry["model"]))
+
+        return data
+
+    def get_leaderboard(
+        self,
+        percentile: int = 90,
+        metric: MetricName = "iou",
+        method: str | None = None,
+        ranking_mode: RankingMode = "default_method",
+    ) -> list[dict]:
+        """Get model leaderboard ranked by best score for the selected metric.
+
+        Uses the selected ranking mode unless an explicit shared method filter is provided.
+
+        Returns:
+            List of dicts with rank, model, metric, score, best_layer, method_used.
+        """
+        with self.get_connection() as conn:
+            rows = [
+                entry
+                for model_name in AVAILABLE_MODELS
+                if (
+                    entry := self._best_method_entry_for_model(
+                        conn=conn,
+                        model=model_name,
+                        percentile=percentile,
+                        metric=metric,
+                        ranking_mode=ranking_mode,
+                        method=method,
+                    )
+                )
+                is not None
             ]
+
+        ordered_rows = sorted(
+            rows,
+            key=lambda row: (row["score"], row["model"])
+            if self._metric_prefers_lower(metric)
+            else (-row["score"], row["model"]),
+        )
+        return [
+            {
+                "rank": index + 1,
+                **row,
+            }
+            for index, row in enumerate(ordered_rows)
+        ]
 
     def get_layer_progression(
         self,
@@ -562,7 +711,7 @@ class MetricsService:
 
             best_idx = 0
             if scores:
-                comparator = min if metric in {"mse", "kl"} else max
+                comparator = min if metric in {"mse", "kl", "emd"} else max
                 best_idx = scores.index(comparator(scores))
             best_layer = layers[best_idx] if layers else "layer11"
             best_score = scores[best_idx] if scores else 0.0
@@ -625,15 +774,16 @@ class MetricsService:
         """Get metrics for all images for a model/layer.
 
         Returns:
-            List of dicts with image_id, iou, coverage, mse, kl.
+            List of dicts with image_id, iou, coverage, mse, kl, emd.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             kl_select = "kl" if self._table_has_column(conn, "image_metrics", "kl") else "NULL AS kl"
+            emd_select = "emd" if self._table_has_column(conn, "image_metrics", "emd") else "NULL AS emd"
             cursor.execute(
-                f"""SELECT image_id, iou, coverage, mse, {kl_select}, attention_area, annotation_area
+                f"""SELECT image_id, iou, coverage, mse, {kl_select}, {emd_select}, attention_area, annotation_area
                    FROM image_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND percentile = ?
                    ORDER BY iou DESC""",
@@ -657,7 +807,15 @@ class MetricsService:
                         layer=layer,
                         method=resolved_method,
                     )
-                if mse is None or kl is None:
+                emd = row["emd"]
+                if emd is None:
+                    emd = self._compute_image_emd_from_cache(
+                        image_id=row["image_id"],
+                        model=model,
+                        layer=layer,
+                        method=resolved_method,
+                    )
+                if mse is None or kl is None or emd is None:
                     continue
 
                 results.append(
@@ -667,6 +825,7 @@ class MetricsService:
                         "coverage": row["coverage"],
                         "mse": mse,
                         "kl": kl,
+                        "emd": emd,
                         "attention_area": row["attention_area"],
                         "annotation_area": row["annotation_area"],
                     }
@@ -681,7 +840,7 @@ class MetricsService:
 
         with open(METRICS_SUMMARY_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
-            return data
+            return self._augment_summary_metadata(data)
 
     def get_q2_summary(
         self,
@@ -837,9 +996,25 @@ class MetricsService:
             method=method,
         )
 
+    def _compute_image_emd_from_cache(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        method: str,
+    ) -> float | None:
+        """Compute EMD directly from cached attention for legacy DB rows."""
+        return self._compute_image_continuous_metric_from_cache(
+            metric_name="emd",
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            method=method,
+        )
+
     def _compute_image_continuous_metric_from_cache(
         self,
-        metric_name: Literal["mse", "kl"],
+        metric_name: Literal["mse", "kl", "emd"],
         image_id: str,
         model: str,
         layer: str,
@@ -848,7 +1023,7 @@ class MetricsService:
         """Compute a threshold-free continuous metric from cached attention."""
         from app.backend.services.attention_service import attention_service
         from app.backend.services.image_service import image_service
-        from ssl_attention.metrics import compute_image_kl, compute_image_mse
+        from ssl_attention.metrics import compute_image_emd, compute_image_kl, compute_image_mse
 
         annotation = image_service.get_annotation(image_id)
         if annotation is None:
@@ -866,6 +1041,8 @@ class MetricsService:
 
         if metric_name == "kl":
             return compute_image_kl(attention=attention, annotation=annotation)
+        if metric_name == "emd":
+            return compute_image_emd(attention=attention, annotation=annotation)
         return compute_image_mse(attention=attention, annotation=annotation)
 
     def _compute_bbox_metrics(
@@ -880,6 +1057,7 @@ class MetricsService:
     ) -> dict[str, Any] | None:
         """Compute bbox metrics from cached attention for a single layer."""
         from ssl_attention.metrics.continuous import (
+            compute_emd,
             compute_kl_divergence,
             compute_mse,
             gaussian_bbox_heatmap,
@@ -911,6 +1089,7 @@ class MetricsService:
         coverage = compute_coverage(attention_tensor, bbox_mask)
         mse = compute_mse(attention_tensor, bbox_heatmap)
         kl = compute_kl_divergence(attention_tensor, bbox_heatmap)
+        emd = compute_emd(attention_tensor, bbox_heatmap)
 
         return {
             "image_id": image_id,
@@ -922,6 +1101,7 @@ class MetricsService:
             "coverage": coverage,
             "mse": mse,
             "kl": kl,
+            "emd": emd,
             "attention_area": attention_area,
             "annotation_area": annotation_area,
         }
@@ -1047,13 +1227,29 @@ class MetricsService:
             value_key="kl",
         )
 
+    def _compute_emd_aggregate_from_images(
+        self,
+        model: str,
+        layer: str,
+        percentile: int,
+        method: str,
+    ) -> tuple[float | None, float | None, float | None]:
+        """Derive aggregate EMD stats from per-image rows when the DB is not backfilled."""
+        return self._compute_continuous_aggregate_from_images(
+            model=model,
+            layer=layer,
+            percentile=percentile,
+            method=method,
+            value_key="emd",
+        )
+
     def _compute_continuous_aggregate_from_images(
         self,
         model: str,
         layer: str,
         percentile: int,
         method: str,
-        value_key: Literal["mse", "kl"],
+        value_key: Literal["mse", "kl", "emd"],
     ) -> tuple[float | None, float | None, float | None]:
         """Derive aggregate continuous-metric stats from per-image rows."""
         import torch

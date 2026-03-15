@@ -55,6 +55,8 @@ from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import clear_memory, get_device
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from ssl_attention.data.wikichurches import FullDataset
 
 
@@ -709,6 +711,19 @@ class FineTuner:
 
         return Subset(dataset, train_indices), Subset(dataset, val_indices), n_excluded
 
+    def _collect_labels_for_indices(
+        self,
+        dataset: FullDataset,
+        indices: Sequence[int],
+    ) -> list[int]:
+        """Collect labeled subset targets without decoding images."""
+        labels: list[int] = []
+        for idx in indices:
+            label = dataset.get_metadata(idx)["style_label"]
+            if label is not None:
+                labels.append(label)
+        return labels
+
     def _split_with_annotated_eval_validation(
         self,
         dataset: FullDataset,
@@ -852,11 +867,7 @@ class FineTuner:
         )
 
         # Compute class weights from training data
-        train_labels: list[int] = []
-        for idx in train_subset.indices:
-            label = dataset.get_metadata(idx)["style_label"]
-            if label is not None:
-                train_labels.append(label)
+        train_labels = self._collect_labels_for_indices(dataset, train_subset.indices)
         class_weights = self._compute_class_weights(train_labels)
         print(f"Class weights: {class_weights.tolist()}")
 

@@ -16,17 +16,33 @@ import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
+import { getAttentionMethodLabel } from '../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
-import type { DashboardMetric } from '../types';
+import type { AllModelsSummary, DashboardMetric, LeaderboardEntry, RankingMode } from '../types';
 import {
   DASHBOARD_METRIC_METADATA,
   DASHBOARD_METRIC_OPTIONS,
 } from '../constants/metricMetadata';
 
+const RANKING_MODE_OPTIONS: Array<{ value: RankingMode; label: string }> = [
+  { value: 'default_method', label: 'Default method' },
+  { value: 'best_available', label: 'Best available' },
+];
+
 export function DashboardPage() {
-  const { model, layer, method, percentile, setModel, setPercentile, setMethodsConfig, setNumLayersPerModel } = useViewStore();
+  const {
+    model,
+    layer,
+    method,
+    percentile,
+    setModelWithPreferredMethod,
+    setPercentile,
+    setMethodsConfig,
+    setNumLayersPerModel,
+  } = useViewStore();
   const { data: modelsData } = useModels();
   const [metric, setMetric] = useState<DashboardMetric>('iou');
+  const [rankingMode, setRankingMode] = useState<RankingMode>('default_method');
   const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
   const metricLabel = metricMetadata.chartLabel;
 
@@ -44,8 +60,17 @@ export function DashboardPage() {
     }
   }, [modelsData, setNumLayersPerModel]);
 
-  const { data: summary, isLoading: summaryLoading } = useAllModelsSummary(percentile, metric);
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    error: summaryError,
+  } = useAllModelsSummary(percentile, metric, { rankingMode });
   const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
+  const summaryContextMessage = getSummaryContextMessage(summary, rankingMode);
+  const leaderboardEmptyMessage = getLeaderboardEmptyMessage(summary, rankingMode);
+  const handleLeaderboardModelSelect = (entry: LeaderboardEntry) => {
+    setModelWithPreferredMethod(entry.model, entry.method_used);
+  };
 
   // Collect all unique layers from API response (handles models with different layer counts)
   const allLayers = new Set<string>();
@@ -96,7 +121,7 @@ export function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <Select
             value={metric}
             onChange={(value) => setMetric(value as DashboardMetric)}
@@ -109,6 +134,29 @@ export function DashboardPage() {
             options={PERCENTILE_OPTIONS}
             label="Threshold"
           />
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Ranking</label>
+            <div className="inline-flex rounded-md border border-gray-300 bg-white p-1 shadow-sm">
+              {RANKING_MODE_OPTIONS.map((option) => {
+                const isSelected = rankingMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    data-testid={`dashboard-ranking-mode-${option.value}`}
+                    onClick={() => setRankingMode(option.value)}
+                    className={`rounded px-3 py-1.5 text-sm transition-colors ${
+                      isSelected
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -118,15 +166,28 @@ export function DashboardPage() {
         </div>
       )}
 
+      {summaryContextMessage && (
+        <div
+          className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+          data-testid="dashboard-method-context"
+        >
+          {summaryContextMessage}
+        </div>
+      )}
+
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard */}
         <div>
-          <ErrorBoundary resetKeys={[percentile, metric]}>
+          <ErrorBoundary resetKeys={[percentile, metric, rankingMode]}>
             <ModelLeaderboard
+              leaderboard={summary?.leaderboard}
               percentile={percentile}
               metric={metric}
-              onModelSelect={setModel}
+              isLoading={summaryLoading}
+              hasError={!!summaryError}
+              emptyMessage={leaderboardEmptyMessage}
+              onModelSelect={handleLeaderboardModelSelect}
             />
           </ErrorBoundary>
         </div>
@@ -143,6 +204,14 @@ export function DashboardPage() {
             <CardContent>
               {summaryLoading ? (
                 <div className="h-64 animate-pulse bg-gray-100 rounded" />
+              ) : summaryError ? (
+                <div className="h-64 flex items-center justify-center text-sm text-red-500">
+                  Failed to load layer progression
+                </div>
+              ) : !summary?.leaderboard.length ? (
+                <div className="h-64 flex items-center justify-center text-sm text-gray-500">
+                  {leaderboardEmptyMessage}
+                </div>
               ) : (
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -292,6 +361,43 @@ export function DashboardPage() {
 interface YAxisConfig {
   domain: [number, number];
   ticks: number[];
+}
+
+function getLeaderboardEmptyMessage(
+  summary: AllModelsSummary | undefined,
+  rankingMode: RankingMode
+): string {
+  if (summary?.method) {
+    return `No compatible models available for ${getAttentionMethodLabel(summary.method)}.`;
+  }
+
+  if (rankingMode === 'best_available') {
+    return 'No models have compatible scores for best-available ranking.';
+  }
+
+  return 'No models have compatible scores for default-method ranking.';
+}
+
+function getSummaryContextMessage(
+  summary: AllModelsSummary | undefined,
+  rankingMode: RankingMode
+): string | null {
+  if (!summary) {
+    return null;
+  }
+
+  if (summary.method) {
+    const excludedModelsText = summary.excluded_models.length
+      ? ` Excluded models: ${summary.excluded_models.join(', ')}.`
+      : '';
+    return `Summary panels are using ${getAttentionMethodLabel(summary.method)}.${excludedModelsText}`;
+  }
+
+  if ((summary.ranking_mode ?? rankingMode) === 'best_available') {
+    return "Leaderboard and layer progression rank each model by its strongest available attention method.";
+  }
+
+  return "Leaderboard and layer progression rank each model by its default attention method.";
 }
 
 function getYAxisConfig(

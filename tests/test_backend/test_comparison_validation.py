@@ -7,10 +7,11 @@ Verifies that:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image as PILImage
 
 from app.backend.main import app
 
@@ -46,6 +47,7 @@ def _mock_services():
             "coverage": 0.6,
             "mse": 0.1,
             "kl": 0.2,
+            "emd": 0.3,
             "attention_area": 0.4,
             "annotation_area": 0.3,
             "method": "cls",
@@ -62,6 +64,7 @@ def _mock_services():
             "coverage": 0.6,
             "mse": 0.1,
             "kl": 0.2,
+            "emd": 0.3,
             "attention_area": 0.4,
             "annotation_area": 0.3,
             "method": "cls",
@@ -72,6 +75,23 @@ def _mock_services():
             "comparison_metrics_service": mock_met_cmp,
             "all_models_metrics_service": mock_met_all,
         }
+
+
+def _bbox_metrics_payload(model: str) -> dict:
+    return {
+        "image_id": IMAGE_ID,
+        "model": model,
+        "layer": "layer0",
+        "percentile": 90,
+        "iou": 0.31,
+        "coverage": 0.48,
+        "mse": 0.022,
+        "kl": 0.08,
+        "emd": 0.06,
+        "attention_area": 0.21,
+        "annotation_area": 0.14,
+        "method": "cls",
+    }
 
 
 class TestCompareModelsMethodValidation:
@@ -153,6 +173,268 @@ class TestAllModelsMethodFiltering:
             assert m not in models, f"{m} should not appear for method=gradcam"
 
 
+class TestAllModelsSummaryMethodFiltering:
+    """all_models_summary should stay method-consistent when scoped."""
+
+    def test_rollout_summary_filters_incompatible_models_and_forwards_method(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.52,
+                "best_layer": "layer1",
+                "method_used": "rollout",
+            },
+            {
+                "rank": 2,
+                "model": "clip",
+                "metric": "iou",
+                "score": 0.46,
+                "best_layer": "layer1",
+                "method_used": "rollout",
+            },
+        ]
+        mock_met_cmp.get_layer_progression.side_effect = [
+            {
+                "model": "dinov2",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer1"],
+                "scores": [0.38, 0.52],
+                "best_layer": "layer1",
+                "best_score": 0.52,
+            },
+            {
+                "model": "clip",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer1"],
+                "scores": [0.33, 0.46],
+                "best_layer": "layer1",
+                "best_score": 0.46,
+            },
+        ]
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "rollout"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["ranking_mode"] is None
+        assert payload["method"] == "rollout"
+        assert payload["excluded_models"] == ["siglip", "siglip2", "resnet50"]
+        assert [entry["model"] for entry in payload["leaderboard"]] == ["dinov2", "clip"]
+        assert all(entry["method_used"] == "rollout" for entry in payload["leaderboard"])
+        assert payload["models"]["dinov2"]["method_used"] == "rollout"
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", method="rollout")
+        assert mock_met_cmp.get_layer_progression.call_args_list == [
+            call("dinov2", 90, method="rollout", metric="iou"),
+            call("clip", 90, method="rollout", metric="iou"),
+        ]
+
+    def test_default_summary_uses_default_ranking_mode(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.58,
+                "best_layer": "layer11",
+                "method_used": "cls",
+            }
+        ]
+        mock_met_cmp.get_layer_progression.return_value = {
+            "model": "dinov2",
+            "metric": "iou",
+            "percentile": 90,
+            "method": "cls",
+            "layers": ["layer0", "layer11"],
+            "scores": [0.31, 0.58],
+            "best_layer": "layer11",
+            "best_score": 0.58,
+        }
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["ranking_mode"] == "default_method"
+        assert payload["method"] is None
+        assert payload["excluded_models"] == []
+        assert payload["leaderboard"][0]["method_used"] == "cls"
+        assert payload["models"]["dinov2"]["method_used"] == "cls"
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="default_method")
+        mock_met_cmp.get_layer_progression.assert_called_once_with("dinov2", 90, method="cls", metric="iou")
+
+    def test_best_available_summary_uses_entry_methods(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.62,
+                "best_layer": "layer10",
+                "method_used": "rollout",
+            },
+            {
+                "rank": 2,
+                "model": "clip",
+                "metric": "iou",
+                "score": 0.55,
+                "best_layer": "layer8",
+                "method_used": "cls",
+            },
+        ]
+        mock_met_cmp.get_layer_progression.side_effect = [
+            {
+                "model": "dinov2",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "rollout",
+                "layers": ["layer0", "layer10"],
+                "scores": [0.42, 0.62],
+                "best_layer": "layer10",
+                "best_score": 0.62,
+            },
+            {
+                "model": "clip",
+                "metric": "iou",
+                "percentile": 90,
+                "method": "cls",
+                "layers": ["layer0", "layer8"],
+                "scores": [0.28, 0.55],
+                "best_layer": "layer8",
+                "best_score": 0.55,
+            },
+        ]
+
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["ranking_mode"] == "best_available"
+        assert payload["method"] is None
+        assert payload["excluded_models"] == []
+        assert payload["leaderboard"][0]["method_used"] == "rollout"
+        assert payload["models"]["dinov2"]["method_used"] == "rollout"
+        mock_met_cmp.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="best_available")
+        assert mock_met_cmp.get_layer_progression.call_args_list == [
+            call("dinov2", 90, method="rollout", metric="iou"),
+            call("clip", 90, method="cls", metric="iou"),
+        ]
+
+    def test_invalid_summary_method_returns_400(self):
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "invalid_method"},
+        )
+
+        assert resp.status_code == 400
+        assert "Invalid method" in resp.json()["detail"]
+
+    def test_summary_rejects_method_and_ranking_mode_together(self):
+        resp = client.get(
+            "/api/compare/all_models_summary",
+            params={"percentile": 90, "metric": "iou", "method": "cls", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 400
+        assert "cannot be combined" in resp.json()["detail"]
+
+
+class TestMetricsLeaderboardRankingModes:
+    """metrics/leaderboard should validate and forward ranking semantics."""
+
+    def test_default_leaderboard_uses_default_ranking_mode(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.58,
+                "best_layer": "layer11",
+                "method_used": "cls",
+            }
+        ]
+
+        resp = client.get("/api/metrics/leaderboard", params={"percentile": 90, "metric": "iou"})
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "cls"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="default_method")
+
+    def test_best_available_leaderboard_forwards_ranking_mode(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.62,
+                "best_layer": "layer10",
+                "method_used": "rollout",
+            }
+        ]
+
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "rollout"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", ranking_mode="best_available")
+
+    def test_shared_method_leaderboard_forwards_method(self, _mock_services):
+        mock_met_all = _mock_services["all_models_metrics_service"]
+        mock_met_all.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "model": "dinov2",
+                "metric": "iou",
+                "score": 0.52,
+                "best_layer": "layer1",
+                "method_used": "rollout",
+            }
+        ]
+
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "method": "rollout"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload[0]["method_used"] == "rollout"
+        mock_met_all.get_leaderboard.assert_called_once_with(90, metric="iou", method="rollout")
+
+    def test_leaderboard_rejects_method_and_ranking_mode_together(self):
+        resp = client.get(
+            "/api/metrics/leaderboard",
+            params={"percentile": 90, "metric": "iou", "method": "cls", "ranking_mode": "best_available"},
+        )
+
+        assert resp.status_code == 400
+        assert "cannot be combined" in resp.json()["detail"]
+
+
 class TestFrozenVsFinetunedEndpoint:
     """frozen_vs_finetuned should return usable URLs when caches exist."""
 
@@ -161,7 +443,7 @@ class TestFrozenVsFinetunedEndpoint:
         mock_img_cmp = _mock_services["comparison_image_service"]
 
         def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
-            if variant != "overlay" or method != "cls":
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
                 return False
             return model in {"dinov2", "dinov2_finetuned"}
 
@@ -181,12 +463,143 @@ class TestFrozenVsFinetunedEndpoint:
         assert "method=cls" in payload["frozen"]["url"]
         assert "model=dinov2_finetuned" in payload["finetuned"]["url"]
 
+    def test_compare_urls_resolve_to_overlay_success(self, _mock_services):
+        """Returned compare URLs should serve overlay images for both variants."""
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _comparison_exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _comparison_exists
+
+        with patch("app.backend.routers.attention.image_service") as mock_attention_image_service:
+            mock_attention_image_service.heatmap_exists.side_effect = _comparison_exists
+            mock_attention_image_service.load_heatmap.return_value = PILImage.new("RGB", (8, 8), color=(10, 20, 30))
+
+            compare_resp = client.get(
+                "/api/compare/frozen_vs_finetuned",
+                params={"image_id": IMAGE_ID, "model": "dinov2", "layer": 0},
+            )
+
+            assert compare_resp.status_code == 200
+            payload = compare_resp.json()
+
+            frozen_resp = client.get(payload["frozen"]["url"])
+            finetuned_resp = client.get(payload["finetuned"]["url"])
+
+        assert frozen_resp.status_code == 200
+        assert finetuned_resp.status_code == 200
+        assert frozen_resp.headers["content-type"] == "image/png"
+        assert finetuned_resp.headers["content-type"] == "image/png"
+        assert frozen_resp.content
+        assert finetuned_resp.content
+
+
+class TestCompareModelsBboxMetrics:
+    """compare_models should support bbox-scoped metrics without DB dependence."""
+
+    def test_union_compare_includes_selection_metadata(self):
+        resp = client.get(
+            "/api/compare/models",
+            params={"image_id": IMAGE_ID, "models": ["dinov2"], "method": "cls"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["selection"] == {
+            "mode": "union",
+            "bbox_index": None,
+            "bbox_label": None,
+        }
+        assert payload["unavailable_models"] == {}
+
+    def test_bbox_compare_returns_bbox_selection_without_metrics_db(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.return_value = "Window"
+        mock_met_cmp.get_bbox_metrics.side_effect = [
+            _bbox_metrics_payload("dinov2"),
+            _bbox_metrics_payload("clip"),
+        ]
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 0,
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["selection"] == {
+            "mode": "bbox",
+            "bbox_index": 0,
+            "bbox_label": "Window",
+        }
+        assert {result["model"] for result in payload["results"]} == {"dinov2", "clip"}
+        assert payload["unavailable_models"] == {}
+
+    def test_bbox_compare_invalid_index_returns_400(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.side_effect = ValueError("bbox_index 3 out of range")
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 3,
+            },
+        )
+
+        assert resp.status_code == 400
+        assert resp.json()["detail"] == "bbox_index 3 out of range"
+
+    def test_bbox_compare_reports_unavailable_models_without_failing(self, _mock_services):
+        mock_met_cmp = _mock_services["comparison_metrics_service"]
+        mock_met_cmp.db_exists = False
+        mock_met_cmp.get_bbox_label.return_value = "Window"
+        mock_met_cmp.get_bbox_metrics.side_effect = [
+            _bbox_metrics_payload("dinov2"),
+            None,
+        ]
+
+        resp = client.get(
+            "/api/compare/models",
+            params={
+                "image_id": IMAGE_ID,
+                "models": ["dinov2", "clip"],
+                "layer": 0,
+                "percentile": 90,
+                "method": "cls",
+                "bbox_index": 0,
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert [result["model"] for result in payload["results"]] == ["dinov2"]
+        assert payload["selection"]["mode"] == "bbox"
+        assert "clip" in payload["unavailable_models"]
+        assert "Feature-level metrics unavailable" in payload["unavailable_models"]["clip"]
+
     def test_strategy_specific_variant_is_used(self, _mock_services):
         """Strategy query should target strategy-specific fine-tuned key."""
         mock_img_cmp = _mock_services["comparison_image_service"]
 
         def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
-            if variant != "overlay" or method != "cls":
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
                 return False
             return model in {"dinov2", "dinov2_finetuned_lora"}
 
@@ -209,7 +622,7 @@ class TestFinetunedVsFinetunedEndpoint:
         mock_img_cmp = _mock_services["comparison_image_service"]
 
         def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
-            if variant != "overlay" or method != "cls":
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
                 return False
             return model in {"dinov2_finetuned_linear_probe", "dinov2_finetuned_full"}
 

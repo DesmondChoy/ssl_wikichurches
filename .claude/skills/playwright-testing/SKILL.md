@@ -212,12 +212,12 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Metrics Chart Panel
 - [ ] Metrics panel shows the interpretation copy relating the heatmap and chart
 - [ ] Active-layer indicator updates between focused and playing states
-- [ ] Metric toggles render IoU, Coverage, and MSE enabled by default
+- [ ] Metric toggles render IoU, Coverage, MSE, and KL Divergence enabled by default
 - [ ] Metric toggle labels make directionality explicit (for example, "IoU Score (Higher better)")
 - [ ] Chart renders layer-by-layer lines instead of the old static metric cards
 - [ ] Chart highlight follows the current layer when the user scrubs or clicks first/prev/next/last
 - [ ] While playing, the reveal status switches to "Revealing layers 0-N" and advances with the animation
-- [ ] Percentile semantics note explains that IoU changes while threshold-free metrics stay fixed
+- [ ] Percentile semantics note explains that IoU changes while Coverage, MSE, and KL stay fixed
 - [ ] Selecting a bbox switches the metrics panel to bbox mode with bbox-specific context
 - [ ] Deselecting bbox reverts the chart to union-of-all-bboxes metrics
 
@@ -240,18 +240,19 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Layout
 - [ ] Compare page loads at "/compare"
 - [ ] Page layout supports side-by-side comparison
-- [ ] Selection controls are visible
+- [ ] Selection controls are visible for image and comparison type
 
-#### Image Selection
-- [ ] Can select first image for comparison
-- [ ] Can select second image for comparison
-- [ ] Selected images display clearly
+#### Selection State
+- [ ] Can select an image for comparison
+- [ ] Comparison Type dropdown shows "Model vs Model" and "Frozen vs Fine-tuned"
+- [ ] Model selectors appear for the model-vs-model flow once an image is selected
 
 #### Comparison Features
 - [ ] Both images render side-by-side
 - [ ] Attention patterns can be compared visually
-- [ ] Sync/lock view controls work (if applicable)
-- [ ] Difference visualization renders (if applicable)
+- [ ] Method-context banner explains whether the selected method is shared or defaults per model
+- [ ] Inline comparison metrics show IoU, MSE, and KL for both selected models
+- [ ] Switching to a lower-depth model pair keeps the comparison working without request errors
 - [ ] SigLIP heatmaps render correctly (not 404 errors)
 - [ ] ResNet-50 heatmaps render correctly (not 404 errors)
 
@@ -264,18 +265,20 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Page is NOT blank - verify actual content renders
 - [ ] "Dashboard" heading is visible
 - [ ] Loading states show while data fetches (not indefinite spinner)
+- [ ] Metric selector shows IoU, MSE, and KL options
+- [ ] Threshold-free info banner appears for MSE and KL modes
 
 #### Model Leaderboard (Left Sidebar)
 - [ ] Leaderboard card is visible with heading
-- [ ] Ranked list shows all 6 models (dinov2, dinov3, mae, clip, siglip2, resnet50)
-- [ ] Top 3 models have medal badges (gold #1, silver #2, bronze #3)
-- [ ] Each row shows: model name, best layer, IoU score
+- [ ] Ranked list shows all 7 models (dinov2, dinov3, mae, clip, siglip, siglip2, resnet50)
+- [ ] Top 3 models have distinct highlighted rank badges
+- [ ] Each row shows: model name, best layer, selected metric score
 - [ ] Clicking a model row selects it
 
 #### Layer Progression Chart (Main Area)
 - [ ] Line chart is visible (not blank/missing)
 - [ ] X-axis shows layers (L0-L11)
-- [ ] Y-axis shows IoU range (0-1)
+- [ ] Y-axis matches the selected metric scale (0-1 for IoU/MSE, auto-scaled for KL)
 - [ ] Multiple colored lines render (one per model)
 - [ ] Legend identifies each model
 
@@ -283,6 +286,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Bar chart is visible (not blank/missing)
 - [ ] Bars display IoU values per style
 - [ ] Style names are readable
+- [ ] Card remains explicitly labeled as IoU-only
 - [ ] "No style data available" message shows if no data
 
 #### Feature Type Breakdown (Bottom Right)
@@ -303,6 +307,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Dropdown at top shows percentile options
 - [ ] Changing percentile updates leaderboard
 - [ ] Changing percentile updates charts
+- [ ] In MSE/KL mode, percentile changes keep the threshold-free leaderboard ordering stable
 
 ---
 
@@ -331,7 +336,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Retry or refresh guidance is provided
 
 #### Invalid Routes
-- [ ] Navigating to /invalid-route shows 404 or redirects to home
+- [ ] Navigating to /invalid-route shows the custom 404 page with recovery links
 - [ ] Invalid image ID (/image/nonexistent) handled gracefully
 
 #### Broken Links (CRITICAL - catch links to undefined routes!)
@@ -370,13 +375,13 @@ For rapid testing, verify these critical paths:
 7. [ ] Attention Method dropdown appears for DINOv2 (CLS Attention / Attention Rollout)
 8. [ ] Layer Play button stops at last layer (doesn't loop)
 9. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
-10. [ ] Per-bbox metrics update when bbox selected (green context indicator)
-11. [ ] Max IoU progress bar shows IoU relative to theoretical max
-12. [ ] Compare page loads and allows image selection
-13. [ ] **Dashboard page renders content (NOT blank screen!)**
+10. [ ] Metrics panel shows IoU, Coverage, MSE, and KL toggles plus bbox/union mode switching
+11. [ ] Compare page loads, preserves method context appropriately, and shows IoU/MSE/KL
+12. [ ] **Dashboard page renders content (NOT blank screen!)**
+13. [ ] Dashboard metric selector switches between IoU, MSE, and KL
 14. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
 15. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
-16. [ ] Navigation between all pages works
+16. [ ] Invalid routes show the custom 404 page instead of a blank screen
 17. [ ] No console errors throughout
 18. [ ] No blank pages anywhere in the app
 
@@ -436,17 +441,17 @@ When instructed to perform Playwright testing, follow this workflow:
 
    PHASE 4: Compare Page
    └── Layout (3 items)
-   └── Image Selection (3 items)
-   └── Comparison Features (6 items) - includes SigLIP/ResNet-50 verification
+   └── Selection State (3 items)
+   └── Comparison Features (7 items) - includes method context plus SigLIP/ResNet-50 verification
 
    PHASE 5: Dashboard Page - CRITICAL (check for blank screen!)
-   └── Initial Load (4 items)
+   └── Initial Load (6 items)
    └── Model Leaderboard (5 items)
    └── Layer Progression Chart (5 items)
-   └── IoU by Architectural Style (4 items)
+   └── IoU by Architectural Style (5 items)
    └── Feature Type Breakdown (7 items) - new component
    └── Quick Actions Card (3 items)
-   └── Percentile Threshold Control (3 items)
+   └── Percentile Threshold Control (4 items)
 
    PHASE 6: Desktop Layout Verification
    └── Standard Desktop 1280px (6 items)

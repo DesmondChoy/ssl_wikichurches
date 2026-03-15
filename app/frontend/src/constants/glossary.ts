@@ -20,17 +20,21 @@ export const GLOSSARY: Record<string, string> = {
   'IoU Score':
     'Overlap between thresholded attention and the annotation. '
     + 'Higher is better. Changes when percentile changes. '
-    + 'Use it to judge how tightly the highlighted region lines up with the labeled feature.',
+    + '\nUse it to judge how tightly the highlighted region lines up with the labeled feature.',
   Coverage:
     'Fraction of attention mass inside the annotation. '
     + 'Higher is better. Threshold-free for a fixed image/model/method. '
-    + 'Use it to see whether the model is spending its attention on the feature rather than the background.',
+    + '\nUse it to see whether the model is spending its attention on the feature rather than the background.',
   MSE:
     'Mean squared error against the Gaussian soft-union target. '
     + 'Lower is better. Threshold-free for a fixed image/model/method. '
-    + 'Use it to judge whether the overall attention shape matches the annotated feature, not just the thresholded overlap.',
+    + '\nUse it to judge whether the overall attention shape matches the annotated feature, not just the thresholded overlap.',
   KL:
     'KL divergence using KL(GT || attention) after both heatmaps are converted into smoothed probability distributions. '
     + 'Lower is better. Threshold-free for a fixed image/model/method. '
-    + 'Use it to judge how much probability mass the model misses or spreads away from the Gaussian ground-truth target.',
+    + '\nUse it to judge how much probability mass the model misses or spreads away from the Gaussian ground-truth target.',
+  EMD:
+    'Earth Mover\'s Distance (Wasserstein-1) on a shared 8x8 support after both heatmaps are resized and normalized into probability distributions. '
+    + 'Lower is better. Threshold-free for a fixed image/model/method. '
+    + '\nUse it to judge how far the attention mass would need to move spatially to match the Gaussian ground-truth target.',
 };

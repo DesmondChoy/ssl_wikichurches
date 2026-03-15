@@ -1,6 +1,6 @@
 // API Response Types
 
-export type DashboardMetric = 'iou' | 'mse' | 'kl';
+export type DashboardMetric = 'iou' | 'mse' | 'kl' | 'emd';
 
 export interface BoundingBox {
   left: number;
@@ -44,6 +44,7 @@ export interface IoUResult {
   coverage: number;
   mse: number;
   kl: number;
+  emd: number;
   attention_area: number;
   annotation_area: number;
   method?: string;
@@ -81,12 +82,15 @@ export interface ImageLayerProgression {
   layers: ImageLayerMetricPoint[];
 }
 
+export type RankingMode = 'default_method' | 'best_available';
+
 export interface LeaderboardEntry {
   rank: number;
   model: string;
   metric: DashboardMetric;
   score: number;
   best_layer: string;
+  method_used: string;
 }
 
 export interface LayerProgression {
@@ -129,8 +133,10 @@ export interface ModelComparison {
   models: string[];
   layer: string;
   percentile: number;
+  selection: ImageMetricSelection;
   results: IoUResult[];
   heatmap_urls: Record<string, string>;
+  unavailable_models: Record<string, string>;
 }
 
 export interface ComparisonVariant {
@@ -156,12 +162,16 @@ export interface AllModelsSummaryModelEntry {
   rank: number;
   best_layer: string;
   best_score: number;
+  method_used: string;
   layer_progression: Record<string, number>;
 }
 
 export interface AllModelsSummary {
   percentile: number;
   metric: DashboardMetric;
+  ranking_mode: RankingMode | null;
+  method: string | null;
+  excluded_models: string[];
   models: Record<string, AllModelsSummaryModelEntry>;
   leaderboard: LeaderboardEntry[];
 }

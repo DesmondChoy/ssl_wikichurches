@@ -2,7 +2,7 @@
  * Card component.
  */
 
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 
 interface CardProps {
   children: ReactNode;
@@ -37,11 +37,15 @@ export function CardHeader({ children, className = '' }: CardHeaderProps) {
   );
 }
 
-interface CardContentProps {
+interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
 }
 
-export function CardContent({ children, className = '' }: CardContentProps) {
-  return <div className={`p-4 ${className}`}>{children}</div>;
+export function CardContent({ children, className = '', ...props }: CardContentProps) {
+  return (
+    <div className={`p-4 ${className}`} {...props}>
+      {children}
+    </div>
+  );
 }

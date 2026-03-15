@@ -4,22 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
-import type { DashboardMetric } from '../types';
-
-export function useLeaderboard(percentile: number, metric: DashboardMetric) {
-  return useQuery({
-    queryKey: ['leaderboard', percentile, metric],
-    queryFn: () => metricsAPI.getLeaderboard(percentile, metric),
-  });
-}
-
-export function useMetricsSummary() {
-  return useQuery({
-    queryKey: ['metricsSummary'],
-    queryFn: () => metricsAPI.getSummary(),
-    staleTime: 60000, // 1 minute
-  });
-}
+import type { DashboardMetric, RankingMode } from '../types';
 
 export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
   return useQuery({
@@ -42,17 +27,14 @@ export function useFeatureBreakdown(
   });
 }
 
-export function useAggregateMetrics(model: string, layer: number, percentile: number, method?: string) {
+export function useAllModelsSummary(
+  percentile: number,
+  metric: DashboardMetric,
+  options?: { method?: string; rankingMode?: RankingMode }
+) {
   return useQuery({
-    queryKey: ['aggregate', model, layer, percentile, method],
-    queryFn: () => metricsAPI.getAggregate(model, layer, percentile, method),
-  });
-}
-
-export function useAllModelsSummary(percentile: number, metric: DashboardMetric) {
-  return useQuery({
-    queryKey: ['allModelsSummary', percentile, metric],
-    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric),
+    queryKey: ['allModelsSummary', percentile, metric, options?.method, options?.rankingMode],
+    queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric, options),
   });
 }
 

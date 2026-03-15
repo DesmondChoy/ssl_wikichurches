@@ -59,6 +59,7 @@ class IoUResultSchema(BaseModel):
     coverage: float
     mse: float
     kl: float
+    emd: float
     attention_area: float
     annotation_area: float
     method: str | None = None
@@ -115,16 +116,17 @@ class LeaderboardEntry(BaseModel):
 
     rank: int
     model: str
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
     score: float
     best_layer: str
+    method_used: str
 
 
 class LayerProgressionSchema(BaseModel):
     """Metric progression across layers."""
 
     model: str
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
     percentile: int
     layers: list[str]
     scores: list[float]
@@ -151,8 +153,13 @@ class ModelComparisonSchema(BaseModel):
     models: list[str]
     layer: str
     percentile: int
+    selection: ImageMetricSelectionSchema
     results: list[IoUResultSchema]
     heatmap_urls: dict[str, str]  # model -> heatmap URL
+    unavailable_models: dict[str, str] = Field(
+        default_factory=dict,
+        description="Per-model reasons why scoped metrics are unavailable",
+    )
 
 
 class AllModelsSummaryModelEntry(BaseModel):
@@ -161,6 +168,7 @@ class AllModelsSummaryModelEntry(BaseModel):
     rank: int
     best_layer: str
     best_score: float
+    method_used: str
     layer_progression: dict[str, float]
 
 
@@ -168,7 +176,10 @@ class AllModelsSummarySchema(BaseModel):
     """Summary comparison across all models for a selected metric."""
 
     percentile: int
-    metric: Literal["iou", "mse", "kl"]
+    metric: Literal["iou", "mse", "kl", "emd"]
+    ranking_mode: Literal["default_method", "best_available"] | None = None
+    method: str | None = None
+    excluded_models: list[str] = Field(default_factory=list)
     models: dict[str, AllModelsSummaryModelEntry]
     leaderboard: list[LeaderboardEntry]
 

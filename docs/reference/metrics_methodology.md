@@ -97,7 +97,7 @@ Where:
 Source: src/ssl_attention/metrics/iou.py → compute_coverage()
 ```
 
-### Continuous Gaussian-Target Metrics (MSE and KL Divergence)
+### Continuous Gaussian-Target Metrics (MSE, KL Divergence, and EMD)
 
 The continuous metrics compare attention against a **Gaussian soft-union ground truth** derived from the expert bounding boxes. For each bbox, the backend renders an anisotropic Gaussian centered on the box, combines multiple boxes with a pixelwise `max`, and re-normalizes the result into the heatmap range.
 
@@ -113,23 +113,35 @@ MSE = mean((attention - gaussian_gt)^2)
 KL(GT || attention) = Σ GT × log(GT / attention)
 ```
 
+**EMD / Wasserstein-1** measures the minimum spatial transport cost required to move the model's attention mass onto the Gaussian target distribution:
+
+```
+EMD(attention, GT) = inf_pi Σ pi(i, j) * ||x_i - x_j||_2
+```
+
 Where:
 - **GT** = Gaussian soft-union ground truth
 - **attention** = model attention heatmap
 - Both maps are clamped to non-negative values, `nan_to_num`-sanitized, epsilon-smoothed, and normalized to sum to 1 before KL is computed
+- For **EMD**, both maps are deterministically resized with bilinear interpolation onto a shared **8×8** grid, clamped non-negative, normalized to sum to 1, and compared on normalized cell-center coordinates in `[0, 1] x [0, 1]`
 
 **Properties:**
-- **Threshold-free**: changing the percentile slider does not change MSE or KL for a fixed image/model/layer/method
-- **Lower is better** for both metrics
+- **Threshold-free**: changing the percentile slider does not change MSE, KL, or EMD for a fixed image/model/layer/method
+- **Lower is better** for all three metrics
 - **MSE** is bounded by the normalized heatmap range used here
 - **KL divergence** is non-negative and unbounded above
+- **EMD** is non-negative and reflects transport distance in normalized image-space units
 - Identical prepared distributions produce KL ≈ 0
+- Identical resized distributions produce EMD ≈ 0
 - Epsilon smoothing keeps KL finite even when either map is sparse or nearly zero
+- The shared `8×8` support makes EMD scores comparable across models with native `7×7`, `14×14`, and `16×16` attention grids
 
 **Design note on direction:** The API and UI report **`KL(GT || attention)`**, not the reverse direction. This means the Gaussian target distribution is treated as the reference distribution, and the model attention is measured by how much probability mass it fails to place where the annotations say it should.
 
+**Design note on approximation:** The implementation uses the exact 2D Wasserstein-1 solver on the shared `8×8` support, not the native attention grid. This preserves true 2D transport semantics while keeping full-cache precomputation practical.
+
 ```
-Source: src/ssl_attention/metrics/continuous.py → gaussian_bbox_heatmap(), soft_union_heatmap(), compute_mse(), compute_kl_divergence()
+Source: src/ssl_attention/metrics/continuous.py → gaussian_bbox_heatmap(), soft_union_heatmap(), compute_mse(), compute_kl_divergence(), compute_emd()
 ```
 
 ### Supporting Metrics

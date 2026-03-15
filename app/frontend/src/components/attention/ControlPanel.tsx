@@ -9,16 +9,9 @@ import { Select } from '../ui/Select';
 import { Slider } from '../ui/Slider';
 import { Toggle } from '../ui/Toggle';
 import { GLOSSARY } from '../../constants/glossary';
+import { getAttentionMethodLabel } from '../../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
 import type { HeatmapStyle } from '../../types';
-
-// Human-readable labels for attention methods
-const METHOD_LABELS: Record<string, string> = {
-  cls: 'CLS Attention',
-  rollout: 'Attention Rollout',
-  gradcam: 'Grad-CAM',
-  mean: 'Mean Attention',
-};
 
 interface ControlPanelProps {
   className?: string;
@@ -91,7 +84,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
   const currentModelMethods = availableMethods[model] || modelsData?.methods?.[model] || ['cls'];
   const methodOptions = currentModelMethods.map((m) => ({
     value: m,
-    label: METHOD_LABELS[m] || m,
+    label: getAttentionMethodLabel(m),
   }));
 
   const heatmapStyleOptions = [

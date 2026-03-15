@@ -50,29 +50,18 @@ export function useLayerProgression(
   });
 }
 
-export function useLayerComparison(
-  imageId: string | undefined,
-  model: string,
-  percentile: number
-) {
-  return useQuery({
-    queryKey: ['layerComparison', imageId, model, percentile],
-    queryFn: () => comparisonAPI.compareLayers(imageId!, model, percentile),
-    enabled: !!imageId,
-  });
-}
-
 export function useModelComparison(
   imageId: string | undefined,
   models: string[],
   layer: number,
   percentile: number,
   method?: string,
+  bboxIndex?: number | null,
   enabled = true
 ) {
   return useQuery({
-    queryKey: ['modelComparison', imageId, models, layer, percentile, method],
-    queryFn: () => comparisonAPI.compareModels(imageId!, models, layer, percentile, method),
+    queryKey: ['modelComparison', imageId, models, layer, percentile, method, bboxIndex],
+    queryFn: () => comparisonAPI.compareModels(imageId!, models, layer, percentile, method, bboxIndex),
     enabled: !!imageId && models.length > 0 && enabled,
   });
 }

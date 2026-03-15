@@ -9,6 +9,13 @@
 - Run Python commands from repository root unless a specific file lives in a deeper subdirectory.
 - Prefer existing scripts and documented workflows in `README.md` and in scoped subdirectory docs.
 
+## Git Workspace Safety
+- Do NOT use git worktrees.
+- Work only in the main working directory.
+- Stay on the current branch by default.
+- Do NOT create or switch to a new branch unless the user explicitly tells you to.
+- If branch isolation seems safer, ask first instead of deciding unilaterally.
+
 ## Build and Test Defaults
 - After code changes, run at least targeted tests matching the touched module.
 - For Python changes, use `uv run pytest` as the default test runner.
@@ -19,13 +26,28 @@
 ## Issue Tracking (`bd`)
 Use beads for task tracking:
 
+- `bd list`
 - `bd ready`
 - `bd show <id>`
 - `bd update <id> --status in_progress`
 - `bd close <id>`
 - `bd sync`
 
-Create or reopen tracking artifacts for meaningful work, including follow-up tasks.
+Before starting work:
+
+- Run `bd list` or `bd ready` to find relevant existing work.
+- If the work maps to an existing issue, use that issue ID.
+- If no matching issue exists, create a bead before starting implementation.
+
+During implementation:
+
+- Create or reopen tracking artifacts for meaningful work, including follow-up tasks.
+- Reference the bead or issue ID in commit messages when relevant.
+
+After completing work:
+
+- Close finished beads with a reason via `bd close <id> -r "reason"`.
+- Optionally use `bd close <id> --suggest-next` to surface newly unblocked follow-up work.
 
 ## Quality Gate (Before Finishing)
 Before finishing work or preparing to commit, run all relevant checks for touched areas:
@@ -33,9 +55,10 @@ Before finishing work or preparing to commit, run all relevant checks for touche
 1. `uv run ruff check .`
 2. `uv run mypy`
 3. `uv run pytest` (or targeted `pytest` scope for changed modules)
-4. For frontend changes: `cd app/frontend && npm run lint` and `cd app/frontend && npm run build`
-5. Run the quality skill check from [`.claude/skills/quality/SKILL.md`](./.claude/skills/quality/SKILL.md) (or trigger your local equivalent, e.g., `/quality`) before committing.
-6. Remove dead/debug code and verify no regression in changed flows.
+4. Review complete changed files, not only diffs, before committing.
+5. For frontend changes: `cd app/frontend && npm run lint` and `cd app/frontend && npm run build`
+6. Run the quality skill check from [`.claude/skills/quality/SKILL.md`](./.claude/skills/quality/SKILL.md) (or trigger your local equivalent, e.g., `/quality`) before committing.
+7. Remove dead/debug code and verify no regression in changed flows.
 
 ## Code and Data Hygiene
 - Keep changes scoped to the task at hand.
@@ -51,6 +74,8 @@ Before finishing work or preparing to commit, run all relevant checks for touche
 ## Collaboration Signals
 - Include a short summary of assumptions, chosen approach, and risk areas in handoff notes.
 - Keep documentation updates aligned with behavioral changes where appropriate.
+- If ambiguity is low-risk and non-blocking, proceed with explicit assumptions and note them.
+- If ambiguity affects correctness or design direction, ask one concise clarifying question before continuing.
 
 ## Workflow Orchestration
 

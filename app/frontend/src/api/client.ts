@@ -2,7 +2,12 @@
  * API client for the SSL Attention Visualization backend.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const DEFAULT_API_BASE =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+    : 'http://127.0.0.1:8000/api';
+
+const API_BASE = import.meta.env.VITE_API_URL || DEFAULT_API_BASE;
 
 class APIError extends Error {
   status: number;
@@ -130,20 +135,6 @@ export const attentionAPI = {
 
 // Metrics API
 export const metricsAPI = {
-  getLeaderboard: (percentile = 90, metric: import('../types').DashboardMetric = 'iou') =>
-    fetchJSON<import('../types').LeaderboardEntry[]>(
-      `/metrics/leaderboard?percentile=${percentile}&metric=${metric}`
-    ),
-
-  getSummary: () => fetchJSON<{
-    models: Record<string, {
-      best_layer: string;
-      best_iou: number;
-      layer_progression: Record<string, number>;
-    }>;
-    leaderboard: Array<{ model: string; best_iou: number }>;
-  }>('/metrics/summary'),
-
   getImageLayerProgression: (
     imageId: string,
     model: string,
@@ -211,27 +202,6 @@ export const metricsAPI = {
     );
   },
 
-  getAggregate: (model: string, layer: number, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
-    if (method) params.set('method', method);
-    return fetchJSON<{
-      model: string;
-      layer: string;
-      percentile: number;
-      mean_iou: number;
-      std_iou: number;
-      median_iou: number;
-      mean_coverage: number;
-      mean_mse: number;
-      std_mse: number;
-      median_mse: number;
-      mean_kl: number;
-      std_kl: number;
-      median_kl: number;
-      num_images: number;
-    }>(`/metrics/model/${model}/aggregate?${params}`);
-  },
-
   getQ2Summary: (params?: { percentile?: number; model?: string; strategy?: string }) => {
     const query = new URLSearchParams();
     if (params?.percentile !== undefined) query.set('percentile', String(params.percentile));
@@ -270,7 +240,8 @@ export const comparisonAPI = {
     models: string[],
     layer: number,
     percentile = 90,
-    method?: string
+    method?: string,
+    bboxIndex?: number | null
   ) => {
     const params = new URLSearchParams({
       image_id: imageId,
@@ -282,6 +253,9 @@ export const comparisonAPI = {
     }
     if (method) {
       params.set('method', method);
+    }
+    if (bboxIndex !== null && bboxIndex !== undefined) {
+      params.set('bbox_index', String(bboxIndex));
     }
     return fetchJSON<import('../types').ModelComparison>(
       `/compare/models?${params.toString()}`
@@ -330,18 +304,24 @@ export const comparisonAPI = {
     );
   },
 
-  compareLayers: (imageId: string, model: string, percentile = 90) =>
-    fetchJSON<import('../types').LayerComparison>(
-      `/compare/layers?image_id=${imageId}&model=${model}&percentile=${percentile}`
-    ),
-
   getAllModelsSummary: (
     percentile = 90,
-    metric: import('../types').DashboardMetric = 'iou'
-  ) =>
-    fetchJSON<import('../types').AllModelsSummary>(
-      `/compare/all_models_summary?percentile=${percentile}&metric=${metric}`
-    ),
+    metric: import('../types').DashboardMetric = 'iou',
+    options?: {
+      method?: string;
+      rankingMode?: import('../types').RankingMode;
+    }
+  ) => {
+    const params = new URLSearchParams({
+      percentile: String(percentile),
+      metric,
+    });
+    if (options?.method) params.set('method', options.method);
+    if (options?.rankingMode) params.set('ranking_mode', options.rankingMode);
+    return fetchJSON<import('../types').AllModelsSummary>(
+      `/compare/all_models_summary?${params.toString()}`
+    );
+  },
 };
 
 export { APIError };

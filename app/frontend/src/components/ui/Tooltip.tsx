@@ -55,7 +55,7 @@ export function Tooltip({ content, align = 'center', children, width = 256 }: To
 
     popup = createPortal(
       <div
-        className="fixed z-50 p-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none"
+        className="fixed z-50 whitespace-pre-line p-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none"
         style={{
           left,
           top: position.top - 8, // 8px gap (mb-2)
