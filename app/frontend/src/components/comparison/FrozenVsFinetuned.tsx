@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ReactCompareSlider } from 'react-compare-slider';
 import { attentionAPI, comparisonAPI, imagesAPI, metricsAPI } from '../../api/client';
+import { Card, CardContent } from '../ui/Card';
 import { InteractiveBboxOverlay } from '../attention/InteractiveBboxOverlay';
 import { useModels } from '../../hooks/useAttention';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
@@ -13,6 +14,7 @@ import { computeSimilarityStats, renderHeatmap, renderHeatmapLegend } from '../.
 import type { BoundingBox, ComparisonVariant } from '../../types';
 
 type ComparisonMode = 'frozen' | 'methods';
+type ViewMode = 'side-by-side' | 'slider';
 
 interface FrozenVsFinetunedProps {
   imageId: string;
@@ -79,6 +81,7 @@ export function FrozenVsFinetuned({
   showBboxes = true,
 }: FrozenVsFinetunedProps) {
   const [selectedBboxIndex, setSelectedBboxIndex] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const { data: modelsData, isLoading: modelsLoading } = useModels();
   const heatmapOpacity = useHeatmapOpacity();
   const heatmapStyle = useHeatmapStyle();
@@ -357,70 +360,196 @@ export function FrozenVsFinetuned({
     : deltaIoU < 0 ? 'border-red-200 bg-red-50 text-red-700'
     : 'border-gray-200 bg-gray-100 text-gray-700';
 
+  const setBboxIndex = (index: number | null) => {
+    setSelectedBboxIndex(index);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>{data.left.label}</span>
-        <span>{data.right.label}</span>
+      {/* View toggle: side-by-side (default) vs slider */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-700">View:</span>
+        <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMode('side-by-side')}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              viewMode === 'side-by-side'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Side by side
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('slider')}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              viewMode === 'slider'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Slider
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
-        Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
-        similarity heatmaps, using the same architectural feature as the query for both compared variants.
-      </div>
+      {viewMode === 'side-by-side' && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Left variant */}
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b border-gray-200">
+                  {data.left.label}
+                </div>
+                <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
+                  <CompareCanvas
+                    imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
+                    imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
+                    overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
+                    overlayAlt={`${data.left.label} similarity overlay`}
+                  />
+                  {similarityLoading && selectedBbox && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    </div>
+                  )}
+                  {showBboxes && bboxes.length > 0 && (
+                    <InteractiveBboxOverlay
+                      bboxes={bboxes}
+                      selectedIndex={selectedBboxIndex}
+                      onBboxClick={(_bbox, index) => setBboxIndex(selectedBboxIndex === index ? null : index)}
+                    />
+                  )}
+                </div>
+                <div className="px-3 py-2 text-sm text-gray-600 border-t border-gray-200">
+                  {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
+                    <span>IoU: {bboxMetrics.left.iou.toFixed(3)} · Coverage: {bboxMetrics.left.coverage.toFixed(3)}</span>
+                  ) : selectedBbox && bboxMetricsLoading ? (
+                    <span>Loading metrics…</span>
+                  ) : (
+                    <span>Click a feature to see metrics</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-      <div className="relative mx-auto w-full max-w-3xl">
-        <ReactCompareSlider
-          itemOne={
-            <CompareCanvas
-              imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
-              imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
-              overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
-              overlayAlt={`${data.left.label} similarity overlay`}
-            />
-          }
-          itemTwo={
-            <CompareCanvas
-              imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
-              imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
-              overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
-              overlayAlt={`${data.right.label} similarity overlay`}
-            />
-          }
-          className="aspect-square overflow-hidden rounded-lg"
-          position={50}
-        />
-        {similarityLoading && selectedBbox && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            {/* Right variant */}
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-3 py-2 text-sm font-medium text-gray-900 border-b border-gray-200">
+                  {data.right.label}
+                </div>
+                <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
+                  <CompareCanvas
+                    imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
+                    imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
+                    overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
+                    overlayAlt={`${data.right.label} similarity overlay`}
+                  />
+                  {similarityLoading && selectedBbox && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    </div>
+                  )}
+                  {showBboxes && bboxes.length > 0 && (
+                    <InteractiveBboxOverlay
+                      bboxes={bboxes}
+                      selectedIndex={selectedBboxIndex}
+                      onBboxClick={(_bbox, index) => setBboxIndex(selectedBboxIndex === index ? null : index)}
+                    />
+                  )}
+                </div>
+                <div className="px-3 py-2 text-sm text-gray-600 border-t border-gray-200">
+                  {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
+                    <span>IoU: {bboxMetrics.right.iou.toFixed(3)} · Coverage: {bboxMetrics.right.coverage.toFixed(3)}</span>
+                  ) : selectedBbox && bboxMetricsLoading ? (
+                    <span>Loading metrics…</span>
+                  ) : (
+                    <span>Click a feature to see metrics</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
-        {showBboxes && bboxes.length > 0 && (
-          <InteractiveBboxOverlay
-            bboxes={bboxes}
-            selectedIndex={selectedBboxIndex}
-            onBboxClick={(_bbox, index) => {
-              setSelectedBboxIndex((current) => (current === index ? null : index));
-            }}
-          />
-        )}
-      </div>
-
-      <p className="text-center text-xs text-gray-500">
-        {showSimilarityHeatmaps
-          ? 'Drag slider to compare bbox-conditioned similarity heatmaps'
-          : `Drag slider to compare ${data.left.label.toLowerCase()} vs ${data.right.label.toLowerCase()} attention${showBboxes ? ' with annotated boxes' : ''}`}
-      </p>
-      {data.linearProbeInvolved && (
-        <p className="text-center text-xs text-amber-700">
-          Linear probe trains only the classifier head, so attention maps can look identical.
-        </p>
+          {data.linearProbeInvolved && (
+            <p className="text-center text-xs text-amber-700">
+              Linear probe trains only the classifier head, so attention maps can look identical.
+            </p>
+          )}
+          {similarityError && selectedBbox && (
+            <p className="text-center text-xs text-amber-700">
+              Similarity heatmaps are unavailable for this selection. Run feature-cache generation for both compared variants to enable bbox-local inspection.
+            </p>
+          )}
+        </>
       )}
-      {similarityError && selectedBbox && (
-        <p className="text-center text-xs text-amber-700">
-          Similarity heatmaps are unavailable for this selection, so the view stays on the global overlays. Run
-          feature-cache generation for both compared variants to enable bbox-local inspection.
-        </p>
+
+      {viewMode === 'slider' && (
+        <>
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>{data.left.label}</span>
+            <span>{data.right.label}</span>
+          </div>
+          <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
+            Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
+            similarity heatmaps, using the same architectural feature as the query for both compared variants.
+          </div>
+          <div className="relative mx-auto w-full max-w-3xl">
+            <ReactCompareSlider
+              itemOne={
+                <CompareCanvas
+                  imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
+                  imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
+                  overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
+                  overlayAlt={`${data.left.label} similarity overlay`}
+                />
+              }
+              itemTwo={
+                <CompareCanvas
+                  imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
+                  imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
+                  overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
+                  overlayAlt={`${data.right.label} similarity overlay`}
+                />
+              }
+              className="aspect-square overflow-hidden rounded-lg"
+              position={50}
+            />
+            {similarityLoading && selectedBbox && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              </div>
+            )}
+            {showBboxes && bboxes.length > 0 && (
+              <InteractiveBboxOverlay
+                bboxes={bboxes}
+                selectedIndex={selectedBboxIndex}
+                onBboxClick={(_bbox, index) => {
+                  setSelectedBboxIndex((current) => (current === index ? null : index));
+                }}
+              />
+            )}
+          </div>
+          <p className="text-center text-xs text-gray-500">
+            {showSimilarityHeatmaps
+              ? 'Drag slider to compare bbox-conditioned similarity heatmaps'
+              : `Drag slider to compare ${data.left.label.toLowerCase()} vs ${data.right.label.toLowerCase()} attention${showBboxes ? ' with annotated boxes' : ''}`}
+          </p>
+          {data.linearProbeInvolved && (
+            <p className="text-center text-xs text-amber-700">
+              Linear probe trains only the classifier head, so attention maps can look identical.
+            </p>
+          )}
+          {similarityError && selectedBbox && (
+            <p className="text-center text-xs text-amber-700">
+              Similarity heatmaps are unavailable for this selection, so the view stays on the global overlays. Run
+              feature-cache generation for both compared variants to enable bbox-local inspection.
+            </p>
+          )}
+        </>
       )}
 
       {labels.length > 0 && (
