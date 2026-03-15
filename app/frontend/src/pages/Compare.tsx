@@ -11,6 +11,11 @@ import { FrozenVsFinetuned } from '../components/comparison/FrozenVsFinetuned';
 import { Card, CardContent } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 
+const PERCENTILE_OPTIONS = [90, 80, 70, 60, 50].map((value) => ({
+  value: String(value),
+  label: `Top ${100 - value}%`,
+}));
+
 export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const imageId = searchParams.get('image') || '';
@@ -20,10 +25,12 @@ export function ComparePage() {
   const strategyB = searchParams.get('strategyB') || 'full';
   const modelParam = searchParams.get('model') || '';
   const layerParam = searchParams.get('layer') || '';
+  const percentileParam = searchParams.get('percentile') || '';
 
-  const { model, layer, method, percentile, setModel, setLayer } = useViewStore();
+  const { model, layer, method, percentile, setModel, setLayer, setPercentile } = useViewStore();
   const compareModel = modelParam || model;
   const compareLayer = layerParam ? Number(layerParam) : layer;
+  const comparePercentile = percentileParam ? Number(percentileParam) : percentile;
 
   // Fetch image list for selection
   const { data: images } = useQuery({
@@ -55,6 +62,18 @@ export function ComparePage() {
     { value: 'full', label: 'Full Fine-tune' },
   ];
 
+  const buildSearchParams = (overrides?: Record<string, string>) => ({
+    image: imageId,
+    type: comparisonType,
+    strategy,
+    strategyA,
+    strategyB,
+    model: compareModel,
+    layer: String(compareLayer),
+    percentile: String(comparePercentile),
+    ...overrides,
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -71,37 +90,17 @@ export function ComparePage() {
       {/* Controls */}
       <Card>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Select
               value={imageId}
-              onChange={(v) =>
-                setSearchParams({
-                  image: v,
-                  type: comparisonType,
-                  strategy,
-                  strategyA,
-                  strategyB,
-                  model: compareModel,
-                  layer: String(compareLayer),
-                })
-              }
+              onChange={(v) => setSearchParams(buildSearchParams({ image: v }))}
               options={[{ value: '', label: 'Select an image...' }, ...imageOptions]}
               label="Image"
             />
 
             <Select
               value={comparisonType}
-              onChange={(v) =>
-                setSearchParams({
-                  image: imageId,
-                  type: v,
-                  strategy,
-                  strategyA,
-                  strategyB,
-                  model: compareModel,
-                  layer: String(compareLayer),
-                })
-              }
+              onChange={(v) => setSearchParams(buildSearchParams({ type: v }))}
               options={comparisonTypes}
               label="Comparison Type"
             />
@@ -111,15 +110,7 @@ export function ComparePage() {
                 value={compareModel}
                 onChange={(v) => {
                   setModel(v);
-                  setSearchParams({
-                    image: imageId,
-                    type: comparisonType,
-                    strategy,
-                    strategyA,
-                    strategyB,
-                    model: v,
-                    layer: String(compareLayer),
-                  });
+                  setSearchParams(buildSearchParams({ model: v }));
                 }}
                 options={(imageDetail?.available_models || ['dinov2']).filter((m) => m !== 'resnet50').map((m) => ({
                   value: m,
@@ -140,20 +131,21 @@ export function ComparePage() {
               </div>
             )}
 
+            <Select
+              value={String(comparePercentile)}
+              onChange={(value) => {
+                const nextPercentile = Number(value);
+                setPercentile(nextPercentile);
+                setSearchParams(buildSearchParams({ percentile: value }));
+              }}
+              options={PERCENTILE_OPTIONS}
+              label="Percentile"
+            />
+
             {comparisonType === 'frozen' && (
               <Select
                 value={strategy}
-                onChange={(v) =>
-                  setSearchParams({
-                    image: imageId,
-                    type: comparisonType,
-                    strategy: v,
-                    strategyA,
-                    strategyB,
-                    model: compareModel,
-                    layer: String(compareLayer),
-                  })
-                }
+                onChange={(v) => setSearchParams(buildSearchParams({ strategy: v }))}
                 options={strategyOptions}
                 label="Strategy"
               />
@@ -161,17 +153,7 @@ export function ComparePage() {
             {comparisonType === 'methods' && (
               <Select
                 value={strategyA}
-                onChange={(v) =>
-                  setSearchParams({
-                    image: imageId,
-                    type: comparisonType,
-                    strategy,
-                    strategyA: v,
-                    strategyB,
-                    model: compareModel,
-                    layer: String(compareLayer),
-                  })
-                }
+                onChange={(v) => setSearchParams(buildSearchParams({ strategyA: v }))}
                 options={strategyOptions.filter((option) => option.value)}
                 label="Left Method"
               />
@@ -179,17 +161,7 @@ export function ComparePage() {
             {comparisonType === 'methods' && (
               <Select
                 value={strategyB}
-                onChange={(v) =>
-                  setSearchParams({
-                    image: imageId,
-                    type: comparisonType,
-                    strategy,
-                    strategyA,
-                    strategyB: v,
-                    model: compareModel,
-                    layer: String(compareLayer),
-                  })
-                }
+                onChange={(v) => setSearchParams(buildSearchParams({ strategyB: v }))}
                 options={strategyOptions.filter((option) => option.value)}
                 label="Right Method"
               />
@@ -200,15 +172,7 @@ export function ComparePage() {
                 onChange={(v) => {
                   const nextLayer = Number(v);
                   setLayer(nextLayer);
-                  setSearchParams({
-                    image: imageId,
-                    type: comparisonType,
-                    strategy,
-                    strategyA,
-                    strategyB,
-                    model: compareModel,
-                    layer: String(nextLayer),
-                  });
+                  setSearchParams(buildSearchParams({ layer: String(nextLayer) }));
                 }}
                 options={Array.from({ length: 12 }, (_, i) => ({ value: String(i), label: `Layer ${i}` }))}
                 label="Layer"
@@ -229,7 +193,7 @@ export function ComparePage() {
         <ModelCompare
           imageId={imageId}
           layer={layer}
-          percentile={percentile}
+          percentile={comparePercentile}
           method={method}
           availableModels={imageDetail.available_models}
           bboxes={imageDetail.annotation.bboxes}
@@ -241,6 +205,7 @@ export function ComparePage() {
           imageId={imageId}
           model={compareModel}
           layer={compareLayer}
+          percentile={comparePercentile}
           mode="frozen"
           strategy={strategy || undefined}
           bboxes={imageDetail?.annotation.bboxes || []}
@@ -253,6 +218,7 @@ export function ComparePage() {
           imageId={imageId}
           model={compareModel}
           layer={compareLayer}
+          percentile={comparePercentile}
           mode="methods"
           strategyA={strategyA}
           strategyB={strategyB}

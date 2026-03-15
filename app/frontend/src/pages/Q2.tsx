@@ -129,7 +129,7 @@ export function Q2Page() {
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Model × Strategy ΔIoU</h3>
             <Link
-              to={`/compare?type=frozen&model=${selectedModel === 'all' ? 'dinov2' : selectedModel}&strategy=${selectedStrategy === 'all' ? '' : selectedStrategy}&layer=${layer}`}
+              to={`/compare?type=frozen&model=${selectedModel === 'all' ? 'dinov2' : selectedModel}&strategy=${selectedStrategy === 'all' ? '' : selectedStrategy}&layer=${layer}&percentile=${percentile}`}
               className="text-sm text-primary-600 hover:underline"
             >
               Open Frozen vs Fine-tuned Compare
