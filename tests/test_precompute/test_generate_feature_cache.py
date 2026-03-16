@@ -20,7 +20,7 @@ def test_discover_checkpoints_by_strategy_returns_strategy_specific_paths(tmp_pa
     assert result["dinov2"]["lora"] == tmp_path / "dinov2_lora_finetuned.pt"
     assert result["dinov2"]["full"] == tmp_path / "dinov2_full_finetuned.pt"
     assert result["clip"]["full"] == tmp_path / "clip_finetuned.pt"
-    assert result["clip"]["linear_probe"] == tmp_path / "clip_finetuned.pt"
+    assert "linear_probe" not in result["clip"]
 
 
 def test_discover_checkpoints_prefers_lora_then_full_then_linear_probe(tmp_path: Path) -> None:

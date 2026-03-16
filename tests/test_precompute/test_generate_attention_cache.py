@@ -83,7 +83,7 @@ class TestDiscoverCheckpointsByStrategy:
         assert "dinov2" in result
         assert set(result["dinov2"]) == {"lora", "full"}
 
-    def test_uses_legacy_checkpoint_for_full_and_linear_probe(self, tmp_path: Path) -> None:
+    def test_uses_legacy_checkpoint_for_full_only(self, tmp_path: Path) -> None:
         (tmp_path / "clip_finetuned.pt").touch()
 
         result = discover_checkpoints_by_strategy(
@@ -93,7 +93,7 @@ class TestDiscoverCheckpointsByStrategy:
         )
 
         assert result["clip"]["full"] == tmp_path / "clip_finetuned.pt"
-        assert result["clip"]["linear_probe"] == tmp_path / "clip_finetuned.pt"
+        assert "linear_probe" not in result["clip"]
 
 
 class TestCacheModelKey:

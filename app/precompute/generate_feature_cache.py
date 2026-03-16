@@ -39,6 +39,7 @@ from ssl_attention.evaluation.fine_tuning import (
     CHECKPOINTS_PATH,
     get_finetuned_cache_key,
     load_finetuned_model,
+    strategy_uses_legacy_checkpoint_fallback,
 )
 from ssl_attention.models import create_model
 from ssl_attention.utils import get_device
@@ -70,7 +71,7 @@ def discover_checkpoints_by_strategy(
                 continue
 
             legacy_path = checkpoint_dir / f"{name}_finetuned.pt"
-            if strategy in {"full", "linear_probe"} and legacy_path.exists():
+            if strategy_uses_legacy_checkpoint_fallback(strategy) and legacy_path.exists():
                 model_checkpoints[strategy] = legacy_path
 
         if model_checkpoints:

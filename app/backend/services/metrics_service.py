@@ -857,9 +857,10 @@ class MetricsService:
 
         models = data.get("models", {})
         filtered_models: dict[str, Any] = {}
+        resolved_model = resolve_model_name(model) if model else None
 
         for model_name, strategies in models.items():
-            if model and model_name != resolve_model_name(model):
+            if resolved_model and model_name != resolved_model:
                 continue
 
             filtered_strategies: dict[str, Any] = {}
@@ -879,25 +880,37 @@ class MetricsService:
                 filtered_models[model_name] = filtered_strategies
 
         strategy_comparisons = data.get("strategy_comparisons", {})
-        if model:
-            resolved = resolve_model_name(model)
-            strategy_comparisons = (
-                {resolved: strategy_comparisons.get(resolved, {})}
-                if resolved in strategy_comparisons
-                else {}
-            )
+        filtered_strategy_comparisons: dict[str, Any] = {}
+        requested_percentile = str(percentile) if percentile is not None else None
 
-        if percentile is not None:
-            p_key = str(percentile)
-            strategy_comparisons = {
-                m: {p_key: rows[p_key]} for m, rows in strategy_comparisons.items() if p_key in rows
-            }
+        for model_name, percentile_rows in strategy_comparisons.items():
+            if resolved_model and model_name != resolved_model:
+                continue
+
+            filtered_percentile_rows: dict[str, Any] = {}
+            for percentile_key, rows in percentile_rows.items():
+                if requested_percentile is not None and percentile_key != requested_percentile:
+                    continue
+
+                filtered_rows = rows
+                if strategy is not None:
+                    filtered_rows = [
+                        row
+                        for row in rows
+                        if row.get("strategy_a") == strategy or row.get("strategy_b") == strategy
+                    ]
+
+                if filtered_rows:
+                    filtered_percentile_rows[percentile_key] = filtered_rows
+
+            if filtered_percentile_rows:
+                filtered_strategy_comparisons[model_name] = filtered_percentile_rows
 
         return {
             "percentiles": data.get("percentiles", []),
             "timestamp": data.get("timestamp"),
             "models": filtered_models,
-            "strategy_comparisons": strategy_comparisons,
+            "strategy_comparisons": filtered_strategy_comparisons,
         }
 
     def get_feature_breakdown(

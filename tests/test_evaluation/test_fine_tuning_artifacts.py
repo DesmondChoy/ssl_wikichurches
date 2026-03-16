@@ -32,14 +32,14 @@ def test_finetuned_cache_key_strategy_aware() -> None:
     assert get_finetuned_cache_key("mae", "full") == "mae_finetuned_full"
 
 
-def test_checkpoint_candidates_include_legacy_for_full_and_linear_probe() -> None:
+def test_checkpoint_candidates_include_legacy_for_full_only() -> None:
     full_candidates = get_checkpoint_candidates("dinov2", strategy_id="full")
     lp_candidates = get_checkpoint_candidates("dinov2", strategy_id="linear_probe")
 
     assert full_candidates[0].name == "dinov2_full_finetuned.pt"
     assert full_candidates[1].name == "dinov2_finetuned.pt"
     assert lp_candidates[0].name == "dinov2_linear_probe_finetuned.pt"
-    assert lp_candidates[1].name == "dinov2_finetuned.pt"
+    assert len(lp_candidates) == 1
 
 
 def test_load_run_manifest(tmp_path: Path) -> None:

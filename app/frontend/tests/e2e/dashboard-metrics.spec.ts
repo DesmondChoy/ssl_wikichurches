@@ -1,4 +1,105 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function stubDashboardApis(page: Page) {
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2', 'clip', 'siglip2', 'resnet50'],
+        num_layers: 12,
+        num_layers_per_model: {
+          dinov2: 12,
+          clip: 12,
+          siglip2: 12,
+          resnet50: 4,
+        },
+        methods: {
+          dinov2: ['cls', 'rollout'],
+          clip: ['cls', 'rollout'],
+          siglip2: ['mean'],
+          resnet50: ['gradcam'],
+        },
+        default_methods: {
+          dinov2: 'cls',
+          clip: 'cls',
+          siglip2: 'mean',
+          resnet50: 'gradcam',
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/compare/all_models_summary?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        percentile: 90,
+        metric: 'iou',
+        ranking_mode: 'default_method',
+        method: null,
+        excluded_models: [],
+        leaderboard: [
+          { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11', method_used: 'cls' },
+        ],
+        models: {
+          dinov2: {
+            rank: 1,
+            best_layer: 'layer11',
+            best_score: 0.58,
+            method_used: 'cls',
+            layer_progression: { layer0: 0.22, layer11: 0.58 },
+          },
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/metrics/model/*/style_breakdown?**', async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/style_breakdown/);
+    const model = match?.[1] ?? 'dinov2';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model,
+        layer: 'layer0',
+        percentile: 90,
+        method: 'cls',
+        styles: { Gothic: 0.55, Romanesque: 0.48 },
+        style_counts: { Gothic: 20, Romanesque: 15 },
+      }),
+    });
+  });
+
+  await page.route('**/api/metrics/model/*/feature_breakdown?**', async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/feature_breakdown/);
+    const model = match?.[1] ?? 'dinov2';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model,
+        layer: 'layer0',
+        percentile: 90,
+        method: 'cls',
+        total_feature_types: 1,
+        features: [
+          {
+            feature_label: 1,
+            feature_name: 'Window',
+            mean_iou: 0.41,
+            std_iou: 0.05,
+            bbox_count: 12,
+          },
+        ],
+      }),
+    });
+  });
+}
 
 test.describe('Dashboard metrics', () => {
   test('supports selecting EMD and shows the threshold-free guidance', async ({ page }) => {
@@ -213,5 +314,30 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByTestId('dashboard-method-context')).toContainText(
       "Leaderboard and layer progression rank each model by its strongest available attention method."
     );
+  });
+
+  test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.route('**/api/metrics/q2_summary?**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          percentiles: [90],
+          timestamp: null,
+          models: {},
+          strategy_comparisons: {},
+        }),
+      });
+    });
+
+    await page.goto('/dashboard');
+    await expect(page.getByRole('link', { name: 'Q2 Analysis' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Q2 Analysis' }).click();
+
+    await expect(page).toHaveURL(/\/q2$/);
+    await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
+    await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
   });
 });

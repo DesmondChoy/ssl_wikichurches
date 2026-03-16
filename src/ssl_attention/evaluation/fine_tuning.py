@@ -103,6 +103,11 @@ def get_finetuned_cache_key(model_name: str, strategy_id: str | None = None) -> 
     return f"{model_name}_finetuned_{strategy_id}"
 
 
+def strategy_uses_legacy_checkpoint_fallback(strategy_id: str | None) -> bool:
+    """Return whether an explicit strategy may reuse a legacy checkpoint name."""
+    return strategy_id == FineTuningStrategy.FULL.value
+
+
 def get_checkpoint_candidates(model_name: str, strategy_id: str | None = None) -> list[Path]:
     """Return checkpoint candidates in preference order."""
     candidates: list[Path] = []
@@ -118,7 +123,7 @@ def get_checkpoint_candidates(model_name: str, strategy_id: str | None = None) -
         return candidates
 
     candidates.append(CHECKPOINTS_PATH / get_checkpoint_filename(model_name, strategy_id))
-    if strategy_id in (FineTuningStrategy.FULL.value, FineTuningStrategy.LINEAR_PROBE.value):
+    if strategy_uses_legacy_checkpoint_fallback(strategy_id):
         candidates.append(CHECKPOINTS_PATH / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
     return candidates
 

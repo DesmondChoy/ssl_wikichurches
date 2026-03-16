@@ -990,3 +990,131 @@ class TestSummaryMetadata:
         assert result["models"]["dinov2"]["method_used"] == "cls"
         assert result["leaderboard"][0]["method_used"] == "cls"
         assert result["leaderboards"]["iou"][0]["method_used"] == "cls"
+
+
+class TestQ2SummaryFiltering:
+    """Verify Q2 summary filtering stays consistent across payload sections."""
+
+    @pytest.fixture
+    def service(self):
+        from app.backend.services.metrics_service import MetricsService
+
+        return object.__new__(MetricsService)
+
+    def test_get_q2_summary_filters_strategy_rows_and_pairwise_comparisons(self, service, tmp_path):
+        q2_path = tmp_path / "q2_delta_iou_analysis.json"
+        q2_path.write_text(
+            json.dumps(
+                {
+                    "percentiles": [90, 80],
+                    "timestamp": "2026-03-06T00:00:00",
+                    "models": {
+                        "dinov2": {
+                            "linear_probe": {"90": {"mean_delta_iou": 0.01}},
+                            "lora": {
+                                "90": {"mean_delta_iou": 0.05},
+                                "80": {"mean_delta_iou": 0.04},
+                            },
+                            "full": {"90": {"mean_delta_iou": 0.03}},
+                        },
+                        "clip": {
+                            "full": {"90": {"mean_delta_iou": 0.07}},
+                        },
+                    },
+                    "strategy_comparisons": {
+                        "dinov2": {
+                            "90": [
+                                {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                                {"strategy_a": "linear_probe", "strategy_b": "full"},
+                                {"strategy_a": "full", "strategy_b": "lora"},
+                            ],
+                            "80": [
+                                {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                            ],
+                        },
+                        "clip": {
+                            "90": [
+                                {"strategy_a": "linear_probe", "strategy_b": "full"},
+                            ],
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+            result = service.get_q2_summary(strategy="lora")
+
+        assert result is not None
+        assert set(result["models"]["dinov2"]) == {"lora"}
+        assert "clip" not in result["models"]
+        assert set(result["strategy_comparisons"]["dinov2"]) == {"90", "80"}
+        assert all(
+            row["strategy_a"] == "lora" or row["strategy_b"] == "lora"
+            for rows in result["strategy_comparisons"]["dinov2"].values()
+            for row in rows
+        )
+        assert "clip" not in result["strategy_comparisons"]
+
+    def test_get_q2_summary_composes_model_strategy_and_percentile_filters(self, service, tmp_path):
+        q2_path = tmp_path / "q2_delta_iou_analysis.json"
+        q2_path.write_text(
+            json.dumps(
+                {
+                    "percentiles": [90, 80],
+                    "timestamp": "2026-03-06T00:00:00",
+                    "models": {
+                        "dinov2": {
+                            "linear_probe": {"90": {"mean_delta_iou": 0.01}},
+                            "lora": {
+                                "90": {"mean_delta_iou": 0.05},
+                                "80": {"mean_delta_iou": 0.04},
+                            },
+                        },
+                        "clip": {
+                            "lora": {"80": {"mean_delta_iou": 0.08}},
+                        },
+                    },
+                    "strategy_comparisons": {
+                        "dinov2": {
+                            "90": [
+                                {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                            ],
+                            "80": [
+                                {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                            ],
+                        },
+                        "clip": {
+                            "80": [
+                                {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                            ],
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+            result = service.get_q2_summary(
+                percentile=80,
+                model="dinov2",
+                strategy="lora",
+            )
+
+        assert result is not None
+        assert result["models"] == {
+            "dinov2": {
+                "lora": {
+                    "80": {"mean_delta_iou": 0.04},
+                }
+            }
+        }
+        assert result["strategy_comparisons"] == {
+            "dinov2": {
+                "80": [
+                    {"strategy_a": "linear_probe", "strategy_b": "lora"},
+                ]
+            }
+        }
