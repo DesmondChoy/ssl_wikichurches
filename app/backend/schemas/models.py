@@ -234,3 +234,12 @@ class RawAttentionResponse(BaseModel):
     shape: list[int] = Field(..., description="Grid dimensions [rows, cols]")
     min_value: float = Field(..., description="Minimum attention value")
     max_value: float = Field(..., description="Maximum attention value")
+
+
+class Q2SummaryResponse(BaseModel):
+    """Strategy-aware Q2 analysis payload."""
+
+    percentiles: list[int]
+    timestamp: str | None = None
+    models: dict[str, dict[str, dict[str, dict[str, float | int | str | bool | None | dict[str, float]]]]]
+    strategy_comparisons: dict[str, dict[str, list[dict[str, float | int | str | bool | None]]]]

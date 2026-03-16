@@ -314,7 +314,7 @@ export function DashboardPage() {
           <h3 className="font-semibold">Quick Actions</h3>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Link
               to="/"
               className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -332,6 +332,16 @@ export function DashboardPage() {
               <div className="font-medium">Compare Models</div>
               <div className="text-sm text-gray-500">
                 Side-by-side attention comparison
+              </div>
+            </Link>
+
+            <Link
+              to="/q2"
+              className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="font-medium">Q2 Analysis</div>
+              <div className="text-sm text-gray-500">
+                Strategy-aware delta-IoU summary
               </div>
             </Link>
 

@@ -46,21 +46,21 @@ dataset/
 
 ### 3. Pre-compute Caches
 
-Generate attention maps, feature embeddings, heatmaps, and metrics (10-30 min):
+Generate attention maps, feature cache, heatmaps, and metrics (10–30 min):
 
 ```bash
-python -m app.precompute.generate_attention_cache --models all
-python -m app.precompute.generate_feature_cache --models all
-python -m app.precompute.generate_heatmap_images --colormap viridis
-python -m app.precompute.generate_metrics_cache
+uv run python -m app.precompute.generate_attention_cache --models all
+uv run python -m app.precompute.generate_feature_cache --models all
+uv run python -m app.precompute.generate_heatmap_images --colormap viridis
+uv run python -m app.precompute.generate_metrics_cache
 ```
 
-To enable frozen-vs-fine-tuned overlay comparison, precompute both fine-tuned
-attention and fine-tuned heatmaps:
+To enable **Frozen vs Fine-tuned** on the Compare page (overlays and bbox similarity heatmaps), also run with `--finetuned` (after training checkpoints; see Fine-Tuning below):
 
 ```bash
-python -m app.precompute.generate_attention_cache --finetuned --models all
-python -m app.precompute.generate_heatmap_images --finetuned --models all
+uv run python -m app.precompute.generate_attention_cache --finetuned --models all
+uv run python -m app.precompute.generate_feature_cache --finetuned --models all
+uv run python -m app.precompute.generate_heatmap_images --finetuned --models all
 ```
 
 > **Tip:** Test with a subset first: `--models dinov2 --layers 11`
@@ -97,15 +97,13 @@ All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attentio
 
 **Model keys (CLI/API)**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`.
 
-**Note on patch sizes**: DINOv2 uses 14×14 patches (256 tokens for 224×224 images) while other models use 16×16 patches (196 tokens). For visualization, all attention maps are upsampled to image resolution, making cross-model comparison valid despite the different native resolutions.
+**Patch sizes**: DINOv2 uses 14×14 patches; other ViTs use 16×16. All maps are upsampled to 224×224 for comparison.
 
-**Note on attention methods**: CLS extracts attention from the [CLS] token row. Rollout multiplies attention matrices across layers to approximate total information flow. SigLIP and SigLIP 2 lack a CLS token and use mean received attention (MAP-style proxy). ResNet-50 uses Grad-CAM on convolutional feature maps. Metrics are computed per-method — selecting a different method changes the attention heatmap and all derived metrics.
+**Attention methods**: CLS uses the [CLS] token row; Rollout multiplies attention across layers. SigLIP/SigLIP 2 use mean attention (no CLS). ResNet-50 uses Grad-CAM. Metrics are per-method.
 
 ## Fine-Tuning
 
-Fine-tune supported SSL backbones on architectural style classification (all ViT
-models in this project; `resnet50` is excluded from fine-tuning). Three
-strategies are supported:
+Fine-tune SSL backbones on architectural style classification (all ViT models; `resnet50` is excluded). Three strategies:
 
 | Strategy | Config | What trains |
 |----------|--------|-------------|
@@ -129,6 +127,47 @@ result = tuner.train(FineTunableModel("dinov2"), dataset)
 ```
 
 See `src/ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/checkpoints/`. LoRA support requires the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
+
+### Fine-tuning Workflow
+
+Fine-tuning runs on **all style-labeled images** (~4,700+). The 139 bbox-annotated images are held out for evaluation so that Δ IoU is measured on unseen data.
+
+1. **Train checkpoints** (one or more models × strategies):
+
+```bash
+# Linear probe, LoRA, full (same --model; add --freeze-backbone or --lora as needed)
+uv run python experiments/scripts/fine_tune_models.py --model dinov3 --freeze-backbone
+uv run python experiments/scripts/fine_tune_models.py --model dinov3 --lora
+uv run python experiments/scripts/fine_tune_models.py --model dinov3
+```
+
+   Validation uses the 139 bbox-annotated images by default. Use `--val-on-random-split` for a random stratified split instead. Use `--include-annotated-eval` only if your dataset contains only the 139 annotated images.
+
+2. **Run Δ IoU analysis** (output: `outputs/results/q2_delta_iou_analysis.json`):
+
+```bash
+uv run python experiments/scripts/analyze_delta_iou.py --models dinov3 --strategies linear_probe lora full
+```
+
+3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints):
+
+```bash
+# Frozen
+uv run python -m app.precompute.generate_attention_cache --models dinov2 mae clip siglip siglip2
+uv run python -m app.precompute.generate_feature_cache --models dinov2 mae clip siglip siglip2
+uv run python -m app.precompute.generate_heatmap_images --models dinov2 mae clip siglip siglip2
+
+# Fine-tuned
+uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_feature_cache --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_heatmap_images --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
+```
+
+4. **Build metrics cache** (dashboard APIs):
+
+```bash
+uv run python -m app.precompute.generate_metrics_cache
+```
 
 ## Data Exploration
 

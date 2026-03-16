@@ -139,6 +139,25 @@ export interface ModelComparison {
   unavailable_models: Record<string, string>;
 }
 
+export interface ComparisonVariant {
+  model_key: string;
+  strategy?: string | null;
+  label: string;
+  available: boolean;
+  url: string | null;
+}
+
+export interface VariantComparison {
+  image_id: string;
+  model: string;
+  layer: string;
+  method: string;
+  show_bboxes?: boolean;
+  left: ComparisonVariant;
+  right: ComparisonVariant;
+  note: string;
+}
+
 export interface AllModelsSummaryModelEntry {
   rank: number;
   best_layer: string;
@@ -155,6 +174,62 @@ export interface AllModelsSummary {
   excluded_models: string[];
   models: Record<string, AllModelsSummaryModelEntry>;
   leaderboard: LeaderboardEntry[];
+}
+
+export interface LayerComparison {
+  image_id: string;
+  model: string;
+  percentile: number;
+  layers: Array<{
+    layer: number;
+    layer_key: string;
+    iou: number;
+    coverage: number;
+    heatmap_url: string | null;
+  }>;
+  best_layer: number;
+  best_iou: number;
+}
+
+export interface Q2StrategyResult {
+  model_name: string;
+  strategy_id: string;
+  percentile: number;
+  method: string;
+  frozen_mean_iou: number;
+  finetuned_mean_iou: number;
+  mean_delta_iou: number;
+  std_delta_iou: number;
+  delta_ci_lower: number;
+  delta_ci_upper: number;
+  cohens_d: number;
+  p_value: number;
+  corrected_p_value: number | null;
+  significant: boolean;
+  test_name: string;
+  iou_retention_ratio: number | null;
+  num_images: number;
+  per_image_deltas: Record<string, number>;
+}
+
+export interface Q2StrategyComparison {
+  model_name: string;
+  percentile: number;
+  strategy_a: string;
+  strategy_b: string;
+  mean_delta_difference: number;
+  cohens_d: number;
+  p_value: number;
+  corrected_p_value: number | null;
+  significant: boolean;
+  test_name: string;
+}
+
+export interface Q2SummaryResponse {
+  percentiles: number[];
+  timestamp: string | null;
+  models: Record<string, Record<string, Record<string, Q2StrategyResult>>>;
+  strategy_comparisons: Record<string, Record<string, Q2StrategyComparison[]>>;
 }
 
 // App State Types

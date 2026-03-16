@@ -32,6 +32,7 @@ def test_resolve_default_method_finetuned_variant():
     """Fine-tuned variants should inherit the base model default method."""
     assert resolve_default_method("dinov2_finetuned") == "cls"
     assert resolve_default_method("siglip2_finetuned") == "mean"
+    assert resolve_default_method("dinov2_finetuned_lora") == "cls"
 
 
 # --- validate_method tests ---
@@ -96,6 +97,7 @@ class TestValidateMethod:
     def test_finetuned_variant_uses_base_method_compatibility(self):
         """Fine-tuned variants should validate methods like their base model."""
         assert validate_method("dinov2_finetuned", "rollout") == "rollout"
+        assert validate_method("dinov2_finetuned_lora", "rollout") == "rollout"
         with pytest.raises(HTTPException) as exc_info:
             validate_method("siglip2_finetuned", "cls")
         assert exc_info.value.status_code == 400
@@ -113,6 +115,7 @@ class TestValidateModel:
         assert validate_model("siglip") == "siglip"
         assert validate_model("siglip2") == "siglip2"
         assert validate_model("dinov2_finetuned") == "dinov2_finetuned"
+        assert validate_model("dinov2_finetuned_lora") == "dinov2_finetuned_lora"
 
     def test_invalid_model_raises(self):
         """Unknown model should raise HTTPException 400."""
@@ -127,6 +130,13 @@ class TestValidateModel:
             validate_model("resnet50_finetuned")
         assert exc_info.value.status_code == 400
         assert "Fine-tuned variant not supported" in exc_info.value.detail
+
+    def test_invalid_finetune_strategy_rejected(self):
+        """Unknown strategy suffix should be rejected."""
+        with pytest.raises(HTTPException) as exc_info:
+            validate_model("dinov2_finetuned_unknown")
+        assert exc_info.value.status_code == 400
+        assert "Invalid fine-tuning strategy" in exc_info.value.detail
 
 
 # --- validate_layer_for_model tests ---
@@ -156,3 +166,4 @@ class TestValidateLayerForModel:
     def test_finetuned_variant_uses_base_layer_count(self):
         """Fine-tuned variants should validate layers against the base model config."""
         assert validate_layer_for_model(11, "dinov2_finetuned") == "layer11"
+        assert validate_layer_for_model(11, "dinov2_finetuned_lora") == "layer11"

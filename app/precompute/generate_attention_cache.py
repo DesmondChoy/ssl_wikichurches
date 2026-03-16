@@ -47,6 +47,7 @@ from ssl_attention.config import (
     DATASET_PATH,
     DEFAULT_METHOD,
     FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     MODEL_METHODS,
     MODELS,
     AttentionMethod,
@@ -54,42 +55,79 @@ from ssl_attention.config import (
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.evaluation.fine_tuning import (
     CHECKPOINTS_PATH,
+    get_finetuned_cache_key,
     load_finetuned_model,
+    strategy_uses_legacy_checkpoint_fallback,
 )
 from ssl_attention.models import create_model
 from ssl_attention.utils import get_device
 
 
-def discover_checkpoints(
+def discover_checkpoints_by_strategy(
     checkpoint_dir: Path,
     model_names: list[str] | None = None,
-) -> dict[str, Path]:
-    """Discover available fine-tuned checkpoints.
+    strategies: list[str] | None = None,
+) -> dict[str, dict[str, Path]]:
+    """Discover available fine-tuned checkpoints grouped by strategy.
 
     Args:
         checkpoint_dir: Directory containing checkpoint files.
         model_names: Specific models to look for. None = all fine-tunable models.
 
     Returns:
-        Dict mapping model name to checkpoint path for models that have checkpoints.
+        Dict mapping model -> strategy -> checkpoint path.
     """
     candidates = model_names if model_names else sorted(FINETUNE_MODELS)
-    found: dict[str, Path] = {}
+    valid_strategies = {s.value for s in FINETUNE_STRATEGIES}
+    requested_strategies = (
+        sorted(valid_strategies) if not strategies else [s for s in strategies if s in valid_strategies]
+    )
+    found: dict[str, dict[str, Path]] = {}
 
     for name in candidates:
         if name not in FINETUNE_MODELS:
             print(f"Warning: {name} is not fine-tunable (skipped)")
             continue
-        lora_path = checkpoint_dir / f"{name}_lora_finetuned.pt"
-        full_path = checkpoint_dir / f"{name}_finetuned.pt"
-        if lora_path.exists():
-            found[name] = lora_path
-        elif full_path.exists():
-            found[name] = full_path
+        model_checkpoints: dict[str, Path] = {}
+        for strategy in requested_strategies:
+            strategy_path = checkpoint_dir / f"{name}_{strategy}_finetuned.pt"
+            if strategy_path.exists():
+                model_checkpoints[strategy] = strategy_path
+                continue
+
+            # Legacy compatibility is only safe for the historical full fine-tune path.
+            legacy_path = checkpoint_dir / f"{name}_finetuned.pt"
+            if strategy_uses_legacy_checkpoint_fallback(strategy) and legacy_path.exists():
+                model_checkpoints[strategy] = legacy_path
+
+        if model_checkpoints:
+            found[name] = model_checkpoints
         else:
-            print(f"Warning: No checkpoint for {name} in {checkpoint_dir}")
+            print(
+                f"Warning: No checkpoint for {name} with strategies {requested_strategies} "
+                f"in {checkpoint_dir}"
+            )
 
     return found
+
+
+def discover_checkpoints(
+    checkpoint_dir: Path,
+    model_names: list[str] | None = None,
+) -> dict[str, Path]:
+    """Backward-compatible checkpoint discovery (single best per model)."""
+    by_strategy = discover_checkpoints_by_strategy(
+        checkpoint_dir,
+        model_names=model_names,
+        strategies=["lora", "full", "linear_probe"],
+    )
+    selected: dict[str, Path] = {}
+    for model_name, strategy_paths in by_strategy.items():
+        for strategy in ("lora", "full", "linear_probe"):
+            if strategy in strategy_paths:
+                selected[model_name] = strategy_paths[strategy]
+                break
+    return selected
 
 
 def generate_attention_for_model(
@@ -102,6 +140,7 @@ def generate_attention_for_model(
     skip_existing: bool = True,
     finetuned: bool = False,
     checkpoint_path: Path | None = None,
+    strategy_id: str | None = None,
 ) -> dict[str, int]:
     """Generate attention maps for a single model.
 
@@ -125,8 +164,10 @@ def generate_attention_for_model(
     num_layers = model_config.num_layers
     layers_to_process = layers if layers else list(range(num_layers))
 
-    # Cache key: "dinov2" for frozen, "dinov2_finetuned" for fine-tuned
-    cache_model_key = f"{model_name}_finetuned" if finetuned else model_name
+    # Cache key: frozen uses base model key; fine-tuned can use strategy-aware keys
+    cache_model_key = (
+        get_finetuned_cache_key(model_name, strategy_id) if finetuned else model_name
+    )
 
     # Determine which methods to process (filter by model compatibility)
     available_methods = MODEL_METHODS.get(model_name, [DEFAULT_METHOD[model_name]])
@@ -150,7 +191,12 @@ def generate_attention_for_model(
     # Load model
     if finetuned:
         print(f"Loading fine-tuned {model_name} from {checkpoint_path}...")
-        model = load_finetuned_model(model_name, checkpoint_path, device)
+        model = load_finetuned_model(
+            model_name,
+            checkpoint_path=checkpoint_path,
+            strategy_id=strategy_id,
+            device=device,
+        )
     else:
         print(f"Loading {model_name}...")
         model = create_model(model_name)
@@ -324,6 +370,16 @@ def main() -> int:
         default=CHECKPOINTS_PATH,
         help=f"Directory containing fine-tuned checkpoints (default: {CHECKPOINTS_PATH})",
     )
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        default=["auto"],
+        choices=["auto", "all", "linear_probe", "lora", "full"],
+        help=(
+            "Fine-tuning strategies to cache in --finetuned mode. "
+            "'auto' keeps legacy behavior (one best checkpoint per model)."
+        ),
+    )
     args = parser.parse_args()
 
     # Parse methods (None = all available per model)
@@ -346,13 +402,36 @@ def main() -> int:
         return 1
 
     # For fine-tuned mode, discover available checkpoints and filter models
-    checkpoints: dict[str, Path] = {}
+    checkpoints: dict[str, dict[str, Path]] = {}
+    model_strategy_pairs: list[tuple[str, str | None]] = []
     if args.finetuned:
-        checkpoints = discover_checkpoints(args.checkpoint_dir, models_to_process)
-        if not checkpoints:
-            print("No fine-tuned checkpoints found. Nothing to do.")
-            return 1
-        models_to_process = list(checkpoints.keys())
+        strategies: list[str] | None
+        if "auto" in args.strategies:
+            discovered = discover_checkpoints(args.checkpoint_dir, models_to_process)
+            if not discovered:
+                print("No fine-tuned checkpoints found. Nothing to do.")
+                return 1
+            for model_name, checkpoint in discovered.items():
+                checkpoints[model_name] = {"auto": checkpoint}
+                model_strategy_pairs.append((model_name, None))
+            models_to_process = list(discovered.keys())
+        else:
+            if "all" in args.strategies:
+                strategies = [s.value for s in FINETUNE_STRATEGIES]
+            else:
+                strategies = args.strategies
+            checkpoints = discover_checkpoints_by_strategy(
+                args.checkpoint_dir,
+                model_names=models_to_process,
+                strategies=strategies,
+            )
+            if not checkpoints:
+                print("No fine-tuned checkpoints found. Nothing to do.")
+                return 1
+            for model_name, strategy_paths in checkpoints.items():
+                for discovered_strategy in sorted(strategy_paths):
+                    model_strategy_pairs.append((model_name, discovered_strategy))
+            models_to_process = sorted(checkpoints.keys())
 
     # Setup
     device_arg = args.device or get_device()
@@ -369,12 +448,24 @@ def main() -> int:
 
     if args.finetuned:
         print(f"Checkpoints: {args.checkpoint_dir}")
-        print(f"Models with checkpoints: {models_to_process}")
+        if model_strategy_pairs:
+            print(f"Model/strategy pairs: {model_strategy_pairs}")
+        else:
+            print(f"Models with checkpoints: {models_to_process}")
 
     # Process models one at a time to conserve memory
     total_stats = {"processed": 0, "skipped": 0, "errors": 0}
 
-    for model_name in models_to_process:
+    targets: list[tuple[str, str | None]] = (
+        model_strategy_pairs if args.finetuned else [(m, None) for m in models_to_process]
+    )
+    for model_name, strategy_id in targets:
+        checkpoint_path = None
+        if args.finetuned:
+            if strategy_id is None:
+                checkpoint_path = checkpoints[model_name]["auto"]
+            else:
+                checkpoint_path = checkpoints[model_name][strategy_id]
         stats = generate_attention_for_model(
             model_name=model_name,
             dataset=dataset,
@@ -384,13 +475,18 @@ def main() -> int:
             device=device,
             skip_existing=not args.no_skip,
             finetuned=args.finetuned,
-            checkpoint_path=checkpoints.get(model_name),
+            checkpoint_path=checkpoint_path,
+            strategy_id=strategy_id,
         )
 
         for key in total_stats:
             total_stats[key] += stats[key]
 
-        cache_key = f"{model_name}_finetuned" if args.finetuned else model_name
+        cache_key = (
+            get_finetuned_cache_key(model_name, strategy_id)
+            if args.finetuned
+            else model_name
+        )
         print(f"\n{cache_key} complete: {stats}")
 
     print(f"\n{'='*60}")

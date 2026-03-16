@@ -31,6 +31,84 @@ from app.backend.validators import (
 router = APIRouter(prefix="/compare", tags=["comparison"])
 
 
+def _build_overlay_url(
+    image_id: str,
+    model: str,
+    layer: int,
+    method: str,
+    show_bboxes: bool,
+) -> str:
+    return (
+        f"/api/attention/{image_id}/overlay?"
+        f"model={model}&layer={layer}&method={method}&show_bboxes={str(show_bboxes).lower()}"
+    )
+
+
+def _strategy_variant_key(model: str, strategy: str | None) -> str:
+    return f"{model}_finetuned_{strategy}" if strategy else f"{model}_finetuned"
+
+
+def _resolve_finetuned_variant(
+    *,
+    base_model: str,
+    image_id: str,
+    layer_key: str,
+    layer: int,
+    method: str,
+    show_bboxes: bool,
+    strategy: str | None,
+    auto_select: bool,
+) -> tuple[str, str | None, bool, str | None]:
+    overlay_variant = "overlay_bbox" if show_bboxes else "overlay"
+
+    if strategy:
+        model_key = validate_model(_strategy_variant_key(base_model, strategy))
+        available = image_service.heatmap_exists(
+            model_key,
+            layer_key,
+            image_id,
+            method=method,
+            variant=overlay_variant,
+        )
+        url = _build_overlay_url(image_id, model_key, layer, method, show_bboxes) if available else None
+        return model_key, strategy, available, url
+
+    if not auto_select:
+        model_key = validate_model(f"{base_model}_finetuned")
+        available = image_service.heatmap_exists(
+            model_key,
+            layer_key,
+            image_id,
+            method=method,
+            variant=overlay_variant,
+        )
+        url = _build_overlay_url(image_id, model_key, layer, method, show_bboxes) if available else None
+        return model_key, None, available, url
+
+    auto_candidates = [
+        ("lora", f"{base_model}_finetuned_lora"),
+        ("full", f"{base_model}_finetuned_full"),
+        ("linear_probe", f"{base_model}_finetuned_linear_probe"),
+        (None, f"{base_model}_finetuned"),
+    ]
+    for candidate_strategy, candidate_model in auto_candidates:
+        if image_service.heatmap_exists(
+            candidate_model,
+            layer_key,
+            image_id,
+            method=method,
+            variant=overlay_variant,
+        ):
+            return (
+                candidate_model,
+                candidate_strategy,
+                True,
+                _build_overlay_url(image_id, candidate_model, layer, method, show_bboxes),
+            )
+
+    return f"{base_model}_finetuned", None, False, None
+
+
 @router.get("/models", response_model=ModelComparisonSchema)
 async def compare_models(
     image_id: str,
@@ -146,11 +224,13 @@ async def compare_frozen_vs_finetuned(
     image_id: str,
     model: Annotated[str, Query()] = "dinov2",
     layer: Annotated[int, Query(ge=0)] = 0,
+    strategy: Annotated[str | None, Query(description="Fine-tuning strategy (linear_probe, lora, full)")] = None,
+    show_bboxes: Annotated[bool, Query(description="Render overlays with annotation boxes/labels")] = True,
 ) -> dict:
     """Compare frozen (pretrained) vs fine-tuned model attention.
     """
     resolved_model = validate_model(model)
-    base_model, _ = split_model_variant(resolved_model)
+    base_model, _, _ = split_model_variant(resolved_model)
     layer_key = validate_layer_for_model(layer, base_model)
 
     if not image_service.get_annotation(image_id):
@@ -159,36 +239,111 @@ async def compare_frozen_vs_finetuned(
     method = resolve_default_method(base_model)
 
     # Frozen model (always available after pre-computation)
-    frozen_available = image_service.heatmap_exists(base_model, layer_key, image_id, method=method, variant="overlay")
+    frozen_available = image_service.heatmap_exists(
+        base_model,
+        layer_key,
+        image_id,
+        method=method,
+        variant="overlay_bbox" if show_bboxes else "overlay",
+    )
 
-    # Fine-tuned variant key (uses explicit *_finetuned model IDs)
-    finetuned_model = f"{base_model}_finetuned"
-    finetuned_available = image_service.heatmap_exists(finetuned_model, layer_key, image_id, method=method, variant="overlay")
+    finetuned_model, resolved_strategy, finetuned_available, finetuned_url = _resolve_finetuned_variant(
+        base_model=base_model,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=method,
+        show_bboxes=show_bboxes,
+        strategy=strategy,
+        auto_select=True,
+    )
 
     return {
         "image_id": image_id,
         "model": base_model,
+        "strategy": resolved_strategy,
         "layer": layer_key,
+        "show_bboxes": show_bboxes,
         "frozen": {
             "available": frozen_available,
-            "url": (
-                f"/api/attention/{image_id}/overlay?model={base_model}&layer={layer}&method={method}"
-                if frozen_available
-                else None
-            ),
+            "url": _build_overlay_url(image_id, base_model, layer, method, show_bboxes) if frozen_available else None,
         },
         "finetuned": {
             "available": finetuned_available,
-            "url": (
-                f"/api/attention/{image_id}/overlay?model={finetuned_model}&layer={layer}&method={method}"
-                if finetuned_available
-                else None
-            ),
+            "url": finetuned_url,
             "note": (
                 "Fine-tuned overlay is unavailable for this model/layer/image. "
                 "Generate fine-tuned attention + heatmap caches first."
             ),
         },
+    }
+
+
+@router.get("/finetuned_vs_finetuned")
+async def compare_finetuned_variants(
+    image_id: str,
+    model: Annotated[str, Query()] = "dinov2",
+    layer: Annotated[int, Query(ge=0)] = 0,
+    strategy_a: Annotated[str, Query(description="Left strategy (linear_probe, lora, full)")] = "linear_probe",
+    strategy_b: Annotated[str, Query(description="Right strategy (linear_probe, lora, full)")] = "full",
+    show_bboxes: Annotated[bool, Query(description="Render overlays with annotation boxes/labels")] = True,
+) -> dict:
+    """Compare two fine-tuned strategy variants for the same base model."""
+    resolved_model = validate_model(model)
+    base_model, _, _ = split_model_variant(resolved_model)
+    layer_key = validate_layer_for_model(layer, base_model)
+
+    if not image_service.get_annotation(image_id):
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
+
+    left_model, resolved_strategy_a, left_available, left_url = _resolve_finetuned_variant(
+        base_model=base_model,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=resolve_default_method(base_model),
+        show_bboxes=show_bboxes,
+        strategy=strategy_a,
+        auto_select=False,
+    )
+    right_model, resolved_strategy_b, right_available, right_url = _resolve_finetuned_variant(
+        base_model=base_model,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=resolve_default_method(base_model),
+        show_bboxes=show_bboxes,
+        strategy=strategy_b,
+        auto_select=False,
+    )
+    method = resolve_default_method(base_model)
+
+    note = (
+        "One or both fine-tuned overlays are unavailable for this model/layer/image. "
+        "Generate fine-tuned attention + heatmap caches for both strategies first."
+    )
+
+    return {
+        "image_id": image_id,
+        "model": base_model,
+        "layer": layer_key,
+        "method": method,
+        "show_bboxes": show_bboxes,
+        "left": {
+            "model_key": left_model,
+            "strategy": resolved_strategy_a,
+            "label": f"Fine-tuned ({resolved_strategy_a})" if resolved_strategy_a else "Fine-tuned",
+            "available": left_available,
+            "url": left_url,
+        },
+        "right": {
+            "model_key": right_model,
+            "strategy": resolved_strategy_b,
+            "label": f"Fine-tuned ({resolved_strategy_b})" if resolved_strategy_b else "Fine-tuned",
+            "available": right_available,
+            "url": right_url,
+        },
+        "note": note,
     }
 
 

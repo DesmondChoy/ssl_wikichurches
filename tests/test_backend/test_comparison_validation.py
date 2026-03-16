@@ -443,7 +443,7 @@ class TestFrozenVsFinetunedEndpoint:
         mock_img_cmp = _mock_services["comparison_image_service"]
 
         def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
-            if variant != "overlay" or method != "cls":
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
                 return False
             return model in {"dinov2", "dinov2_finetuned"}
 
@@ -468,7 +468,7 @@ class TestFrozenVsFinetunedEndpoint:
         mock_img_cmp = _mock_services["comparison_image_service"]
 
         def _comparison_exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
-            if variant != "overlay" or method != "cls":
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
                 return False
             return model in {"dinov2", "dinov2_finetuned"}
 
@@ -593,3 +593,71 @@ class TestCompareModelsBboxMetrics:
         assert payload["selection"]["mode"] == "bbox"
         assert "clip" in payload["unavailable_models"]
         assert "Feature-level metrics unavailable" in payload["unavailable_models"]["clip"]
+
+    def test_strategy_specific_variant_is_used(self, _mock_services):
+        """Strategy query should target strategy-specific fine-tuned key."""
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned_lora"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/frozen_vs_finetuned",
+            params={"image_id": IMAGE_ID, "model": "dinov2", "layer": 0, "strategy": "lora"},
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["finetuned"]["available"] is True
+        assert "model=dinov2_finetuned_lora" in payload["finetuned"]["url"]
+
+
+class TestFinetunedVsFinetunedEndpoint:
+    """finetuned_vs_finetuned should compare two explicit strategy variants."""
+
+    def test_returns_urls_for_both_requested_strategies(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2_finetuned_linear_probe", "dinov2_finetuned_full"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/finetuned_vs_finetuned",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "strategy_a": "linear_probe",
+                "strategy_b": "full",
+            },
+        )
+        assert resp.status_code == 200
+
+        payload = resp.json()
+        assert payload["left"]["available"] is True
+        assert payload["right"]["available"] is True
+        assert payload["left"]["strategy"] == "linear_probe"
+        assert payload["right"]["strategy"] == "full"
+        assert "model=dinov2_finetuned_linear_probe" in payload["left"]["url"]
+        assert "model=dinov2_finetuned_full" in payload["right"]["url"]
+
+    def test_invalid_strategy_returns_400(self):
+        resp = client.get(
+            "/api/compare/finetuned_vs_finetuned",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "strategy_a": "bogus",
+                "strategy_b": "full",
+            },
+        )
+        assert resp.status_code == 400
+        assert "Invalid fine-tuning strategy" in resp.json()["detail"]

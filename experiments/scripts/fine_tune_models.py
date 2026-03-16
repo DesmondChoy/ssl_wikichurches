@@ -155,6 +155,23 @@ def parse_args() -> argparse.Namespace:
         default=0.2,
         help="Validation split fraction (default: 0.2)",
     )
+    eval_mode_group = parser.add_mutually_exclusive_group()
+    eval_mode_group.add_argument(
+        "--include-annotated-eval",
+        action="store_true",
+        help=(
+            "Include bbox-annotated images in training/validation split. "
+            "Use this when dataset/images only contains the 139 annotated images."
+        ),
+    )
+    eval_mode_group.add_argument(
+        "--val-on-random-split",
+        action="store_true",
+        help=(
+            "Use a random stratified validation split instead of the default "
+            "(validation on the 139 bbox-annotated holdout images)."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -187,6 +204,8 @@ def train_single_model(
         learning_rate_head=args.lr_head,
         freeze_backbone=args.freeze_backbone,
         val_split=args.val_split,
+        exclude_annotated_eval=not args.include_annotated_eval,
+        val_on_annotated_eval=not args.val_on_random_split,
         seed=args.seed,
         use_lora=args.lora,
         lora_rank=args.lora_rank,
@@ -211,8 +230,12 @@ def train_single_model(
     tuner = FineTuner(config)
     result = tuner.train(model, dataset)
 
-    print(f"\nBest validation accuracy: {result.best_val_acc:.1%} (epoch {result.best_epoch})")
+    print(
+        f"\nBest validation accuracy: {result.best_val_acc:.1%} "
+        f"(epoch {result.best_epoch}, strategy={result.strategy_id})"
+    )
     print(f"Checkpoint saved to: {result.checkpoint_path}")
+    print(f"Run manifest saved to: {result.manifest_path}")
 
     # Clean up memory before next model
     del model
@@ -237,6 +260,11 @@ def main() -> None:
     print(f"\nModels to train: {model_names}")
     print(f"Epochs: {args.epochs}")
     print(f"Freeze backbone: {args.freeze_backbone}")
+    print(f"Exclude annotated eval images: {not args.include_annotated_eval}")
+    if args.val_on_random_split:
+        print("Validation: random stratified split")
+    else:
+        print("Validation: annotated eval holdout (139 images)")
 
     # Train models
     results: list[FineTuningResult] = []
@@ -252,10 +280,13 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("TRAINING SUMMARY")
     print("=" * 60)
-    print(f"{'Model':<10} {'Best Val Acc':>12} {'Best Epoch':>12}")
-    print("-" * 36)
+    print(f"{'Model':<10} {'Strategy':<14} {'Best Val Acc':>12} {'Best Epoch':>12}")
+    print("-" * 52)
     for result in results:
-        print(f"{result.model_name:<10} {result.best_val_acc:>11.1%} {result.best_epoch:>12}")
+        print(
+            f"{result.model_name:<10} {result.strategy_id:<14} "
+            f"{result.best_val_acc:>11.1%} {result.best_epoch:>12}"
+        )
 
     print("\nDone!")
 

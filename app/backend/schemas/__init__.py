@@ -18,6 +18,7 @@ from app.backend.schemas.models import (
     LeaderboardEntry,
     MetricsQueryParams,
     ModelComparisonSchema,
+    Q2SummaryResponse,
     StyleBreakdownSchema,
 )
 
@@ -39,5 +40,6 @@ __all__ = [
     "LeaderboardEntry",
     "MetricsQueryParams",
     "ModelComparisonSchema",
+    "Q2SummaryResponse",
     "StyleBreakdownSchema",
 ]

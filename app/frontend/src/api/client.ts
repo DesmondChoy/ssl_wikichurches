@@ -201,6 +201,36 @@ export const metricsAPI = {
       `/metrics/model/${model}/feature_breakdown?${params}`
     );
   },
+
+  getQ2Summary: (params?: { percentile?: number; model?: string; strategy?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.percentile !== undefined) query.set('percentile', String(params.percentile));
+    if (params?.model) query.set('model', params.model);
+    if (params?.strategy) query.set('strategy', params.strategy);
+    const queryStr = query.toString();
+    return fetchJSON<import('../types').Q2SummaryResponse>(
+      `/metrics/q2_summary${queryStr ? `?${queryStr}` : ''}`
+    );
+  },
+
+  getBboxMetrics: (
+    imageId: string,
+    model: string,
+    layer: number,
+    bboxIndex: number,
+    percentile = 90,
+    method?: string
+  ) => {
+    const params = new URLSearchParams({
+      model,
+      layer: String(layer),
+      percentile: String(percentile),
+    });
+    if (method) params.set('method', method);
+    return fetchJSON<import('../types').IoUResult>(
+      `/metrics/${imageId}/bbox/${bboxIndex}?${params}`
+    );
+  },
 };
 
 // Comparison API
@@ -232,14 +262,47 @@ export const comparisonAPI = {
     );
   },
 
-  compareFrozenVsFinetuned: (imageId: string, model: string, layer: number) =>
-    fetchJSON<{
+  compareFrozenVsFinetuned: (
+    imageId: string,
+    model: string,
+    layer: number,
+    strategy?: string,
+    showBboxes = true
+  ) => {
+    const query = new URLSearchParams({ image_id: imageId, model, layer: String(layer) });
+    if (strategy) query.set('strategy', strategy);
+    query.set('show_bboxes', String(showBboxes));
+    return fetchJSON<{
       image_id: string;
       model: string;
+      strategy?: string | null;
       layer: string;
+      show_bboxes?: boolean;
       frozen: { available: boolean; url: string | null };
       finetuned: { available: boolean; url: string | null; note: string };
-    }>(`/compare/frozen_vs_finetuned?image_id=${imageId}&model=${model}&layer=${layer}`),
+    }>(`/compare/frozen_vs_finetuned?${query}`);
+  },
+
+  compareFinetunedVariants: (
+    imageId: string,
+    model: string,
+    layer: number,
+    strategyA: string,
+    strategyB: string,
+    showBboxes = true
+  ) => {
+    const query = new URLSearchParams({
+      image_id: imageId,
+      model,
+      layer: String(layer),
+      strategy_a: strategyA,
+      strategy_b: strategyB,
+      show_bboxes: String(showBboxes),
+    });
+    return fetchJSON<import('../types').VariantComparison>(
+      `/compare/finetuned_vs_finetuned?${query}`
+    );
+  },
 
   getAllModelsSummary: (
     percentile = 90,

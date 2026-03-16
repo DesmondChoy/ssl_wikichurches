@@ -40,12 +40,14 @@ from ssl_attention.config import (
     DATASET_PATH,
     DEFAULT_METHOD,
     FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     IMAGES_PATH,
     MODEL_METHODS,
     MODELS,
     AttentionMethod,
 )
 from ssl_attention.data import AnnotatedSubset
+from ssl_attention.evaluation.fine_tuning import get_finetuned_cache_key
 from ssl_attention.visualization import (
     create_attention_overlay,
     draw_bboxes,
@@ -87,9 +89,9 @@ def generate_heatmaps_for_model(
         skip_existing: Skip if PNG already exists.
 
     Returns:
-        Dict with statistics.
+        Dict with statistics (processed, skipped, errors, cache_miss).
     """
-    stats = {"processed": 0, "skipped": 0, "errors": 0}
+    stats = {"processed": 0, "skipped": 0, "errors": 0, "cache_miss": 0}
     cache_key = cache_model_key or model_name
     output_key = output_model_key or cache_key
 
@@ -163,6 +165,7 @@ def generate_heatmaps_for_model(
                     )
                 except KeyError:
                     # Attention not cached for this combination
+                    stats["cache_miss"] += 3
                     stats["skipped"] += 3
                     continue
 
@@ -330,6 +333,16 @@ def main() -> int:
         action="store_true",
         help="Generate heatmaps for fine-tuned cache keys ({model}_finetuned)",
     )
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        default=["auto"],
+        choices=["auto", "all", "linear_probe", "lora", "full"],
+        help=(
+            "Fine-tuning strategies to render in --finetuned mode. "
+            "'auto' preserves legacy {model}_finetuned behavior."
+        ),
+    )
     args = parser.parse_args()
 
     # Parse methods (None = all available per model)
@@ -381,28 +394,41 @@ def main() -> int:
     print(f"Originals complete: {stats}")
 
     # Process each model
-    total_stats = {"processed": 0, "skipped": 0, "errors": 0}
+    total_stats = {"processed": 0, "skipped": 0, "errors": 0, "cache_miss": 0}
 
-    for model_name in models_to_process:
-        cache_key = f"{model_name}_finetuned" if args.finetuned else model_name
-        stats = generate_heatmaps_for_model(
-            model_name=model_name,
-            dataset=dataset,
-            attention_cache=attention_cache,
-            output_dir=output_dir,
-            colormap=args.colormap,
-            alpha=args.alpha,
-            layers=args.layers,
-            methods=methods_to_use,
-            skip_existing=not args.no_skip,
-            cache_model_key=cache_key,
-            output_model_key=cache_key,
+    strategy_targets: list[str | None] = [None]
+    if args.finetuned and "auto" not in args.strategies:
+        strategy_targets = (
+            [s.value for s in FINETUNE_STRATEGIES]
+            if "all" in args.strategies
+            else args.strategies
         )
 
-        for key in total_stats:
-            total_stats[key] += stats[key]
+    for model_name in models_to_process:
+        for strategy_id in strategy_targets:
+            cache_key = (
+                get_finetuned_cache_key(model_name, strategy_id)
+                if args.finetuned
+                else model_name
+            )
+            stats = generate_heatmaps_for_model(
+                model_name=model_name,
+                dataset=dataset,
+                attention_cache=attention_cache,
+                output_dir=output_dir,
+                colormap=args.colormap,
+                alpha=args.alpha,
+                layers=args.layers,
+                methods=methods_to_use,
+                skip_existing=not args.no_skip,
+                cache_model_key=cache_key,
+                output_model_key=cache_key,
+            )
 
-        print(f"{cache_key} complete: {stats}")
+            for key in total_stats:
+                total_stats[key] += stats[key]
+
+            print(f"{cache_key} complete: {stats}")
 
     print(f"\n{'='*60}")
     print("SUMMARY")
@@ -410,6 +436,13 @@ def main() -> int:
     print(f"Total processed: {total_stats['processed']}")
     print(f"Total skipped: {total_stats['skipped']}")
     print(f"Total errors: {total_stats['errors']}")
+    if total_stats.get("cache_miss", 0):
+        print(f"Total skipped (cache miss): {total_stats['cache_miss']}")
+
+    if args.finetuned and total_stats["processed"] == 0 and total_stats.get("cache_miss", 0) > 0:
+        print("\nNo heatmaps were generated: attention cache has no data for the requested"
+              " fine-tuned keys. Run generate_attention_cache first with the same --finetuned"
+              " and --strategies (and ensure checkpoints exist), then re-run this script.")
 
     return 0 if total_stats["errors"] == 0 else 1
 

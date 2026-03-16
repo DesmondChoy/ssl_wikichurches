@@ -1,31 +1,17 @@
 #!/usr/bin/env python3
-"""Analyze Δ IoU between frozen and fine-tuned model attention alignment.
+"""Analyze Q2 attention shift (ΔIoU) across fine-tuning strategies.
 
-This script compares attention-annotation IoU before and after fine-tuning
-to measure whether task-specific training shifts attention toward expert-
-annotated architectural features.
+This script compares frozen and fine-tuned model attention alignment for
+(model, strategy) pairs:
+- linear_probe
+- lora
+- full
 
-Key metrics:
-- Δ IoU = fine-tuned IoU - frozen IoU (per image)
-- Paired statistical tests (t-test or Wilcoxon) with Holm correction
-- Bootstrap confidence intervals and Cohen's d effect sizes
-
-Usage:
-    # All available models (models with checkpoints in outputs/checkpoints/)
-    uv run python experiments/scripts/analyze_delta_iou.py
-
-    # Specific models
-    uv run python experiments/scripts/analyze_delta_iou.py --models dinov2 siglip
-
-    # Custom percentile threshold
-    uv run python experiments/scripts/analyze_delta_iou.py --percentile 80
-
-    # Include ResNet-50 (uses Grad-CAM instead of attention)
-    uv run python experiments/scripts/analyze_delta_iou.py --include-resnet
-
-Output:
-    - outputs/results/delta_iou_analysis.json: Full analysis results
-    - Console: Summary table with Δ IoU, effect sizes, and significance
+Outputs:
+- per-image deltas
+- per-(model,strategy) statistics (CI, effect size, significance)
+- cross-strategy paired comparisons within each model (Holm corrected)
+- lightweight forgetting proxy via IoU retention ratio
 """
 
 from __future__ import annotations
@@ -35,8 +21,11 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass, field
+from itertools import combinations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
 
 # Enable MPS fallback for unsupported ops
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -57,14 +46,16 @@ from ssl_attention.attention.cls_attention import (  # noqa: E402
 from ssl_attention.config import (  # noqa: E402
     DATASET_PATH,
     DEFAULT_METHOD,
+    FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     MODELS,
     AttentionMethod,
 )
 from ssl_attention.data.wikichurches import AnnotatedSubset  # noqa: E402
 from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
-    CHECKPOINTS_PATH,
     RESULTS_PATH,
     FineTunableModel,
+    get_checkpoint_candidates,
     load_finetuned_model,
 )
 from ssl_attention.metrics.iou import compute_image_iou  # noqa: E402
@@ -78,49 +69,21 @@ from ssl_attention.models import create_model  # noqa: E402
 from ssl_attention.utils.device import clear_memory  # noqa: E402
 
 if TYPE_CHECKING:
-    from ssl_attention.data.annotations import ImageAnnotation
     from ssl_attention.models.base import BaseVisionModel
-
-
-# =============================================================================
-# Data Classes
-# =============================================================================
 
 
 @dataclass
 class PerImageResult:
-    """IoU result for a single image, both variants."""
-
     image_id: str
     frozen_iou: float
     finetuned_iou: float
-    delta_iou: float  # finetuned - frozen
+    delta_iou: float
 
 
 @dataclass
-class ModelDeltaIoU:
-    """Delta IoU results for a single model.
-
-    Attributes:
-        model_name: Name of the model (e.g., 'dinov2').
-        percentile: Percentile threshold used for IoU computation.
-        method: Attention extraction method used.
-        frozen_mean_iou: Mean IoU for frozen model.
-        finetuned_mean_iou: Mean IoU for fine-tuned model.
-        mean_delta_iou: Mean Δ IoU (fine-tuned - frozen).
-        std_delta_iou: Standard deviation of Δ IoU.
-        delta_ci_lower: 95% CI lower bound for mean Δ IoU.
-        delta_ci_upper: 95% CI upper bound for mean Δ IoU.
-        cohens_d: Effect size (positive = improvement).
-        p_value: Raw p-value from paired test.
-        corrected_p_value: P-value after multiple comparison correction.
-        significant: Whether change is significant after correction.
-        test_name: Statistical test used.
-        per_image: List of per-image results.
-        num_images: Number of images analyzed.
-    """
-
+class StrategyDeltaIoU:
     model_name: str
+    strategy_id: str
     percentile: int
     method: str
     frozen_mean_iou: float
@@ -134,43 +97,63 @@ class ModelDeltaIoU:
     corrected_p_value: float | None
     significant: bool
     test_name: str
+    iou_retention_ratio: float | None
     per_image: list[PerImageResult] = field(default_factory=list)
     num_images: int = 0
 
 
 @dataclass
+class StrategyPairComparison:
+    model_name: str
+    percentile: int
+    strategy_a: str
+    strategy_b: str
+    mean_delta_difference: float
+    cohens_d: float
+    p_value: float
+    corrected_p_value: float | None
+    significant: bool
+    test_name: str
+
+
+@dataclass
 class AnalysisResults:
-    """Full analysis results across all models and percentiles.
-
-    Attributes:
-        percentiles: Percentile thresholds analyzed.
-        models: Results per model (keyed by model name).
-        timestamp: ISO timestamp of analysis.
-    """
-
     percentiles: list[int]
-    models: dict[str, dict[int, ModelDeltaIoU]]  # model_name -> percentile -> results
+    models: dict[str, dict[str, dict[int, StrategyDeltaIoU]]]
+    strategy_comparisons: dict[str, dict[int, list[StrategyPairComparison]]]
     timestamp: str = ""
 
 
-# =============================================================================
-# Utility Functions
-# =============================================================================
+def parse_strategy_from_checkpoint_name(checkpoint_path: Path, model_name: str) -> str:
+    """Infer strategy from checkpoint filename."""
+    stem = checkpoint_path.stem
+    for strategy in (s.value for s in FINETUNE_STRATEGIES):
+        if stem == f"{model_name}_{strategy}_finetuned":
+            return strategy
+    # Legacy naming is ambiguous (full vs linear probe). Default to full.
+    if stem == f"{model_name}_finetuned":
+        return "full"
+    return "unknown"
 
 
-def get_available_checkpoints() -> list[str]:
-    """Find models with fine-tuned checkpoints.
+def discover_strategy_checkpoints(
+    model_names: list[str],
+    strategy_ids: list[str],
+) -> dict[str, dict[str, Path]]:
+    """Discover checkpoint paths for requested model/strategy pairs."""
+    discovered: dict[str, dict[str, Path]] = {}
 
-    Returns:
-        List of model names that have checkpoints in outputs/checkpoints/.
-    """
-    available = []
-    for model_name in MODELS:
-        lora_path = CHECKPOINTS_PATH / f"{model_name}_lora_finetuned.pt"
-        full_path = CHECKPOINTS_PATH / f"{model_name}_finetuned.pt"
-        if lora_path.exists() or full_path.exists():
-            available.append(model_name)
-    return available
+    for model_name in model_names:
+        per_model: dict[str, Path] = {}
+        for strategy_id in strategy_ids:
+            candidates = get_checkpoint_candidates(model_name, strategy_id=strategy_id)
+            checkpoint = next((path for path in candidates if path.exists()), None)
+            if checkpoint is not None:
+                per_model[strategy_id] = checkpoint
+        if per_model:
+            discovered[model_name] = per_model
+
+    return discovered
 
 
 def extract_attention_heatmap(
@@ -179,31 +162,13 @@ def extract_attention_heatmap(
     model_name: str,
     layer: int = -1,
 ) -> torch.Tensor:
-    """Extract attention heatmap from any model variant.
-
-    Handles both frozen BaseVisionModel and FineTunableModel uniformly.
-
-    Args:
-        model: Model instance (frozen or fine-tuned).
-        pixel_values: Preprocessed image tensor.
-        model_name: Model name for config lookup.
-        layer: Layer to extract attention from.
-
-    Returns:
-        Attention heatmap tensor of shape (H, W).
-    """
+    """Extract attention heatmap from frozen or fine-tuned model."""
     config = MODELS[model_name]
     method = DEFAULT_METHOD[model_name]
 
-    # Get attention weights
-    if isinstance(model, FineTunableModel):
-        output = model.extract_attention(pixel_values)
-    else:
-        output = model(pixel_values)
-
+    output = model.extract_attention(pixel_values) if isinstance(model, FineTunableModel) else model(pixel_values)
     attention_weights = output.attention_weights
 
-    # Extract attention based on method
     if method == AttentionMethod.CLS:
         attn = extract_cls_attention(
             attention_weights,
@@ -212,29 +177,18 @@ def extract_attention_heatmap(
             fusion=HeadFusion.MEAN,
         )
     elif method == AttentionMethod.MEAN:
-        # SigLIP uses mean attention
         attn = extract_mean_attention(
             attention_weights,
             layer=layer,
             fusion=HeadFusion.MEAN,
         )
     elif method == AttentionMethod.GRADCAM:
-        # ResNet uses Grad-CAM, need separate handling
-        # For now, skip ResNet in main analysis (requires different pipeline)
-        raise NotImplementedError(
-            f"Grad-CAM not supported in this script. Model: {model_name}"
-        )
+        raise NotImplementedError(f"Grad-CAM not supported in this script. Model: {model_name}")
     else:
         raise ValueError(f"Unknown attention method: {method}")
 
-    # Convert to heatmap
-    heatmap = attention_to_heatmap(
-        attn,
-        image_size=224,
-        normalize=True,
-    )
-
-    return heatmap.squeeze(0)  # Remove batch dim
+    heatmap = attention_to_heatmap(attn, image_size=224, normalize=True)
+    return heatmap.squeeze(0)
 
 
 def compute_model_ious(
@@ -244,46 +198,24 @@ def compute_model_ious(
     percentiles: list[int],
     layer: int = -1,
 ) -> dict[int, list[tuple[str, float]]]:
-    """Compute IoU for all images at multiple percentiles.
-
-    Args:
-        model: Model instance.
-        dataset: AnnotatedSubset with expert bounding boxes.
-        model_name: Model name for config lookup.
-        percentiles: List of percentile thresholds.
-        layer: Layer to extract attention from.
-
-    Returns:
-        Dict mapping percentile -> list of (image_id, iou) tuples.
-    """
+    """Compute IoU for all images across percentiles."""
     results: dict[int, list[tuple[str, float]]] = {p: [] for p in percentiles}
 
-    # Use frozen model's processor for consistent preprocessing
-    if isinstance(model, FineTunableModel):
-        processor = model.processor
-        device = model.device
-        dtype = model.dtype
-    else:
-        processor = model.processor
-        device = model.device
-        dtype = model.dtype
+    processor = model.processor
+    device = model.device
+    dtype = model.dtype
 
     for sample in tqdm(dataset, desc=f"Processing {model_name}", leave=False):
         image_id = sample["image_id"]
         image = sample["image"]
-        annotation: ImageAnnotation = sample["annotation"]
+        annotation = sample["annotation"]
 
-        # Preprocess image
         processed = processor(images=[image], return_tensors="pt")
         pixel_values = processed["pixel_values"].to(device=device, dtype=dtype)
 
-        # Extract attention heatmap
         with torch.no_grad():
-            heatmap = extract_attention_heatmap(
-                model, pixel_values, model_name, layer=layer
-            )
+            heatmap = extract_attention_heatmap(model, pixel_values, model_name, layer=layer)
 
-        # Compute IoU at each percentile
         for percentile in percentiles:
             iou_result = compute_image_iou(
                 attention=heatmap,
@@ -296,166 +228,209 @@ def compute_model_ious(
     return results
 
 
-def analyze_single_model(
+def summarize_delta(
+    *,
     model_name: str,
+    strategy_id: str,
+    percentile: int,
+    method: str,
+    frozen_values: dict[str, float],
+    finetuned_values: dict[str, float],
+) -> StrategyDeltaIoU:
+    """Build summary stats for one model/strategy/percentile."""
+    per_image_results: list[PerImageResult] = []
+    frozen_arr: list[float] = []
+    finetuned_arr: list[float] = []
+
+    for image_id, frozen_iou in frozen_values.items():
+        finetuned_iou = finetuned_values[image_id]
+        delta = finetuned_iou - frozen_iou
+        per_image_results.append(
+            PerImageResult(
+                image_id=image_id,
+                frozen_iou=frozen_iou,
+                finetuned_iou=finetuned_iou,
+                delta_iou=delta,
+            )
+        )
+        frozen_arr.append(frozen_iou)
+        finetuned_arr.append(finetuned_iou)
+
+    frozen_np = np.array(frozen_arr)
+    finetuned_np = np.array(finetuned_arr)
+    delta_np = finetuned_np - frozen_np
+
+    _, ci_lower, ci_upper = bootstrap_ci(delta_np, statistic="mean")
+    comparison = paired_comparison(
+        finetuned_np,
+        frozen_np,
+        model_a_name="finetuned",
+        model_b_name="frozen",
+        test="auto",
+    )
+
+    frozen_mean = float(np.mean(frozen_np))
+    finetuned_mean = float(np.mean(finetuned_np))
+    iou_retention_ratio = (
+        finetuned_mean / frozen_mean if frozen_mean > 0 else None
+    )
+
+    return StrategyDeltaIoU(
+        model_name=model_name,
+        strategy_id=strategy_id,
+        percentile=percentile,
+        method=method,
+        frozen_mean_iou=frozen_mean,
+        finetuned_mean_iou=finetuned_mean,
+        mean_delta_iou=float(np.mean(delta_np)),
+        std_delta_iou=float(np.std(delta_np, ddof=1)),
+        delta_ci_lower=ci_lower,
+        delta_ci_upper=ci_upper,
+        cohens_d=cohens_d(finetuned_np, frozen_np, paired=True),
+        p_value=comparison.p_value,
+        corrected_p_value=None,
+        significant=comparison.significant,
+        test_name=comparison.test_name,
+        iou_retention_ratio=iou_retention_ratio,
+        per_image=per_image_results,
+        num_images=len(per_image_results),
+    )
+
+
+def analyze_model_strategy(
+    *,
+    model_name: str,
+    strategy_id: str,
+    checkpoint_path: Path,
     dataset: AnnotatedSubset,
+    frozen_ious: dict[int, list[tuple[str, float]]],
     percentiles: list[int],
-    layer: int = -1,
-) -> dict[int, ModelDeltaIoU]:
-    """Analyze Δ IoU for a single model.
-
-    Args:
-        model_name: Name of the model to analyze.
-        dataset: AnnotatedSubset with expert bounding boxes.
-        percentiles: List of percentile thresholds.
-        layer: Layer to extract attention from.
-
-    Returns:
-        Dict mapping percentile -> ModelDeltaIoU results.
-    """
+    layer: int,
+) -> dict[int, StrategyDeltaIoU]:
+    """Analyze one (model, strategy) checkpoint against frozen baseline."""
     method = DEFAULT_METHOD[model_name].value
 
-    # Load frozen model
-    print(f"  Loading frozen {model_name}...")
-    frozen_model = create_model(model_name)
-
-    # Compute frozen IoUs
-    print("  Computing frozen IoUs...")
-    frozen_ious = compute_model_ious(
-        frozen_model, dataset, model_name, percentiles, layer
+    print(f"  Loading fine-tuned {model_name} [{strategy_id}] from {checkpoint_path}...")
+    finetuned_model = load_finetuned_model(
+        model_name,
+        checkpoint_path=checkpoint_path,
+        strategy_id=strategy_id,
     )
 
-    # Free frozen model memory
-    del frozen_model
-    clear_memory()
-
-    # Load fine-tuned model
-    print(f"  Loading fine-tuned {model_name}...")
-    finetuned_model = load_finetuned_model(model_name)
-
-    # Compute fine-tuned IoUs
     print("  Computing fine-tuned IoUs...")
     finetuned_ious = compute_model_ious(
-        finetuned_model, dataset, model_name, percentiles, layer
+        finetuned_model,
+        dataset,
+        model_name,
+        percentiles,
+        layer,
     )
 
-    # Free fine-tuned model memory
     del finetuned_model
     clear_memory()
 
-    # Analyze delta at each percentile
-    results: dict[int, ModelDeltaIoU] = {}
-
+    results: dict[int, StrategyDeltaIoU] = {}
     for percentile in percentiles:
-        # Build per-image results
         frozen_dict = dict(frozen_ious[percentile])
         finetuned_dict = dict(finetuned_ious[percentile])
-
-        per_image_results: list[PerImageResult] = []
-        frozen_values: list[float] = []
-        finetuned_values: list[float] = []
-
-        for image_id in frozen_dict:
-            frozen_iou = frozen_dict[image_id]
-            finetuned_iou = finetuned_dict[image_id]
-            delta = finetuned_iou - frozen_iou
-
-            per_image_results.append(
-                PerImageResult(
-                    image_id=image_id,
-                    frozen_iou=frozen_iou,
-                    finetuned_iou=finetuned_iou,
-                    delta_iou=delta,
-                )
-            )
-            frozen_values.append(frozen_iou)
-            finetuned_values.append(finetuned_iou)
-
-        # Convert to numpy for statistics
-        import numpy as np
-
-        frozen_arr = np.array(frozen_values)
-        finetuned_arr = np.array(finetuned_values)
-        delta_arr = finetuned_arr - frozen_arr
-
-        # Compute statistics
-        frozen_mean = float(np.mean(frozen_arr))
-        finetuned_mean = float(np.mean(finetuned_arr))
-        delta_mean = float(np.mean(delta_arr))
-        delta_std = float(np.std(delta_arr, ddof=1))
-
-        # Bootstrap CI for delta mean
-        _, ci_lower, ci_upper = bootstrap_ci(delta_arr, statistic="mean")
-
-        # Effect size
-        effect_size = cohens_d(finetuned_arr, frozen_arr, paired=True)
-
-        # Paired test
-        comparison = paired_comparison(
-            finetuned_arr,
-            frozen_arr,
-            model_a_name="finetuned",
-            model_b_name="frozen",
-            test="auto",
-        )
-
-        results[percentile] = ModelDeltaIoU(
+        results[percentile] = summarize_delta(
             model_name=model_name,
+            strategy_id=strategy_id,
             percentile=percentile,
             method=method,
-            frozen_mean_iou=frozen_mean,
-            finetuned_mean_iou=finetuned_mean,
-            mean_delta_iou=delta_mean,
-            std_delta_iou=delta_std,
-            delta_ci_lower=ci_lower,
-            delta_ci_upper=ci_upper,
-            cohens_d=effect_size,
-            p_value=comparison.p_value,
-            corrected_p_value=None,  # Set later after all models
-            significant=comparison.significant,
-            test_name=comparison.test_name,
-            per_image=per_image_results,
-            num_images=len(per_image_results),
+            frozen_values=frozen_dict,
+            finetuned_values=finetuned_dict,
         )
 
     return results
 
 
-def apply_holm_correction(
-    all_results: dict[str, dict[int, ModelDeltaIoU]],
+def apply_holm_correction_by_percentile(
+    model_results: dict[str, dict[str, dict[int, StrategyDeltaIoU]]],
     percentile: int,
     alpha: float = 0.05,
 ) -> None:
-    """Apply Holm correction across models for a given percentile.
+    """Apply Holm correction across all (model,strategy) p-values for a percentile."""
+    keys: list[tuple[str, str]] = []
+    p_values: list[float] = []
 
-    Modifies results in place to set corrected_p_value and significant.
+    for model_name, strategy_results in model_results.items():
+        for strategy_id, percentile_results in strategy_results.items():
+            if percentile in percentile_results:
+                keys.append((model_name, strategy_id))
+                p_values.append(percentile_results[percentile].p_value)
 
-    Args:
-        all_results: Results dict mapping model_name -> percentile -> ModelDeltaIoU.
-        percentile: Which percentile to correct.
-        alpha: Significance threshold.
-    """
-    # Collect p-values for this percentile
-    model_names = list(all_results.keys())
-    p_values = [all_results[name][percentile].p_value for name in model_names]
+    if not p_values:
+        return
 
-    # Apply Holm correction
     corrected = multiple_comparison_correction(p_values, method="holm", alpha=alpha)
-
-    # Update results
-    for i, model_name in enumerate(model_names):
-        corrected_p, significant = corrected[i]
-        all_results[model_name][percentile].corrected_p_value = corrected_p
-        all_results[model_name][percentile].significant = significant
+    for (model_name, strategy_id), (corrected_p, significant) in zip(keys, corrected, strict=True):
+        result = model_results[model_name][strategy_id][percentile]
+        result.corrected_p_value = corrected_p
+        result.significant = significant
 
 
-# =============================================================================
-# Main
-# =============================================================================
+def compare_strategies_within_model(
+    *,
+    model_name: str,
+    strategy_results: dict[str, dict[int, StrategyDeltaIoU]],
+    percentiles: list[int],
+    alpha: float = 0.05,
+) -> dict[int, list[StrategyPairComparison]]:
+    """Compute paired strategy comparisons using per-image deltas."""
+    output: dict[int, list[StrategyPairComparison]] = {}
+
+    for percentile in percentiles:
+        rows: list[StrategyPairComparison] = []
+        available_strategies = [
+            strategy for strategy in strategy_results if percentile in strategy_results[strategy]
+        ]
+        for strategy_a, strategy_b in combinations(sorted(available_strategies), 2):
+            a_result = strategy_results[strategy_a][percentile]
+            b_result = strategy_results[strategy_b][percentile]
+
+            deltas_a = np.array([row.delta_iou for row in a_result.per_image])
+            deltas_b = np.array([row.delta_iou for row in b_result.per_image])
+
+            comparison = paired_comparison(
+                deltas_a,
+                deltas_b,
+                model_a_name=strategy_a,
+                model_b_name=strategy_b,
+                test="auto",
+            )
+
+            rows.append(
+                StrategyPairComparison(
+                    model_name=model_name,
+                    percentile=percentile,
+                    strategy_a=strategy_a,
+                    strategy_b=strategy_b,
+                    mean_delta_difference=float(np.mean(deltas_a - deltas_b)),
+                    cohens_d=cohens_d(deltas_a, deltas_b, paired=True),
+                    p_value=comparison.p_value,
+                    corrected_p_value=None,
+                    significant=comparison.significant,
+                    test_name=comparison.test_name,
+                )
+            )
+
+        if rows:
+            corrected = multiple_comparison_correction(
+                [row.p_value for row in rows],
+                method="holm",
+                alpha=alpha,
+            )
+            for row, (corrected_p, significant) in zip(rows, corrected, strict=True):
+                row.corrected_p_value = corrected_p
+                row.significant = significant
+
+        output[percentile] = rows
+
+    return output
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Analyze Δ IoU between frozen and fine-tuned models",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -466,7 +441,14 @@ def parse_args() -> argparse.Namespace:
         "--models",
         nargs="+",
         type=str,
-        help="Specific models to analyze. Default: all models with checkpoints.",
+        help="Specific models to analyze. Default: all fine-tunable models with checkpoints.",
+    )
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        default=[s.value for s in FINETUNE_STRATEGIES],
+        choices=[s.value for s in FINETUNE_STRATEGIES],
+        help="Fine-tuning strategies to analyze.",
     )
     parser.add_argument(
         "--percentile",
@@ -483,187 +465,186 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-resnet",
         action="store_true",
-        help="Include ResNet-50 (requires separate Grad-CAM pipeline, not yet implemented).",
+        help="Include ResNet-50 (unsupported in this script).",
     )
     parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Output JSON path. Default: outputs/results/delta_iou_analysis.json",
+        help="Output JSON path. Default: outputs/results/q2_delta_iou_analysis.json",
     )
 
     return parser.parse_args()
 
 
 def print_summary_table(
-    results: dict[str, dict[int, ModelDeltaIoU]],
+    results: dict[str, dict[str, dict[int, StrategyDeltaIoU]]],
     percentile: int,
 ) -> None:
-    """Print formatted summary table for a percentile."""
-    print(f"\n{'='*80}")
-    print(f"Δ IoU Analysis Results (Percentile {percentile})")
-    print(f"{'='*80}")
+    print(f"\n{'=' * 112}")
+    print(f"Q2 Δ IoU Results (Percentile {percentile})")
+    print(f"{'=' * 112}")
 
-    # Header
     print(
-        f"{'Model':<10} {'Frozen':>8} {'Fine-tuned':>10} {'Δ IoU':>8} "
-        f"{'95% CI':>16} {'Cohen d':>8} {'p-value':>10} {'Sig':>5}"
+        f"{'Model':<10} {'Strategy':<13} {'Frozen':>8} {'Fine':>8} {'Δ IoU':>8} "
+        f"{'95% CI':>18} {'Retain':>8} {'d':>7} {'p(Holm)':>10} {'Sig':>5}"
     )
-    print("-" * 80)
+    print("-" * 112)
 
-    # Sort by delta IoU descending
-    sorted_models = sorted(
-        results.keys(),
-        key=lambda m: results[m][percentile].mean_delta_iou,
-        reverse=True,
-    )
+    rows: list[StrategyDeltaIoU] = []
+    for _model_name, strategy_results in results.items():
+        for _strategy_id, percentile_results in strategy_results.items():
+            if percentile in percentile_results:
+                rows.append(percentile_results[percentile])
 
-    for model_name in sorted_models:
-        r = results[model_name][percentile]
-        ci_str = f"[{r.delta_ci_lower:+.3f}, {r.delta_ci_upper:+.3f}]"
-        p_str = (
-            f"{r.corrected_p_value:.4f}"
-            if r.corrected_p_value is not None
-            else f"{r.p_value:.4f}"
-        )
-        sig_str = "***" if r.significant else ""
+    rows.sort(key=lambda r: r.mean_delta_iou, reverse=True)
 
+    for row in rows:
+        ci = f"[{row.delta_ci_lower:+.3f}, {row.delta_ci_upper:+.3f}]"
+        retention = f"{row.iou_retention_ratio:.3f}" if row.iou_retention_ratio is not None else "n/a"
+        p_disp = row.corrected_p_value if row.corrected_p_value is not None else row.p_value
+        sig = "***" if row.significant else ""
         print(
-            f"{model_name:<10} {r.frozen_mean_iou:>8.3f} {r.finetuned_mean_iou:>10.3f} "
-            f"{r.mean_delta_iou:>+8.3f} {ci_str:>16} {r.cohens_d:>+8.2f} "
-            f"{p_str:>10} {sig_str:>5}"
+            f"{row.model_name:<10} {row.strategy_id:<13} "
+            f"{row.frozen_mean_iou:>8.3f} {row.finetuned_mean_iou:>8.3f} {row.mean_delta_iou:>+8.3f} "
+            f"{ci:>18} {retention:>8} {row.cohens_d:>+7.2f} {p_disp:>10.4f} {sig:>5}"
         )
 
-    print("-" * 80)
-    print("*** = significant after Holm correction (α=0.05)")
 
-
-def save_results(
-    results: AnalysisResults,
-    output_path: Path,
-) -> None:
-    """Save analysis results to JSON.
-
-    Args:
-        results: AnalysisResults to save.
-        output_path: Path to save JSON file.
-    """
+def save_results(results: AnalysisResults, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Convert to serializable format
-    data: dict[str, Any] = {
+    payload: dict[str, Any] = {
         "percentiles": results.percentiles,
         "timestamp": results.timestamp,
         "models": {},
+        "strategy_comparisons": {},
     }
 
-    for model_name, percentile_results in results.models.items():
-        data["models"][model_name] = {}
-        for percentile, model_result in percentile_results.items():
-            # Convert dataclass to dict, excluding per_image for compactness
-            result_dict = asdict(model_result)
-            # Simplify per_image to just deltas
-            result_dict["per_image_deltas"] = {
-                r["image_id"]: r["delta_iou"] for r in result_dict.pop("per_image")
-            }
-            data["models"][model_name][str(percentile)] = result_dict
+    for model_name, strategy_results in results.models.items():
+        payload["models"][model_name] = {}
+        for strategy_id, percentile_results in strategy_results.items():
+            payload["models"][model_name][strategy_id] = {}
+            for percentile, row in percentile_results.items():
+                row_data = asdict(row)
+                row_data["per_image_deltas"] = {
+                    item["image_id"]: item["delta_iou"] for item in row_data.pop("per_image")
+                }
+                payload["models"][model_name][strategy_id][str(percentile)] = row_data
+
+    for model_name, percentile_rows in results.strategy_comparisons.items():
+        payload["strategy_comparisons"][model_name] = {}
+        for percentile, rows in percentile_rows.items():
+            payload["strategy_comparisons"][model_name][str(percentile)] = [asdict(row) for row in rows]
 
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        json.dump(payload, f, indent=2)
 
     print(f"\nResults saved to: {output_path}")
 
 
 def main() -> None:
-    """Main entry point."""
     from datetime import datetime
 
     args = parse_args()
-
-    # Determine percentiles
     percentiles = [args.percentile] if args.percentile else [90, 80, 70, 60, 50]
 
-    # Find available checkpoints
-    available = get_available_checkpoints()
-
-    if not available:
-        print("No fine-tuned checkpoints found in outputs/checkpoints/")
-        print("Run experiments/scripts/fine_tune_models.py first to generate checkpoints.")
-        print("\nTo run this script without checkpoints (dry run):")
-        print("  - The script will skip all models and exit gracefully.")
-        return
-
-    # Determine models to analyze
     if args.models:
-        # Filter to requested models that have checkpoints
-        models_to_analyze = [m for m in args.models if m in available]
-        skipped = [m for m in args.models if m not in available]
-        if skipped:
-            print(f"Skipping models without checkpoints: {skipped}")
+        requested_models = [m for m in args.models if m in FINETUNE_MODELS]
+        invalid = [m for m in args.models if m not in FINETUNE_MODELS]
+        if invalid:
+            print(f"Skipping non-fine-tunable models: {invalid}")
     else:
-        models_to_analyze = available
+        requested_models = sorted(FINETUNE_MODELS)
 
-    # Exclude ResNet-50 unless explicitly requested
-    if not args.include_resnet and "resnet50" in models_to_analyze:
-        print("Excluding ResNet-50 (uses Grad-CAM, requires separate pipeline)")
-        models_to_analyze.remove("resnet50")
+    if args.include_resnet:
+        print("ResNet-50 uses Grad-CAM and is not supported by this script. Skipping.")
 
-    if not models_to_analyze:
-        print("No models to analyze. Exiting.")
+    discovered = discover_strategy_checkpoints(requested_models, args.strategies)
+    if not discovered:
+        print("No strategy checkpoints found. Exiting.")
         return
 
-    print(f"Models to analyze: {models_to_analyze}")
+    print(f"Models to analyze: {sorted(discovered.keys())}")
+    print(f"Strategies: {args.strategies}")
     print(f"Percentiles: {percentiles}")
     print(f"Layer: {args.layer}")
 
-    # Load dataset
     print("\nLoading annotated dataset...")
     dataset = AnnotatedSubset(DATASET_PATH)
     print(f"  {len(dataset)} images with expert bounding boxes")
 
-    # Analyze each model
-    all_results: dict[str, dict[int, ModelDeltaIoU]] = {}
+    all_results: dict[str, dict[str, dict[int, StrategyDeltaIoU]]] = {}
 
-    for model_name in models_to_analyze:
-        print(f"\n{'='*60}")
+    for model_name, strategy_paths in discovered.items():
+        print(f"\n{'=' * 64}")
         print(f"Analyzing {model_name.upper()}")
-        print(f"{'='*60}")
+        print(f"{'=' * 64}")
 
-        try:
-            model_results = analyze_single_model(
-                model_name=model_name,
-                dataset=dataset,
-                percentiles=percentiles,
-                layer=args.layer,
-            )
-            all_results[model_name] = model_results
-        except Exception as e:
-            print(f"  Error analyzing {model_name}: {e}")
-            continue
+        print(f"  Loading frozen {model_name}...")
+        frozen_model = create_model(model_name)
+
+        print("  Computing frozen IoUs...")
+        frozen_ious = compute_model_ious(
+            frozen_model,
+            dataset,
+            model_name,
+            percentiles,
+            args.layer,
+        )
+        del frozen_model
+        clear_memory()
+
+        strategy_results: dict[str, dict[int, StrategyDeltaIoU]] = {}
+        for strategy_id in sorted(strategy_paths):
+            checkpoint_path = strategy_paths[strategy_id]
+            parsed_strategy = parse_strategy_from_checkpoint_name(checkpoint_path, model_name)
+            effective_strategy = strategy_id if parsed_strategy == "unknown" else parsed_strategy
+            try:
+                strategy_results[strategy_id] = analyze_model_strategy(
+                    model_name=model_name,
+                    strategy_id=effective_strategy,
+                    checkpoint_path=checkpoint_path,
+                    dataset=dataset,
+                    frozen_ious=frozen_ious,
+                    percentiles=percentiles,
+                    layer=args.layer,
+                )
+            except Exception as exc:
+                print(f"  Error analyzing {model_name}/{strategy_id}: {exc}")
+
+        if strategy_results:
+            all_results[model_name] = strategy_results
 
     if not all_results:
-        print("\nNo models were successfully analyzed.")
+        print("\nNo model/strategy pairs were successfully analyzed.")
         return
 
-    # Apply Holm correction across models for each percentile
-    print("\nApplying Holm correction for multiple comparisons...")
+    print("\nApplying Holm correction across model/strategy pairs...")
     for percentile in percentiles:
-        apply_holm_correction(all_results, percentile)
+        apply_holm_correction_by_percentile(all_results, percentile)
 
-    # Print summary tables
+    strategy_comparisons: dict[str, dict[int, list[StrategyPairComparison]]] = {}
+    print("Computing within-model cross-strategy comparisons...")
+    for model_name, strategy_results in all_results.items():
+        strategy_comparisons[model_name] = compare_strategies_within_model(
+            model_name=model_name,
+            strategy_results=strategy_results,
+            percentiles=percentiles,
+        )
+
     for percentile in percentiles:
         print_summary_table(all_results, percentile)
 
-    # Create results object
-    analysis_results = AnalysisResults(
+    results = AnalysisResults(
         percentiles=percentiles,
         models=all_results,
+        strategy_comparisons=strategy_comparisons,
         timestamp=datetime.now().isoformat(),
     )
 
-    # Save results
-    output_path = args.output or (RESULTS_PATH / "delta_iou_analysis.json")
-    save_results(analysis_results, output_path)
+    output_path = args.output or (RESULTS_PATH / "q2_delta_iou_analysis.json")
+    save_results(results, output_path)
 
     print("\nDone!")
 

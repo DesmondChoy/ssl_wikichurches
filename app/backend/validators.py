@@ -10,9 +10,11 @@ from app.backend.config import (
     AVAILABLE_MODELS,
     DEFAULT_METHOD,
     MODEL_METHODS,
+    VALID_FINETUNE_STRATEGIES,
     AttentionMethod,
     get_model_num_layers,
     resolve_model_name,
+    split_model_name,
 )
 from ssl_attention.config import FINETUNE_MODELS
 
@@ -20,17 +22,16 @@ _FINETUNED_SUFFIX = "_finetuned"
 RankingMode = Literal["default_method", "best_available"]
 
 
-def split_model_variant(model: str) -> tuple[str, bool]:
-    """Split and resolve a model identifier into base model + finetuned flag.
+def split_model_variant(model: str) -> tuple[str, bool, str | None]:
+    """Split and resolve a model identifier into base model + finetuned flag + strategy.
 
     Accepts identifiers like:
-    - "dinov2" -> ("dinov2", False)
-    - "dinov2_finetuned" -> ("dinov2", True)
+    - "dinov2" -> ("dinov2", False, None)
+    - "dinov2_finetuned" -> ("dinov2", True, None)
+    - "dinov2_finetuned_lora" -> ("dinov2", True, "lora")
     """
-    if model.endswith(_FINETUNED_SUFFIX):
-        base = model[: -len(_FINETUNED_SUFFIX)]
-        return resolve_model_name(base), True
-    return resolve_model_name(model), False
+    base, is_finetuned, strategy = split_model_name(model)
+    return resolve_model_name(base), is_finetuned, strategy
 
 
 def resolve_default_method(model: str) -> str:
@@ -42,7 +43,7 @@ def resolve_default_method(model: str) -> str:
     Returns:
         Default method string (e.g., 'cls', 'mean', 'gradcam').
     """
-    base_model, _ = split_model_variant(model)
+    base_model, _, _ = split_model_variant(model)
     method: str = DEFAULT_METHOD.get(base_model, AttentionMethod.CLS).value
     return method
 
@@ -60,7 +61,7 @@ def validate_method(model: str, method: str | None) -> str:
     Raises:
         HTTPException: If method not available for model.
     """
-    base_model, _ = split_model_variant(model)
+    base_model, _, _ = split_model_variant(model)
     available = MODEL_METHODS.get(base_model, [])
 
     if method is None:
@@ -118,7 +119,7 @@ def resolve_ranking_mode_request(method: str | None, ranking_mode: RankingMode |
 
 def model_supports_method(model: str, method: str) -> bool:
     """Return whether the requested model supports the given attention method."""
-    base_model, _ = split_model_variant(model)
+    base_model, _, _ = split_model_variant(model)
     available = MODEL_METHODS.get(base_model, [])
     return AttentionMethod(method) in available
 
@@ -135,7 +136,7 @@ def validate_model(model: str) -> str:
     Raises:
         HTTPException: If model is not available.
     """
-    base_model, is_finetuned = split_model_variant(model)
+    base_model, is_finetuned, strategy = split_model_variant(model)
 
     if base_model not in AVAILABLE_MODELS:
         raise HTTPException(
@@ -152,6 +153,17 @@ def validate_model(model: str) -> str:
             ),
         )
 
+    if is_finetuned and strategy is not None and strategy not in VALID_FINETUNE_STRATEGIES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid fine-tuning strategy '{strategy}'. "
+                f"Available: {sorted(VALID_FINETUNE_STRATEGIES)}"
+            ),
+        )
+
+    if is_finetuned and strategy:
+        return f"{base_model}_finetuned_{strategy}"
     return f"{base_model}{_FINETUNED_SUFFIX}" if is_finetuned else base_model
 
 
@@ -168,7 +180,7 @@ def validate_layer_for_model(layer: int, model: str) -> str:
     Raises:
         HTTPException: If layer is out of bounds for the model.
     """
-    base_model, _ = split_model_variant(model)
+    base_model, _, _ = split_model_variant(model)
     num_layers = get_model_num_layers(base_model)
     if not 0 <= layer < num_layers:
         raise HTTPException(

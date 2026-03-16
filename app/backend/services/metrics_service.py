@@ -13,6 +13,7 @@ from app.backend.config import (
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
     MODEL_METHODS,
+    Q2_RESULTS_PATH,
     display_model_name,
     get_model_num_layers,
     resolve_model_name,
@@ -840,6 +841,77 @@ class MetricsService:
         with open(METRICS_SUMMARY_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             return self._augment_summary_metadata(data)
+
+    def get_q2_summary(
+        self,
+        percentile: int | None = None,
+        model: str | None = None,
+        strategy: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Load Q2 strategy-aware delta-IoU results with optional filters."""
+        if not Q2_RESULTS_PATH.exists():
+            return None
+
+        with open(Q2_RESULTS_PATH, encoding="utf-8") as f:
+            data: dict[str, Any] = json.load(f)
+
+        models = data.get("models", {})
+        filtered_models: dict[str, Any] = {}
+        resolved_model = resolve_model_name(model) if model else None
+
+        for model_name, strategies in models.items():
+            if resolved_model and model_name != resolved_model:
+                continue
+
+            filtered_strategies: dict[str, Any] = {}
+            for strategy_id, percentile_rows in strategies.items():
+                if strategy and strategy_id != strategy:
+                    continue
+
+                if percentile is None:
+                    filtered_strategies[strategy_id] = percentile_rows
+                    continue
+
+                key = str(percentile)
+                if key in percentile_rows:
+                    filtered_strategies[strategy_id] = {key: percentile_rows[key]}
+
+            if filtered_strategies:
+                filtered_models[model_name] = filtered_strategies
+
+        strategy_comparisons = data.get("strategy_comparisons", {})
+        filtered_strategy_comparisons: dict[str, Any] = {}
+        requested_percentile = str(percentile) if percentile is not None else None
+
+        for model_name, percentile_rows in strategy_comparisons.items():
+            if resolved_model and model_name != resolved_model:
+                continue
+
+            filtered_percentile_rows: dict[str, Any] = {}
+            for percentile_key, rows in percentile_rows.items():
+                if requested_percentile is not None and percentile_key != requested_percentile:
+                    continue
+
+                filtered_rows = rows
+                if strategy is not None:
+                    filtered_rows = [
+                        row
+                        for row in rows
+                        if row.get("strategy_a") == strategy or row.get("strategy_b") == strategy
+                    ]
+
+                if filtered_rows:
+                    filtered_percentile_rows[percentile_key] = filtered_rows
+
+            if filtered_percentile_rows:
+                filtered_strategy_comparisons[model_name] = filtered_percentile_rows
+
+        return {
+            "percentiles": data.get("percentiles", []),
+            "timestamp": data.get("timestamp"),
+            "models": filtered_models,
+            "strategy_comparisons": filtered_strategy_comparisons,
+        }
 
     def get_feature_breakdown(
         self,

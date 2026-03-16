@@ -37,3 +37,14 @@ export function useAllModelsSummary(
     queryFn: () => comparisonAPI.getAllModelsSummary(percentile, metric, options),
   });
 }
+
+export function useQ2Summary(
+  percentile?: number,
+  model?: string,
+  strategy?: string
+) {
+  return useQuery({
+    queryKey: ['q2Summary', percentile, model, strategy],
+    queryFn: () => metricsAPI.getQ2Summary({ percentile, model, strategy }),
+  });
+}
