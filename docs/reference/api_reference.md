@@ -22,6 +22,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/attention/{image_id}/raw` | Raw attention values for client rendering |
 | GET | `/api/attention/{image_id}/layers` | All layer overlay URLs for a model |
 | POST | `/api/attention/{image_id}/similarity` | Bbox cosine similarity across patches |
+| GET | `/api/metrics/q2_summary` | Strategy-aware Q2 delta-IoU summary |
 | GET | `/api/metrics/leaderboard` | Model rankings by the selected aggregate metric |
 | GET | `/api/metrics/summary` | Pre-computed metrics summary |
 | GET | `/api/metrics/{image_id}` | Per-image alignment metrics |
@@ -35,6 +36,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
 | GET | `/api/compare/frozen_vs_finetuned` | Frozen vs fine-tuned comparison |
+| GET | `/api/compare/finetuned_vs_finetuned` | Fine-tuning Method vs Method comparison |
 | GET | `/api/compare/layers` | Layer comparison with heatmap URLs |
 | GET | `/api/compare/all_models_summary` | Full leaderboard with progressions |
 | GET | `/health` | Health check with degraded-mode detection |
@@ -47,7 +49,7 @@ These parameters appear across multiple endpoints:
 
 | Parameter | Type | Values | Default | Description |
 |-----------|------|--------|---------|-------------|
-| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50` (+ `*_finetuned` variants for fine-tunable models) | `dinov2` | Model name. `siglip` and `siglip2` are separate canonical model keys. Fine-tuned variants (for example, `dinov2_finetuned`) are accepted where artifacts exist. |
+| `model` | string | `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50` (+ fine-tuned variants) | `dinov2` | Model name. Fine-tuned variants may use the legacy `{base}_finetuned` form or the strategy-aware `{base}_finetuned_{strategy}` form where `strategy ∈ {linear_probe, lora, full}`. |
 | `layer` | int | 0–11 (ViTs), 0–3 (ResNet) | varies | Layer index (0-based). Range depends on model. |
 | `percentile` | int | 50–95 | `90` | Attention threshold percentile for IoU computation. |
 | `method` | string | `cls`, `rollout`, `mean`, `gradcam` | per-model | Attention extraction method. Availability depends on model (see table below). |
@@ -64,9 +66,15 @@ These parameters appear across multiple endpoints:
 | `siglip2` | `mean` | `mean` | 12 (0–11) | 14×14 |
 | `resnet50` | `gradcam` | `gradcam` | 4 (0–3) | 7×7 |
 
-Fine-tuned variants (`dinov2_finetuned`, `dinov3_finetuned`, `mae_finetuned`,
-`clip_finetuned`, `siglip_finetuned`, `siglip2_finetuned`) inherit the same
-method and layer constraints as their base models.
+Fine-tuned identifiers inherit the same method and layer constraints as their
+base models. This includes both legacy keys such as `dinov2_finetuned` and
+strategy-aware keys such as `dinov2_finetuned_linear_probe`,
+`dinov2_finetuned_lora`, and `dinov2_finetuned_full`.
+
+> **Ranking note**: `/api/metrics/leaderboard` and `/api/compare/all_models_summary`
+> rank the base `AVAILABLE_MODELS` set (`dinov2`, `dinov3`, `mae`, `clip`,
+> `siglip`, `siglip2`, `resnet50`). They do not surface strategy-specific
+> fine-tuned variants, even if fine-tuned rows exist in SQLite.
 
 ---
 
@@ -462,11 +470,16 @@ Compute cosine similarity between a bounding box region and all image patches. E
 
 ## Metrics (`/api/metrics`)
 
-All metrics endpoints require the pre-computed metrics database (`metrics.db`). If unavailable, they return **503**.
+Most metrics endpoints require the pre-computed metrics database (`metrics.db`).
+Two exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
+and `/api/metrics/q2_summary`, which reads `q2_delta_iou_analysis.json`.
 
 ### `GET /api/metrics/leaderboard`
 
 Get model rankings by the best score for the selected aggregate metric at a given percentile threshold.
+
+This endpoint ranks only the base `AVAILABLE_MODELS` set. Fine-tuned strategy
+variants are not included in this leaderboard.
 
 **Query Parameters**
 
@@ -504,7 +517,7 @@ Get model rankings by the best score for the selected aggregate metric at a give
 
 Get the pre-computed metrics summary including leaderboard and per-model best layers.
 
-This is a static snapshot exported with `ranking_mode = "default_method"`, not a dynamic overall-best leaderboard.
+This is a static snapshot exported with `ranking_mode = "default_method"`, not a dynamic overall-best leaderboard. Like `/api/metrics/leaderboard`, it summarizes the base `AVAILABLE_MODELS` set rather than strategy-specific fine-tuned variants.
 
 **Parameters**: None
 
@@ -515,6 +528,77 @@ This is a static snapshot exported with `ranking_mode = "default_method"`, not a
 | Status | Condition |
 |--------|-----------|
 | 503 | Metrics summary file not available |
+
+---
+
+### `GET /api/metrics/q2_summary`
+
+Get the strategy-aware Q2 delta-IoU analysis summary exported by `experiments/scripts/analyze_delta_iou.py`.
+
+> **Data source**: This endpoint reads `outputs/results/q2_delta_iou_analysis.json`.
+> It does not depend on `metrics.db`.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `percentile` | int | No | `null` | 50–95 | Optional percentile filter |
+| `model` | string | No | `null` | See [Common Parameters](#common-parameters) | Optional base model filter |
+| `strategy` | string | No | `null` | `linear_probe`, `lora`, `full` | Optional fine-tuning strategy filter |
+
+**Response**: `Q2SummaryResponse`
+
+```json
+{
+  "percentiles": [90, 80, 70, 60, 50],
+  "timestamp": "2026-03-16T21:23:57+08:00",
+  "models": {
+    "clip": {
+      "lora": {
+        "90": {
+          "model_name": "clip",
+          "strategy_id": "lora",
+          "percentile": 90,
+          "method": "cls",
+          "frozen_mean_iou": 0.018,
+          "finetuned_mean_iou": 0.082,
+          "mean_delta_iou": 0.063,
+          "delta_ci_lower": 0.046,
+          "delta_ci_upper": 0.079,
+          "cohens_d": 0.91,
+          "corrected_p_value": 0.004,
+          "significant": true,
+          "iou_retention_ratio": 4.56,
+          "num_images": 139
+        }
+      }
+    }
+  },
+  "strategy_comparisons": {
+    "clip": {
+      "90": [
+        {
+          "model_name": "clip",
+          "percentile": 90,
+          "strategy_a": "lora",
+          "strategy_b": "full",
+          "mean_delta_difference": -0.006,
+          "cohens_d": -0.08,
+          "corrected_p_value": 0.71,
+          "significant": false
+        }
+      ]
+    }
+  }
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model name |
+| 503 | Q2 summary JSON not available (run `analyze_delta_iou.py` first) |
 
 ---
 
@@ -984,7 +1068,12 @@ Get metrics for all images for a given model/layer, with sorting and pagination.
 
 ### `GET /api/compare/models`
 
-Compare multiple models side-by-side on a single image. Returns alignment metrics and heatmap URLs for each model.
+Compare multiple models side-by-side on a single image. Returns alignment
+metrics and heatmap URLs for each model.
+
+Without `bbox_index`, this returns the union-of-all-bboxes metrics from
+`metrics.db`. With `bbox_index`, it computes bbox-local metrics on demand and
+may report per-model cache misses via `unavailable_models`.
 
 > **Method validation**: When a `method` is specified, it is validated against *each* selected model. If any model does not support the requested method, the endpoint returns **400** (strict validation). Use `/api/metrics/{image_id}/all_models` if you want incompatible models to be skipped instead.
 
@@ -996,6 +1085,7 @@ Compare multiple models side-by-side on a single image. Returns alignment metric
 | `models` | list[string] | No | `["dinov2", "clip"]` | Each must be valid model | Models to compare (repeat param for multiple) |
 | `layer` | int | No | `0` | ≥ 0, within range for all models | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `bbox_index` | int | No | `null` | ≥ 0 | Optional bbox index for feature-local comparison |
 | `method` | string | No | per-model default | Must be valid for *all* selected models | Attention method |
 
 **Response**: `ModelComparisonSchema`
@@ -1006,6 +1096,11 @@ Compare multiple models side-by-side on a single image. Returns alignment metric
   "models": ["dinov2", "clip"],
   "layer": "layer0",
   "percentile": 90,
+  "selection": {
+    "mode": "union",
+    "bbox_index": null,
+    "bbox_label": null
+  },
   "results": [
     {
       "image_id": "Q2270_0.jpg",
@@ -1025,7 +1120,8 @@ Compare multiple models side-by-side on a single image. Returns alignment metric
   "heatmap_urls": {
     "dinov2": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls",
     "clip": "/api/attention/Q2270_0.jpg/overlay?model=clip&layer=0&method=cls"
-  }
+  },
+  "unavailable_models": {}
 }
 ```
 
@@ -1033,9 +1129,9 @@ Compare multiple models side-by-side on a single image. Returns alignment metric
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Invalid model/layer or requested method incompatible with selected model(s) |
+| 400 | Invalid model/layer, requested method incompatible with selected model(s), or `bbox_index` out of range |
 | 404 | Image not found or no metrics available |
-| 503 | Metrics database not available |
+| 503 | Metrics database not available for union-of-all-bboxes metrics |
 
 ---
 
@@ -1055,6 +1151,58 @@ Compare frozen (pretrained) vs fine-tuned model attention on a single image.
 | `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
 | `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
 | `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `strategy` | string | No | `null` | `linear_probe`, `lora`, `full` | Optional fine-tuning strategy selector |
+| `show_bboxes` | bool | No | `true` | | Render overlays with annotation boxes and labels |
+
+**Response**: `dict`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "strategy": "lora",
+  "layer": "layer0",
+  "show_bboxes": true,
+  "frozen": {
+    "available": true,
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls&show_bboxes=true"
+  },
+  "finetuned": {
+    "available": true,
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned_lora&layer=0&method=cls&show_bboxes=true",
+    "note": "Fine-tuned overlay is unavailable for this model/layer/image. Generate fine-tuned attention + heatmap caches first."
+  }
+}
+```
+
+When `strategy` is omitted, the endpoint auto-selects the first available
+variant in this order: `lora`, `full`, `linear_probe`, then the legacy generic
+`{base_model}_finetuned` key.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, layer, or strategy |
+| 404 | Image not found |
+
+---
+
+### `GET /api/compare/finetuned_vs_finetuned`
+
+Compare two fine-tuned strategy variants for the same base model on a single
+image. This powers the `Fine-tuning Method vs Method` mode on the Compare page.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Base model name |
+| `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `strategy_a` | string | No | `linear_probe` | `linear_probe`, `lora`, `full` | Left-hand fine-tuning strategy |
+| `strategy_b` | string | No | `full` | `linear_probe`, `lora`, `full` | Right-hand fine-tuning strategy |
+| `show_bboxes` | bool | No | `true` | | Render overlays with annotation boxes and labels |
 
 **Response**: `dict`
 
@@ -1063,27 +1211,31 @@ Compare frozen (pretrained) vs fine-tuned model attention on a single image.
   "image_id": "Q2270_0.jpg",
   "model": "dinov2",
   "layer": "layer0",
-  "frozen": {
+  "method": "cls",
+  "show_bboxes": true,
+  "left": {
+    "model_key": "dinov2_finetuned_linear_probe",
+    "strategy": "linear_probe",
+    "label": "Fine-tuned (linear_probe)",
     "available": true,
-    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls"
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned_linear_probe&layer=0&method=cls&show_bboxes=true"
   },
-  "finetuned": {
-    "available": false,
-    "url": null,
-    "note": "Fine-tuned overlay is unavailable for this model/layer/image. Generate fine-tuned attention + heatmap caches first."
-  }
+  "right": {
+    "model_key": "dinov2_finetuned_full",
+    "strategy": "full",
+    "label": "Fine-tuned (full)",
+    "available": true,
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned_full&layer=0&method=cls&show_bboxes=true"
+  },
+  "note": "One or both fine-tuned overlays are unavailable for this model/layer/image. Generate fine-tuned attention + heatmap caches for both strategies first."
 }
 ```
-
-When `finetuned.available=true`, `finetuned.url` uses the explicit
-`{base_model}_finetuned` key (for example:
-`/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned&layer=0&method=cls`).
 
 **Errors**
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Invalid model or layer |
+| 400 | Invalid model, layer, or strategy |
 | 404 | Image not found |
 
 ---
@@ -1135,6 +1287,9 @@ Get IoU progression across all layers for a single model/image, with heatmap URL
 ### `GET /api/compare/all_models_summary`
 
 Get a full comparison summary of all models: leaderboard rankings plus per-layer metric progressions for the selected aggregate metric.
+
+This endpoint ranks only the base `AVAILABLE_MODELS` set. It does not expose
+strategy-specific fine-tuned variants.
 
 **Query Parameters**
 
@@ -1402,8 +1557,10 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `models` | list[string] | Models compared |
 | `layer` | string | Layer key |
 | `percentile` | int | Percentile threshold used |
+| `selection` | ImageMetricSelectionSchema | Whether the comparison is using union metrics or a bbox-local selection |
 | `results` | list[IoUResultSchema] | Per-model alignment results |
 | `heatmap_urls` | dict[string, string] | Model name → heatmap overlay URL |
+| `unavailable_models` | dict[string, string] | Per-model reasons why scoped bbox metrics are unavailable |
 
 ### `BboxInput`
 
@@ -1456,4 +1613,5 @@ Several endpoints require offline pre-computation before they can serve data:
 | `generate_heatmap_images.py` | PNG heatmaps/overlays | `/attention/{id}/heatmap`, `/attention/{id}/overlay`, `/attention/{id}/layers`, `/images/{id}/with_bboxes` |
 | `generate_attention_cache.py` | HDF5 attention cache | `/attention/{id}/raw` |
 | `generate_feature_cache.py` | HDF5 feature cache | `/attention/{id}/similarity` |
-| `generate_metrics_cache.py` | SQLite metrics DB + JSON summary | All `/metrics/*` and `/compare/*` endpoints |
+| `generate_metrics_cache.py` | SQLite metrics DB + `metrics_summary.json` | Union-metric `/metrics/*` endpoints plus `/compare/models`, `/compare/layers`, and `/compare/all_models_summary` |
+| `analyze_delta_iou.py` | `q2_delta_iou_analysis.json` | `/metrics/q2_summary` |

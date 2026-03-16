@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-03-02 (Frozen-vs-fine-tuned precompute/API/frontend integration synced; Phase 5 analytics follow-ups tracked)
+**Last Updated:** 2026-03-16 (Strategy-aware Q2 summary, method-vs-method comparison, and fine-tuning docs synced to the merged implementation)
 
 ---
 
@@ -278,11 +278,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Configurable hyperparameters (epochs, batch size, learning rates)
    - Head-only training option (`--freeze-backbone`)
    - Fine-tunable model allowlist enforced (`resnet50` excluded)
-   - Save checkpoints: `outputs/checkpoints/{model}_finetuned.pt` (linear probe / full) or `{model}_lora_finetuned.pt` (LoRA)
+   - Save checkpoints: `outputs/checkpoints/{model}_{strategy}_finetuned.pt`
+   - Save run manifests: `outputs/results/fine_tuning_manifests/{model}_{strategy}_manifest.json`
    - Training summary with per-model results
-   - `generate_attention_cache.py --finetuned` caches fine-tuned model attention maps
-   - `generate_heatmap_images.py --finetuned` renders fine-tuned overlay PNGs under `{model}_finetuned` keys
-   - Checkpoint discovery checks both `{model}_finetuned.pt` and `{model}_lora_finetuned.pt`, preferring LoRA when both exist
+   - `generate_attention_cache.py --finetuned --strategies ...` caches strategy-aware fine-tuned attention maps under `{model}_finetuned_{strategy}` keys
+   - `generate_feature_cache.py --finetuned --strategies ...` caches strategy-aware patch features under `{model}_finetuned_{strategy}` keys
+   - `generate_heatmap_images.py --finetuned --strategies ...` renders fine-tuned overlays under `{model}_finetuned_{strategy}` keys
+   - Legacy `{model}_finetuned.pt` fallback is retained only for older full-fine-tuning checkpoints
 
 3. **Comparative analysis** (`experiments/scripts/analyze_delta_iou.py`) ✅
    - Load frozen baseline and fine-tuned models
@@ -291,13 +293,14 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Bootstrap 95% CIs, Cohen's d effect sizes
    - Paired t-test / Wilcoxon (auto-selected based on normality)
    - Holm correction for multiple comparisons across models
-   - JSON export of full results
+   - JSON export of full results consumed by `/api/metrics/q2_summary` and the `/q2` page
 
 4. **Visualization** 🔄
-   - Side-by-side heatmaps (frozen vs fine-tuned) integrated across precompute/API/frontend
+   - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Fine-tuning Method vs Method`
+   - Q2 summary page ships strategy-aware ΔIoU tables and cross-strategy paired comparisons
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Remaining Phase 5 work includes (a) fine-tuned metrics-cache/leaderboard integration and (b) attention shift visualization. See [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) for detailed research on Linear Probe vs LoRA vs Full fine-tuning approaches.
+> **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -317,13 +320,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 3. **Pre-computation Pipeline** ✅
    - `generate_attention_cache.py` - Extract attention to HDF5
    - `generate_heatmap_images.py` - Render heatmap overlays as PNGs
-   - `generate_metrics_cache.py` - Compute IoU to SQLite
+   - `generate_metrics_cache.py` - Compute base-model analytics to SQLite
 
 4. **API Endpoints** ✅
    - `/api/images` - Image listing, filtering, serving
    - `/api/attention` - Heatmap and overlay serving
-   - `/api/metrics` - IoU metrics, leaderboard, layer progression
-   - `/api/compare` - Model comparison, frozen vs fine-tuned
+   - `/api/metrics` - IoU metrics, leaderboard, layer progression, and Q2 strategy summary
+   - `/api/compare` - Model comparison, Frozen vs Fine-tuned, and Fine-tuning Method vs Method
 
 5. **Representation Similarity Exploration (Utility Feature)** ✅
    - Click on bounding box to compute cosine similarity with all image patches

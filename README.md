@@ -58,9 +58,9 @@ uv run python -m app.precompute.generate_metrics_cache
 To enable **Frozen vs Fine-tuned** on the Compare page (overlays and bbox similarity heatmaps), also run with `--finetuned` (after training checkpoints; see Fine-Tuning below):
 
 ```bash
-uv run python -m app.precompute.generate_attention_cache --finetuned --models all
-uv run python -m app.precompute.generate_feature_cache --finetuned --models all
-uv run python -m app.precompute.generate_heatmap_images --finetuned --models all
+uv run python -m app.precompute.generate_attention_cache --finetuned --models all --strategies linear_probe lora full
+uv run python -m app.precompute.generate_feature_cache --finetuned --models all --strategies linear_probe lora full
+uv run python -m app.precompute.generate_heatmap_images --finetuned --models all --strategies linear_probe lora full
 ```
 
 > **Tip:** Test with a subset first: `--models dinov2 --layers 11`
@@ -72,6 +72,12 @@ uv run python -m app.precompute.generate_heatmap_images --finetuned --models all
 ```
 
 Open http://localhost:5173 in your browser.
+
+Key routes after startup:
+
+- `/compare` for `Model vs Model`, `Frozen vs Fine-tuned`, and `Fine-tuning Method vs Method`
+- `/q2` for the strategy-aware Q2 delta-IoU summary
+- `/dashboard` for the base-model leaderboard and layer progression views
 
 <details>
 <summary>Alternative: Docker</summary>
@@ -113,6 +119,8 @@ Fine-tune SSL backbones on architectural style classification (all ViT models; `
 
 **Fine-tunable model keys**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`.
 
+**Artifact naming**: strategy-aware checkpoints are saved as `outputs/checkpoints/{model}_{strategy}_finetuned.pt`, and fine-tuned cache keys use `{model}_finetuned_{strategy}`. A legacy `{model}_finetuned.pt` fallback is still accepted for older full-fine-tuning runs.
+
 ```python
 from ssl_attention.evaluation import FineTuningConfig, FineTuner, FineTunableModel
 
@@ -141,33 +149,35 @@ uv run python experiments/scripts/fine_tune_models.py --model dinov3 --lora
 uv run python experiments/scripts/fine_tune_models.py --model dinov3
 ```
 
-   Validation uses the 139 bbox-annotated images by default. Use `--val-on-random-split` for a random stratified split instead. Use `--include-annotated-eval` only if your dataset contains only the 139 annotated images.
+   Validation uses the 139 bbox-annotated images by default. Use `--val-on-random-split` for a random stratified split instead. Use `--include-annotated-eval` only if your dataset contains only the 139 annotated images. These runs produce strategy-aware checkpoints such as `outputs/checkpoints/dinov3_linear_probe_finetuned.pt`, `outputs/checkpoints/dinov3_lora_finetuned.pt`, and `outputs/checkpoints/dinov3_full_finetuned.pt`.
 
-2. **Run Δ IoU analysis** (output: `outputs/results/q2_delta_iou_analysis.json`):
+2. **Run Δ IoU analysis** (output: `outputs/results/q2_delta_iou_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page):
 
 ```bash
 uv run python experiments/scripts/analyze_delta_iou.py --models dinov3 --strategies linear_probe lora full
 ```
 
-3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints):
+3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints). Fine-tuned artifacts are written under strategy-aware cache keys such as `{model}_finetuned_lora` and `{model}_finetuned_full`.
 
 ```bash
 # Frozen
-uv run python -m app.precompute.generate_attention_cache --models dinov2 mae clip siglip siglip2
-uv run python -m app.precompute.generate_feature_cache --models dinov2 mae clip siglip siglip2
-uv run python -m app.precompute.generate_heatmap_images --models dinov2 mae clip siglip siglip2
+uv run python -m app.precompute.generate_attention_cache --models dinov2 dinov3 mae clip siglip siglip2
+uv run python -m app.precompute.generate_feature_cache --models dinov2 dinov3 mae clip siglip siglip2
+uv run python -m app.precompute.generate_heatmap_images --models dinov2 dinov3 mae clip siglip siglip2
 
 # Fine-tuned
-uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
-uv run python -m app.precompute.generate_feature_cache --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
-uv run python -m app.precompute.generate_heatmap_images --finetuned --models dinov2 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_feature_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_heatmap_images --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
 ```
 
-4. **Build metrics cache** (dashboard APIs):
+4. **Build base-model metrics cache** (dashboard APIs):
 
 ```bash
 uv run python -m app.precompute.generate_metrics_cache
 ```
+
+The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on `q2_delta_iou_analysis.json` plus the fine-tuned attention, feature, and heatmap caches above, not on a strategy-aware leaderboard database.
 
 ## Data Exploration
 

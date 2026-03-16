@@ -399,14 +399,32 @@ Checkpoints are saved to `outputs/checkpoints/` with a flat naming convention:
 
 ```
 outputs/checkpoints/
-├── {model_name}_finetuned.pt           # Linear probe or full fine-tuning
-├── {model_name}_lora_finetuned.pt      # LoRA fine-tuning
-└── {model_name}_training_results.json  # Per-epoch training history
+├── {model_name}_linear_probe_finetuned.pt
+├── {model_name}_lora_finetuned.pt
+└── {model_name}_full_finetuned.pt
+
+outputs/results/
+├── fine_tuning_results.json
+└── fine_tuning_manifests/
+    └── {model_name}_{strategy}_manifest.json
 ```
 
-Linear probe and full fine-tuning share the same checkpoint path — the difference is whether the backbone was frozen during training, which is recorded in the training results JSON.
+The strategy identifiers used throughout the project are `linear_probe`,
+`lora`, and `full`.
 
-**Checkpoint discovery**: `load_finetuned_model()` checks both naming patterns automatically — first looking for `{model}_lora_finetuned.pt`, then falling back to `{model}_finetuned.pt`. This means LoRA checkpoints are preferred when both exist for the same model. The `generate_attention_cache.py --finetuned` flag uses this same discovery logic when caching fine-tuned model attention.
+**Checkpoint discovery**: `load_finetuned_model()` and the fine-tuned
+precompute scripts prefer the strategy-aware filenames above. A legacy
+`{model}_finetuned.pt` fallback is still accepted for historical **full**
+fine-tuning runs only.
+
+**Fine-tuned cache keys**: attention caches, feature caches, and rendered
+heatmaps use `{model}_finetuned_{strategy}` keys such as
+`dinov2_finetuned_lora` and `clip_finetuned_full`. The strategy-aware
+precompute workflows are:
+
+- `generate_attention_cache.py --finetuned --strategies linear_probe lora full`
+- `generate_feature_cache.py --finetuned --strategies linear_probe lora full`
+- `generate_heatmap_images.py --finetuned --strategies linear_probe lora full`
 
 ---
 
@@ -548,18 +566,23 @@ The following summarizes results from `analyze_delta_iou.py` over all fine-tunab
 - Pre-training family matters: contrastive models (CLIP, SigLIP) start with weaker alignment and benefit from task adaptation; DINO-style models already align well and gain little or lose under classification fine-tuning.
 - For DINOv2, **full fine-tuning is the only case where alignment significantly decreases**; LoRA is the safer option if the goal is to preserve or improve expert alignment.
 
-### UI Support: Feature-Local Frozen vs Fine-Tuned Comparison
+### UI Support: Feature-Local Fine-Tuning Comparison
 
-The Compare page now supports a **feature-focused inspection mode** for frozen vs fine-tuned overlays:
+The shipped UI now exposes two fine-tuning comparison surfaces:
 
-- By default, the user sees the cached frozen/fine-tuned attention overlay pair for the full image
-- Clicking an expert bounding box switches the view to **bbox-conditioned similarity heatmaps** for both variants, matching the gallery-style interaction
+- **Frozen vs Fine-tuned** compares a frozen backbone against one selected strategy, or an auto-discovered legacy fine-tuned variant when strategy is omitted
+- **Fine-tuning Method vs Method** compares two strategy-specific variants for the same base model
+
+Both modes support a **feature-focused inspection flow**:
+
+- By default, the user sees the cached attention overlay pair for the full image
+- Clicking an expert bounding box switches the view to **bbox-conditioned similarity heatmaps** for both selected variants, matching the gallery-style interaction
 - The UI also computes **bbox-local IoU and coverage** for both variants inside the selected expert region
-- The page then shows a **feature-local delta** (fine-tuned minus frozen)
+- The page then shows a **feature-local delta** between the two active variants
 
 This matters because the user can move between two complementary views:
 
-- **Global overlay mode:** Where does each model attend overall?
+- **Global overlay mode:** Where does each selected variant attend overall?
 - **Feature-conditioned similarity mode:** What other regions become similar to this selected expert feature?
 
 If the full-image overlays look visually similar, users can still ask a sharper question:
@@ -568,11 +591,14 @@ If the full-image overlays look visually similar, users can still ask a sharper 
 
 That teaches us something more precise than a global slider:
 
-- **Positive local Δ IoU**: fine-tuning strengthened alignment on that expert feature
-- **Near-zero local Δ IoU**: the objective left that feature largely unchanged
-- **Negative local Δ IoU**: fine-tuning pulled attention away from that feature
+- **Positive local Δ IoU**: the right-hand variant strengthened alignment on that expert feature
+- **Near-zero local Δ IoU**: the compared variants behave similarly on that feature
+- **Negative local Δ IoU**: the right-hand variant pulled attention away from that feature
 
-In other words, bbox selection now changes both the **visualization mode** and the **measurement slice**. This is aligned with the core research framing in this section: classification is only an intervention, while the real object of study is how attention shifts relative to expert-defined architectural regions.
+In other words, bbox selection now changes both the **visualization mode** and
+the **measurement slice**. This is aligned with the core research framing in
+this section: classification is only an intervention, while the real object of
+study is how attention shifts relative to expert-defined architectural regions.
 
 ## 11. Alternative Perspective: Why NOT to Fine-Tune
 

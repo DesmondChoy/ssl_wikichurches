@@ -31,13 +31,13 @@ Technical implementation details and model-specific considerations.
 | [api_reference.md](reference/api_reference.md) | Complete REST API documentation for all API endpoints |
 | [metrics_methodology.md](reference/metrics_methodology.md) | IoU, Coverage, thresholding methodology, worked examples, and academic context |
 
-### [`enhancements/`](enhancements/) — Proposed Features
-Future improvements not yet implemented. Documents here may be promoted to `core/` or merged into `reference/` once complete.
+### [`enhancements/`](enhancements/) — Ongoing Enhancements
+Future improvements live here, but some documents also track partially or fully shipped work plus the remaining follow-up ideas.
 
 | Document | Description | Status |
 |----------|-------------|--------|
 | [per_attention_head.md](enhancements/per_attention_head.md) | Per-head attention visualization | Proposed |
-| [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Fine-tuning strategies for attention shift analysis | Proposed |
+| [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Strategy-aware fine-tuning implementation notes, observed Q2 results, and remaining research directions | Mixed (implemented + future work) |
 
 ---
 

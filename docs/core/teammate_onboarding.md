@@ -14,7 +14,7 @@ Canonical model keys in the app/API are `dinov2`, `dinov3`, `mae`, `clip`, `sigl
 
 For Q2 fine-tuning, training should rely on the broader WikiChurches style-labeled metadata split (9,346 entries in `churches.json`), with bbox-annotated evaluation images excluded to avoid leakage; the 139 annotated images are primarily for attention-alignment evaluation.
 
-## 2. Current status snapshot (as of March 2, 2026)
+## 2. Current status snapshot (as of March 16, 2026)
 
 ### What is working now
 
@@ -26,10 +26,10 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - Evaluation utilities (linear probe + fine-tuning module)
 - Full app stack exists under `app/`:
   - FastAPI backend routes/services
-  - React frontend with gallery/detail/compare/dashboard views
+  - React frontend with gallery, image-detail, compare, dashboard, and Q2 views
   - Precompute scripts for attention/features/heatmaps/metrics
-- Test suite is healthy:
-  - `uv run pytest` passed: **285 passed**.
+- Test suite is extensive and active:
+  - Re-run `uv run pytest` locally to confirm the current environment and dataset state.
 - Dataset is present locally:
   - `dataset/images` contains 9,502 files in this local mirror (official WikiChurches release size is 9,485).
 - Precomputed artifacts exist:
@@ -42,12 +42,13 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 
 - `outputs/checkpoints/` is empty (no fine-tuned checkpoints currently present).
 - `outputs/results/fine_tuning_results.json` references a checkpoint path that is not present locally.
-- Frozen vs fine-tuned overlays are integrated end-to-end:
-  - Frontend `FrozenVsFinetuned.tsx` now uses API-based availability checks and renders slider when both overlays exist.
-  - Backend `/api/compare/frozen_vs_finetuned` now returns explicit method-aware frozen and `*_finetuned` URLs.
-  - Precompute supports `--finetuned` for both attention cache and heatmap image generation.
+- Fine-tuned comparison flows are integrated end-to-end when artifacts exist:
+  - Frontend `FrozenVsFinetuned.tsx` supports both `Frozen vs Fine-tuned` and `Fine-tuning Method vs Method`.
+  - Backend `/api/compare/frozen_vs_finetuned` and `/api/compare/finetuned_vs_finetuned` return strategy-aware overlay metadata.
+  - The `/q2` page is wired and reads `/api/metrics/q2_summary`.
+  - Precompute supports `--finetuned --strategies ...` for attention, feature, and heatmap generation.
 - Remaining fine-tuned analytics gap:
-  - `generate_metrics_cache.py` still computes canonical model rows only (no `*_finetuned` metric rows/leaderboard entries yet).
+  - Dashboard-style leaderboard and all-model summary views still focus on the base `AVAILABLE_MODELS` set rather than strategy-specific fine-tuned variants.
 
 ## 3. Repository map (where to work)
 
@@ -67,7 +68,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - services: data/cache query logic
   - validators/config/schemas
 - Frontend: `app/frontend/src/`
-  - pages: `Home`, `ImageDetail`, `Compare`, `Dashboard`
+  - pages: `Home`, `ImageDetail`, `Compare`, `Dashboard`, `Q2`
   - `store/viewStore.ts`: global view state
   - `api/client.ts`: backend client interface
   - comparison + attention + metrics components
@@ -98,6 +99,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
    - Image detail (`/image/:id`)
    - Compare (`/compare`)
    - Dashboard (`/dashboard`)
+   - Q2 analysis (`/q2`)
 4. Inspect precomputed caches and backend health endpoint:
    - `GET /health`
    - Confirm local cache and metrics DB access.
@@ -131,7 +133,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - full fine-tuning
   - head-only (`freeze_backbone`)
   - LoRA (`peft`)
-- Training script and delta-IoU analysis script implemented.
+- Training script, strategy-aware checkpoint naming, and delta-IoU analysis script are implemented.
 
 ### Productization
 
@@ -140,21 +142,23 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
   - Model/layer/method controls
   - On-image bbox selection
   - Similarity heatmap overlays
+  - Frozen vs Fine-tuned and Fine-tuning Method vs Method compare modes
+  - Strategy-aware Q2 summary view
   - Leaderboard + feature breakdown views
 - End-to-end precompute pipeline exists and is operational for frozen models.
-- Fine-tuned precompute path is available for attention/heatmap overlays (`--finetuned` mode).
+- Fine-tuned precompute paths are available for attention, features, and heatmap overlays (`--finetuned --strategies ...`).
 
 ## 6. Recommended next-step roadmap
 
-### Priority 1: Expand fine-tuned analytics beyond overlay availability
+### Priority 1: Expand fine-tuned analytics beyond compare and Q2 availability
 
 Goal: make fine-tuned metrics first-class in analytics and reporting flows.
 
 - Add reliable checkpoint lifecycle:
   - define source-of-truth for available checkpoints
   - expose this in backend status endpoint.
-- Extend metrics precompute flow to write `*_finetuned` rows into SQLite.
-- Add comparison and leaderboard routes that can include fine-tuned metric variants.
+- Extend metrics precompute and query flows to surface strategy-specific `{model}_finetuned_{strategy}` variants cleanly in dashboard-style analytics.
+- Add leaderboard and summary routes that can include fine-tuned metric variants without conflating them with the base `AVAILABLE_MODELS` set.
 - Add regression tests for fine-tuned metrics query paths.
 
 ### Priority 2: Strengthen evaluation robustness
@@ -196,7 +200,7 @@ Goal: easier collaboration + reproducibility.
 
 ## 8. High-value first ticket recommendations
 
-1. Add fine-tuned metrics-cache support and expose `*_finetuned` variants in analytics endpoints.
+1. Add strategy-aware fine-tuned leaderboard/dashboard support and expose `{model}_finetuned_{strategy}` variants in analytics endpoints.
 2. Add per-bbox recall metric and expose it in detail view metrics.
 3. Replace dashboard chart placeholders with working visualizations.
 4. Add CI automation for `pytest` and a reproducible bootstrap checklist.
