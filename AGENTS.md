@@ -77,6 +77,11 @@ Before finishing work or preparing to commit, run all relevant checks for touche
 - If ambiguity is low-risk and non-blocking, proceed with explicit assumptions and note them.
 - If ambiguity affects correctness or design direction, ask one concise clarifying question before continuing.
 
+## Communication Clarity
+
+- **General clarity rule**: Write for immediate understanding on first read. Prefer plain, everyday language, short sentences, and concrete wording over dense or abstract phrasing.
+- **Anti-jargon rule**: Do not make the user decode internal shorthand, umbrella terms, or technical jargon when a direct phrase would work. If a technical term is necessary, define it in plain English the first time you use it.
+
 ## Workflow Orchestration
 
 ### 1. Plan Node Default
