@@ -4,6 +4,7 @@ from app.backend.schemas.models import (
     AllModelsSummaryModelEntry,
     AllModelsSummarySchema,
     BoundingBoxSchema,
+    ComparisonVariantSchema,
     FeatureBreakdownSchema,
     FeatureIoUEntry,
     ImageAnnotationSchema,
@@ -18,14 +19,18 @@ from app.backend.schemas.models import (
     LeaderboardEntry,
     MetricsQueryParams,
     ModelComparisonSchema,
+    Q2StrategyComparisonSchema,
     Q2SummaryResponse,
+    Q2SummaryRowSchema,
     StyleBreakdownSchema,
+    VariantComparisonSchema,
 )
 
 __all__ = [
     "AllModelsSummaryModelEntry",
     "AllModelsSummarySchema",
     "BoundingBoxSchema",
+    "ComparisonVariantSchema",
     "FeatureBreakdownSchema",
     "FeatureIoUEntry",
     "ImageAnnotationSchema",
@@ -41,5 +46,8 @@ __all__ = [
     "MetricsQueryParams",
     "ModelComparisonSchema",
     "Q2SummaryResponse",
+    "Q2SummaryRowSchema",
+    "Q2StrategyComparisonSchema",
     "StyleBreakdownSchema",
+    "VariantComparisonSchema",
 ]

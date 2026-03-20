@@ -110,7 +110,7 @@ def test_create_database_migrates_existing_schema_with_continuous_metric_columns
     migrated.close()
 
 
-def test_compute_metrics_for_finetuned_model_uses_suffixed_storage_key(tmp_path, monkeypatch):
+def test_compute_metrics_for_finetuned_model_uses_canonical_storage_key(tmp_path, monkeypatch):
     db_path = tmp_path / "metrics.db"
     conn = gm.create_database(db_path)
 
@@ -149,7 +149,8 @@ def test_compute_metrics_for_finetuned_model_uses_suffixed_storage_key(tmp_path,
         layers=[0],
         methods=["cls"],
         skip_existing=False,
-        storage_model_key="dinov2_finetuned",
+        storage_model_key="dinov2_finetuned_full",
+        cache_model_keys=["dinov2_finetuned_full", "dinov2_finetuned"],
     )
 
     cursor = conn.cursor()
@@ -160,8 +161,67 @@ def test_compute_metrics_for_finetuned_model_uses_suffixed_storage_key(tmp_path,
 
     assert stats["processed"] == 1
     assert stats["errors"] == 0
-    assert image_row == ("dinov2_finetuned", "layer0", "cls", image_id)
-    assert aggregate_row == ("dinov2_finetuned", "layer0", "cls")
+    assert image_row == ("dinov2_finetuned_full", "layer0", "cls", image_id)
+    assert aggregate_row == ("dinov2_finetuned_full", "layer0", "cls")
+    attention_cache.load.assert_any_call("dinov2_finetuned_full", "layer0", image_id, variant="cls")
+
+    conn.close()
+
+
+def test_compute_metrics_for_full_strategy_falls_back_to_legacy_cache_key(tmp_path, monkeypatch):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+
+    image_id = "Q1234_test.jpg"
+    annotation = SimpleNamespace(styles=(), bboxes=())
+    dataset = SimpleNamespace(
+        image_ids=[image_id],
+        annotations={image_id: annotation},
+    )
+    attention_cache = MagicMock()
+
+    def _load(model: str, _layer: str, _image_id: str, variant: str):
+        if model == "dinov2_finetuned_full":
+            raise KeyError("missing canonical cache")
+        assert model == "dinov2_finetuned"
+        assert variant == "cls"
+        return torch.ones(14, 14)
+
+    attention_cache.load.side_effect = _load
+
+    monkeypatch.setattr(gm, "compute_image_mse", lambda **_kwargs: 0.01)
+    monkeypatch.setattr(gm, "compute_image_kl", lambda **_kwargs: 0.02)
+    monkeypatch.setattr(gm, "compute_image_emd", lambda **_kwargs: 0.03)
+    monkeypatch.setattr(
+        gm,
+        "compute_image_iou",
+        lambda **_kwargs: SimpleNamespace(
+            iou=0.5,
+            coverage=0.6,
+            attention_area=0.4,
+            annotation_area=0.3,
+        ),
+    )
+    monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, []))
+    monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(gm, "aggregate_by_feature_type", lambda *_args, **_kwargs: {})
+
+    stats = gm.compute_metrics_for_model(
+        base_model_name="dinov2",
+        dataset=dataset,  # type: ignore[arg-type]
+        attention_cache=attention_cache,
+        conn=conn,
+        percentiles=[90],
+        layers=[0],
+        methods=["cls"],
+        skip_existing=False,
+        storage_model_key="dinov2_finetuned_full",
+        cache_model_keys=["dinov2_finetuned_full", "dinov2_finetuned"],
+    )
+
+    assert stats["processed"] == 1
+    assert stats["errors"] == 0
+    attention_cache.load.assert_any_call("dinov2_finetuned_full", "layer0", image_id, variant="cls")
     attention_cache.load.assert_any_call("dinov2_finetuned", "layer0", image_id, variant="cls")
 
     conn.close()
@@ -180,6 +240,16 @@ def test_resolve_models_to_process_filters_finetuned_models():
     assert models == ["dinov2"]
     assert invalid == ["unknown"]
     assert non_finetunable == ["resnet50"]
+
+
+def test_resolve_finetuned_strategies_returns_all_and_invalids():
+    strategies, invalid = gm.resolve_finetuned_strategies(["all"])
+    assert strategies == [strategy.value for strategy in gm.FINETUNE_STRATEGIES]
+    assert invalid == []
+
+    strategies, invalid = gm.resolve_finetuned_strategies(["linear_probe", "bogus", "full"])
+    assert strategies == ["linear_probe", "full"]
+    assert invalid == ["bogus"]
 
 
 def test_export_summary_json_excludes_finetuned_rows(tmp_path):
@@ -221,7 +291,7 @@ def test_export_summary_json_excludes_finetuned_rows(tmp_path):
             mean_mse, std_mse, median_mse, mean_kl, std_kl, median_kl,
             mean_emd, std_emd, median_emd, num_images)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        ("dinov2_finetuned", *aggregate_row),
+        ("dinov2_finetuned_full", *aggregate_row),
     )
     conn.commit()
 

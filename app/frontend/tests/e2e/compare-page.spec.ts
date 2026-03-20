@@ -13,6 +13,129 @@ function getModelResult(
   return result!;
 }
 
+async function stubVariantCompareApis(page: import('@playwright/test').Page) {
+  await page.route('**/api/images?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          image_id: IMAGE_ID,
+          thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+          styles: ['gothic'],
+          style_names: ['Gothic'],
+          num_bboxes: 1,
+        },
+      ]),
+    });
+  });
+
+  await page.route(`**/api/images/${IMAGE_ID}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        image_url: `/api/images/${IMAGE_ID}/file`,
+        thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+        available_models: ['dinov2'],
+        annotation: {
+          image_id: IMAGE_ID,
+          styles: ['gothic'],
+          style_names: ['Gothic'],
+          num_bboxes: 1,
+          bboxes: [],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2'],
+        num_layers: 12,
+        num_layers_per_model: { dinov2: 12 },
+        methods: { dinov2: ['cls'] },
+        default_methods: { dinov2: 'cls' },
+      }),
+    });
+  });
+
+  await page.route('**/api/compare/variants?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        model: 'dinov2',
+        layer: 'layer0',
+        method: 'cls',
+        show_bboxes: true,
+        left: {
+          model_key: 'dinov2',
+          strategy: null,
+          label: 'Frozen (Pretrained)',
+          available: true,
+          url: '/api/attention/Q2034923_wd0.jpg/overlay?model=dinov2&layer=0&method=cls',
+        },
+        right: {
+          model_key: 'dinov2_finetuned_lora',
+          strategy: 'lora',
+          label: 'LoRA',
+          available: true,
+          url: '/api/attention/Q2034923_wd0.jpg/overlay?model=dinov2_finetuned_lora&layer=0&method=cls',
+        },
+        note: 'ok',
+      }),
+    });
+  });
+
+  await page.route('**/api/metrics/q2_summary?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        metric: 'mse',
+        label: 'MSE',
+        direction: 'lower',
+        percentile_dependent: false,
+        selected_percentile: null,
+        analyzed_layer: 11,
+        timestamp: null,
+        rows: [],
+        strategy_comparisons: [],
+      }),
+    });
+  });
+}
+
+async function stubVariantCompareLandingApis(page: import('@playwright/test').Page) {
+  await page.route('**/api/images?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2', 'siglip2', 'clip'],
+        num_layers: 12,
+        num_layers_per_model: { dinov2: 12, siglip2: 12, clip: 12 },
+        methods: { dinov2: ['cls'], siglip2: ['mean'], clip: ['cls'] },
+        default_methods: { dinov2: 'cls', siglip2: 'mean', clip: 'cls' },
+      }),
+    });
+  });
+}
+
 test.describe('Compare page', () => {
   test('preserves a shared attention method when both selected models support it', async ({ page }) => {
     await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}`);
@@ -163,5 +286,37 @@ test.describe('Compare page', () => {
     await expect(rightMetrics).toContainText('Feature-level metrics');
     await expect(rightMetrics).not.toContainText('Whole-image metrics');
     await expect(rightMetrics).not.toContainText(previousRightText.trim());
+  });
+
+  test('normalizes legacy fine-tuning URLs into variant compare and disables percentile for threshold-free metrics', async ({ page }) => {
+    await stubVariantCompareApis(page);
+
+    const compareResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/compare/variants')
+        && response.url().includes('left_variant=frozen')
+        && response.url().includes('right_variant=lora')
+        && response.status() === 200
+    );
+
+    await page.goto(`/compare?image=${encodeURIComponent(IMAGE_ID)}&type=frozen&model=dinov2&strategy=lora&metric=mse&percentile=90`);
+    await compareResponse;
+
+    await expect(page).toHaveURL(/type=variants/);
+    await expect(page).toHaveURL(/left_variant=frozen/);
+    await expect(page).toHaveURL(/right_variant=lora/);
+    await expect(page.getByText(/threshold-free, so percentile stays visible/)).toBeVisible();
+    await expect(page.getByRole('combobox').nth(3)).toBeDisabled();
+  });
+
+  test('keeps the Q2-selected model available before an image is chosen', async ({ page }) => {
+    await stubVariantCompareLandingApis(page);
+
+    await page.goto('/compare?type=variants&model=siglip2&metric=emd&left_variant=frozen&right_variant=full');
+
+    const modelSelect = page.getByRole('combobox').nth(2);
+    await expect(modelSelect).toHaveValue('siglip2');
+    await expect(modelSelect.locator('option')).toContainText(['dinov2', 'siglip2', 'clip']);
+    await expect(page.getByText('Select an image above to start comparing')).toBeVisible();
   });
 });

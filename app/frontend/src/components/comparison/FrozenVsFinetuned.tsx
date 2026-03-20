@@ -1,5 +1,5 @@
 /**
- * Variant comparison slider for frozen-vs-fine-tuned and strategy-vs-strategy views.
+ * Generic variant comparison slider for frozen and fine-tuned strategies.
  */
 
 import { useMemo, useState } from 'react';
@@ -9,23 +9,38 @@ import { attentionAPI, comparisonAPI, imagesAPI, metricsAPI } from '../../api/cl
 import { useQ2Summary } from '../../hooks/useMetrics';
 import { Card, CardContent } from '../ui/Card';
 import { InteractiveBboxOverlay } from '../attention/InteractiveBboxOverlay';
+import { LayerSlider } from '../attention/LayerSlider';
 import { useModels } from '../../hooks/useAttention';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
 import { computeSimilarityStats, renderHeatmap, renderHeatmapLegend } from '../../utils/renderHeatmap';
-import type { BoundingBox, ComparisonVariant, IoUResult, Q2StrategyComparison, Q2StrategyResult } from '../../types';
+import {
+  ANALYSIS_METRIC_METADATA,
+  formatMetricValue,
+  metricImprovementTone,
+} from '../../constants/metricMetadata';
+import type {
+  AnalysisMetric,
+  BoundingBox,
+  CompareVariantId,
+  ComparisonVariant,
+  IoUResult,
+  Q2StrategyComparison,
+  Q2SummaryRow,
+} from '../../types';
 
-type ComparisonMode = 'frozen' | 'methods';
 type ViewMode = 'side-by-side' | 'slider';
 
-interface FrozenVsFinetunedProps {
+interface VariantCompareProps {
   imageId: string;
   model: string;
   layer: number;
   percentile: number;
-  strategy?: string;
-  strategyA?: string;
-  strategyB?: string;
-  mode?: ComparisonMode;
+  metric: AnalysisMetric;
+  leftVariant: CompareVariantId;
+  rightVariant: CompareVariantId;
+  isPlaying: boolean;
+  onPlayingChange: (isPlaying: boolean) => void;
+  onLayerChange: (layer: number, options?: { replace?: boolean }) => void;
   bboxes?: BoundingBox[];
   showBboxes?: boolean;
 }
@@ -63,26 +78,14 @@ function CompareCanvas({ imageSrc, imageAlt, overlaySrc, overlayAlt }: CompareCa
   );
 }
 
-function strategyLabel(strategy?: string | null) {
-  if (!strategy) return 'Fine-tuned';
-  if (strategy === 'linear_probe') return 'Linear Probe';
-  if (strategy === 'lora') return 'LoRA';
-  if (strategy === 'full') return 'Full Fine-tune';
-  return strategy;
-}
-
-function formatSigned(value: number | null | undefined, digits = 3) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return 'n/a';
+function getVariantId(variant: ComparisonVariant): CompareVariantId {
+  if (!variant.strategy) {
+    return 'frozen';
   }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
-}
-
-function formatMetric(value: number | null | undefined, digits = 3) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return 'n/a';
+  if (variant.strategy === 'linear_probe' || variant.strategy === 'lora' || variant.strategy === 'full') {
+    return variant.strategy;
   }
-  return value.toFixed(digits);
+  return 'full';
 }
 
 function findStrategyPair(
@@ -97,57 +100,99 @@ function findStrategyPair(
   );
 }
 
-function VariantMetricSummary({ metrics }: { metrics: IoUResult }) {
+function findStrategySummary(rows: Q2SummaryRow[], strategyId: string | null | undefined) {
+  if (!strategyId) {
+    return null;
+  }
+  return rows.find((row) => row.strategy_id === strategyId) ?? null;
+}
+
+function toneClassFromDelta(metric: AnalysisMetric, delta: number | null | undefined) {
+  const tone = metricImprovementTone(ANALYSIS_METRIC_METADATA[metric].direction, delta);
+  if (tone === 'positive') {
+    return 'border-green-200 bg-green-50 text-green-700';
+  }
+  if (tone === 'negative') {
+    return 'border-red-200 bg-red-50 text-red-700';
+  }
+  return 'border-gray-200 bg-gray-100 text-gray-700';
+}
+
+function getMetricResult(metrics: IoUResult, metric: AnalysisMetric): number {
+  return metrics[metric as keyof IoUResult] as number;
+}
+
+function VariantMetricSummary({
+  metrics,
+  selectedMetric,
+}: {
+  metrics: IoUResult;
+  selectedMetric: AnalysisMetric;
+}) {
+  const orderedMetrics: AnalysisMetric[] = [
+    selectedMetric,
+    ...(['iou', 'coverage', 'mse', 'kl', 'emd'] as AnalysisMetric[]).filter((metric) => metric !== selectedMetric),
+  ];
+
   return (
     <div className="space-y-1 text-sm">
-      <p className="text-gray-900">IoU: {formatMetric(metrics.iou)}</p>
-      <p className="text-gray-700">Coverage: {formatMetric(metrics.coverage)}</p>
-      <p className="text-gray-700">MSE: {formatMetric(metrics.mse, 4)}</p>
-      <p className="text-gray-700">KL: {formatMetric(metrics.kl, 4)}</p>
-      <p className="text-gray-700">EMD: {formatMetric(metrics.emd, 4)}</p>
+      {orderedMetrics.map((metric) => {
+        const isSelected = metric === selectedMetric;
+        const classes = isSelected ? 'font-medium text-gray-900' : 'text-gray-700';
+        return (
+          <p key={metric} className={classes}>
+            {ANALYSIS_METRIC_METADATA[metric].shortLabel}: {formatMetricValue(metric, getMetricResult(metrics, metric))}
+          </p>
+        );
+      })}
     </div>
   );
 }
 
 function ExperimentSummaryCard({
   title,
-  strategyId,
   summary,
+  analyzedLayer,
 }: {
   title: string;
-  strategyId?: string | null;
-  summary: Q2StrategyResult;
+  summary: Q2SummaryRow;
+  analyzedLayer: number | null;
 }) {
+  const metric = summary.metric;
+  const metricMetadata = ANALYSIS_METRIC_METADATA[metric];
+
   return (
     <Card>
       <CardContent className="space-y-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Experiment summary</p>
           <p className="text-sm font-medium text-gray-900">{title}</p>
-          {strategyId && (
-            <p className="text-xs text-gray-600">{strategyLabel(strategyId)} across 139 annotated images</p>
-          )}
+          <p className="text-xs text-gray-600">
+            {metricMetadata.optionLabel}
+            {analyzedLayer !== null ? ` · layer ${analyzedLayer}` : ''}
+            {' · '}
+            {summary.num_images} annotated images
+            {' · '}
+            {metricMetadata.direction === 'higher' ? 'higher is better' : 'lower is better'}
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-gray-500">Mean ΔIoU</p>
-            <p className="text-2xl font-semibold text-gray-900">{formatSigned(summary.mean_delta_iou)}</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Mean delta</p>
+            <p className="text-2xl font-semibold text-gray-900">{formatMetricValue(metric, summary.mean_delta, { signed: true })}</p>
             <p className="text-xs text-gray-600">
-              CI [{summary.delta_ci_lower.toFixed(3)}, {summary.delta_ci_upper.toFixed(3)}]
+              CI [{formatMetricValue(metric, summary.delta_ci_lower, { signed: true })}, {formatMetricValue(metric, summary.delta_ci_upper, { signed: true })}]
             </p>
           </div>
           <div className="space-y-1 text-sm">
             <p>
-              <span className="font-medium">Frozen IoU:</span> {formatMetric(summary.frozen_mean_iou)}
+              <span className="font-medium">Frozen:</span> {formatMetricValue(metric, summary.frozen_mean)}
             </p>
             <p>
-              <span className="font-medium">Fine-tuned IoU:</span> {formatMetric(summary.finetuned_mean_iou)}
+              <span className="font-medium">Fine-tuned:</span> {formatMetricValue(metric, summary.finetuned_mean)}
             </p>
             <p>
-              <span className="font-medium">Retention:</span> {formatMetric(summary.iou_retention_ratio)}
-            </p>
-            <p>
-              <span className="font-medium">Effect size:</span> {formatMetric(summary.cohens_d)}
+              <span className="font-medium">Effect size:</span> {summary.cohens_d.toFixed(3)}
             </p>
             <p>
               <span className="font-medium">Significance:</span>{' '}
@@ -160,7 +205,20 @@ function ExperimentSummaryCard({
   );
 }
 
-function PairwiseSummaryCard({ comparison }: { comparison: Q2StrategyComparison }) {
+function PairwiseSummaryCard({
+  comparison,
+  analyzedLayer,
+}: {
+  comparison: Q2StrategyComparison;
+  analyzedLayer: number | null;
+}) {
+  const metric = comparison.metric;
+  const metricMetadata = ANALYSIS_METRIC_METADATA[metric];
+  const improvementCopy =
+    metricMetadata.direction === 'higher'
+      ? `Positive means ${comparison.strategy_a} improves more than ${comparison.strategy_b}.`
+      : `Negative means ${comparison.strategy_a} improves more than ${comparison.strategy_b}.`;
+
   return (
     <Card>
       <CardContent className="space-y-3">
@@ -168,25 +226,24 @@ function PairwiseSummaryCard({ comparison }: { comparison: Q2StrategyComparison 
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Experiment summary</p>
           <p className="text-sm font-medium text-gray-900">Cross-strategy comparison</p>
           <p className="text-xs text-gray-600">
-            {strategyLabel(comparison.strategy_a)} vs {strategyLabel(comparison.strategy_b)}
+            {comparison.strategy_a} vs {comparison.strategy_b} · {metricMetadata.optionLabel}
+            {analyzedLayer !== null ? ` · layer ${analyzedLayer}` : ''}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-gray-500">ΔΔIoU</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Delta difference</p>
             <p className="text-2xl font-semibold text-gray-900">
-              {formatSigned(comparison.mean_delta_difference)}
+              {formatMetricValue(metric, comparison.mean_delta_difference, { signed: true })}
             </p>
-            <p className="text-xs text-gray-600">
-              Positive means {strategyLabel(comparison.strategy_a)} shifts more than {strategyLabel(comparison.strategy_b)}.
-            </p>
+            <p className="text-xs text-gray-600">{improvementCopy}</p>
           </div>
           <div className="space-y-1 text-sm">
             <p>
-              <span className="font-medium">Effect size:</span> {formatMetric(comparison.cohens_d)}
+              <span className="font-medium">Effect size:</span> {comparison.cohens_d.toFixed(3)}
             </p>
             <p>
-              <span className="font-medium">p-value:</span> {formatMetric(comparison.corrected_p_value ?? comparison.p_value, 4)}
+              <span className="font-medium">p-value:</span> {(comparison.corrected_p_value ?? comparison.p_value).toFixed(4)}
             </p>
             <p>
               <span className="font-medium">Significance:</span>{' '}
@@ -199,28 +256,32 @@ function PairwiseSummaryCard({ comparison }: { comparison: Q2StrategyComparison 
   );
 }
 
-export function FrozenVsFinetuned({
+export function VariantCompare({
   imageId,
   model,
   layer,
   percentile,
-  strategy,
-  strategyA = 'linear_probe',
-  strategyB = 'full',
-  mode = 'frozen',
+  metric,
+  leftVariant,
+  rightVariant,
+  isPlaying,
+  onPlayingChange,
+  onLayerChange,
   bboxes = [],
   showBboxes = true,
-}: FrozenVsFinetunedProps) {
+}: VariantCompareProps) {
   const [selectedBboxIndex, setSelectedBboxIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [q2SummaryExpanded, setQ2SummaryExpanded] = useState(false);
   const { data: modelsData, isLoading: modelsLoading } = useModels();
   const heatmapOpacity = useHeatmapOpacity();
   const heatmapStyle = useHeatmapStyle();
-  const maxLayer = modelsData?.num_layers_per_model?.[model];
-  const effectiveLayer = typeof maxLayer === 'number' ? Math.min(layer, maxLayer - 1) : layer;
-  const percentileKey = String(percentile);
-  const percentileCopy = `Top ${100 - percentile}% attention`;
+  const metricMetadata = ANALYSIS_METRIC_METADATA[metric];
+  const maxLayers = modelsData?.num_layers_per_model?.[model] ?? modelsData?.num_layers ?? 12;
+  const effectiveLayer = Math.min(layer, Math.max(maxLayers - 1, 0));
+  const percentileCopy = metricMetadata.thresholdFree
+    ? `${metricMetadata.optionLabel} is threshold-free`
+    : `Top ${100 - percentile}% attention`;
 
   const {
     data,
@@ -229,68 +290,37 @@ export function FrozenVsFinetuned({
   } = useQuery({
     queryKey: [
       'variant-compare',
-      mode,
       imageId,
       model,
       effectiveLayer,
-      strategy,
-      strategyA,
-      strategyB,
+      leftVariant,
+      rightVariant,
       showBboxes,
     ],
     queryFn: async (): Promise<NormalizedVariantComparison> => {
-      if (mode === 'methods') {
-        const response = await comparisonAPI.compareFinetunedVariants(
-          imageId,
-          model,
-          effectiveLayer,
-          strategyA,
-          strategyB,
-          showBboxes
-        );
-        return {
-          left: response.left,
-          right: response.right,
-          note: response.note,
-          linearProbeInvolved:
-            response.left.strategy === 'linear_probe' || response.right.strategy === 'linear_probe',
-        };
-      }
-
-      const response = await comparisonAPI.compareFrozenVsFinetuned(
+      const response = await comparisonAPI.compareVariants(
         imageId,
         model,
         effectiveLayer,
-        strategy,
+        leftVariant,
+        rightVariant,
         showBboxes
       );
       return {
-        left: {
-          model_key: model,
-          strategy: null,
-          label: 'Frozen (Pretrained)',
-          available: response.frozen.available,
-          url: response.frozen.url,
-        },
-        right: {
-          model_key: response.strategy ? `${model}_finetuned_${response.strategy}` : `${model}_finetuned`,
-          strategy: response.strategy,
-          label: response.strategy ? `Fine-tuned (${strategyLabel(response.strategy)})` : 'Fine-tuned',
-          available: response.finetuned.available,
-          url: response.finetuned.url,
-        },
-        note: response.finetuned.note,
-        linearProbeInvolved: response.strategy === 'linear_probe',
+        left: response.left,
+        right: response.right,
+        note: response.note,
+        linearProbeInvolved:
+          getVariantId(response.left) === 'linear_probe' || getVariantId(response.right) === 'linear_probe',
       };
     },
     enabled: Boolean(imageId && model && !modelsLoading),
   });
 
-  const { data: q2Summary, isLoading: q2SummaryLoading } = useQ2Summary(percentile, model);
+  const { data: q2Summary, isLoading: q2SummaryLoading } = useQ2Summary(metric, percentile, model);
 
   const leftUrl = data?.left.url ?? null;
   const rightUrl = data?.right.url ?? null;
-  const labels = Array.from(new Set(bboxes.map((bbox) => bbox.label_name || `Feature ${bbox.label}`)));
   const sliderAvailable =
     Boolean(data?.left.available) &&
     Boolean(data?.right.available) &&
@@ -433,33 +463,53 @@ export function FrozenVsFinetuned({
     !similarityLoading &&
     !similarityError;
 
-  const selectedFrozenStrategy = mode === 'frozen' ? data?.right.strategy ?? null : null;
-  const q2ModelSummary = q2Summary?.models?.[model] ?? {};
-  const q2StrategyComparisons = q2Summary?.strategy_comparisons?.[model]?.[percentileKey] ?? [];
-  const frozenSummary =
-    selectedFrozenStrategy && q2ModelSummary[selectedFrozenStrategy]
-      ? q2ModelSummary[selectedFrozenStrategy][percentileKey]
-      : null;
-  const leftStrategySummary =
-    mode === 'methods' && data?.left.strategy && q2ModelSummary[data.left.strategy]
-      ? q2ModelSummary[data.left.strategy][percentileKey]
-      : null;
-  const rightStrategySummary =
-    mode === 'methods' && data?.right.strategy && q2ModelSummary[data.right.strategy]
-      ? q2ModelSummary[data.right.strategy][percentileKey]
-      : null;
+  const q2Rows = q2Summary?.rows ?? [];
+  const q2StrategyComparisons = q2Summary?.strategy_comparisons ?? [];
+  const q2AnalyzedLayer = q2Summary?.analyzed_layer ?? null;
+  const leftSummary = findStrategySummary(q2Rows, data?.left.strategy);
+  const rightSummary = findStrategySummary(q2Rows, data?.right.strategy);
+  const leftComparedVariant = data ? getVariantId(data.left) : null;
+  const rightComparedVariant = data ? getVariantId(data.right) : null;
   const methodPairSummary =
-    mode === 'methods' && data?.left.strategy && data?.right.strategy
+    data?.left.strategy && data?.right.strategy
       ? findStrategyPair(q2StrategyComparisons, data.left.strategy, data.right.strategy)
       : null;
-  const setBboxIndex = (index: number | null) => {
-    setSelectedBboxIndex(index);
-  };
+
   const hasQ2Content =
-    (!q2SummaryLoading && mode === 'frozen' && frozenSummary) ||
-    (!q2SummaryLoading &&
-      mode === 'methods' &&
-      (leftStrategySummary || rightStrategySummary || methodPairSummary));
+    !q2SummaryLoading &&
+    Boolean(
+      (leftComparedVariant && leftComparedVariant !== 'frozen' && leftSummary) ||
+      (rightComparedVariant && rightComparedVariant !== 'frozen' && rightSummary) ||
+      methodPairSummary
+    );
+
+  const deltaValue =
+    bboxMetrics && typeof bboxMetrics.right[metric] === 'number' && typeof bboxMetrics.left[metric] === 'number'
+      ? bboxMetrics.right[metric] - bboxMetrics.left[metric]
+      : null;
+  const deltaIoU =
+    bboxMetrics && typeof bboxMetrics.right.iou === 'number' && typeof bboxMetrics.left.iou === 'number'
+      ? bboxMetrics.right.iou - bboxMetrics.left.iou
+      : null;
+  const deltaCoverage =
+    bboxMetrics &&
+    typeof bboxMetrics.right.coverage === 'number' &&
+    typeof bboxMetrics.left.coverage === 'number'
+      ? bboxMetrics.right.coverage - bboxMetrics.left.coverage
+      : null;
+  const deltaMse =
+    bboxMetrics && typeof bboxMetrics.right.mse === 'number' && typeof bboxMetrics.left.mse === 'number'
+      ? bboxMetrics.right.mse - bboxMetrics.left.mse
+      : null;
+  const deltaKl =
+    bboxMetrics && typeof bboxMetrics.right.kl === 'number' && typeof bboxMetrics.left.kl === 'number'
+      ? bboxMetrics.right.kl - bboxMetrics.left.kl
+      : null;
+  const deltaEmd =
+    bboxMetrics && typeof bboxMetrics.right.emd === 'number' && typeof bboxMetrics.left.emd === 'number'
+      ? bboxMetrics.right.emd - bboxMetrics.left.emd
+      : null;
+  const deltaTone = toneClassFromDelta(metric, deltaValue);
 
   const experimentSummary = (
     <div className="space-y-3">
@@ -477,7 +527,10 @@ export function FrozenVsFinetuned({
             className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
             aria-expanded={q2SummaryExpanded}
           >
-            <span className="text-sm font-medium text-gray-900">Experiment summary (aggregate)</span>
+            <span className="text-sm font-medium text-gray-900">
+              Experiment summary
+              {q2AnalyzedLayer !== null ? ` (aggregate at layer ${q2AnalyzedLayer})` : ' (aggregate)'}
+            </span>
             <span className="text-gray-500" aria-hidden>
               {q2SummaryExpanded ? '▼' : '▶'}
             </span>
@@ -485,32 +538,25 @@ export function FrozenVsFinetuned({
           {q2SummaryExpanded && (
             <CardContent className="border-t border-gray-200 pt-3">
               <div className="space-y-3">
-                {mode === 'frozen' && frozenSummary && (
+                {leftSummary && getVariantId(data!.left) !== 'frozen' && (
                   <ExperimentSummaryCard
-                    title="Frozen vs fine-tuned shift"
-                    strategyId={selectedFrozenStrategy}
-                    summary={frozenSummary}
+                    title={`${data?.left.label ?? 'Left variant'} vs frozen baseline`}
+                    summary={leftSummary}
+                    analyzedLayer={q2AnalyzedLayer}
                   />
                 )}
-
-                {mode === 'methods' && (leftStrategySummary || rightStrategySummary || methodPairSummary) && (
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {leftStrategySummary && (
-                      <ExperimentSummaryCard
-                        title={`${data?.left.label ?? 'Left strategy'} vs frozen baseline`}
-                        strategyId={data?.left.strategy}
-                        summary={leftStrategySummary}
-                      />
-                    )}
-                    {rightStrategySummary && (
-                      <ExperimentSummaryCard
-                        title={`${data?.right.label ?? 'Right strategy'} vs frozen baseline`}
-                        strategyId={data?.right.strategy}
-                        summary={rightStrategySummary}
-                      />
-                    )}
-                    {methodPairSummary && <PairwiseSummaryCard comparison={methodPairSummary} />}
-                  </div>
+                {rightSummary && rightComparedVariant !== 'frozen' && (
+                  <ExperimentSummaryCard
+                    title={`${data?.right.label ?? 'Right variant'} vs frozen baseline`}
+                    summary={rightSummary}
+                    analyzedLayer={q2AnalyzedLayer}
+                  />
+                )}
+                {methodPairSummary && (
+                  <PairwiseSummaryCard
+                    comparison={methodPairSummary}
+                    analyzedLayer={q2AnalyzedLayer}
+                  />
                 )}
               </div>
             </CardContent>
@@ -544,6 +590,18 @@ export function FrozenVsFinetuned({
     return (
       <div className="space-y-4">
         {experimentSummary}
+        <Card>
+          <CardContent>
+            <LayerSlider
+              currentLayer={effectiveLayer}
+              maxLayers={maxLayers}
+              onChange={(nextLayer) => onLayerChange(nextLayer, { replace: isPlaying })}
+              isPlaying={isPlaying}
+              onPlayingChange={onPlayingChange}
+              playSpeed={400}
+            />
+          </CardContent>
+        </Card>
         {leftUrl && (
           <div className="relative">
             <img
@@ -568,44 +626,21 @@ export function FrozenVsFinetuned({
     );
   }
 
-  const deltaIoU =
-    bboxMetrics && typeof bboxMetrics.right.iou === 'number' && typeof bboxMetrics.left.iou === 'number'
-      ? bboxMetrics.right.iou - bboxMetrics.left.iou
-      : null;
-  const deltaCoverage =
-    bboxMetrics &&
-    typeof bboxMetrics.right.coverage === 'number' &&
-    typeof bboxMetrics.left.coverage === 'number'
-      ? bboxMetrics.right.coverage - bboxMetrics.left.coverage
-      : null;
-  const deltaMse =
-    bboxMetrics &&
-    typeof bboxMetrics.right.mse === 'number' &&
-    typeof bboxMetrics.left.mse === 'number'
-      ? bboxMetrics.right.mse - bboxMetrics.left.mse
-      : null;
-  const deltaKl =
-    bboxMetrics &&
-    typeof bboxMetrics.right.kl === 'number' &&
-    typeof bboxMetrics.left.kl === 'number'
-      ? bboxMetrics.right.kl - bboxMetrics.left.kl
-      : null;
-  const deltaEmd =
-    bboxMetrics &&
-    typeof bboxMetrics.right.emd === 'number' &&
-    typeof bboxMetrics.left.emd === 'number'
-      ? bboxMetrics.right.emd - bboxMetrics.left.emd
-      : null;
-
-  const deltaTone =
-    deltaIoU === null ? 'border-gray-200 bg-gray-100 text-gray-700'
-    : deltaIoU > 0 ? 'border-green-200 bg-green-50 text-green-700'
-    : deltaIoU < 0 ? 'border-red-200 bg-red-50 text-red-700'
-    : 'border-gray-200 bg-gray-100 text-gray-700';
-
   return (
     <div className="space-y-4">
-      {/* View toggle: side-by-side (default) vs slider */}
+      <Card>
+        <CardContent>
+          <LayerSlider
+            currentLayer={effectiveLayer}
+            maxLayers={maxLayers}
+            onChange={(nextLayer) => onLayerChange(nextLayer, { replace: isPlaying })}
+            isPlaying={isPlaying}
+            onPlayingChange={onPlayingChange}
+            playSpeed={400}
+          />
+        </CardContent>
+      </Card>
+
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-gray-700">View:</span>
         <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
@@ -639,7 +674,6 @@ export function FrozenVsFinetuned({
       {viewMode === 'side-by-side' && (
         <>
           <div className="grid grid-cols-2 gap-4">
-            {/* Left variant */}
             <Card>
               <CardContent className="p-0">
                 <div className="border-b border-gray-200 px-3 py-2">
@@ -664,23 +698,22 @@ export function FrozenVsFinetuned({
                     <InteractiveBboxOverlay
                       bboxes={bboxes}
                       selectedIndex={selectedBboxIndex}
-                      onBboxClick={(_bbox, index) => setBboxIndex(selectedBboxIndex === index ? null : index)}
+                      onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
                     />
                   )}
                 </div>
                 <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
                   {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
-                    <VariantMetricSummary metrics={bboxMetrics.left} />
+                    <VariantMetricSummary metrics={bboxMetrics.left} selectedMetric={metric} />
                   ) : selectedBbox && bboxMetricsLoading ? (
                     <span>Loading metrics…</span>
                   ) : (
-                    <span>Click a feature to see local metrics for {percentileCopy.toLowerCase()}.</span>
+                    <span>Click a feature to see local metrics for this variant.</span>
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Right variant */}
             <Card>
               <CardContent className="p-0">
                 <div className="border-b border-gray-200 px-3 py-2">
@@ -705,17 +738,17 @@ export function FrozenVsFinetuned({
                     <InteractiveBboxOverlay
                       bboxes={bboxes}
                       selectedIndex={selectedBboxIndex}
-                      onBboxClick={(_bbox, index) => setBboxIndex(selectedBboxIndex === index ? null : index)}
+                      onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
                     />
                   )}
                 </div>
                 <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
                   {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
-                    <VariantMetricSummary metrics={bboxMetrics.right} />
+                    <VariantMetricSummary metrics={bboxMetrics.right} selectedMetric={metric} />
                   ) : selectedBbox && bboxMetricsLoading ? (
                     <span>Loading metrics…</span>
                   ) : (
-                    <span>Click a feature to see local metrics for {percentileCopy.toLowerCase()}.</span>
+                    <span>Click a feature to see local metrics for this variant.</span>
                   )}
                 </div>
               </CardContent>
@@ -742,8 +775,8 @@ export function FrozenVsFinetuned({
           </div>
           <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
             Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
-            similarity heatmaps. Local IoU uses the active threshold ({percentileCopy.toLowerCase()}), while
-            MSE/KL/EMD compare dense heatmaps directly.
+            similarity heatmaps. The selected metric is {metricMetadata.optionLabel.toLowerCase()}, and
+            {metricMetadata.direction === 'higher' ? ' higher values are better.' : ' lower values are better.'}
           </div>
           <div className="relative mx-auto w-full max-w-3xl">
             <ReactCompareSlider
@@ -775,9 +808,7 @@ export function FrozenVsFinetuned({
               <InteractiveBboxOverlay
                 bboxes={bboxes}
                 selectedIndex={selectedBboxIndex}
-                onBboxClick={(_bbox, index) => {
-                  setSelectedBboxIndex((current) => (current === index ? null : index));
-                }}
+                onBboxClick={(_bbox, index) => setSelectedBboxIndex((current) => (current === index ? null : index))}
               />
             )}
           </div>
@@ -800,13 +831,13 @@ export function FrozenVsFinetuned({
         </>
       )}
 
-      {labels.length > 0 && (
+      {featureOptions.length > 0 && (
         <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-gray-900">Feature-local metrics</p>
               <p className="text-xs text-gray-600">
-                Click a box on the image or choose a feature below to compare local alignment at {percentileCopy.toLowerCase()}.
+                Click a box on the image or choose a feature below to compare local alignment for the selected metric.
               </p>
             </div>
             {selectedBboxIndex !== null && (
@@ -827,9 +858,7 @@ export function FrozenVsFinetuned({
                 <button
                   key={`${feature.label}-${feature.index}`}
                   type="button"
-                  onClick={() => {
-                    setSelectedBboxIndex((current) => (current === feature.index ? null : feature.index));
-                  }}
+                  onClick={() => setSelectedBboxIndex((current) => (current === feature.index ? null : feature.index))}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                     selected
                       ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -850,8 +879,8 @@ export function FrozenVsFinetuned({
                 </p>
                 <p className="mt-1 text-xs text-gray-600">
                   Bounding box #{selectedBboxIndex! + 1} at layer {effectiveLayer}. The slider now uses this expert
-                  region as the similarity query. IoU and coverage use {percentileCopy.toLowerCase()}, while
-                  MSE/KL/EMD compare dense heatmaps inside the same bbox.
+                  region as the similarity query. The highlighted delta card tracks {metricMetadata.optionLabel}, while
+                  the detailed panels keep all local metrics visible for context.
                 </p>
               </div>
 
@@ -866,21 +895,20 @@ export function FrozenVsFinetuned({
                 ) : bboxMetrics ? (
                   <>
                     <p className="mt-2 text-2xl font-semibold">
-                      {deltaIoU === null ? 'n/a' : `${deltaIoU >= 0 ? '+' : ''}${deltaIoU.toFixed(3)} IoU`}
+                      {formatMetricValue(metric, deltaValue, { signed: true })} {metricMetadata.shortLabel}
                     </p>
                     <p className="mt-1 text-xs">
-                      {deltaCoverage === null
-                        ? 'Coverage delta unavailable'
-                        : `${deltaCoverage >= 0 ? '+' : ''}${deltaCoverage.toFixed(3)} coverage`}
+                      {metricMetadata.direction === 'higher'
+                        ? 'Positive means the right variant scores higher for this feature.'
+                        : 'Negative means the right variant scores lower for this feature.'}
                     </p>
-                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
-                      <p>MSE Δ: {formatSigned(deltaMse, 4)}</p>
-                      <p>KL Δ: {formatSigned(deltaKl, 4)}</p>
-                      <p>EMD Δ: {formatSigned(deltaEmd, 4)}</p>
+                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      <p>IoU Δ: {formatMetricValue('iou', deltaIoU, { signed: true })}</p>
+                      <p>Coverage Δ: {formatMetricValue('coverage', deltaCoverage, { signed: true })}</p>
+                      <p>MSE Δ: {formatMetricValue('mse', deltaMse, { signed: true })}</p>
+                      <p>KL Δ: {formatMetricValue('kl', deltaKl, { signed: true })}</p>
+                      <p>EMD Δ: {formatMetricValue('emd', deltaEmd, { signed: true })}</p>
                     </div>
-                    <p className="mt-2 text-xs">
-                      Lower is better for MSE, KL, and EMD.
-                    </p>
                   </>
                 ) : (
                   <p className="mt-2 text-sm">Select a feature to see local change.</p>
@@ -920,13 +948,13 @@ export function FrozenVsFinetuned({
               <div className="rounded-lg border border-gray-200 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{data.left.label}</p>
                 <div className="mt-2">
-                  <VariantMetricSummary metrics={bboxMetrics.left} />
+                  <VariantMetricSummary metrics={bboxMetrics.left} selectedMetric={metric} />
                 </div>
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{data.right.label}</p>
                 <div className="mt-2">
-                  <VariantMetricSummary metrics={bboxMetrics.right} />
+                  <VariantMetricSummary metrics={bboxMetrics.right} selectedMetric={metric} />
                 </div>
               </div>
             </div>
@@ -944,3 +972,5 @@ export function FrozenVsFinetuned({
     </div>
   );
 }
+
+export { VariantCompare as FrozenVsFinetuned };

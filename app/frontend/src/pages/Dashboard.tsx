@@ -326,7 +326,7 @@ export function DashboardPage() {
             </Link>
 
             <Link
-              to="/compare"
+              to={`/compare?type=models&layer=${layer}&percentile=${percentile}&metric=${metric}`}
               className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <div className="font-medium">Compare Models</div>
@@ -336,12 +336,12 @@ export function DashboardPage() {
             </Link>
 
             <Link
-              to="/q2"
+              to={`/q2?metric=${metric}&percentile=${percentile}&model=${model}&layer=${layer}`}
               className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <div className="font-medium">Q2 Analysis</div>
               <div className="text-sm text-gray-500">
-                Strategy-aware delta-IoU summary
+                Strategy-aware metric summary
               </div>
             </Link>
 

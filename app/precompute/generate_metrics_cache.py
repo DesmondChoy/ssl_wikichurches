@@ -36,6 +36,7 @@ from ssl_attention.config import (
     DATASET_PATH,
     DEFAULT_METHOD,
     FINETUNE_MODELS,
+    FINETUNE_STRATEGIES,
     MODEL_METHODS,
     MODELS,
     STYLE_MAPPING,
@@ -43,6 +44,7 @@ from ssl_attention.config import (
 )
 from ssl_attention.data import AnnotatedSubset
 from ssl_attention.data.annotations import load_annotations_with_features
+from ssl_attention.evaluation.fine_tuning import get_finetuned_cache_key
 from ssl_attention.metrics import (
     compute_image_emd,
     compute_image_iou,
@@ -190,6 +192,7 @@ def compute_metrics_for_model(
     methods: list[str] | None = None,
     skip_existing: bool = True,
     storage_model_key: str | None = None,
+    cache_model_keys: list[str] | None = None,
 ) -> dict[str, int]:
     """Compute metrics for a single model across all its attention methods.
 
@@ -202,7 +205,8 @@ def compute_metrics_for_model(
         layers: Specific layers to process. None = all.
         methods: Specific methods to process. None = all for this model.
         skip_existing: Skip if already in database.
-        storage_model_key: Model key used for cache reads and SQLite writes.
+        storage_model_key: Model key used for SQLite writes.
+        cache_model_keys: Ordered model keys to try when reading cached attention.
 
     Returns:
         Dict with statistics.
@@ -211,6 +215,7 @@ def compute_metrics_for_model(
 
     stats = {"processed": 0, "skipped": 0, "errors": 0}
     model_key = storage_model_key or base_model_name
+    cache_keys = cache_model_keys or [model_key]
 
     def _std_value(values: torch.Tensor) -> float:
         """Return a stable std-dev value even for singleton aggregates."""
@@ -250,9 +255,15 @@ def compute_metrics_for_model(
                 layer_key = f"layer{layer}"
 
                 # Load attention from cache
-                try:
-                    attention = attention_cache.load(model_key, layer_key, image_id, variant=variant)
-                except KeyError:
+                attention = None
+                for cache_key in cache_keys:
+                    try:
+                        attention = attention_cache.load(cache_key, layer_key, image_id, variant=variant)
+                        break
+                    except KeyError:
+                        continue
+
+                if attention is None:
                     stats["skipped"] += len(percentiles)
                     continue
 
@@ -482,6 +493,18 @@ def resolve_models_to_process(
     return models_to_process, invalid_models, non_finetunable_models
 
 
+def resolve_finetuned_strategies(requested_strategies: list[str]) -> tuple[list[str], list[str]]:
+    """Resolve requested fine-tuning strategies."""
+    valid_strategies = [strategy.value for strategy in FINETUNE_STRATEGIES]
+
+    if "all" in requested_strategies:
+        return valid_strategies, []
+
+    resolved = [strategy for strategy in requested_strategies if strategy in valid_strategies]
+    invalid = [strategy for strategy in requested_strategies if strategy not in valid_strategies]
+    return resolved, invalid
+
+
 def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     """Export summary statistics to JSON for fast frontend loading.
 
@@ -506,7 +529,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     models = [
         row[0]
         for row in cursor.fetchall()
-        if row[0] in DEFAULT_METHOD and not row[0].endswith(_FINETUNED_SUFFIX)
+        if row[0] in DEFAULT_METHOD and "_finetuned" not in row[0]
     ]
 
     # Build metric-specific leaderboards using each model's default method
@@ -657,7 +680,16 @@ def main() -> int:
     parser.add_argument(
         "--finetuned",
         action="store_true",
-        help="Compute metrics for fine-tuned cache keys ({model}_finetuned)",
+        help="Compute metrics for fine-tuned cache keys ({model}_finetuned_{strategy})",
+    )
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        default=["all"],
+        help=(
+            "Fine-tuning strategies to process in --finetuned mode. "
+            "Defaults to all canonical strategies."
+        ),
     )
     args = parser.parse_args()
 
@@ -696,28 +728,61 @@ def main() -> int:
 
     print(f"Percentiles: {args.percentiles}")
     print(f"Mode: {'FINE-TUNED' if args.finetuned else 'FROZEN'}")
+    resolved_strategies: list[str] = []
+    if args.finetuned:
+        resolved_strategies, invalid_strategies = resolve_finetuned_strategies(args.strategies)
+        if invalid_strategies:
+            print(f"Warning: Unknown strategies ignored: {invalid_strategies}")
+        if not resolved_strategies:
+            print("No valid fine-tuning strategies specified")
+            return 1
+        print(f"Strategies: {resolved_strategies}")
 
     # Process each model
     total_stats = {"processed": 0, "skipped": 0, "errors": 0}
 
     for model_name in models_to_process:
-        storage_model_key = f"{model_name}{_FINETUNED_SUFFIX}" if args.finetuned else model_name
-        stats = compute_metrics_for_model(
-            base_model_name=model_name,
-            dataset=dataset,
-            attention_cache=attention_cache,
-            conn=conn,
-            percentiles=args.percentiles,
-            layers=args.layers,
-            methods=args.methods,
-            skip_existing=not args.no_skip,
-            storage_model_key=storage_model_key,
-        )
+        if args.finetuned:
+            for strategy_id in resolved_strategies:
+                storage_model_key = get_finetuned_cache_key(model_name, strategy_id)
+                cache_model_keys = [storage_model_key]
+                if strategy_id == "full":
+                    cache_model_keys.append(f"{model_name}{_FINETUNED_SUFFIX}")
 
-        for key in total_stats:
-            total_stats[key] += stats[key]
+                stats = compute_metrics_for_model(
+                    base_model_name=model_name,
+                    dataset=dataset,
+                    attention_cache=attention_cache,
+                    conn=conn,
+                    percentiles=args.percentiles,
+                    layers=args.layers,
+                    methods=args.methods,
+                    skip_existing=not args.no_skip,
+                    storage_model_key=storage_model_key,
+                    cache_model_keys=cache_model_keys,
+                )
 
-        print(f"{storage_model_key} complete: {stats}")
+                for key in total_stats:
+                    total_stats[key] += stats[key]
+
+                print(f"{storage_model_key} complete: {stats}")
+        else:
+            stats = compute_metrics_for_model(
+                base_model_name=model_name,
+                dataset=dataset,
+                attention_cache=attention_cache,
+                conn=conn,
+                percentiles=args.percentiles,
+                layers=args.layers,
+                methods=args.methods,
+                skip_existing=not args.no_skip,
+                storage_model_key=model_name,
+            )
+
+            for key in total_stats:
+                total_stats[key] += stats[key]
+
+            print(f"{model_name} complete: {stats}")
 
     # Export summary JSON
     export_summary_json(conn, args.db_path.parent / "metrics_summary.json")

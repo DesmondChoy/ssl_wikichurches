@@ -438,6 +438,88 @@ class TestMetricsLeaderboardRankingModes:
 class TestFrozenVsFinetunedEndpoint:
     """frozen_vs_finetuned should return usable URLs when caches exist."""
 
+    def test_variants_endpoint_compares_frozen_and_strategy_specific_variants(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned_lora"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/variants",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "left_variant": "frozen",
+                "right_variant": "lora",
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["left"]["label"] == "Frozen (Pretrained)"
+        assert payload["left"]["available"] is True
+        assert payload["right"]["strategy"] == "lora"
+        assert payload["right"]["available"] is True
+        assert "model=dinov2_finetuned_lora" in payload["right"]["url"]
+
+    def test_variants_endpoint_falls_back_to_legacy_full_overlay_key(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/variants",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "left_variant": "frozen",
+                "right_variant": "full",
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["right"]["strategy"] == "full"
+        assert payload["right"]["available"] is True
+        assert "model=dinov2_finetuned" in payload["right"]["url"]
+
+    def test_variants_endpoint_keeps_non_finetunable_models_as_unavailable(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            return model == "resnet50" and method == "gradcam" and variant in ("overlay", "overlay_bbox")
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/variants",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "resnet50",
+                "layer": 0,
+                "left_variant": "frozen",
+                "right_variant": "full",
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["left"]["available"] is True
+        assert payload["right"]["strategy"] == "full"
+        assert payload["right"]["available"] is False
+        assert payload["right"]["url"] is None
+
     def test_returns_urls_for_frozen_and_finetuned_when_available(self, _mock_services):
         """When both overlays exist, API should expose both URLs with explicit method."""
         mock_img_cmp = _mock_services["comparison_image_service"]
@@ -614,9 +696,57 @@ class TestCompareModelsBboxMetrics:
         assert payload["finetuned"]["available"] is True
         assert "model=dinov2_finetuned_lora" in payload["finetuned"]["url"]
 
+    def test_strategy_specific_full_query_falls_back_to_legacy_overlay(self, _mock_services):
+        """Explicit full-strategy requests should keep working with legacy overlay keys."""
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2", "dinov2_finetuned"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/frozen_vs_finetuned",
+            params={"image_id": IMAGE_ID, "model": "dinov2", "layer": 0, "strategy": "full"},
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["finetuned"]["available"] is True
+        assert "model=dinov2_finetuned" in payload["finetuned"]["url"]
+
 
 class TestFinetunedVsFinetunedEndpoint:
     """finetuned_vs_finetuned should compare two explicit strategy variants."""
+
+    def test_variants_endpoint_returns_requested_strategy_pair(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2_finetuned_linear_probe", "dinov2_finetuned_full"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/variants",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "left_variant": "linear_probe",
+                "right_variant": "full",
+            },
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["left"]["strategy"] == "linear_probe"
+        assert payload["right"]["strategy"] == "full"
+        assert "model=dinov2_finetuned_linear_probe" in payload["left"]["url"]
+        assert "model=dinov2_finetuned_full" in payload["right"]["url"]
 
     def test_returns_urls_for_both_requested_strategies(self, _mock_services):
         mock_img_cmp = _mock_services["comparison_image_service"]
@@ -647,6 +777,34 @@ class TestFinetunedVsFinetunedEndpoint:
         assert payload["right"]["strategy"] == "full"
         assert "model=dinov2_finetuned_linear_probe" in payload["left"]["url"]
         assert "model=dinov2_finetuned_full" in payload["right"]["url"]
+
+    def test_full_strategy_falls_back_to_legacy_overlay_key(self, _mock_services):
+        mock_img_cmp = _mock_services["comparison_image_service"]
+
+        def _exists(model: str, _layer: str, _image_id: str, method: str, variant: str) -> bool:
+            if variant not in ("overlay", "overlay_bbox") or method != "cls":
+                return False
+            return model in {"dinov2_finetuned_linear_probe", "dinov2_finetuned"}
+
+        mock_img_cmp.heatmap_exists.side_effect = _exists
+
+        resp = client.get(
+            "/api/compare/finetuned_vs_finetuned",
+            params={
+                "image_id": IMAGE_ID,
+                "model": "dinov2",
+                "layer": 0,
+                "strategy_a": "linear_probe",
+                "strategy_b": "full",
+            },
+        )
+        assert resp.status_code == 200
+
+        payload = resp.json()
+        assert payload["left"]["available"] is True
+        assert payload["right"]["strategy"] == "full"
+        assert payload["right"]["available"] is True
+        assert "model=dinov2_finetuned" in payload["right"]["url"]
 
     def test_invalid_strategy_returns_400(self):
         resp = client.get(

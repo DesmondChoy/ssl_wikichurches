@@ -6,6 +6,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+AnalysisMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
+DashboardMetric = Literal["iou", "mse", "kl", "emd"]
+CompareVariant = Literal["frozen", "linear_probe", "lora", "full"]
+
 
 class BoundingBoxSchema(BaseModel):
     """A single bounding box annotation."""
@@ -68,7 +72,7 @@ class IoUResultSchema(BaseModel):
 class ImageMetricDescriptorSchema(BaseModel):
     """Descriptor for one image-detail metric series."""
 
-    key: str
+    key: AnalysisMetric
     label: str
     direction: Literal["higher", "lower"]
     default_enabled: bool
@@ -116,7 +120,7 @@ class LeaderboardEntry(BaseModel):
 
     rank: int
     model: str
-    metric: Literal["iou", "mse", "kl", "emd"]
+    metric: DashboardMetric
     score: float
     best_layer: str
     method_used: str
@@ -126,7 +130,7 @@ class LayerProgressionSchema(BaseModel):
     """Metric progression across layers."""
 
     model: str
-    metric: Literal["iou", "mse", "kl", "emd"]
+    metric: DashboardMetric
     percentile: int
     layers: list[str]
     scores: list[float]
@@ -176,7 +180,7 @@ class AllModelsSummarySchema(BaseModel):
     """Summary comparison across all models for a selected metric."""
 
     percentile: int
-    metric: Literal["iou", "mse", "kl", "emd"]
+    metric: DashboardMetric
     ranking_mode: Literal["default_method", "best_available"] | None = None
     method: str | None = None
     excluded_models: list[str] = Field(default_factory=list)
@@ -236,10 +240,79 @@ class RawAttentionResponse(BaseModel):
     max_value: float = Field(..., description="Maximum attention value")
 
 
-class Q2SummaryResponse(BaseModel):
-    """Strategy-aware Q2 analysis payload."""
+class ComparisonVariantSchema(BaseModel):
+    """One side of a variant comparison."""
 
-    percentiles: list[int]
+    model_key: str
+    strategy: str | None = None
+    label: str
+    available: bool
+    url: str | None = None
+
+
+class VariantComparisonSchema(BaseModel):
+    """Comparison payload for two selected model variants."""
+
+    image_id: str
+    model: str
+    layer: str
+    method: str
+    show_bboxes: bool = True
+    left: ComparisonVariantSchema
+    right: ComparisonVariantSchema
+    note: str
+
+
+class Q2SummaryRowSchema(BaseModel):
+    """One aggregate fine-tuning result row for Q2."""
+
+    model_name: str
+    strategy_id: str
+    metric: AnalysisMetric
+    label: str
+    direction: Literal["higher", "lower"]
+    percentile_dependent: bool
+    percentile: int | None = None
+    method: str
+    frozen_mean: float
+    finetuned_mean: float
+    mean_delta: float
+    std_delta: float
+    delta_ci_lower: float
+    delta_ci_upper: float
+    cohens_d: float
+    p_value: float
+    corrected_p_value: float | None = None
+    significant: bool
+    test_name: str
+    num_images: int
+
+
+class Q2StrategyComparisonSchema(BaseModel):
+    """One within-model strategy comparison row for Q2."""
+
+    model_name: str
+    metric: AnalysisMetric
+    percentile: int | None = None
+    strategy_a: str
+    strategy_b: str
+    mean_delta_difference: float
+    cohens_d: float
+    p_value: float
+    corrected_p_value: float | None = None
+    significant: bool
+    test_name: str
+
+
+class Q2SummaryResponse(BaseModel):
+    """Metric-generic Q2 analysis payload."""
+
+    metric: AnalysisMetric
+    label: str
+    direction: Literal["higher", "lower"]
+    percentile_dependent: bool
+    selected_percentile: int | None = None
+    analyzed_layer: int
     timestamp: str | None = None
-    models: dict[str, dict[str, dict[str, dict[str, float | int | str | bool | None | dict[str, float]]]]]
-    strategy_comparisons: dict[str, dict[str, list[dict[str, float | int | str | bool | None]]]]
+    rows: list[Q2SummaryRowSchema]
+    strategy_comparisons: list[Q2StrategyComparisonSchema]

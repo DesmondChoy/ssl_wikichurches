@@ -202,8 +202,14 @@ export const metricsAPI = {
     );
   },
 
-  getQ2Summary: (params?: { percentile?: number; model?: string; strategy?: string }) => {
+  getQ2Summary: (params?: {
+    metric?: import('../types').AnalysisMetric;
+    percentile?: number;
+    model?: string;
+    strategy?: string;
+  }) => {
     const query = new URLSearchParams();
+    if (params?.metric) query.set('metric', params.metric);
     if (params?.percentile !== undefined) query.set('percentile', String(params.percentile));
     if (params?.model) query.set('model', params.model);
     if (params?.strategy) query.set('strategy', params.strategy);
@@ -301,6 +307,27 @@ export const comparisonAPI = {
     });
     return fetchJSON<import('../types').VariantComparison>(
       `/compare/finetuned_vs_finetuned?${query}`
+    );
+  },
+
+  compareVariants: (
+    imageId: string,
+    model: string,
+    layer: number,
+    leftVariant: import('../types').CompareVariantId,
+    rightVariant: import('../types').CompareVariantId,
+    showBboxes = true
+  ) => {
+    const query = new URLSearchParams({
+      image_id: imageId,
+      model,
+      layer: String(layer),
+      left_variant: leftVariant,
+      right_variant: rightVariant,
+      show_bboxes: String(showBboxes),
+    });
+    return fetchJSON<import('../types').VariantComparison>(
+      `/compare/variants?${query.toString()}`
     );
   },
 

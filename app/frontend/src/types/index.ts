@@ -1,6 +1,8 @@
 // API Response Types
 
-export type DashboardMetric = 'iou' | 'mse' | 'kl' | 'emd';
+export type AnalysisMetric = 'iou' | 'coverage' | 'mse' | 'kl' | 'emd';
+export type DashboardMetric = Exclude<AnalysisMetric, 'coverage'>;
+export type CompareVariantId = 'frozen' | 'linear_probe' | 'lora' | 'full';
 
 export interface BoundingBox {
   left: number;
@@ -53,7 +55,7 @@ export interface IoUResult {
 export type MetricDirection = 'higher' | 'lower';
 
 export interface ImageMetricDescriptor {
-  key: string;
+  key: AnalysisMetric;
   label: string;
   direction: MetricDirection;
   default_enabled: boolean;
@@ -191,15 +193,19 @@ export interface LayerComparison {
   best_iou: number;
 }
 
-export interface Q2StrategyResult {
+export interface Q2SummaryRow {
   model_name: string;
   strategy_id: string;
-  percentile: number;
+  metric: AnalysisMetric;
+  label: string;
+  direction: MetricDirection;
+  percentile_dependent: boolean;
+  percentile: number | null;
   method: string;
-  frozen_mean_iou: number;
-  finetuned_mean_iou: number;
-  mean_delta_iou: number;
-  std_delta_iou: number;
+  frozen_mean: number;
+  finetuned_mean: number;
+  mean_delta: number;
+  std_delta: number;
   delta_ci_lower: number;
   delta_ci_upper: number;
   cohens_d: number;
@@ -207,14 +213,13 @@ export interface Q2StrategyResult {
   corrected_p_value: number | null;
   significant: boolean;
   test_name: string;
-  iou_retention_ratio: number | null;
   num_images: number;
-  per_image_deltas: Record<string, number>;
 }
 
 export interface Q2StrategyComparison {
   model_name: string;
-  percentile: number;
+  metric: AnalysisMetric;
+  percentile: number | null;
   strategy_a: string;
   strategy_b: string;
   mean_delta_difference: number;
@@ -226,10 +231,15 @@ export interface Q2StrategyComparison {
 }
 
 export interface Q2SummaryResponse {
-  percentiles: number[];
+  metric: AnalysisMetric;
+  label: string;
+  direction: MetricDirection;
+  percentile_dependent: boolean;
+  selected_percentile: number | null;
+  analyzed_layer: number;
   timestamp: string | null;
-  models: Record<string, Record<string, Record<string, Q2StrategyResult>>>;
-  strategy_comparisons: Record<string, Record<string, Q2StrategyComparison[]>>;
+  rows: Q2SummaryRow[];
+  strategy_comparisons: Q2StrategyComparison[];
 }
 
 // App State Types

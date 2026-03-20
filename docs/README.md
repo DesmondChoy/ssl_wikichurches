@@ -29,6 +29,7 @@ Technical implementation details and model-specific considerations.
 |----------|-------------|
 | [attention_heatmap_implementation.md](reference/attention_heatmap_implementation.md) | Heatmap implementation architecture, model appropriateness, and two-phase design |
 | [api_reference.md](reference/api_reference.md) | Complete REST API documentation for all API endpoints |
+| [fine_tuning_run_matrix.md](reference/fine_tuning_run_matrix.md) | Git-tracked fine-tuning strategy settings, per-model checkpoint results, and result storage map |
 | [metrics_methodology.md](reference/metrics_methodology.md) | IoU, Coverage, thresholding methodology, worked examples, and academic context |
 
 ### [`enhancements/`](enhancements/) — Ongoing Enhancements

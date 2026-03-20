@@ -323,10 +323,15 @@ test.describe('Dashboard metrics', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          percentiles: [90],
+          metric: 'iou',
+          label: 'IoU',
+          direction: 'higher',
+          percentile_dependent: true,
+          selected_percentile: 90,
+          analyzed_layer: 11,
           timestamp: null,
-          models: {},
-          strategy_comparisons: {},
+          rows: [],
+          strategy_comparisons: [],
         }),
       });
     });
@@ -336,7 +341,7 @@ test.describe('Dashboard metrics', () => {
 
     await page.getByRole('link', { name: 'Q2 Analysis' }).click();
 
-    await expect(page).toHaveURL(/\/q2$/);
+    await expect(page).toHaveURL(/\/q2\?/);
     await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
     await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
   });

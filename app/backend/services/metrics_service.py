@@ -6,7 +6,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from app.backend.config import (
     AVAILABLE_MODELS,
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
+AnalysisMetricName = Literal["iou", "coverage", "mse", "kl", "emd"]
 MetricName = Literal["iou", "mse", "kl", "emd"]
 RankingMode = Literal["default_method", "best_available"]
 
@@ -64,6 +65,9 @@ IMAGE_DETAIL_METRICS = (
         "percentile_dependent": False,
     },
 )
+IMAGE_DETAIL_METRICS_BY_KEY = {
+    cast(AnalysisMetricName, metric["key"]): metric for metric in IMAGE_DETAIL_METRICS
+}
 
 
 class MetricsService:
@@ -844,73 +848,73 @@ class MetricsService:
 
     def get_q2_summary(
         self,
+        metric: AnalysisMetricName = "iou",
         percentile: int | None = None,
         model: str | None = None,
         strategy: str | None = None,
     ) -> dict[str, Any] | None:
-        """Load Q2 strategy-aware delta-IoU results with optional filters."""
+        """Load metric-generic Q2 results with optional filters."""
         if not Q2_RESULTS_PATH.exists():
             return None
 
         with open(Q2_RESULTS_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
 
-        models = data.get("models", {})
-        filtered_models: dict[str, Any] = {}
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
         resolved_model = resolve_model_name(model) if model else None
+        selected_percentile = percentile if metric_config["percentile_dependent"] else None
 
-        for model_name, strategies in models.items():
-            if resolved_model and model_name != resolved_model:
-                continue
+        filtered_rows = [
+            row
+            for row in data.get("rows", [])
+            if row.get("metric") == metric
+            and (resolved_model is None or row.get("model_name") == resolved_model)
+            and (strategy is None or row.get("strategy_id") == strategy)
+            and (
+                not metric_config["percentile_dependent"]
+                or selected_percentile is None
+                or row.get("percentile") == selected_percentile
+            )
+        ]
 
-            filtered_strategies: dict[str, Any] = {}
-            for strategy_id, percentile_rows in strategies.items():
-                if strategy and strategy_id != strategy:
-                    continue
+        filtered_strategy_comparisons = [
+            row
+            for row in data.get("strategy_comparisons", [])
+            if row.get("metric") == metric
+            and (resolved_model is None or row.get("model_name") == resolved_model)
+            and (strategy is None or row.get("strategy_a") == strategy or row.get("strategy_b") == strategy)
+            and (
+                not metric_config["percentile_dependent"]
+                or selected_percentile is None
+                or row.get("percentile") == selected_percentile
+            )
+        ]
 
-                if percentile is None:
-                    filtered_strategies[strategy_id] = percentile_rows
-                    continue
-
-                key = str(percentile)
-                if key in percentile_rows:
-                    filtered_strategies[strategy_id] = {key: percentile_rows[key]}
-
-            if filtered_strategies:
-                filtered_models[model_name] = filtered_strategies
-
-        strategy_comparisons = data.get("strategy_comparisons", {})
-        filtered_strategy_comparisons: dict[str, Any] = {}
-        requested_percentile = str(percentile) if percentile is not None else None
-
-        for model_name, percentile_rows in strategy_comparisons.items():
-            if resolved_model and model_name != resolved_model:
-                continue
-
-            filtered_percentile_rows: dict[str, Any] = {}
-            for percentile_key, rows in percentile_rows.items():
-                if requested_percentile is not None and percentile_key != requested_percentile:
-                    continue
-
-                filtered_rows = rows
-                if strategy is not None:
-                    filtered_rows = [
-                        row
-                        for row in rows
-                        if row.get("strategy_a") == strategy or row.get("strategy_b") == strategy
-                    ]
-
-                if filtered_rows:
-                    filtered_percentile_rows[percentile_key] = filtered_rows
-
-            if filtered_percentile_rows:
-                filtered_strategy_comparisons[model_name] = filtered_percentile_rows
+        display_rows = [
+            {
+                **row,
+                "model_name": display_model_name(str(row.get("model_name", ""))),
+            }
+            for row in filtered_rows
+        ]
+        display_strategy_comparisons = [
+            {
+                **row,
+                "model_name": display_model_name(str(row.get("model_name", ""))),
+            }
+            for row in filtered_strategy_comparisons
+        ]
 
         return {
-            "percentiles": data.get("percentiles", []),
+            "metric": metric,
+            "label": metric_config["label"],
+            "direction": metric_config["direction"],
+            "percentile_dependent": metric_config["percentile_dependent"],
+            "selected_percentile": selected_percentile,
+            "analyzed_layer": data.get("analyzed_layer", get_model_num_layers("dinov2") - 1),
             "timestamp": data.get("timestamp"),
-            "models": filtered_models,
-            "strategy_comparisons": filtered_strategy_comparisons,
+            "rows": display_rows,
+            "strategy_comparisons": display_strategy_comparisons,
         }
 
     def get_feature_breakdown(

@@ -151,11 +151,13 @@ uv run python experiments/scripts/fine_tune_models.py --model dinov3
 
    Validation uses the 139 bbox-annotated images by default. Use `--val-on-random-split` for a random stratified split instead. Use `--include-annotated-eval` only if your dataset contains only the 139 annotated images. These runs produce strategy-aware checkpoints such as `outputs/checkpoints/dinov3_linear_probe_finetuned.pt`, `outputs/checkpoints/dinov3_lora_finetuned.pt`, and `outputs/checkpoints/dinov3_full_finetuned.pt`.
 
-2. **Run Δ IoU analysis** (output: `outputs/results/q2_delta_iou_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page):
+2. **Run Q2 metric analysis** (output: `outputs/results/q2_metrics_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page):
 
 ```bash
-uv run python experiments/scripts/analyze_delta_iou.py --models dinov3 --strategies linear_probe lora full
+uv run python experiments/scripts/analyze_q2_metrics.py --models dinov3 --strategies linear_probe lora full
 ```
+
+   The legacy wrapper `experiments/scripts/analyze_delta_iou.py` still exists for compatibility, but it now delegates to the multi-metric analyzer. The generated artifact includes IoU, coverage, Gaussian MSE, KL, and EMD summaries for the selected analysis layer.
 
 3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints). Fine-tuned artifacts are written under strategy-aware cache keys such as `{model}_finetuned_lora` and `{model}_finetuned_full`.
 
@@ -177,7 +179,13 @@ uv run python -m app.precompute.generate_heatmap_images --finetuned --models din
 uv run python -m app.precompute.generate_metrics_cache
 ```
 
-The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on `q2_delta_iou_analysis.json` plus the fine-tuned attention, feature, and heatmap caches above, not on a strategy-aware leaderboard database.
+5. **Build strategy-aware fine-tuned metrics cache** (required for fine-tuned metric queries in Compare and for downstream analysis workflows):
+
+```bash
+uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
+```
+
+The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on `q2_metrics_analysis.json` plus the fine-tuned attention, feature, heatmap, and strategy-aware metrics caches above, not on a strategy-aware leaderboard surface in the dashboard.
 
 ## Data Exploration
 

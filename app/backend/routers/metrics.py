@@ -31,15 +31,17 @@ router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 @router.get("/q2_summary", response_model=Q2SummaryResponse)
 async def get_q2_summary(
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
     percentile: Annotated[int | None, Query(ge=50, le=95)] = None,
     model: Annotated[str | None, Query()] = None,
     strategy: Annotated[str | None, Query(description="Fine-tuning strategy")] = None,
 ) -> Q2SummaryResponse:
-    """Get strategy-aware Q2 delta-IoU analysis summary."""
+    """Get a metric-generic strategy-aware Q2 analysis summary."""
     if model is not None:
         validate_model(model)
 
     data = metrics_service.get_q2_summary(
+        metric=metric,
         percentile=percentile,
         model=model,
         strategy=strategy,
@@ -49,7 +51,7 @@ async def get_q2_summary(
             status_code=503,
             detail=(
                 "Q2 summary not available. Run "
-                "experiments/scripts/analyze_delta_iou.py first."
+                "experiments/scripts/analyze_q2_metrics.py first."
             ),
         )
     return Q2SummaryResponse(**data)

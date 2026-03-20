@@ -23,7 +23,7 @@ FEATURE_CACHE_PATH = CACHE_PATH / "features.h5"
 HEATMAPS_PATH = CACHE_PATH / "heatmaps"
 METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
-Q2_RESULTS_PATH = PROJECT_ROOT / "outputs" / "results" / "q2_delta_iou_analysis.json"
+Q2_RESULTS_PATH = PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json"
 
 # Available models (must match ssl_attention.config.MODELS)
 AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"]

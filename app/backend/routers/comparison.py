@@ -10,10 +10,12 @@ from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_m
 from app.backend.schemas import (
     AllModelsSummaryModelEntry,
     AllModelsSummarySchema,
+    ComparisonVariantSchema,
     ImageMetricSelectionSchema,
     IoUResultSchema,
     LeaderboardEntry,
     ModelComparisonSchema,
+    VariantComparisonSchema,
 )
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
@@ -29,6 +31,7 @@ from app.backend.validators import (
 )
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
+CompareVariant = Literal["frozen", "linear_probe", "lora", "full"]
 
 
 def _build_overlay_url(
@@ -48,6 +51,118 @@ def _strategy_variant_key(model: str, strategy: str | None) -> str:
     return f"{model}_finetuned_{strategy}" if strategy else f"{model}_finetuned"
 
 
+def _finetuned_variant_candidates(base_model: str, strategy: str | None) -> list[tuple[str | None, str]]:
+    """Return ordered model-key candidates for a fine-tuned strategy.
+
+    The canonical strategy-aware cache keys are preferred, with legacy
+    `{model}_finetuned` kept as a `full` fallback so older artifacts continue
+    to work during the transition.
+    """
+    if strategy is None:
+        return [(None, f"{base_model}_finetuned")]
+
+    candidates: list[tuple[str | None, str]] = [(strategy, _strategy_variant_key(base_model, strategy))]
+    if strategy == "full":
+        candidates.append((strategy, f"{base_model}_finetuned"))
+    return candidates
+
+
+def _resolve_overlay_candidate(
+    *,
+    candidates: list[tuple[str | None, str]],
+    image_id: str,
+    layer_key: str,
+    layer: int,
+    method: str,
+    show_bboxes: bool,
+) -> tuple[str, str | None, bool, str | None]:
+    """Resolve the first available overlay candidate, falling back gracefully."""
+    overlay_variant = "overlay_bbox" if show_bboxes else "overlay"
+    fallback_model_key = candidates[0][1]
+    fallback_strategy = candidates[0][0]
+
+    for candidate_strategy, candidate_model in candidates:
+        try:
+            resolved_model = validate_model(candidate_model)
+        except HTTPException:
+            continue
+
+        if candidate_model == fallback_model_key:
+            fallback_model_key = resolved_model
+
+        available = image_service.heatmap_exists(
+            resolved_model,
+            layer_key,
+            image_id,
+            method=method,
+            variant=overlay_variant,
+        )
+        if available:
+            return (
+                resolved_model,
+                candidate_strategy,
+                True,
+                _build_overlay_url(image_id, resolved_model, layer, method, show_bboxes),
+            )
+
+    return fallback_model_key, fallback_strategy, False, None
+
+
+def _variant_label(variant: CompareVariant) -> str:
+    if variant == "frozen":
+        return "Frozen (Pretrained)"
+    if variant == "linear_probe":
+        return "Linear Probe"
+    if variant == "lora":
+        return "LoRA"
+    return "Full Fine-tune"
+
+
+def _resolve_variant(
+    *,
+    base_model: str,
+    image_id: str,
+    layer_key: str,
+    layer: int,
+    method: str,
+    show_bboxes: bool,
+    variant: CompareVariant,
+) -> ComparisonVariantSchema:
+    overlay_variant = "overlay_bbox" if show_bboxes else "overlay"
+
+    if variant == "frozen":
+        available = image_service.heatmap_exists(
+            base_model,
+            layer_key,
+            image_id,
+            method=method,
+            variant=overlay_variant,
+        )
+        return ComparisonVariantSchema(
+            model_key=base_model,
+            strategy=None,
+            label=_variant_label(variant),
+            available=available,
+            url=_build_overlay_url(image_id, base_model, layer, method, show_bboxes) if available else None,
+        )
+
+    model_key, resolved_strategy, available, url = _resolve_overlay_candidate(
+        candidates=_finetuned_variant_candidates(base_model, variant),
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=method,
+        show_bboxes=show_bboxes,
+    )
+    return ComparisonVariantSchema(
+        model_key=model_key,
+        strategy=resolved_strategy,
+        label=_variant_label(variant),
+        available=available,
+        url=url,
+    )
+
+
 def _resolve_finetuned_variant(
     *,
     base_model: str,
@@ -59,53 +174,42 @@ def _resolve_finetuned_variant(
     strategy: str | None,
     auto_select: bool,
 ) -> tuple[str, str | None, bool, str | None]:
-    overlay_variant = "overlay_bbox" if show_bboxes else "overlay"
-
     if strategy:
-        model_key = validate_model(_strategy_variant_key(base_model, strategy))
-        available = image_service.heatmap_exists(
-            model_key,
-            layer_key,
-            image_id,
+        validate_model(_strategy_variant_key(base_model, strategy))
+        return _resolve_overlay_candidate(
+            candidates=_finetuned_variant_candidates(base_model, strategy),
+            image_id=image_id,
+            layer_key=layer_key,
+            layer=layer,
             method=method,
-            variant=overlay_variant,
+            show_bboxes=show_bboxes,
         )
-        url = _build_overlay_url(image_id, model_key, layer, method, show_bboxes) if available else None
-        return model_key, strategy, available, url
 
     if not auto_select:
-        model_key = validate_model(f"{base_model}_finetuned")
-        available = image_service.heatmap_exists(
-            model_key,
-            layer_key,
-            image_id,
+        return _resolve_overlay_candidate(
+            candidates=_finetuned_variant_candidates(base_model, None),
+            image_id=image_id,
+            layer_key=layer_key,
+            layer=layer,
             method=method,
-            variant=overlay_variant,
+            show_bboxes=show_bboxes,
         )
-        url = _build_overlay_url(image_id, model_key, layer, method, show_bboxes) if available else None
-        return model_key, None, available, url
 
-    auto_candidates = [
-        ("lora", f"{base_model}_finetuned_lora"),
-        ("full", f"{base_model}_finetuned_full"),
-        ("linear_probe", f"{base_model}_finetuned_linear_probe"),
-        (None, f"{base_model}_finetuned"),
-    ]
-    for candidate_strategy, candidate_model in auto_candidates:
-        if image_service.heatmap_exists(
-            candidate_model,
-            layer_key,
-            image_id,
-            method=method,
-            variant=overlay_variant,
-        ):
-            return (
-                candidate_model,
-                candidate_strategy,
-                True,
-                _build_overlay_url(image_id, candidate_model, layer, method, show_bboxes),
-            )
-
+    auto_candidates = (
+        _finetuned_variant_candidates(base_model, "lora")
+        + _finetuned_variant_candidates(base_model, "full")
+        + _finetuned_variant_candidates(base_model, "linear_probe")
+    )
+    model_key, resolved_strategy, available, url = _resolve_overlay_candidate(
+        candidates=auto_candidates,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=method,
+        show_bboxes=show_bboxes,
+    )
+    if available:
+        return model_key, resolved_strategy, available, url
     return f"{base_model}_finetuned", None, False, None
 
 
@@ -216,6 +320,60 @@ async def compare_models(
         results=results,
         heatmap_urls=heatmap_urls,
         unavailable_models=unavailable_models,
+    )
+
+
+@router.get("/variants", response_model=VariantComparisonSchema)
+async def compare_variants(
+    image_id: str,
+    model: Annotated[str, Query()] = "dinov2",
+    layer: Annotated[int, Query(ge=0)] = 0,
+    left_variant: Annotated[CompareVariant, Query(description="Left comparison variant")] = "frozen",
+    right_variant: Annotated[CompareVariant, Query(description="Right comparison variant")] = "full",
+    show_bboxes: Annotated[bool, Query(description="Render overlays with annotation boxes/labels")] = True,
+) -> VariantComparisonSchema:
+    """Compare any two supported frozen/fine-tuned variants for the same base model."""
+    resolved_model = validate_model(model)
+    base_model, _, _ = split_model_variant(resolved_model)
+    layer_key = validate_layer_for_model(layer, base_model)
+
+    if not image_service.get_annotation(image_id):
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
+
+    method = resolve_default_method(base_model)
+    left = _resolve_variant(
+        base_model=base_model,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=method,
+        show_bboxes=show_bboxes,
+        variant=left_variant,
+    )
+    right = _resolve_variant(
+        base_model=base_model,
+        image_id=image_id,
+        layer_key=layer_key,
+        layer=layer,
+        method=method,
+        show_bboxes=show_bboxes,
+        variant=right_variant,
+    )
+
+    note = (
+        "One or both overlays are unavailable for this model/layer/image. "
+        "Generate fine-tuned attention + heatmap caches for the selected variants first."
+    )
+
+    return VariantComparisonSchema(
+        image_id=image_id,
+        model=base_model,
+        layer=layer_key,
+        method=method,
+        show_bboxes=show_bboxes,
+        left=left,
+        right=right,
+        note=note,
     )
 
 
