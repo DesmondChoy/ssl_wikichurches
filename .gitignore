@@ -24,8 +24,9 @@ htmlcov/
 # Dataset files
 dataset/
 
-# Runtime outputs
-outputs/
+# Runtime outputs (large binary artifacts only)
+outputs/cache/
+outputs/checkpoints/
 
 # Experiment outputs (but allow scripts and configs)
 experiments/outputs/

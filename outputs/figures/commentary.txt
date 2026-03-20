@@ -1,0 +1,25 @@
+# Run Matrix Figure Commentary
+
+## 01 Validation Accuracy
+Best: DINOv3 LoRA (91.2%). Worst: MAE Linear Probe (60.0%). MAE consistently lags; DINOv3 LoRA leads. Full fine-tuning does not always beat LoRA on classification accuracy.
+
+## 02 Delta Heatmap Grid
+All deltas normalized to improvement direction: positive (blue) = better, negative (red) = worse. For MSE/KL/EMD the sign is flipped so blue still means the metric decreased (improved). Linear probe near-zero confirms frozen backbones don't shift attention. SigLIP shows the most significant improvements.
+
+## 03 Diverging Bars
+Bars sorted by delta (largest improvement at top). Colors represent models, making it easy to spot which models consistently rank high or low. Linear probe omitted (all near zero). SigLIP entries cluster near the top across most metrics.
+
+## 04 IoU Percentile Slopes
+Slopes reveal how fine-tuning affects top-k attention alignment at different thresholds. Steeper slopes at high percentiles indicate that fine-tuning particularly shifts the most-attended regions. Flat slopes near zero confirm linear probe has no effect (omitted).
+
+## 05 Radar Profiles
+Radar charts show each model's metric profile normalized globally. Outward = better for all axes (lower-is-better metrics are inverted). Frozen baseline in gray; fine-tuned strategies overlaid. Models where the colored polygon expands beyond gray show genuine improvement.
+
+## 06 Accuracy vs Attention
+Each panel shows one model's trajectory from Linear Probe (square) through LoRA (diamond) to Full (circle). Shared axes enable cross-model comparison. Points above the dashed y=0 line improved attention alignment. Models like CLIP/SigLIP show clear upward trajectories; DINOv2/DINOv3 stay flat.
+
+## 07 Best-Epoch Distribution
+Modal best epoch: Linear Probe -> 1, LoRA -> 3, Full -> 2. Full fine-tuning converges early (epochs 1-2), while LoRA and linear probe are more spread across epochs, suggesting different optimization dynamics.
+
+## 08 Frozen vs Fine-Tuned
+Cleveland dot plot: gray circles = frozen baseline, colored shapes = fine-tuned. Horizontal span shows the range of change. For higher-is-better metrics, rightward dots = improvement. For lower-is-better, leftward = improvement. Much clearer than grouped bars for comparing absolute performance levels.
