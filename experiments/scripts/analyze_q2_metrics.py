@@ -463,7 +463,7 @@ def apply_holm_correction(
     percentile: int | None,
     alpha: float = 0.05,
 ) -> None:
-    """Apply Holm correction across all model/strategy rows for one metric bucket."""
+    """Apply Holm correction across non-linear-probe rows for one metric bucket."""
     keys: list[tuple[str, str]] = []
     p_values: list[float] = []
 
@@ -471,6 +471,10 @@ def apply_holm_correction(
         for strategy_id, metric_results in strategy_results.items():
             row = metric_results.get(metric, {}).get(percentile)
             if row is None:
+                continue
+            # Linear probe is a frozen-backbone control, so its zero-delta rows
+            # should remain visible in the output without diluting the Holm pool.
+            if strategy_id == "linear_probe":
                 continue
             keys.append((model_name, strategy_id))
             p_values.append(row.p_value)
