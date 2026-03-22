@@ -83,7 +83,8 @@ def _add_label(img: Image.Image, label: str, position: str = "bottom") -> Image.
 # ---------------------------------------------------------------------------
 def generate_slide1_title():
     print("Generating Slide 1: Title hero image...")
-    img = _load_cached_image("dinov3", "layer11", "cls", "overlay_bbox", HERO_IMAGE)
+    # Use overlay WITHOUT bboxes for a cleaner hero visual
+    img = _load_cached_image("dinov3", "layer11", "cls", "overlay", HERO_IMAGE)
     img.save(OUT / "slide01_title_hero.png")
     print(f"  -> {OUT / 'slide01_title_hero.png'}")
 
@@ -93,19 +94,34 @@ def generate_slide1_title():
 # ---------------------------------------------------------------------------
 def generate_slide2_motivation():
     print("Generating Slide 2: Good vs bad attention comparison...")
-    good = _load_cached_image("dinov3", "layer11", "cls", "overlay_bbox", HERO_IMAGE)
-    bad = _load_cached_image("mae", "layer4", "cls", "overlay_bbox", HERO_IMAGE)
+    # Use pure heatmaps (no image underneath, no bboxes) for maximum contrast.
+    # DINOv3 at layer 11 shows focused attention; MAE at layer 4 shows diffuse.
+    good_heatmap = _load_cached_image("dinov3", "layer11", "cls", "heatmap", HERO_IMAGE)
+    bad_heatmap = _load_cached_image("mae", "layer4", "cls", "heatmap", HERO_IMAGE)
+    # Also get the overlays (image + heatmap, no bboxes) for context
+    good_overlay = _load_cached_image("dinov3", "layer11", "cls", "overlay", HERO_IMAGE)
+    bad_overlay = _load_cached_image("mae", "layer4", "cls", "overlay", HERO_IMAGE)
 
-    good_labelled = _add_label(good, "DINOv3 (Self-Distillation) — IoU: 0.133")
-    bad_labelled = _add_label(bad, "MAE (Reconstruction) — IoU: 0.037")
+    # Create a 2x2 grid: top row = overlays (context), bottom row = pure heatmaps (contrast)
+    # But actually, just the overlays without bboxes already show the difference well
+    good_labelled = _add_label(good_overlay, "DINOv3 — Focused on portal & tracery")
+    bad_labelled = _add_label(bad_overlay, "MAE — Diffuse, unfocused attention")
 
-    # Side by side with padding
-    padding = 16
-    w = good_labelled.width + bad_labelled.width + padding
-    h = max(good_labelled.height, bad_labelled.height)
+    # Also add the original image for reference
+    original_path = ORIGINALS_CLEAN / f"{HERO_IMAGE}.png"
+    original = Image.open(original_path).convert("RGBA")
+    original_labelled = _add_label(original, "Original Image")
+
+    # Three-panel: original | DINOv3 | MAE
+    padding = 12
+    panels = [original_labelled, good_labelled, bad_labelled]
+    w = sum(p.width for p in panels) + padding * (len(panels) - 1)
+    h = max(p.height for p in panels)
     canvas = Image.new("RGBA", (w, h), (248, 249, 250, 255))
-    canvas.paste(good_labelled, (0, 0))
-    canvas.paste(bad_labelled, (good_labelled.width + padding, 0))
+    x = 0
+    for panel in panels:
+        canvas.paste(panel, (x, 0))
+        x += panel.width + padding
 
     canvas.save(OUT / "slide02_good_vs_bad.png")
     print(f"  -> {OUT / 'slide02_good_vs_bad.png'}")
@@ -159,44 +175,8 @@ def generate_slide4_dataset():
 # Slide 6: Methodology pipeline (4 panels)
 # ---------------------------------------------------------------------------
 def generate_slide6_pipeline():
-    print("Generating Slide 6: Pipeline strip...")
-    img_id = HERO_IMAGE
-
-    panels = [
-        (ORIGINALS_CLEAN / f"{img_id}.png", "1. Original Image"),
-        (CACHE / "dinov3" / "layer11" / "cls" / "heatmap" / f"{img_id}.png", "2. Attention Heatmap"),
-        (ORIGINALS_BBOX / f"{img_id}.png", "3. Expert Annotations"),
-        (CACHE / "dinov3" / "layer11" / "cls" / "overlay_bbox" / f"{img_id}.png", "4. Compute IoU"),
-    ]
-
-    images = []
-    for path, label in panels:
-        if not path.exists():
-            print(f"  WARNING: {path} not found")
-            continue
-        img = Image.open(path).convert("RGBA")
-        img = _add_label(img, label, position="bottom")
-        images.append(img)
-
-    if not images:
-        return
-
-    # Resize to uniform height
-    target_h = max(img.height for img in images)
-    gap = 8
-
-    # Add arrow indicators between panels
-    total_w = sum(img.width for img in images) + gap * (len(images) - 1)
-    canvas = Image.new("RGBA", (total_w, target_h), (248, 249, 250, 255))
-
-    x = 0
-    for img in images:
-        y = (target_h - img.height) // 2
-        canvas.paste(img, (x, y))
-        x += img.width + gap
-
-    canvas.save(OUT / "slide06_pipeline.png")
-    print(f"  -> {OUT / 'slide06_pipeline.png'}")
+    """Slide 6 pipeline images are now captured via Playwright screenshots."""
+    print("Slide 6: Pipeline images will be captured via Playwright (skipping Python generation)")
 
 
 # ---------------------------------------------------------------------------

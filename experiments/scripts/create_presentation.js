@@ -1,5 +1,5 @@
 /**
- * Generate 13-slide mid-project progress presentation for SSL WikiChurches.
+ * Generate 14-slide mid-project progress presentation for SSL WikiChurches.
  *
  * Uses PptxGenJS to create the deck from scratch.
  * Images are pre-generated in outputs/slides/.
@@ -55,9 +55,9 @@ const C = {
 };
 
 const FONT = {
-  TITLE: "Georgia",
-  BODY: "Calibri",
-  MONO: "Consolas",
+  TITLE: "Avenir Next",
+  BODY: "Avenir Next",
+  MONO: "Menlo",
 };
 
 // ---------------------------------------------------------------------------
@@ -206,11 +206,11 @@ function slide3_rqs(pres) {
     const y = 1.2 + i * 1.35;
 
     // Card background
-    slide.addShape("roundedRectangle", {
+    slide.addShape("roundRect", {
       x: 0.5, y: y, w: 9.0, h: 1.2,
       fill: { color: C.WHITE },
       rectRadius: 0.08,
-      shadow: { type: "outer", blur: 4, offset: 2, angle: 135, color: "CCCCCC", opacity: 0.3 },
+      line: { color: C.LIGHT_GRAY, width: 0.5 },
     });
 
     // Status indicator bar (left edge)
@@ -244,7 +244,7 @@ function slide3_rqs(pres) {
     });
 
     // Status badge
-    slide.addShape("roundedRectangle", {
+    slide.addShape("roundRect", {
       x: 8.2, y: y + 0.35, w: 1.1, h: 0.4,
       fill: { color: c.statusColor },
       rectRadius: 0.05,
@@ -258,14 +258,106 @@ function slide3_rqs(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 4: Dataset
+// SLIDE 4: Professor Feedback (NEW)
 // ---------------------------------------------------------------------------
-function slide4_dataset(pres) {
+function slide4_feedback(pres) {
+  const slide = pres.addSlide();
+  slide.background = { color: C.LIGHT_BG };
+  addSectionTitle(slide, "Professor\u2019s Feedback", "Four suggestions that shaped our methodology");
+  addAccentBar(slide);
+  addSlideNumber(slide, 4);
+
+  const items = [
+    {
+      num: "1", title: "Continuous Metrics",
+      quote: "Apply Gaussian filtering to bounding boxes and compare with MSE, like crowd density estimation",
+      status: "Implemented", statusColor: C.SUCCESS,
+      detail: "MSE, KL Divergence, EMD added alongside IoU",
+    },
+    {
+      num: "2", title: "Fine-Tuning Impact",
+      quote: "Study whether SFT preserves, enhances, or destroys attention consistency",
+      status: "Implemented", statusColor: C.SUCCESS,
+      detail: "Preserve / Enhance / Destroy taxonomy applied to 6 models \u00d7 3 strategies",
+    },
+    {
+      num: "3", title: "Cross-Layer Aggregation",
+      quote: "Aggregate attention from different layers (e.g. max pooling) to construct a new map",
+      status: "Planned", statusColor: C.WARM_GRAY,
+      detail: "Max pooling, depth-weighted mean, ALTI",
+    },
+    {
+      num: "4", title: "Unimodal vs Multimodal Leaderboard",
+      quote: "Compare unimodal models (DINO) and VLM vision encoders (CLIP, SigLIP)",
+      status: "Partial", statusColor: C.TEAL,
+      detail: "Paradigm grouping applied in analysis; formal dashboard split planned",
+    },
+  ];
+
+  items.forEach((item, i) => {
+    const y = 1.15 + i * 1.05;
+
+    // Card background
+    slide.addShape("roundRect", {
+      x: 0.5, y: y, w: 9.0, h: 0.9,
+      fill: { color: C.WHITE },
+      rectRadius: 0.06,
+      line: { color: C.LIGHT_GRAY, width: 0.5 },
+    });
+
+    // Left accent bar
+    slide.addShape("rect", {
+      x: 0.5, y: y, w: 0.06, h: 0.9,
+      fill: { color: item.statusColor },
+    });
+
+    // Number
+    slide.addText(item.num, {
+      x: 0.7, y: y + 0.1, w: 0.4, h: 0.35,
+      fontSize: 20, fontFace: FONT.TITLE, color: C.STEEL, bold: true, margin: 0,
+    });
+
+    // Title
+    slide.addText(item.title, {
+      x: 1.15, y: y + 0.08, w: 3.0, h: 0.3,
+      fontSize: 14, fontFace: FONT.BODY, color: C.BODY, bold: true, margin: 0,
+    });
+
+    // Quote (professor's words)
+    slide.addText("\u201C" + item.quote + "\u201D", {
+      x: 1.15, y: y + 0.38, w: 5.8, h: 0.25,
+      fontSize: 10, fontFace: FONT.BODY, color: C.MUTED, italic: true, margin: 0,
+    });
+
+    // Detail
+    slide.addText(item.detail, {
+      x: 1.15, y: y + 0.62, w: 5.8, h: 0.2,
+      fontSize: 10, fontFace: FONT.BODY, color: C.BODY, margin: 0,
+    });
+
+    // Status badge
+    slide.addShape("roundRect", {
+      x: 8.2, y: y + 0.25, w: 1.1, h: 0.35,
+      fill: { color: item.statusColor },
+      rectRadius: 0.05,
+    });
+    slide.addText(item.status, {
+      x: 8.2, y: y + 0.25, w: 1.1, h: 0.35,
+      fontSize: 10, fontFace: FONT.BODY, color: C.WHITE, bold: true,
+      align: "center", valign: "middle", margin: 0,
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SLIDE 5: Dataset (was 4)
+// ---------------------------------------------------------------------------
+function slide5_dataset(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
   addSectionTitle(slide, "WikiChurches Dataset", "Barz & Denzler, NeurIPS 2021");
   addAccentBar(slide);
-  addSlideNumber(slide, 4);
+  addSlideNumber(slide, 5);
 
   // Left: stats
   const statsRows = [
@@ -330,14 +422,14 @@ function slide4_dataset(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 5: Models
+// SLIDE 6: Models (was 5)
 // ---------------------------------------------------------------------------
-function slide5_models(pres) {
+function slide6_models(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
   addSectionTitle(slide, "7 Models, 4 SSL Paradigms + 1 Supervised Baseline", "All ViT-B architecture (12 layers, 768 dim, 12 heads, ~86M params) except ResNet-50");
   addAccentBar(slide);
-  addSlideNumber(slide, 5);
+  addSlideNumber(slide, 6);
 
   const headerOpts = { bold: true, color: C.WHITE, fill: { color: C.STEEL }, fontSize: 11, align: "center" };
   const rows = [
@@ -379,20 +471,26 @@ function makeModelRow(name, paradigm, patch, method, feature, accentColor, altBg
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 6: Methodology
+// SLIDE 7: Methodology (was 6) — framed around feedback point 1
 // ---------------------------------------------------------------------------
-function slide6_methodology(pres) {
+function slide7_methodology(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
-  addSectionTitle(slide, "Measuring Attention-Expert Alignment", "From attention map to alignment score");
+  addSectionTitle(slide, "Measuring Attention-Expert Alignment", "Addressing Feedback #1: continuous metrics beyond IoU");
   addAccentBar(slide);
-  addSlideNumber(slide, 6);
+  addSlideNumber(slide, 7);
 
-  // Pipeline image
+  // App screenshot showing the full pipeline in context
   slide.addImage({
     path: imgPath("slide06_pipeline.png"),
     x: 0.3, y: 1.2, w: 9.4, h: 2.2,
     sizing: { type: "contain", w: 9.4, h: 2.2 },
+  });
+
+  // Caption explaining what the screenshot shows
+  slide.addText("Image Detail view: attention overlay (left), expert annotations (bboxes), layer-wise metrics (right)", {
+    x: 0.3, y: 3.35, w: 9.4, h: 0.2,
+    fontSize: 9, fontFace: FONT.BODY, color: C.MUTED, align: "center", italic: true,
   });
 
   // Metrics table below
@@ -425,11 +523,11 @@ function slide6_methodology(pres) {
   });
 
   // Statistical rigor box
-  slide.addShape("roundedRectangle", {
+  slide.addShape("roundRect", {
     x: 6.3, y: 3.85, w: 3.3, h: 1.6,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
-    shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
   });
   slide.addText([
     { text: "Statistical Rigor", options: { fontSize: 13, bold: true, color: C.STEEL, breakLine: true } },
@@ -446,27 +544,39 @@ function slide6_methodology(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 7: Q1 Results
+// SLIDE 8: Q1 Results (was 7) — with paradigm grouping per feedback point 4
 // ---------------------------------------------------------------------------
-function slide7_q1(pres) {
+function slide8_q1(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
-  addSectionTitle(slide, "Q1: Frozen Model Leaderboard", "Which SSL paradigm best aligns with expert perception?");
+  addSectionTitle(slide, "Q1: Frozen Model Leaderboard", "Addressing Feedback #4: unimodal vs multimodal comparison");
   addAccentBar(slide);
-  addSlideNumber(slide, 7);
+  addSlideNumber(slide, 8);
 
-  // Leaderboard bar chart (native PptxGenJS)
+  // Leaderboard bar chart — 3 series for paradigm grouping
   slide.addChart(pres.charts.BAR, [
     {
-      name: "IoU @ 90th %ile",
-      labels: ["DINOv3", "ResNet50", "DINOv2", "CLIP", "SigLIP", "SigLIP2", "MAE"],
-      values: [0.133, 0.090, 0.082, 0.049, 0.047, 0.047, 0.037],
+      name: "Unimodal SSL",
+      labels: ["MAE", "SigLIP2", "SigLIP", "CLIP", "DINOv2", "ResNet50", "DINOv3"],
+      values: [0.037, 0, 0, 0, 0.082, 0, 0.133],
+    },
+    {
+      name: "Multimodal VLM",
+      labels: ["MAE", "SigLIP2", "SigLIP", "CLIP", "DINOv2", "ResNet50", "DINOv3"],
+      values: [0, 0.047, 0.047, 0.049, 0, 0, 0],
+    },
+    {
+      name: "Supervised",
+      labels: ["MAE", "SigLIP2", "SigLIP", "CLIP", "DINOv2", "ResNet50", "DINOv3"],
+      values: [0, 0, 0, 0, 0, 0.090, 0],
     },
   ], {
     x: 0.4, y: 1.3, w: 4.5, h: 3.5,
-    showTitle: true, title: "Frozen IoU @ 90th Percentile",
-    titleFontSize: 12, titleColor: C.BODY,
-    chartColors: [C.STEEL],
+    barDir: "bar",
+    barGrouping: "stacked",
+    showTitle: true, title: "Frozen IoU @ 90th Percentile (Best Layer)",
+    titleFontSize: 11, titleColor: C.BODY,
+    chartColors: [C.STEEL, C.TERRA, C.WARM_GRAY],
     catAxisLabelColor: C.BODY, catAxisLabelFontSize: 10,
     valAxisLabelColor: C.MUTED, valAxisLabelFontSize: 9,
     valGridLine: { color: C.LIGHT_GRAY, size: 0.5 },
@@ -474,26 +584,27 @@ function slide7_q1(pres) {
     showValue: true, dataLabelPosition: "outEnd", dataLabelFontSize: 9,
     dataLabelColor: C.BODY,
     valAxisMaxVal: 0.16,
+    showLegend: true, legendPos: "b", legendFontSize: 9,
   });
 
-  // Key findings
-  slide.addShape("roundedRectangle", {
+  // Key findings — reframed with paradigm comparison
+  slide.addShape("roundRect", {
     x: 5.2, y: 1.3, w: 4.4, h: 3.5,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
-    shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
   });
   slide.addText([
-    { text: "Key Findings", options: { fontSize: 15, bold: true, color: C.STEEL, breakLine: true } },
+    { text: "Paradigm Ranking", options: { fontSize: 15, bold: true, color: C.STEEL, breakLine: true } },
     { text: "", options: { fontSize: 6, breakLine: true } },
-    { text: "Self-distillation dominates", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
-    { text: "DINOv3 achieves 1.6\u00d7 the IoU of its nearest SSL competitor (DINOv2)", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
-    { text: "Supervised ResNet-50 ranks #2", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
-    { text: "ImageNet labels provide strong localization even without transformer attention", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
-    { text: "CLIP peaks at layer 0", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
-    { text: "Language-image alignment pushes semantic attention to early layers", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
-    { text: "MAE lowest alignment", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
-    { text: "Pixel reconstruction \u2260 object localization; attention is diffuse", options: { fontSize: 11, color: C.MUTED, breakLine: true } },
+    { text: "Unimodal self-distillation leads", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
+    { text: "DINOv3 (0.133) achieves 1.6\u00d7 the IoU of DINOv2 (0.082). Self-distillation learns part-level segmentation.", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
+    { text: "Supervised > Multimodal", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
+    { text: "ResNet-50 (0.090) outperforms all VLMs. Language alignment doesn\u2019t help localisation.", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
+    { text: "VLMs cluster together", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
+    { text: "CLIP/SigLIP/SigLIP2 all \u2248 0.047\u20130.049. Contrastive objective produces similar attention patterns.", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
+    { text: "Reconstruction is worst", options: { fontSize: 13, bold: true, color: C.BODY, breakLine: true } },
+    { text: "MAE (0.037) \u2014 pixel reconstruction \u2260 object localisation.", options: { fontSize: 11, color: C.MUTED, breakLine: true } },
   ], {
     x: 5.4, y: 1.4, w: 4.0, h: 3.3,
     valign: "top", margin: 0,
@@ -501,14 +612,14 @@ function slide7_q1(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 8: Q2 Setup
+// SLIDE 9: Q2 Setup (was 8) — with Preserve/Enhance/Destroy taxonomy
 // ---------------------------------------------------------------------------
-function slide8_q2setup(pres) {
+function slide9_q2setup(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
-  addSectionTitle(slide, "Q2: Fine-Tuning Experiment Design", "Does task-specific training shift attention toward expert features?");
+  addSectionTitle(slide, "Q2: Fine-Tuning Experiment Design", "Addressing Feedback #2: does SFT preserve, enhance, or destroy consistency?");
   addAccentBar(slide);
-  addSlideNumber(slide, 8);
+  addSlideNumber(slide, 9);
 
   // Three strategy cards
   const strategies = [
@@ -520,11 +631,11 @@ function slide8_q2setup(pres) {
   strategies.forEach((s, i) => {
     const x = 0.5 + i * 3.1;
 
-    slide.addShape("roundedRectangle", {
+    slide.addShape("roundRect", {
       x: x, y: 1.3, w: 2.9, h: 2.3,
       fill: { color: C.WHITE },
       rectRadius: 0.06,
-      shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
+      line: { color: C.LIGHT_GRAY, width: 0.5 },
     });
 
     // Top accent
@@ -540,7 +651,7 @@ function slide8_q2setup(pres) {
 
     slide.addText(s.params + " params", {
       x: x + 0.15, y: 1.8, w: 2.6, h: 0.25,
-      fontSize: 20, fontFace: FONT.MONO, color: C.BODY, bold: true, margin: 0,
+      fontSize: 20, fontFace: FONT.BODY, color: C.BODY, bold: true, margin: 0,
     });
 
     slide.addText(s.desc, {
@@ -555,7 +666,7 @@ function slide8_q2setup(pres) {
   });
 
   // Training config box
-  slide.addShape("roundedRectangle", {
+  slide.addShape("roundRect", {
     x: 0.5, y: 3.85, w: 9.0, h: 1.3,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
@@ -573,66 +684,86 @@ function slide8_q2setup(pres) {
     valign: "top", margin: 0,
   });
 
-  slide.addText("Measurement:  \u0394 IoU = IoU(fine-tuned) \u2212 IoU(frozen), per image, paired Wilcoxon signed-rank tests with Holm correction", {
-    x: 0.7, y: 4.5, w: 8.6, h: 0.4,
-    fontSize: 12, fontFace: FONT.BODY, color: C.BODY, margin: 0,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// SLIDE 9: Q2 Results
-// ---------------------------------------------------------------------------
-function slide9_q2results(pres) {
-  const slide = pres.addSlide();
-  slide.background = { color: C.LIGHT_BG };
-  addSectionTitle(slide, "Q2: Fine-Tuning Shifts Attention", "But only for models with room to improve");
-  addAccentBar(slide);
-  addSlideNumber(slide, 9);
-
-  // Embed the diverging bars figure
-  slide.addImage({
-    path: figPath("03_all_metrics_diverging_bars.png"),
-    x: 0.2, y: 1.2, w: 5.5, h: 4.0,
-    sizing: { type: "contain", w: 5.5, h: 4.0 },
-  });
-
-  // Key takeaways on right
-  slide.addShape("roundedRectangle", {
-    x: 5.9, y: 1.2, w: 3.8, h: 4.0,
-    fill: { color: C.WHITE },
-    rectRadius: 0.06,
-    shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
-  });
-
   slide.addText([
-    { text: "Key Takeaways", options: { fontSize: 15, bold: true, color: C.STEEL, breakLine: true } },
-    { text: "", options: { fontSize: 5, breakLine: true } },
-    { text: "1. Contrastive models improve most", options: { fontSize: 12, bold: true, color: C.BODY, breakLine: true } },
-    { text: "CLIP LoRA: \u0394 IoU +0.063 (d=1.33)", options: { fontSize: 11, color: C.SUCCESS, breakLine: true } },
-    { text: "SigLIP Full: \u0394 IoU +0.036 (d=0.78)", options: { fontSize: 11, color: C.SUCCESS, breakLine: true, paraSpaceAfter: 6 } },
-    { text: "2. DINO: ceiling effect", options: { fontSize: 12, bold: true, color: C.BODY, breakLine: true } },
-    { text: "Already well-aligned \u2192 \u0394 \u2248 0", options: { fontSize: 11, color: C.MUTED, breakLine: true } },
-    { text: "Full FT risks regression (DINOv2: -0.003)", options: { fontSize: 11, color: C.FAIL, breakLine: true, paraSpaceAfter: 6 } },
-    { text: "3. LoRA \u2265 Full for attention shift", options: { fontSize: 12, bold: true, color: C.BODY, breakLine: true } },
-    { text: "CLIP LoRA (+0.063) > Full (+0.041)", options: { fontSize: 11, color: C.BODY, breakLine: true } },
-    { text: "285\u00d7 fewer parameters, no forgetting", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
-    { text: "Best validation accuracies:", options: { fontSize: 11, bold: true, color: C.BODY, breakLine: true } },
-    { text: "DINOv3 LoRA: 91.2% \u2022 CLIP Full: 89.6%\nSigLIP Full: 88.0% \u2022 MAE Full: 75.2%", options: { fontSize: 10, color: C.MUTED, breakLine: true } },
+    { text: "Measurement:  ", options: { fontSize: 12, bold: true, color: C.STEEL } },
+    { text: "\u0394 IoU = IoU(fine-tuned) \u2212 IoU(frozen), per image, paired Wilcoxon tests with Holm correction", options: { fontSize: 11 } },
   ], {
-    x: 6.1, y: 1.3, w: 3.4, h: 3.8,
+    x: 0.7, y: 4.45, w: 8.6, h: 0.3,
+    valign: "top", margin: 0,
+  });
+
+  // Taxonomy definition (professor's framework)
+  slide.addText([
+    { text: "Taxonomy:  ", options: { fontSize: 12, bold: true, color: C.STEEL } },
+    { text: "Enhance", options: { fontSize: 11, bold: true, color: C.SUCCESS } },
+    { text: " (\u0394 > 0, significant)  |  ", options: { fontSize: 11 } },
+    { text: "Preserve", options: { fontSize: 11, bold: true, color: C.WARM_GRAY } },
+    { text: " (\u0394 \u2248 0, not significant)  |  ", options: { fontSize: 11 } },
+    { text: "Destroy", options: { fontSize: 11, bold: true, color: C.FAIL } },
+    { text: " (\u0394 < 0, significant)", options: { fontSize: 11 } },
+  ], {
+    x: 0.7, y: 4.75, w: 8.6, h: 0.3,
     valign: "top", margin: 0,
   });
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 10: App Demo
+// SLIDE 10: Q2 Results (was 9) — with Preserve/Enhance/Destroy taxonomy
 // ---------------------------------------------------------------------------
-function slide10_demo(pres) {
+function slide10_q2results(pres) {
+  const slide = pres.addSlide();
+  slide.background = { color: C.LIGHT_BG };
+  addSectionTitle(slide, "Q2: Preserve, Enhance, or Destroy?", "Applying the professor\u2019s taxonomy to fine-tuning results");
+  addAccentBar(slide);
+  addSlideNumber(slide, 10);
+
+  // Embed the diverging bars figure
+  slide.addImage({
+    path: figPath("03_all_metrics_diverging_bars.png"),
+    x: 0.2, y: 1.2, w: 5.3, h: 3.8,
+    sizing: { type: "contain", w: 5.3, h: 3.8 },
+  });
+
+  // Taxonomy results on right
+  slide.addShape("roundRect", {
+    x: 5.7, y: 1.2, w: 4.0, h: 4.0,
+    fill: { color: C.WHITE },
+    rectRadius: 0.06,
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
+  });
+
+  slide.addText([
+    { text: "Enhance", options: { fontSize: 16, bold: true, color: C.SUCCESS, breakLine: true } },
+    { text: "Contrastive models (CLIP, SigLIP)", options: { fontSize: 11, color: C.BODY, breakLine: true } },
+    { text: "CLIP LoRA: \u0394 +0.063 (d=1.33)", options: { fontSize: 10, color: C.SUCCESS, breakLine: true } },
+    { text: "SigLIP/2 Full: \u0394 +0.036 (d=0.78\u20130.94)", options: { fontSize: 10, color: C.SUCCESS, breakLine: true } },
+    { text: "All 6 comparisons statistically significant", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
+    { text: "Preserve", options: { fontSize: 16, bold: true, color: C.WARM_GRAY, breakLine: true } },
+    { text: "Self-distillation & reconstruction", options: { fontSize: 11, color: C.BODY, breakLine: true } },
+    { text: "DINOv3: \u0394 +0.003\u20130.009 (not significant)", options: { fontSize: 10, color: C.MUTED, breakLine: true } },
+    { text: "MAE: \u0394 \u2248 0 across all strategies", options: { fontSize: 10, color: C.MUTED, breakLine: true } },
+    { text: "Already aligned (DINO) or unreachable (MAE)", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
+    { text: "Destroy", options: { fontSize: 16, bold: true, color: C.FAIL, breakLine: true } },
+    { text: "No model conclusively destroys", options: { fontSize: 11, color: C.BODY, breakLine: true } },
+    { text: "DINOv2 Full: \u0394 \u22120.003 (not significant)", options: { fontSize: 10, color: C.FAIL, breakLine: true } },
+    { text: "Directionally concerning but not catastrophic", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
+    { text: "LoRA \u2265 Full across all models", options: { fontSize: 11, bold: true, color: C.STEEL, breakLine: true } },
+    { text: "285\u00d7 fewer params, no forgetting risk", options: { fontSize: 10, color: C.MUTED, breakLine: true } },
+  ], {
+    x: 5.9, y: 1.3, w: 3.6, h: 3.8,
+    valign: "top", margin: 0,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// SLIDE 11: App Demo (was 10)
+// ---------------------------------------------------------------------------
+function slide11_demo(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
   addSectionTitle(slide, "Interactive Visualization Platform", "Precompute \u2192 HDF5/SQLite/PNG cache \u2192 FastAPI (25 endpoints) \u2192 React + Vite");
   addAccentBar(slide);
-  addSlideNumber(slide, 10);
+  addSlideNumber(slide, 11);
 
   // 2x2 screenshot grid
   const screenshots = [
@@ -663,14 +794,14 @@ function slide10_demo(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 11: Engineering
+// SLIDE 12: Engineering (was 11)
 // ---------------------------------------------------------------------------
-function slide11_engineering(pres) {
+function slide12_engineering(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
   addSectionTitle(slide, "Engineering Highlights", "Built for reproducibility and scale");
   addAccentBar(slide);
-  addSlideNumber(slide, 11);
+  addSlideNumber(slide, 12);
 
   // Architecture flow (shapes)
   const flowBoxes = [
@@ -681,7 +812,7 @@ function slide11_engineering(pres) {
   ];
 
   flowBoxes.forEach((b) => {
-    slide.addShape("roundedRectangle", {
+    slide.addShape("roundRect", {
       x: b.x, y: 1.35, w: 1.7, h: 0.9,
       fill: { color: b.color },
       rectRadius: 0.06,
@@ -693,18 +824,19 @@ function slide11_engineering(pres) {
     });
   });
 
-  // Arrows
-  [2.05, 4.5, 7.0].forEach((ax) => {
-    slide.addText("\u25B6", {
-      x: ax, y: 1.55, w: 0.3, h: 0.5,
-      fontSize: 16, color: C.MUTED, align: "center", valign: "middle",
+  // Arrows between flow boxes
+  [2.05, 4.55, 7.05].forEach((ax) => {
+    slide.addText("\u2192", {
+      x: ax, y: 1.5, w: 0.25, h: 0.6,
+      fontSize: 24, fontFace: FONT.BODY, color: C.MUTED,
+      align: "center", valign: "middle",
     });
   });
 
   // Output formats under precompute
   slide.addText("HDF5  \u2022  SQLite  \u2022  PNG", {
     x: 2.3, y: 2.3, w: 2.2, h: 0.25,
-    fontSize: 9, fontFace: FONT.MONO, color: C.MUTED, align: "center",
+    fontSize: 9, fontFace: FONT.BODY, color: C.MUTED, align: "center",
   });
 
   // Stats
@@ -731,11 +863,11 @@ function slide11_engineering(pres) {
   });
 
   // Quality box
-  slide.addShape("roundedRectangle", {
+  slide.addShape("roundRect", {
     x: 6.5, y: 2.75, w: 3.1, h: 2.35,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
-    shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
   });
   slide.addText([
     { text: "Quality Gates", options: { fontSize: 13, bold: true, color: C.STEEL, breakLine: true } },
@@ -754,91 +886,103 @@ function slide11_engineering(pres) {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 12: Roadmap
+// SLIDE 13: Roadmap (was 12) — with professor feedback points 3 & 4
 // ---------------------------------------------------------------------------
-function slide12_roadmap(pres) {
+function slide13_roadmap(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.LIGHT_BG };
-  addSectionTitle(slide, "Remaining Work & Roadmap");
+  addSectionTitle(slide, "Remaining Work & Roadmap", "Addressing remaining professor feedback");
   addAccentBar(slide);
-  addSlideNumber(slide, 12);
+  addSlideNumber(slide, 13);
 
-  // Timeline
-  const phases = [
-    { label: "Q1\nFrozen Alignment", x: 0.5, w: 2.8, color: C.SUCCESS, status: "Complete" },
-    { label: "Q2\nFine-Tuning Effects", x: 3.5, w: 2.8, color: C.SUCCESS, status: "Complete" },
-    { label: "Q3\nPer-Head Analysis", x: 6.5, w: 3.0, color: C.TEAL, status: "Next" },
+  // Feedback status summary bar
+  const fbItems = [
+    { label: "#1 Metrics", color: C.SUCCESS },
+    { label: "#2 SFT Impact", color: C.SUCCESS },
+    { label: "#3 Aggregation", color: C.TEAL },
+    { label: "#4 Leaderboard", color: C.TEAL },
   ];
-
-  // Timeline line
-  slide.addShape("rect", {
-    x: 0.5, y: 2.0, w: 9.0, h: 0.04,
-    fill: { color: C.LIGHT_GRAY },
-  });
-
-  phases.forEach((p) => {
-    slide.addShape("roundedRectangle", {
-      x: p.x, y: 1.4, w: p.w, h: 0.5,
-      fill: { color: p.color },
+  fbItems.forEach((fb, i) => {
+    const x = 0.5 + i * 2.3;
+    slide.addShape("roundRect", {
+      x: x, y: 1.2, w: 2.1, h: 0.4,
+      fill: { color: fb.color },
       rectRadius: 0.05,
     });
-    slide.addText(p.label, {
-      x: p.x, y: 1.4, w: p.w, h: 0.5,
-      fontSize: 12, fontFace: FONT.BODY, color: C.WHITE, bold: true,
+    slide.addText(fb.label, {
+      x: x, y: 1.2, w: 2.1, h: 0.4,
+      fontSize: 11, fontFace: FONT.BODY, color: C.WHITE, bold: true,
       align: "center", valign: "middle", margin: 0,
-    });
-    slide.addText(p.status, {
-      x: p.x, y: 2.05, w: p.w, h: 0.25,
-      fontSize: 10, fontFace: FONT.BODY, color: C.MUTED, align: "center",
     });
   });
 
-  // Q3 details
-  slide.addShape("roundedRectangle", {
-    x: 0.5, y: 2.6, w: 5.5, h: 2.5,
+  // Left: Feedback Point 3 — Cross-Layer Aggregation
+  slide.addShape("roundRect", {
+    x: 0.5, y: 1.9, w: 4.3, h: 3.2,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
-    shadow: { type: "outer", blur: 3, offset: 1, angle: 135, color: "CCCCCC", opacity: 0.3 },
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
   });
   slide.addText([
-    { text: "Q3: Per-Head Attention Specialization", options: { fontSize: 14, bold: true, color: C.STEEL, breakLine: true } },
-    { text: "(Primary remaining work)", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 8 } },
-    { text: "\u2022 Compute IoU for each of 12 attention heads individually", options: { fontSize: 12, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 Build head \u00d7 feature-type matrix", options: { fontSize: 12, breakLine: true, paraSpaceAfter: 2 } },
-    { text: "   Do specific heads specialize for windows, arches, buttresses?", options: { fontSize: 11, color: C.MUTED, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 Rank heads by alignment consistency across images", options: { fontSize: 12, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 Academic grounding: Voita et al. (2019), Caron et al. (2021)", options: { fontSize: 11, color: C.MUTED, breakLine: true } },
+    { text: "Feedback #3: Cross-Layer Aggregation", options: { fontSize: 13, bold: true, color: C.STEEL, breakLine: true } },
+    { text: "", options: { fontSize: 4, breakLine: true } },
+    { text: "\u2022 Max pooling across 12 layers", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "   Pixel-wise max \u2192 comprehensive saliency map", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 4 } },
+    { text: "\u2022 Depth-weighted mean pooling", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "   Exponential decay weighting deeper (semantic) layers", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 4 } },
+    { text: "\u2022 ALTI (Aggregation of Layer-wise Token Interactions)", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "   State-of-the-art recursive aggregation (Ferrando et al., 2022)", options: { fontSize: 10, color: C.MUTED, breakLine: true, paraSpaceAfter: 6 } },
+    { text: "Q3: Per-Head Specialization", options: { fontSize: 13, bold: true, color: C.STEEL, breakLine: true } },
+    { text: "", options: { fontSize: 3, breakLine: true } },
+    { text: "\u2022 Per-head IoU \u00d7 feature-type matrix", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Head ranking by alignment consistency", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Voita et al. (2019), Caron et al. (2021)", options: { fontSize: 10, color: C.MUTED, breakLine: true } },
   ], {
-    x: 0.7, y: 2.7, w: 5.1, h: 2.3,
+    x: 0.7, y: 2.0, w: 3.9, h: 3.0,
+    valign: "top", margin: 0,
+  });
+
+  // Right: Feedback Point 4 + Open Items
+  slide.addShape("roundRect", {
+    x: 5.1, y: 1.9, w: 4.5, h: 1.8,
+    fill: { color: C.WHITE },
+    rectRadius: 0.06,
+    line: { color: C.LIGHT_GRAY, width: 0.5 },
+  });
+  slide.addText([
+    { text: "Feedback #4: Paradigm-Split Leaderboard", options: { fontSize: 13, bold: true, color: C.STEEL, breakLine: true } },
+    { text: "", options: { fontSize: 4, breakLine: true } },
+    { text: "\u2022 Formal unimodal vs multimodal grouping in dashboard", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Sub-group averages for IoU, MSE, Coverage", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Potentially add SAM (Segment Anything) encoder", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Text-prompted evaluation for VLMs (CLIP, SigLIP)", options: { fontSize: 11, breakLine: true } },
+  ], {
+    x: 5.3, y: 2.0, w: 4.1, h: 1.6,
     valign: "top", margin: 0,
   });
 
   // Open items
-  slide.addShape("roundedRectangle", {
-    x: 6.3, y: 2.6, w: 3.3, h: 2.5,
+  slide.addShape("roundRect", {
+    x: 5.1, y: 3.9, w: 4.5, h: 1.2,
     fill: { color: C.WHITE },
     rectRadius: 0.06,
   });
   slide.addText([
-    { text: "Open Items", options: { fontSize: 14, bold: true, color: C.STEEL, breakLine: true } },
-    { text: "", options: { fontSize: 5, breakLine: true } },
-    { text: "\u2022 Attention shift diff-map viz", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 Fine-tuning test coverage", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 Dashboard chart axis scaling", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 8 } },
-    { text: "Stretch Goals", options: { fontSize: 13, bold: true, color: C.TERRA, breakLine: true } },
+    { text: "Other Open Items", options: { fontSize: 12, bold: true, color: C.MUTED, breakLine: true } },
     { text: "", options: { fontSize: 3, breakLine: true } },
-    { text: "\u2022 Attention-supervised fine-tuning", options: { fontSize: 11, breakLine: true, paraSpaceAfter: 4 } },
-    { text: "\u2022 COIN / core-tuning methods", options: { fontSize: 11, breakLine: true } },
+    { text: "\u2022 Attention shift diff-map visualization", options: { fontSize: 10, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Fine-tuning training loop test coverage", options: { fontSize: 10, breakLine: true, paraSpaceAfter: 3 } },
+    { text: "\u2022 Feature-specific forgetting analysis (per architectural element)", options: { fontSize: 10, breakLine: true } },
   ], {
-    x: 6.5, y: 2.7, w: 2.9, h: 2.3,
+    x: 5.3, y: 4.0, w: 4.1, h: 1.0,
     valign: "top", margin: 0,
   });
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 13: Summary
+// SLIDE 14: Summary (was 13) — framed around professor feedback
 // ---------------------------------------------------------------------------
-function slide13_summary(pres) {
+function slide14_summary(pres) {
   const slide = pres.addSlide();
   slide.background = { color: C.CHARCOAL };
 
@@ -848,23 +992,19 @@ function slide13_summary(pres) {
     fontSize: 28, fontFace: FONT.TITLE, color: C.WHITE, bold: true,
   });
 
-  // Takeaway bullets
+  // Takeaway bullets — framed around professor feedback
   slide.addText([
-    { text: "Q1 \u2014 Frozen Alignment", options: { fontSize: 14, bold: true, color: C.TEAL, breakLine: true } },
-    { text: "Self-distillation (DINO) produces the most expert-aligned attention. DINOv3 leads at IoU = 0.133, 1.6\u00d7 its nearest SSL rival.", options: { fontSize: 12, color: C.WHITE, breakLine: true, paraSpaceAfter: 12 } },
-    { text: "Q2 \u2014 Fine-Tuning Effects", options: { fontSize: 14, bold: true, color: C.TEAL, breakLine: true } },
-    { text: "LoRA is the best strategy: equal or greater attention shift than full fine-tuning with 285\u00d7 fewer parameters and no catastrophic forgetting.", options: { fontSize: 12, color: C.WHITE, breakLine: true, paraSpaceAfter: 12 } },
-    { text: "The Bigger Picture", options: { fontSize: 14, bold: true, color: C.TERRA, breakLine: true } },
-    { text: "High classification accuracy \u2260 expert-aligned attention. This framework generalises to any domain with expert annotations.", options: { fontSize: 12, color: C.WHITE, breakLine: true } },
+    { text: "Feedback #1 \u2014 Continuous Metrics", options: { fontSize: 13, bold: true, color: C.TEAL, breakLine: true } },
+    { text: "5 complementary metrics implemented (IoU + Coverage + MSE + KL + EMD). Threshold-free metrics reveal patterns IoU alone misses.", options: { fontSize: 11, color: C.WHITE, breakLine: true, paraSpaceAfter: 10 } },
+    { text: "Feedback #2 \u2014 Preserve / Enhance / Destroy", options: { fontSize: 13, bold: true, color: C.TEAL, breakLine: true } },
+    { text: "Contrastive models Enhance; self-distillation Preserves; no model Destroys. LoRA is the safest strategy with 285\u00d7 fewer parameters.", options: { fontSize: 11, color: C.WHITE, breakLine: true, paraSpaceAfter: 10 } },
+    { text: "Feedback #4 \u2014 Unimodal vs Multimodal", options: { fontSize: 13, bold: true, color: C.TEAL, breakLine: true } },
+    { text: "Unimodal self-distillation > supervised > multimodal. Language alignment does not improve localisation of architectural features.", options: { fontSize: 11, color: C.WHITE, breakLine: true, paraSpaceAfter: 10 } },
+    { text: "Next Steps", options: { fontSize: 13, bold: true, color: C.TERRA, breakLine: true } },
+    { text: "Feedback #3 (cross-layer aggregation) + Q3 (per-head specialisation) + feedback #4 (formal dashboard split, SAM).", options: { fontSize: 11, color: C.WHITE, breakLine: true } },
   ], {
-    x: 0.6, y: 1.2, w: 4.5, h: 3.3,
+    x: 0.6, y: 1.1, w: 4.5, h: 3.8,
     valign: "top", margin: 0,
-  });
-
-  // Next step
-  slide.addText("Next: Q3 per-head specialization analysis \u2192 final presentation", {
-    x: 0.6, y: 4.7, w: 4.5, h: 0.4,
-    fontSize: 12, fontFace: FONT.BODY, color: C.WARM_GRAY, italic: true,
   });
 
   // Scatter plot on right
@@ -907,35 +1047,38 @@ async function main() {
   slide3_rqs(pres);
   console.log("  Slide 3: Research Questions");
 
-  slide4_dataset(pres);
-  console.log("  Slide 4: Dataset");
+  slide4_feedback(pres);
+  console.log("  Slide 4: Professor Feedback (NEW)");
 
-  slide5_models(pres);
-  console.log("  Slide 5: Models");
+  slide5_dataset(pres);
+  console.log("  Slide 5: Dataset");
 
-  slide6_methodology(pres);
-  console.log("  Slide 6: Methodology");
+  slide6_models(pres);
+  console.log("  Slide 6: Models");
 
-  slide7_q1(pres);
-  console.log("  Slide 7: Q1 Results");
+  slide7_methodology(pres);
+  console.log("  Slide 7: Methodology");
 
-  slide8_q2setup(pres);
-  console.log("  Slide 8: Q2 Setup");
+  slide8_q1(pres);
+  console.log("  Slide 8: Q1 Results");
 
-  slide9_q2results(pres);
-  console.log("  Slide 9: Q2 Results");
+  slide9_q2setup(pres);
+  console.log("  Slide 9: Q2 Setup");
 
-  slide10_demo(pres);
-  console.log("  Slide 10: App Demo");
+  slide10_q2results(pres);
+  console.log("  Slide 10: Q2 Results");
 
-  slide11_engineering(pres);
-  console.log("  Slide 11: Engineering");
+  slide11_demo(pres);
+  console.log("  Slide 11: App Demo");
 
-  slide12_roadmap(pres);
-  console.log("  Slide 12: Roadmap");
+  slide12_engineering(pres);
+  console.log("  Slide 12: Engineering");
 
-  slide13_summary(pres);
-  console.log("  Slide 13: Summary");
+  slide13_roadmap(pres);
+  console.log("  Slide 13: Roadmap");
+
+  slide14_summary(pres);
+  console.log("  Slide 14: Summary");
 
   await pres.writeFile({ fileName: OUT_FILE });
   console.log(`\nDone! Presentation saved to: ${OUT_FILE}`);
