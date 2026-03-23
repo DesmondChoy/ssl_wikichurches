@@ -85,14 +85,14 @@ Future extension (Q3) would apply Voita et al.'s (ACL 2019) head specialization 
 | Intelligent sensing technique | SSL visual feature learning (6 ViT models + CNN baseline) |
 | Image analytics | Attention extraction, feature attribution, localization evaluation |
 | Dataset handling | Public dataset with preprocessing, augmentation, data cleaning |
-| Experimental comparison | Ablation across 7 models, 4 attention methods, 5 metrics (IoU + Coverage + MSE + KL + EMD), 3 fine-tuning strategies |
+| Experimental comparison | Ablation across 7 models, 4 attention methods, 6 metrics (IoU + Coverage + MSE + KL + EMD + Pointing Game), 3 fine-tuning strategies |
 | System deliverable | Reproducible experimental pipeline with precomputed metrics and interactive analysis tool |
 
 ## FAQ
 
 **What metrics are used and why?**
 
-**Threshold-dependent:** IoU (Intersection over Union) is the standard localization metric used in prior attention-interpretability work (Chefer et al., CVPR 2021). It measures spatial overlap between thresholded attention maps and expert bounding boxes. We sweep 7 percentiles (50--95%) and report best-layer IoU per model at the default 90th percentile.
+**Threshold-dependent:** IoU (Intersection over Union) is the standard localization metric used in prior attention-interpretability work (Chefer et al., CVPR 2021). It measures spatial overlap between thresholded attention maps and expert bounding boxes. We sweep 5 percentiles (50th--90th) and report best-layer IoU per model at the default 90th percentile.
 
 **Threshold-free:** Coverage measures what fraction of total attention *energy* falls inside annotated regions. MSE compares the normalized attention map against a Gaussian soft-union ground truth derived from expert bounding boxes. KL divergence (KL(GT‖attention)) measures distributional mismatch, heavily penalizing attention in non-expert regions. EMD (Earth Mover's Distance / Wasserstein-1) measures the minimum spatial transport cost between distributions, accounting for *distance* --- a model attending slightly beside a feature is penalized less than one attending to an entirely different region. Together, these five metrics distinguish "looking at the right place" (IoU) from "how attention mass is distributed" (Coverage, MSE, KL, EMD). For detailed definitions, thresholding methodology, worked examples, and known limitations, see the [Metrics Methodology Reference](../reference/metrics_methodology.md).
 
