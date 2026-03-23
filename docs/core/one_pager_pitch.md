@@ -8,43 +8,45 @@ ISY5004 Intelligent Sensing Systems Practice Project | Team Size: 3
 
 ## Problem
 
-Self-supervised learning (SSL) models like DINOv2, MAE, and CLIP learn powerful visual representations without labels. But a critical question remains unanswered: **do these models attend to the same visual features that domain experts consider diagnostic?** A model that classifies Gothic churches by attending to flying buttresses is qualitatively different from one that exploits background correlations --- yet existing benchmarks measure only classification accuracy, not *where* models look.
+Self-supervised learning (SSL) models like DINOv2, DINOv3, MAE, CLIP, and SigLIP learn powerful visual representations without labels. But a critical question remains unanswered: **do these models attend to the same visual features that domain experts consider diagnostic?** A model that classifies Gothic churches by attending to flying buttresses is qualitatively different from one that exploits background correlations --- yet existing benchmarks measure only classification accuracy, not *where* models look.
 
-This project fills that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated architectural features, using the WikiChurches dataset (Barz & Denzler, NeurIPS 2021).
+This project fills that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated architectural features, using the WikiChurches dataset (Barz & Denzler, NeurIPS 2021). See the [Project Proposal](project_proposal.md) for the full research design.
 
 ## Research Questions
 
 | # | Question | Method |
 |---|----------|--------|
-| **Q1** | Do SSL models attend to expert-identified diagnostic features? | IoU between thresholded attention maps and 631 expert bounding boxes across 6 models and 12 layers |
-| **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Compare delta-IoU (fine-tuned minus frozen) across Linear Probe vs LoRA vs Full fine-tuning with paired statistical tests |
-| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head IoU against expert bounding boxes; rank-based analysis to identify heads consistently aligned with specific feature types |
+| **Q1** | Do SSL models attend to expert-identified diagnostic features? | IoU, MSE, KL divergence, and EMD between attention maps and 631 expert bounding boxes across 7 models and 12 layers |
+| **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Compare delta-IoU (fine-tuned minus frozen) across Linear Probe vs LoRA vs Full fine-tuning; classify outcomes as Preserve, Enhance, or Destroy using paired Wilcoxon tests with Holm correction |
+| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head IoU against expert bounding boxes; rank-based analysis to identify heads consistently aligned with specific feature types *(planned --- see Roadmap)* |
 
 ## Approach
 
 **Dataset:** WikiChurches --- 9,485 church images (official release), 631 expert bounding boxes across 139 annotated churches in 4 architectural styles (Gothic, Romanesque, Renaissance, Baroque).
 
-**Models compared** (all ViT-B for controlled comparison):
+**Models compared** (all ViT-B for controlled comparison, except ResNet-50):
 
 | Model | Paradigm | Key Property |
 |-------|----------|------------|
 | DINOv2 | Self-distillation | Emergent object segmentation |
 | DINOv3 | Self-distillation + Gram anchoring | Improved dense features |
 | MAE | Masked autoencoding | Pixel-level reconstruction |
-| CLIP | Contrastive (language-image, softmax) | Semantic alignment |
-| SigLIP 2 (`siglip2`) | Contrastive (language-image, sigmoid) | Dense feature quality |
+| CLIP | Contrastive VLM (softmax) | Language-image semantic alignment |
+| SigLIP | Contrastive VLM (sigmoid) | No CLS token; sigmoid loss |
+| SigLIP 2 (`siglip2`) | Contrastive VLM (sigmoid) | Dense feature quality |
 | ResNet-50 | Supervised (Grad-CAM) | CNN baseline |
 
 **Methodology:**
-1. Extract attention maps (CLS attention, rollout, mean attention for SigLIP/SigLIP 2, and Grad-CAM) from pretrained models
-2. Threshold at multiple percentiles and compute IoU against expert bounding boxes
-3. Fine-tune on 4-class style classification (~4,790 images, 139 eval images held out)
-4. Re-extract attention and measure delta-IoU to quantify attention shift
-5. Analyze per-head IoU to identify heads specialized for architectural features (e.g., windows, portals, towers)
+1. Extract attention maps (CLS attention, rollout, mean attention for SigLIP/SigLIP 2, and Grad-CAM) from pretrained models (see [Attention Methods Guide](../research/attention_methods.md) for method details)
+2. Compute alignment metrics: threshold-dependent IoU at multiple percentiles, plus threshold-free MSE, KL divergence (KL(GT‖attention)), and EMD against Gaussian soft-union ground truth derived from expert bounding boxes
+3. Fine-tune on 4-class style classification (~4,790 images, 139 eval images held out) using three strategies: Linear Probe, LoRA, and Full fine-tuning
+4. Re-extract attention and measure delta-IoU to classify each model-strategy combination as Preserve (Δ ≈ 0, not significant), Enhance (Δ > 0, significant), or Destroy (Δ < 0, significant) using paired Wilcoxon tests with Holm correction
 
-## Preliminary Results
+## Results
 
-**Result provenance:** Snapshot from metrics cache generated on 2026-02-12 (`outputs/cache/metrics_summary.json`). Regenerate after cache refresh.
+**Result provenance:** Q1 frozen metrics from cache generated 2026-03-20 (`outputs/cache/metrics_summary.json`). Q2 delta-IoU analysis from `outputs/results/q2_delta_iou_analysis.json` (2026-03-15, *n* = 139 images, Holm-corrected).
+
+### Q1: Frozen Model Leaderboard
 
 | Model | Best IoU (frozen) | Rank | Key Observation |
 |-------|:-:|:-:|-----------------|
@@ -52,32 +54,47 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 | ResNet-50 | 0.090 | 2 | Supervised CNN competitive via Grad-CAM |
 | DINOv2 | 0.082 | 3 | Strong semantic attention in later layers |
 | CLIP | 0.049 | 4 | Best at layer 0 --- attention degrades deeper |
-| SigLIP 2 | 0.047 | 5 | Mid-layer peak, no CLS token |
-| MAE | 0.037 | 6 | Near-uniform across layers; reconstruction != localization |
+| SigLIP | 0.047 | 5= | Mid-layer peak, no CLS token |
+| SigLIP 2 | 0.047 | 5= | Identical frozen IoU to SigLIP v1 |
+| MAE | 0.037 | 7 | Near-uniform across layers; reconstruction ≠ localization |
 
-**Fine-tuning effect (DINOv2):** delta-IoU = +0.009, *p* = 0.031 (Wilcoxon signed-rank, *n* = 139). Small but statistically significant shift toward expert features after full fine-tuning.
+**Paradigm ranking (frozen):** Unimodal self-distillation (DINOv3 > DINOv2) > supervised baseline (ResNet-50) > multimodal VLMs (CLIP ≈ SigLIP ≈ SigLIP 2) > reconstruction (MAE). Language-image alignment does not improve localization of architectural features.
+
+### Q2: Fine-Tuning Effects --- Preserve / Enhance / Destroy
+
+| Category | Models | Evidence |
+|----------|--------|----------|
+| **Enhance** | CLIP, SigLIP, SigLIP 2 | CLIP Full: Δ = +0.069, *p* < 0.001, *d* = 1.33. CLIP LoRA: Δ = +0.063, *p* < 0.001. SigLIP/SigLIP 2 Full: Δ ≈ +0.036, *p* < 0.001. All 6 contrastive model-strategy combinations significant after Holm correction. |
+| **Preserve** | DINOv3, MAE | DINOv3 Full: Δ = +0.003, corrected *p* > 1.0. MAE: Δ ≈ 0 across all strategies. Already aligned (DINOv3) or unreachable (MAE). |
+| **Destroy** | *(none conclusive)* | DINOv2 Full: Δ = −0.007, corrected *p* = 0.101 --- directionally negative but not statistically significant. |
+
+12 of 18 model-strategy combinations show significant improvement after Holm correction (all from the Enhance category). LoRA is competitive with Full fine-tuning while training 285× fewer parameters. For strategy rationale and hyperparameters, see [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) and [Run Matrix](../reference/fine_tuning_run_matrix.md).
 
 ## Novelty
 
-No prior work benchmarks multiple SSL paradigms on the same expert-annotated dataset or measures how fine-tuning shifts attention alignment. The closest precedent is Chung et al. (2025, medical imaging), whose finding that "DINO does NOT necessarily outperform supervised/MAE on medical data" strengthens the case for domain-specific evaluation. The delta-IoU methodology for comparing fine-tuning strategies against expert annotations is unexplored in literature. Per-head analysis (Q3) extends Voita et al. (ACL 2019) head specialization framework to vision transformers with domain-specific ground truth --- no existing work computes per-head IoU against expert-annotated architectural features.
+1. **Multi-paradigm attention benchmark:** First study to compare 7 models spanning 4 SSL paradigms plus a supervised baseline on the same expert-annotated architectural dataset, using both threshold-dependent (IoU) and threshold-free (MSE, KL, EMD) metrics.
+2. **Preserve / Enhance / Destroy taxonomy:** Systematic classification of how fine-tuning strategies interact with pre-training paradigms to shift attention alignment. The finding that contrastive VLMs Enhance while self-distillation models Preserve is new. This addresses the open question raised by Chung et al. (2025, medical imaging), whose finding that "DINO does NOT necessarily outperform supervised/MAE on medical data" strengthens the case for domain-specific evaluation.
+3. **Delta-IoU methodology:** Paired statistical comparison of attention alignment before and after fine-tuning with Holm-corrected significance testing and effect sizes --- unexplored in prior literature.
+
+Future extension (Q3) would apply Voita et al.'s (ACL 2019) head specialization framework to vision transformers with domain-specific ground truth --- no existing work computes per-head IoU against expert-annotated architectural features.
 
 ## Alignment with ISY5004
 
 | Requirement | How Addressed |
 |-------------|---------------|
-| Intelligent sensing technique | SSL visual feature learning (5 ViT models + CNN baseline) |
+| Intelligent sensing technique | SSL visual feature learning (6 ViT models + CNN baseline) |
 | Image analytics | Attention extraction, feature attribution, localization evaluation |
 | Dataset handling | Public dataset with preprocessing, augmentation, data cleaning |
-| Experimental comparison | Ablation across 6 models, 4 attention methods, 7 thresholds, 3 fine-tuning strategies |
+| Experimental comparison | Ablation across 7 models, 4 attention methods, 5 metrics (IoU + Coverage + MSE + KL + EMD), 3 fine-tuning strategies |
 | System deliverable | Reproducible experimental pipeline with precomputed metrics and interactive analysis tool |
 
 ## FAQ
 
-**Why IoU and coverage? What's the justification for these metrics?**
+**What metrics are used and why?**
 
-IoU (Intersection over Union) is the standard localization metric used in prior attention-interpretability work (Chefer et al., CVPR 2021). It measures spatial overlap between two binary masks --- in our case, the thresholded attention map and the expert-annotated bounding boxes. Because IoU requires choosing a binarization threshold (e.g., keep the top 10% of attention at the 90th percentile), we sweep 7 percentiles (50--95%) and report best-layer IoU per model at the default 90th percentile.
+**Threshold-dependent:** IoU (Intersection over Union) is the standard localization metric used in prior attention-interpretability work (Chefer et al., CVPR 2021). It measures spatial overlap between thresholded attention maps and expert bounding boxes. We sweep 7 percentiles (50--95%) and report best-layer IoU per model at the default 90th percentile.
 
-Coverage complements IoU by being **threshold-free**: it measures what fraction of total attention *energy* (the continuous heatmap values, not a binary mask) falls inside the annotated regions. A model that spreads low-intensity attention everywhere would score high coverage but low IoU, while a model that concentrates attention sharply but in the wrong place would score low on both. Together, the two metrics distinguish "looking at the right place" (IoU) from "how much attention budget lands on expert features" (coverage).
+**Threshold-free:** Coverage measures what fraction of total attention *energy* falls inside annotated regions. MSE compares the normalized attention map against a Gaussian soft-union ground truth derived from expert bounding boxes. KL divergence (KL(GT‖attention)) measures distributional mismatch, heavily penalizing attention in non-expert regions. EMD (Earth Mover's Distance / Wasserstein-1) measures the minimum spatial transport cost between distributions, accounting for *distance* --- a model attending slightly beside a feature is penalized less than one attending to an entirely different region. Together, these five metrics distinguish "looking at the right place" (IoU) from "how attention mass is distributed" (Coverage, MSE, KL, EMD). For detailed definitions, thresholding methodology, worked examples, and known limitations, see the [Metrics Methodology Reference](../reference/metrics_methodology.md).
 
 **Metrics change when bounding boxes are selected. What happens under the hood?**
 
@@ -85,7 +102,15 @@ By default, the IoU and coverage scores are computed against the **union of all 
 
 **What is the project scope?**
 
-The project answers three research questions: (Q1) whether frozen SSL models attend to expert-identified features, measured by IoU across 6 models and 12 layers; (Q2) whether fine-tuning shifts attention toward those features, comparing delta-IoU across Linear Probe, LoRA, and Full fine-tuning with paired statistical tests; and (Q3) whether individual attention heads specialize for different architectural feature types, via per-head IoU analysis. The deliverable is a reproducible experimental pipeline with precomputed metrics and an interactive visualization tool for exploring attention alignment across models, layers, and individual features. Out of scope: real-time inference, deployment, transfer to non-architectural domains, and attention-supervised training objectives (e.g., core-tuning, COIN).
+The project answers three research questions: (Q1) whether frozen SSL models attend to expert-identified features, measured by IoU and continuous metrics across 7 models and 12 layers; (Q2) whether fine-tuning shifts attention toward those features, classifying outcomes as Preserve, Enhance, or Destroy across Linear Probe, LoRA, and Full fine-tuning with Holm-corrected paired statistical tests; and (Q3, planned) whether individual attention heads specialize for different architectural feature types, via per-head IoU analysis. The deliverable is a reproducible experimental pipeline with precomputed metrics and an interactive visualization tool for exploring attention alignment across models, layers, and individual features. Out of scope: real-time inference, deployment, transfer to non-architectural domains, and attention-supervised training objectives (e.g., core-tuning, COIN).
+
+## Roadmap
+
+| Item | Status | Description |
+|------|--------|-------------|
+| Q3: Per-head specialization | Planned | Per-head attention extraction exists; full IoU pipeline and statistical analysis pending ([design doc](../enhancements/per_attention_head.md)) |
+| Cross-layer aggregation | Planned | Max pooling, depth-weighted mean, ALTI as alternatives to single-layer analysis (Prof. feedback #3) |
+| Unimodal vs Multimodal dashboard | Partial | Paradigm grouping applied in analysis; formal dashboard split pending (Prof. feedback #4) |
 
 ## Key References
 
