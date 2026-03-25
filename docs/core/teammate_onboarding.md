@@ -123,7 +123,7 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 
 - IoU/coverage core metrics implemented.
 - Per-bbox IoU and feature-type aggregation implemented.
-- Pointing game and top-k pointing implemented.
+- Pointing game and top-k pointing implemented (library only — not in precompute pipeline or API).
 - Baseline generators implemented (random/center/saliency variants).
 - Statistical tooling implemented (paired tests, bootstrap CI, effect sizes, multiple-comparison correction).
 

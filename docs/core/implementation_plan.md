@@ -237,7 +237,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Stratified k-fold cross-validation
    - Accuracy, F1, per-class accuracy, confusion matrix
 
-> **Note:** `compute_corloc()` is implemented but not yet integrated into the precompute pipeline or API. Integration is optional—CorLoc@50 is primarily for literature comparison with DINO papers.
+> **Note:** `compute_corloc()` and the Pointing Game functions (`pointing_game.py`) are implemented in the library but not integrated into the precompute pipeline, API, or frontend. Integration is optional — CorLoc@50 is primarily for literature comparison with DINO papers, and Pointing Game is available as a supplementary analysis tool.
 
 ### Phase 4: Visualization & Analysis ✅ COMPLETE
 

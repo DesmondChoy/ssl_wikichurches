@@ -150,7 +150,7 @@ Source: src/ssl_attention/metrics/continuous.py → gaussian_bbox_heatmap(), sof
 |--------|-----------|------------|
 | **Attention Area** | Fraction of image pixels in the thresholded attention mask | Always equals `(100 - percentile) / 100` (e.g., percentile=90 → 10% attention area) |
 | **Annotation Area** | Fraction of image pixels inside the ground truth union mask | Constant for a given image regardless of model/layer/percentile |
-| **CorLoc** | Binary: 1 if IoU ≥ 0.5, else 0, averaged across images | Standard WSOL metric (Choe et al., 2020). Computed via `compute_corloc()` |
+| **CorLoc** | Binary: 1 if IoU ≥ 0.5, else 0, averaged across images | Standard WSOL metric (Choe et al., 2020). Computed via `compute_corloc()`. Library only — not in precompute pipeline or API. |
 | **Per-Bbox IoU** | IoU computed per individual bounding box (not the union mask) | Used in Feature Breakdown analysis. Computed via `compute_per_bbox_iou()` |
 
 **Model note (SigLIP family):** For `siglip` and `siglip2`, these metrics are computed from mean-attention heatmaps on a 14×14 patch grid (for 224×224 inputs), using the same IoU/Coverage pipeline as other ViTs.

@@ -57,7 +57,7 @@ Existing interpretability tools address parts of this problem but leave a critic
 - Standard augmentation (resize, normalize) without heavy augmentation to preserve architectural detail
 - Clamp bounding box coordinates to [0,1] (some edge annotations have small negative values)
 
-**Known Limitation — Sparse Annotation Bias:** The WikiChurches dataset annotates representative instances of each feature type, not exhaustive ones. When a model attends to all round arch windows on a facade but only one is annotated, per-bbox IoU is deflated by "false positives." This is mitigated through cross-metric validation (Pointing Game and Coverage corroborate IoU findings) and documented in detail in [Sparse Annotation Bias](../enhancements/sparse_annotation_bias.md).
+**Known Limitation — Sparse Annotation Bias:** The WikiChurches dataset annotates representative instances of each feature type, not exhaustive ones. When a model attends to all round arch windows on a facade but only one is annotated, per-bbox IoU is deflated by "false positives." This is mitigated through cross-metric validation (Coverage corroborates IoU findings) and documented in detail in [Sparse Annotation Bias](../enhancements/sparse_annotation_bias.md).
 
 ---
 
@@ -97,8 +97,7 @@ Alignment is evaluated using both discrete (threshold-dependent) and continuous 
 #### 3.3a Discrete Metrics
 
 1. **IoU (Intersection over Union):** Threshold attention maps at 5 percentile levels (top 10%, 20%, 30%, 40%, 50% of attention mass) using `torch.topk` for exact pixel counts. Compute IoU between thresholded binary regions and expert bounding box masks. Primary metric reported at the 90th percentile.
-2. **Pointing Game:** Binary hit metric — does the single maximum attention point fall within any expert bounding box? Includes optional tolerance margin per Zhang et al. (2016). Extended with top-k variant (do k highest attention points hit bboxes?).
-3. **Coverage (Energy):** Threshold-free metric measuring the fraction of total attention energy that falls inside annotated regions. Immune to threshold choice artifacts.
+2. **Coverage (Energy):** Threshold-free metric measuring the fraction of total attention energy that falls inside annotated regions. Immune to threshold choice artifacts.
 
 #### 3.3b Continuous Metrics
 
@@ -108,7 +107,7 @@ Continuous metrics compare the raw attention map against a **soft ground truth**
 2. **KL Divergence:** Normalize both attention map and ground truth as probability distributions (sum to 1). Compute KL(GT ‖ attention). Heavily penalizes models that assign high attention to areas where experts assign none. Based on methodology from Jain & Wallace (2019).
 3. **EMD (Earth Mover's Distance / Wasserstein-1):** Compute the optimal transport cost between attention and ground truth distributions on an 8×8 shared support grid. Accounts for spatial distance — a model attending slightly beside a feature is penalized less than one attending to an entirely different region. Based on methodology from Zhou et al. (2020).
 
-Together, these six metrics distinguish "looking at the right place" (IoU, Pointing Game) from "how attention mass is distributed" (Coverage, MSE, KL, EMD). For detailed definitions, thresholding methodology, and known limitations, see the [Metrics Methodology Reference](../reference/metrics_methodology.md).
+Together, these five metrics distinguish "looking at the right place" (IoU, Coverage) from "how attention mass is distributed" (MSE, KL, EMD). For detailed definitions, thresholding methodology, and known limitations, see the [Metrics Methodology Reference](../reference/metrics_methodology.md).
 
 ### 3.4 Linear Probe (Sanity Check)
 
@@ -150,7 +149,7 @@ Web-based dashboard (FastAPI backend + React frontend) for exploring attention-a
 
 - **Image browser:** 139 annotated churches with model/layer/method selectors
 - **Visualization:** Attention heatmap overlay with expert bounding boxes and per-metric scores
-- **Metrics dashboard:** All 6 metrics (IoU, Coverage, MSE, KL, EMD, Pointing Game) with model leaderboard
+- **Metrics dashboard:** All 5 metrics (IoU, Coverage, MSE, KL, EMD) with model leaderboard
 - **Fine-tuning comparison:** Side-by-side frozen vs fine-tuned attention with Δ IoU overlay
 - **Method comparison:** Linear Probe vs LoRA vs Full comparison across models
 - **Per-bbox drill-down:** Select individual bounding boxes to see per-feature metrics computed on-the-fly
@@ -176,7 +175,7 @@ To verify findings are robust to methodological choices:
 
 | RQ | Primary Metrics | Statistical Test | Visualization |
 |:---|:---------------|:-----------------|:--------------|
-| Q1 | IoU (at 90th percentile), MSE, KL divergence, EMD, Coverage, Pointing Game | Paired t-test and Wilcoxon signed-rank across models; bootstrap CIs; Holm-Bonferroni correction for pairwise comparisons | Attention heatmaps with bbox overlay; model leaderboard |
+| Q1 | IoU (at 90th percentile), MSE, KL divergence, EMD, Coverage | Paired t-test and Wilcoxon signed-rank across models; bootstrap CIs; Holm-Bonferroni correction for pairwise comparisons | Attention heatmaps with bbox overlay; model leaderboard |
 | Q2 | Δ IoU, Δ Coverage, Δ MSE, Δ KL, Δ EMD (fine-tuned − frozen); Preserve/Enhance/Destroy classification | Paired Wilcoxon tests on same 139 images; Holm correction across 12 model-strategy combinations (linear probe excluded as frozen-backbone control); Cohen's d effect sizes | Side-by-side frozen vs fine-tuned; Δ metric bar charts by method and model |
 | Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
 
@@ -198,7 +197,7 @@ All models compared against:
 | Intelligent sensing technique | Self-supervised visual feature learning (DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP 2) |
 | Image/video analytics | Image classification, attention extraction, feature attribution |
 | Dataset handling | Public dataset (WikiChurches) with documented preprocessing |
-| Experimental comparison | Ablation across 7 models, 4 attention methods, 6 alignment metrics, 5 percentile thresholds, 3 fine-tuning strategies |
+| Experimental comparison | Ablation across 7 models, 4 attention methods, 5 alignment metrics, 5 percentile thresholds, 3 fine-tuning strategies |
 | Literature review | SSL methods, attention visualization, interpretability metrics |
 | Practical application | Interactive attention analysis tool for evaluating domain-adapted vision models |
 | Final developed system | Web-based dashboard with heatmap explorer, model comparison, fine-tuning analysis, and metrics views |
@@ -228,7 +227,7 @@ All models compared against:
 | Bounding boxes span only 4 style categories | Frame as focused study; note generalization limitations in discussion |
 | Compute constraints (no GPU) | Use ViT-B models only; batch feature extraction; MPS acceleration sufficient |
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
-| Sparse annotation bias | Representative (not exhaustive) bbox annotations may deflate per-bbox IoU; mitigated via cross-metric validation (Pointing Game + Coverage corroborate IoU findings); documented in [Sparse Annotation Bias](../enhancements/sparse_annotation_bias.md) |
+| Sparse annotation bias | Representative (not exhaustive) bbox annotations may deflate per-bbox IoU; mitigated via cross-metric validation (Coverage corroborates IoU findings); documented in [Sparse Annotation Bias](../enhancements/sparse_annotation_bias.md) |
 | Documentation drift between model keys and runtime behavior | Mitigate with periodic doc sync against `src/ssl_attention/config.py` and backend validators; keep `siglip` and `siglip2` documented as separate canonical keys |
 | Fine-tuning may overfit on small style subset | Validation split, early stopping, cosine LR schedule with warmup, gradient clipping, class-weighted loss, LoRA as parameter-efficient alternative, 139 eval images held out from training. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
 
@@ -236,7 +235,7 @@ All models compared against:
 
 ## 9. Expected Contributions
 
-1. **Multi-metric benchmark:** Quantitative attention-alignment evaluation on expert-annotated architectural features using 6 complementary metrics (IoU, Coverage, MSE, KL, EMD, Pointing Game) — combining threshold-dependent and threshold-free approaches
+1. **Multi-metric benchmark:** Quantitative attention-alignment evaluation on expert-annotated architectural features using 5 complementary metrics (IoU, Coverage, MSE, KL, EMD) — combining threshold-dependent and threshold-free approaches
 2. **Q1:** Empirical comparison of 7 models spanning 4 SSL paradigms plus a supervised baseline on expert attention alignment
 3. **Q2:** Preserve / Enhance / Destroy taxonomy for classifying how fine-tuning shifts attention toward expert features, with Holm-corrected paired statistical tests and effect sizes across 3 strategies (Linear Probe, LoRA, Full)
 4. **Q3:** Identification of attention heads specialized for architectural recognition (planned)

@@ -85,7 +85,7 @@ Future extension (Q3) would apply Voita et al.'s (ACL 2019) head specialization 
 | Intelligent sensing technique | SSL visual feature learning (6 ViT models + CNN baseline) |
 | Image analytics | Attention extraction, feature attribution, localization evaluation |
 | Dataset handling | Public dataset with preprocessing, augmentation, data cleaning |
-| Experimental comparison | Ablation across 7 models, 4 attention methods, 6 metrics (IoU + Coverage + MSE + KL + EMD + Pointing Game), 3 fine-tuning strategies |
+| Experimental comparison | Ablation across 7 models, 4 attention methods, 5 metrics (IoU + Coverage + MSE + KL + EMD), 3 fine-tuning strategies |
 | System deliverable | Reproducible experimental pipeline with precomputed metrics and interactive analysis tool |
 
 ## FAQ
