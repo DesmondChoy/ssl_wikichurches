@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Technical Approach — SSL Attention Alignment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── Tokens ─────────────────────────────────────────── */
+  :root {
+    --bg: #fafaf7;
+    --card: #ffffff;
+    --border: #e4e4dc;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+    --ink: #16162a;
+    --ink2: #4a4a62;
+    --ink3: #8a8a9e;
+    --arrow: #b0ae9f;
+    --rule: #ddddd2;
+
+    --data: #0e8493;   --data-l: #e0f5f8;   --data-d: #0a5e6a;
+    --model: #7c3aed;  --model-l: #ede9fe;  --model-d: #5b21b6;
+    --ext: #c97a1a;    --ext-l: #fef4e6;    --ext-d: #8a5200;
+    --met: #059669;    --met-l: #d1fae5;    --met-d: #065f46;
+    --ft: #d6336c;     --ft-l: #fce7f3;     --ft-d: #9d174d;
+    --ana: #4338ca;    --ana-l: #e0e7ff;    --ana-d: #312e81;
+  }
+
+  /* ── Reset ──────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    background-image: radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+    background-size: 22px 22px;
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    padding: 44px 32px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1440px; width: 100%; }
+
+  /* ── Title ──────────────────────────────────────────── */
+  h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.5rem;
+    text-align: center;
+    margin-bottom: 40px;
+    letter-spacing: -0.03em;
+  }
+  h1 em { font-style: normal; color: var(--ana); }
+
+  /* ── Pipeline Grid ──────────────────────────────────── */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 56px 1fr 56px 1fr 56px 1fr;
+    grid-template-rows: auto 60px auto;
+  }
+
+  /* ── Cards ──────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .card-h {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .num {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 0.78rem;
+    color: #fff; flex-shrink: 0;
+  }
+  .label {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+    font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  /* Card colour variants + grid placement */
+  .c-data    { border-top: 3.5px solid var(--data);  grid-column: 1;     grid-row: 1; }
+  .c-model   { border-top: 3.5px solid var(--model); grid-column: 3;     grid-row: 1; }
+  .c-ext     { border-top: 3.5px solid var(--ext);   grid-column: 5;     grid-row: 1; }
+  .c-met     { border-top: 3.5px solid var(--met);   grid-column: 7;     grid-row: 1; }
+  .c-ft      { border-top: 3.5px solid var(--ft);    grid-column: 2 / 4; grid-row: 3; align-self: start; }
+  .c-ana     { border-top: 3.5px solid var(--ana);   grid-column: 6 / 8; grid-row: 3; align-self: start; }
+
+  .c-data  .num { background: var(--data);  }
+  .c-model .num { background: var(--model); }
+  .c-ext   .num { background: var(--ext);   }
+  .c-met   .num { background: var(--met);   }
+  .c-ft    .num { background: var(--ft);    }
+  .c-ana   .num { background: var(--ana);   }
+
+  /* ── Inner typography ───────────────────────────────── */
+  .body {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--ink2);
+  }
+  .body strong { color: var(--ink); font-weight: 600; }
+
+  .grp { margin-top: 12px; }
+  .grp:first-child { margin-top: 0; }
+  .grp-l {
+    font-size: 0.66rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--ink3); margin-bottom: 5px;
+  }
+
+  /* ── Tags ───────────────────────────────────────────── */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    display: inline-block; font-size: 0.74rem; font-weight: 600;
+    padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+  }
+  .tag-d  { background: var(--data-l);  color: var(--data-d); }
+  .tag-m  { background: var(--model-l); color: var(--model-d); }
+  .tag-e  { background: var(--ext-l);   color: var(--ext-d); }
+  .tag-x  { background: var(--met-l);   color: var(--met-d); }
+  .tag-f  { background: var(--ft-l);    color: var(--ft-d); }
+  .tag-n  { background: #f0f0e8;        color: var(--ink2); }
+
+  /* Model → method refs */
+  .ref {
+    font-size: 0.72rem; color: var(--ink3); margin-top: 3px; padding-left: 2px;
+  }
+  .ref b { font-weight: 600; color: var(--model); }
+
+  hr.dashed { border: none; border-top: 1px dashed var(--rule); margin: 10px 0; }
+
+  /* ── Horizontal arrows (row 1) ──────────────────────── */
+  .arr-h {
+    display: flex; align-items: center; justify-content: center;
+  }
+  .arr-h svg { width: 36px; height: 14px; }
+  .arr-1 { grid-column: 2; grid-row: 1; }
+  .arr-2 { grid-column: 4; grid-row: 1; }
+  .arr-3 { grid-column: 6; grid-row: 1; }
+
+  /* ── Vertical connector (row 2) ─────────────────────── */
+  .v-conn {
+    grid-column: 2 / 4; grid-row: 2;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+  }
+  .v-conn svg { width: 14px; height: 28px; }
+  .v-conn span {
+    font-size: 0.58rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--ink3);
+  }
+
+  /* ── Labeled arrow (row 3, spans col 4-5) ───────────── */
+  .arr-lab {
+    grid-column: 4 / 6; grid-row: 3;
+    display: flex; align-items: center; padding: 0 8px;
+  }
+  .arr-lab-line { flex: 1; height: 2px; background: var(--arrow); }
+  .arr-lab span {
+    padding: 0 10px; font-size: 0.62rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--ink3); white-space: nowrap;
+  }
+  .arr-lab svg { width: 10px; height: 12px; flex-shrink: 0; }
+
+  /* ── RQ badges ──────────────────────────────────────── */
+  .rq {
+    display: inline-block; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700; font-size: 0.64rem; padding: 2px 8px;
+    border-radius: 4px; margin-right: 6px;
+  }
+  .rq-1 { background: #dbeafe; color: #1e40af; }
+  .rq-2 { background: var(--ft-l); color: var(--ft-d); }
+  .rq-t { font-weight: 600; font-size: 0.78rem; }
+
+  /* ── Taxonomy pills ─────────────────────────────────── */
+  .tax { display: flex; gap: 6px; margin-top: 8px; }
+  .tax span {
+    font-size: 0.72rem; font-weight: 700;
+    padding: 4px 12px; border-radius: 6px;
+  }
+  .tx-e { background: #d1fae5; color: #065f46; }
+  .tx-p { background: #fef3c7; color: #92400e; }
+  .tx-d { background: #fee2e2; color: #991b1b; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Technical Approach: <em>SSL Attention &times; Expert Alignment</em></h1>
+
+  <div class="grid">
+
+    <!-- ═══ ROW 1: MAIN PIPELINE ════════════════════════ -->
+
+    <!-- 1 ── Dataset ──────────────────────────────────── -->
+    <div class="card c-data">
+      <div class="card-h">
+        <span class="num">1</span>
+        <span class="label">Dataset</span>
+      </div>
+      <div class="body">
+        <strong>WikiChurches</strong><br>
+        139 annotated images<br>
+        631 expert bounding boxes<br>
+        4 architectural styles
+      </div>
+      <div class="grp" style="margin-top:14px">
+        <div class="tags" style="gap:5px">
+          <span class="tag tag-d" style="padding:3px 8px;font-size:0.7rem">Romanesque</span>
+          <span class="tag tag-d" style="padding:3px 8px;font-size:0.7rem">Gothic</span>
+          <span class="tag tag-d" style="padding:3px 8px;font-size:0.7rem">Renaissance</span>
+          <span class="tag tag-d" style="padding:3px 8px;font-size:0.7rem">Baroque</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- → -->
+    <div class="arr-h arr-1">
+      <svg viewBox="0 0 36 14" fill="none">
+        <path d="M0 7h26" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M23 2.5L29 7l-6 4.5" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- 2 ── Models ───────────────────────────────────── -->
+    <div class="card c-model">
+      <div class="card-h">
+        <span class="num">2</span>
+        <span class="label">7 Vision Models</span>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Self-distillation</div>
+        <div class="tags">
+          <span class="tag tag-m">DINOv2</span>
+          <span class="tag tag-m">DINOv3</span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Masked Autoencoding</div>
+        <div class="tags"><span class="tag tag-m">MAE</span></div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Contrastive VLMs</div>
+        <div class="tags">
+          <span class="tag tag-m">CLIP</span>
+          <span class="tag tag-m">SigLIP</span>
+          <span class="tag tag-m">SigLIP 2</span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Supervised Baseline</div>
+        <div class="tags"><span class="tag tag-n">ResNet-50</span></div>
+      </div>
+    </div>
+
+    <!-- → -->
+    <div class="arr-h arr-2">
+      <svg viewBox="0 0 36 14" fill="none">
+        <path d="M0 7h26" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M23 2.5L29 7l-6 4.5" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- 3 ── Attention Extraction ─────────────────────── -->
+    <div class="card c-ext">
+      <div class="card-h">
+        <span class="num">3</span>
+        <span class="label">Attention Extraction</span>
+      </div>
+      <div class="grp">
+        <div class="tags">
+          <span class="tag tag-e">CLS Attention</span>
+          <span class="tag tag-e">Rollout</span>
+        </div>
+        <div class="ref"><b>DINOv2 &middot; DINOv3 &middot; MAE &middot; CLIP</b></div>
+      </div>
+      <div class="grp">
+        <div class="tags"><span class="tag tag-e">Mean Attention</span></div>
+        <div class="ref"><b>SigLIP &middot; SigLIP 2</b></div>
+      </div>
+      <div class="grp">
+        <div class="tags"><span class="tag tag-e">Grad-CAM</span></div>
+        <div class="ref"><b>ResNet-50</b></div>
+      </div>
+    </div>
+
+    <!-- → -->
+    <div class="arr-h arr-3">
+      <svg viewBox="0 0 36 14" fill="none">
+        <path d="M0 7h26" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M23 2.5L29 7l-6 4.5" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- 4 ── Alignment Metrics ────────────────────────── -->
+    <div class="card c-met">
+      <div class="card-h">
+        <span class="num">4</span>
+        <span class="label">Alignment Metrics</span>
+      </div>
+      <div class="grp">
+        <div class="grp-l">Discrete (threshold-dependent)</div>
+        <div class="tags">
+          <span class="tag tag-x">IoU</span>
+          <span class="tag tag-x">Coverage</span>
+        </div>
+      </div>
+      <hr class="dashed">
+      <div class="grp">
+        <div class="grp-l">Continuous (threshold-free)</div>
+        <div class="tags">
+          <span class="tag tag-x">MSE</span>
+          <span class="tag tag-x">KL Divergence</span>
+          <span class="tag tag-x">EMD</span>
+        </div>
+      </div>
+      <div class="body" style="margin-top:10px">
+        Evaluated against<br><strong>expert bounding boxes</strong>
+      </div>
+    </div>
+
+    <!-- ═══ ROW 2: VERTICAL CONNECTOR ═══════════════════ -->
+
+    <div class="v-conn">
+      <svg viewBox="0 0 14 28" fill="none">
+        <path d="M7 0v20" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M2.5 17L7 23l4.5-6" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Fine-tune backbone</span>
+    </div>
+
+    <!-- ═══ ROW 3: FINE-TUNING BRANCH ═══════════════════ -->
+
+    <!-- 5 ── Fine-Tuning ──────────────────────────────── -->
+    <div class="card c-ft">
+      <div class="card-h">
+        <span class="num">5</span>
+        <span class="label">Fine-Tuning (Q2)</span>
+      </div>
+      <div class="body" style="margin-bottom:12px">
+        4-class style classification<br>
+        ~4,790 training images<br>
+        139 eval images held out
+      </div>
+      <div class="grp">
+        <div class="grp-l">3 Strategies</div>
+        <div class="tags">
+          <span class="tag tag-f">Linear Probe</span>
+          <span class="tag tag-f">LoRA</span>
+          <span class="tag tag-f">Full</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- → Re-extract Attention → -->
+    <div class="arr-lab">
+      <div class="arr-lab-line"></div>
+      <span>Re-extract Attention</span>
+      <div class="arr-lab-line"></div>
+      <svg viewBox="0 0 10 12" fill="none">
+        <path d="M1 1L8 6L1 11" stroke="var(--arrow)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- 6 ── Analysis ─────────────────────────────────── -->
+    <div class="card c-ana">
+      <div class="card-h">
+        <span class="num">6</span>
+        <span class="label">Analysis</span>
+      </div>
+      <div class="grp">
+        <div style="margin-bottom:6px">
+          <span class="rq rq-1">Q1</span>
+          <span class="rq-t">Do SSL models attend to expert features?</span>
+        </div>
+        <div class="body">Frozen attention vs expert annotations</div>
+      </div>
+      <div class="grp" style="margin-top:14px">
+        <div style="margin-bottom:6px">
+          <span class="rq rq-2">Q2</span>
+          <span class="rq-t">Does fine-tuning shift attention?</span>
+        </div>
+        <div class="body">&Delta; metrics (fine-tuned &minus; frozen) per strategy</div>
+        <div class="tax">
+          <span class="tx-e">Enhance</span>
+          <span class="tx-p">Preserve</span>
+          <span class="tx-d">Destroy</span>
+        </div>
+      </div>
+      <div class="body" style="margin-top:14px; font-size:0.72rem;">
+        Wilcoxon tests &middot; Holm correction &middot; Cohen's <em>d</em>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
