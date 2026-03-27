@@ -1,25 +1,353 @@
 # Run Matrix Figure Commentary
 
-## 01 Validation Accuracy
-Best: DINOv2 Full (77.5%). Worst: MAE Linear Probe (49.8%). MAE consistently lags; DINOv3 LoRA leads. Full fine-tuning does not always beat LoRA on classification accuracy.
+Experiment: fine_tuning_primary_20260327
+6 ViT-Base models x 3 strategies (Linear Probe, LoRA rank-8, Full) x 3 epochs
+Dataset: 3,671 train / 917 val / 139 annotated eval (held out entirely)
+Attention layer: 11 (final transformer block)
+Statistical tests: Wilcoxon signed-rank, paired per-image
 
-## 02 Delta Heatmap Grid
-All deltas normalized to improvement direction: positive (blue) = better, negative (red) = worse. For MSE/KL/EMD the sign is flipped so blue still means the metric decreased (improved). Linear probe near-zero confirms frozen backbones don't shift attention. SigLIP shows the most significant improvements.
 
-## 03 Diverging Bars
-Bars sorted by delta (largest improvement at top). Colors represent models, making it easy to spot which models consistently rank high or low. Linear probe omitted (all near zero). SigLIP entries cluster near the top across most metrics.
+## 01 — Validation Accuracy by Model and Fine-Tuning Strategy
 
-## 04 IoU Percentile Slopes
-Slopes reveal how fine-tuning affects top-k attention alignment at different thresholds. Steeper slopes at high percentiles indicate that fine-tuning particularly shifts the most-attended regions. Flat slopes near zero confirm linear probe has no effect (omitted).
+DINOv2 Full leads at 77.5%, but the more telling story is the gap between
+Linear Probe and Full for each model — this gap measures how much a model's
+frozen representation already captures style-relevant features without any
+backbone adaptation.
 
-## 05 Radar Profiles
-Radar charts show each model's metric profile normalized globally. Outward = better for all axes (lower-is-better metrics are inverted). Frozen baseline in gray; fine-tuned strategies overlaid. Models where the colored polygon expands beyond gray show genuine improvement.
+Key takeaways:
 
-## 06 Accuracy vs Attention
-Each panel shows one model's trajectory from Linear Probe (square) through LoRA (diamond) to Full (circle). Shared axes enable cross-model comparison. Points above the dashed y=0 line improved attention alignment. Models like CLIP/SigLIP show clear upward trajectories; DINOv2/DINOv3 stay flat.
+- DINOv2 has the smallest LP->Full gap (74.8% -> 77.5%, +2.7pp), meaning its
+  pretrained features are already highly style-discriminative. This becomes
+  important in later figures: a model that already "knows" the task has less
+  pressure to reorganize its attention.
 
-## 07 Best-Epoch Distribution
-Modal best epoch: Linear Probe -> 3, LoRA -> 3, Full -> 3. Full fine-tuning converges early (epochs 1-2), while LoRA and linear probe are more spread across epochs, suggesting different optimization dynamics.
+- CLIP and SigLIP 2 have the largest gaps (63.7->73.4, +9.7pp and 66.3->72.3,
+  +6.0pp). These models benefit most from backbone adaptation — their frozen
+  representations are less tuned to architectural style, so fine-tuning must
+  reshape internal representations more aggressively. This foreshadows why
+  they also show the largest attention shifts in Figure 02.
 
-## 08 Frozen vs Fine-Tuned
-Cleveland dot plot: gray circles = frozen baseline, colored shapes = fine-tuned. Horizontal span shows the range of change. For higher-is-better metrics, rightward dots = improvement. For lower-is-better, leftward = improvement. Much clearer than grouped bars for comparing absolute performance levels.
+- MAE is an outlier: even Full fine-tuning only reaches 61.5%. MAE's
+  reconstruction-based pretraining produces representations that struggle with
+  classification — consistent with the literature showing MAE requires longer
+  fine-tuning schedules to match discriminative SSL methods.
+
+- DINOv3 LoRA exactly matches DINOv3 Full (74.7% vs 74.7%), suggesting LoRA's
+  rank-8 adaptation of Q/V projections captures nearly all learnable signal
+  for this model. A practical finding: LoRA achieves parity at ~300K trainable
+  parameters vs ~86M for Full.
+
+
+## 02 — All-Metrics Improvement Heatmap (delta = fine-tuned - frozen)
+
+This is the central figure. All deltas are sign-normalized so blue = improved,
+red = degraded, regardless of whether the raw metric is higher-is-better
+(IoU, Coverage) or lower-is-better (MSE, KL, EMD). Stars mark statistical
+significance (Wilcoxon signed-rank, p < 0.05).
+
+Key takeaways:
+
+- The models split into two clear camps. Language-supervised models (CLIP,
+  SigLIP, SigLIP 2) show consistent blue across most metrics, while
+  self-supervised models (DINOv2, DINOv3, MAE) show near-zero or red. This
+  is the headline finding: pretraining objective predicts whether fine-tuning
+  improves attention alignment with human annotations.
+
+- Linear Probe rows are uniformly zero across all 6 metrics — exactly as
+  expected since the backbone is frozen. This serves as a methodological
+  sanity check: the delta computation pipeline is working correctly, and any
+  non-zero deltas for LoRA/Full reflect genuine backbone changes.
+
+- SigLIP's Full fine-tuning shows significance stars across all 6 metrics.
+  This is notable because SigLIP uses mean pooling (no CLS token), yet
+  fine-tuning still systematically reshapes its spatial attention distribution.
+
+- DINOv2 Full shows a paradox visible here: MSE *improves* (blue) while
+  IoU@90 *degrades* (red). This means fine-tuning redistributes attention
+  more evenly across the image (lower MSE vs ground truth), but the
+  highest-attention pixels actually move *away* from annotated features.
+  The attention becomes smoother but less precisely targeted.
+
+- CLIP Full dominates KL divergence (delta = -0.76, the largest single
+  improvement in the entire matrix). CLIP's frozen attention is highly
+  entropic (KL = 3.69) — language-supervised pretraining produces diffuse
+  attention that fine-tuning can concentrate dramatically.
+
+
+## 03 — Per-Metric Diverging Bars (LoRA & Full only)
+
+Bars sorted by delta magnitude, largest improvement at top. Linear Probe
+omitted since all deltas are zero. Colors encode models for cross-metric
+pattern recognition.
+
+Key takeaways:
+
+- CLIP Full appears at or near the top of 5 out of 6 metric panels.
+  Its IoU@90 delta of +0.041 is especially striking: the frozen baseline
+  IoU@90 is only ~0.018, so fine-tuning more than doubles the proportion
+  of top-attended pixels overlapping with expert annotations.
+
+- LoRA consistently achieves 50-80% of Full's improvement. For example,
+  CLIP LoRA's IoU@90 delta is +0.021 vs CLIP Full's +0.041; SigLIP 2 LoRA's
+  coverage delta is +0.012 vs Full's +0.015. This cost-effectiveness ratio
+  is relevant for practitioners: LoRA adapts ~0.35% of parameters yet
+  captures the majority of the attention alignment benefit.
+
+- MSE tells a different story from IoU. MAE LoRA tops the MSE panel
+  (delta = -0.059, p ~ 0) despite showing negligible IoU improvement. MAE's
+  attention redistributes to better match the Gaussian ground-truth envelope
+  without concentrating its top pixels onto the right regions. This
+  highlights why multiple metrics matter — a single metric can mislead.
+
+
+## 04 — IoU Delta Across Percentile Thresholds
+
+Each panel shows one model's IoU delta at the 50th through 90th percentile,
+for LoRA (blue) and Full (orange). Significance stars mark individual
+thresholds. This figure reveals *how* fine-tuning reshapes the attention
+distribution, not just *whether* it improves.
+
+Key takeaways:
+
+- CLIP Full shows a steep upward slope: delta IoU grows from +0.013 at the
+  50th percentile to +0.041 at the 90th. This means fine-tuning
+  disproportionately improves the *most attended* regions — the model learns
+  to concentrate its peak attention onto architectural features rather than
+  uniformly shifting all attention. This is the ideal behavior for
+  object-level alignment.
+
+- DINOv2 Full slopes downward: delta IoU = -0.002 at the 50th but -0.003 at
+  the 90th. Fine-tuning actually degrades the highest-attention regions more
+  than the mid-range ones. DINOv2's pretrained attention already peaks on
+  salient structures (its frozen IoU@90 is among the highest), so
+  fine-tuning disrupts an already-good pattern.
+
+- SigLIP and SigLIP 2 both show flat positive slopes — consistent
+  improvement across all thresholds (~+0.010 to +0.025). Their mean-pooling
+  architecture shifts the entire attention distribution rather than
+  selectively sharpening peaks, producing a qualitatively different
+  improvement profile from CLIP's peak-sharpening behavior.
+
+- DINOv3 LoRA shows a mild positive slope with significance at higher
+  percentiles, while DINOv3 Full is flat near zero. LoRA's constrained
+  adaptation (only Q/V projections) may act as a beneficial regularizer,
+  preventing the catastrophic attention reorganization that Full allows.
+
+
+## 05 — Multi-Metric Radar Profiles (normalized [0,1])
+
+Each panel overlays the frozen baseline (gray dashed) with LoRA (blue dashed)
+and Full (orange solid) for one model. All axes are normalized so outward =
+better (lower-is-better metrics inverted). When a colored polygon extends
+beyond the gray baseline, that strategy genuinely improved attention alignment.
+
+Key takeaways:
+
+- CLIP and MAE show the most dramatic polygon expansion — but for different
+  reasons. CLIP expands because fine-tuning improves multiple metrics
+  simultaneously (IoU, Coverage, KL, EMD). MAE expands primarily on MSE
+  and KL, while its IoU axes barely move — a cautionary example of how
+  radar charts can visually exaggerate improvement when it's concentrated
+  on specific axes.
+
+- DINOv2 and DINOv3's polygons nearly overlap with their frozen baselines,
+  visually confirming that fine-tuning barely shifts their attention profiles.
+  DINOv3's frozen polygon is already among the largest (best absolute
+  performance), leaving little room for expansion.
+
+- SigLIP and SigLIP 2 show modest but uniform expansion across all axes —
+  consistent with the flat positive slopes in Figure 04. The improvement is
+  real but less visually dramatic than CLIP's because it's evenly distributed
+  rather than concentrated on one or two axes.
+
+- Caution: radar polygon area is sensitive to axis ordering and can mislead.
+  Use this figure for qualitative shape comparison, not quantitative claims.
+  Figures 02 and 07 provide more reliable quantitative comparisons.
+
+
+## 06 — Classification Accuracy vs Attention Alignment Change
+
+The central question: does learning to classify architectural styles also
+teach the model to attend to the right features? Each panel plots one model's
+trajectory from Linear Probe (square) -> LoRA (diamond) -> Full (circle).
+X-axis = validation accuracy, Y-axis = IoU@90 delta.
+
+Key takeaways:
+
+- The answer is: it depends on the model. CLIP traces a clear up-and-right
+  trajectory (63.7%, delta~0 -> 73.4%, delta=+0.041), showing that
+  classification gains and attention alignment improvements go hand in hand.
+  SigLIP and SigLIP 2 show similar positive trajectories.
+
+- DINOv2 delivers the sharpest counterexample: it achieves the highest
+  classification accuracy in the entire experiment (77.5%) while its
+  attention alignment *worsens* (delta = -0.003). High accuracy does not
+  imply attention alignment with human-interpretable features. DINOv2
+  can classify style correctly via features that do not correspond to
+  expert-annotated architectural elements.
+
+- This dissociation has implications for interpretability research: using
+  classification accuracy as a proxy for representation quality misses
+  whether the model is "right for the right reasons." DINOv2's strong
+  classification but poor attention alignment suggests it exploits
+  statistical shortcuts (texture, spatial frequency, background cues)
+  rather than the semantic structures annotated by architectural experts.
+
+- MAE occupies the worst quadrant — low accuracy AND near-zero attention
+  improvement — confirming that reconstruction-based pretraining produces
+  representations poorly suited to both classification and localization
+  in this domain.
+
+
+## 07 — Frozen Baseline vs Fine-Tuned Absolute Values (Cleveland Dot Plot)
+
+Gray dots = frozen baseline; colored shapes = fine-tuned strategies. The
+horizontal gap between gray and colored dots shows the magnitude of change.
+This complements Figure 02 (which shows deltas) by revealing absolute
+performance levels — a model with a small delta may still lead in absolute
+terms if its frozen baseline was already strong.
+
+Key takeaways:
+
+- DINOv3 frozen has the highest absolute IoU@90 (~0.04) and IoU@50 (~0.08)
+  of any model. Despite showing near-zero deltas in Figure 02, it remains
+  competitive in absolute terms because its pretrained attention already
+  aligns well with expert annotations. The takeaway: "no improvement from
+  fine-tuning" is not "poor performance" — it's "already good."
+
+- CLIP Full's IoU@90 after fine-tuning (~0.06) overtakes DINOv3's frozen
+  baseline. CLIP starts from a low frozen IoU@90 (~0.018) but its
+  dramatic delta makes it the top performer post-fine-tuning. This
+  leapfrogging is only visible when comparing absolute values, not deltas.
+
+- KL divergence reveals the starkest absolute gap: CLIP frozen has the
+  worst KL (3.69) but CLIP Full reaches 2.90, narrowing toward DINOv2's
+  frozen KL of 2.68. Fine-tuning closes nearly a full point of KL
+  divergence — an enormous shift in distributional alignment.
+
+- For EMD, the overall range is compressed (0.27-0.43), making the metric
+  less discriminative between models. CLIP Full achieves the best absolute
+  EMD (0.31), but even the worst models are within 0.12 units of each other.
+  EMD's lower discriminative power at this spatial resolution (8x8 grid)
+  is worth noting if asked about metric selection.
+
+- SigLIP models show the best absolute MSE values both frozen and fine-tuned
+  (~0.019), meaning their attention distributions are the closest match to
+  the Gaussian ground truth in pixel-level error. This is consistent with
+  mean-pooling producing smoother, less spiky attention maps that naturally
+  resemble Gaussian targets.
+
+
+## 08 — Preserve / Enhance / Destroy Classification Matrix
+
+The Q2 punchline in one figure. Each cell classifies a model-strategy pair
+as Enhance (significant improvement, green), Preserve (no significant change,
+gray), or Destroy (significant degradation, red) based on Wilcoxon signed-rank
+tests with Holm correction. Linear Probe omitted (always Preserve by
+definition — frozen backbone cannot shift attention).
+
+Key takeaways:
+
+- Across all 6 metrics and 12 model-strategy pairs: 37 Enhance, 22 Preserve,
+  13 Destroy. The majority of fine-tuning interventions improve attention
+  alignment, but destruction is not rare — nearly 1 in 5 combinations makes
+  things significantly worse.
+
+- CLIP Full is the only model-strategy pair that Enhances on 5 of 6 metrics
+  (all except MSE, where it Destroys). This makes CLIP Full the strongest
+  overall improver, but the MSE exception is important: CLIP's attention
+  becomes sharper and better localized (better IoU, Coverage, KL, EMD), yet
+  the pixel-level squared error against the Gaussian ground truth increases.
+  Sharpening attention concentrates it into fewer pixels, increasing MSE
+  against a smooth Gaussian target even when the attended location is correct.
+
+- DINOv2 and DINOv3 are predominantly Preserve across IoU and Coverage, but
+  show a mix of Enhance and Destroy on the continuous metrics (MSE, KL, EMD).
+  Their attention undergoes subtle distributional shifts that don't register
+  in threshold-based metrics but are detectable by distribution-sensitive
+  measures.
+
+- SigLIP and SigLIP 2 show the most consistent Enhance pattern across all
+  metrics — improvement without the metric-specific trade-offs seen in CLIP.
+  This uniformity suggests their mean-pooling attention shifts in a
+  well-rounded way rather than optimizing one aspect at the expense of others.
+
+- MAE's pattern is surprising: predominantly Enhance on MSE and KL (its
+  attention distribution becomes more similar to ground truth) while
+  Preserving on IoU and Coverage (the top-attended pixels don't move). This
+  confirms the "smoother but not more targeted" behavior seen in Figure 02.
+
+
+## 09 — Forest Plot with 95% Bootstrap Confidence Intervals
+
+The academic rigor figure. Each row shows one model-strategy pair's mean
+delta as a point with horizontal 95% bootstrap CI whiskers. Vertical dashed
+line at zero. Sign-flipped for lower-is-better metrics so rightward always
+means improvement. Stars mark significance after Holm correction.
+
+Key takeaways:
+
+- 50 of 72 confidence intervals exclude zero (significant after Holm
+  correction). Fine-tuning produces detectable attention shifts in the
+  majority of cases — this is not a null result.
+
+- CLIP Full's IoU@90 CI is [+0.033, +0.048] — entirely right of zero with
+  no overlap. This is the tightest, most clearly significant improvement in
+  the IoU panels. By contrast, DINOv2 Full's IoU@90 CI is [-0.008, +0.002],
+  straddling zero — consistent with its Preserve classification.
+
+- The KL panel reveals the widest CIs and largest effect magnitudes. CLIP
+  Full's KL improvement CI is [+0.70, +0.82] — an order of magnitude larger
+  than the IoU effects. KL divergence is more sensitive to distributional
+  shifts than threshold-based IoU, explaining why some models show
+  significance on KL but not IoU.
+
+- LoRA CIs are generally narrower than Full CIs for the same model. LoRA's
+  constrained parameter space produces more predictable, lower-variance
+  attention shifts across images. Full fine-tuning has more freedom, which
+  introduces more per-image variability (wider CIs) even when the mean
+  effect is larger.
+
+- EMD shows the most compressed CIs — nearly all effects are small and
+  tightly estimated. This reflects EMD's lower sensitivity at the 8x8
+  downsampled grid used for computation, rather than a genuine lack of
+  attention change.
+
+
+## 10 — Per-Image Delta Strip Plot (Full Fine-Tuning)
+
+The "show me the data" figure. Each dot is one of 139 evaluation images'
+individual delta (fine-tuned minus frozen). Diamond = mean, thick bar = 95%
+bootstrap CI. Dots are jittered vertically for visibility. Full fine-tuning
+only (strongest signal).
+
+Key takeaways:
+
+- CLIP's IoU@90 improvement is remarkably consistent: the vast majority of
+  dots sit right of zero, with very few negative outliers. This is not a
+  mean driven by a handful of lucky images — nearly every image benefits.
+  By contrast, DINOv2's dots straddle zero symmetrically, confirming that
+  its near-zero mean reflects genuine ambivalence rather than cancellation
+  of large positive and negative effects.
+
+- The KL panel shows the most dramatic spread. CLIP's per-image KL deltas
+  range from roughly -5 to +3 (after sign flip), with the mean at ~+0.8.
+  Some individual images see enormous distributional shifts while others
+  barely change. This variance is hidden by the forest plot (Figure 09),
+  which only shows the mean and CI.
+
+- SigLIP and SigLIP 2 show tight, consistently positive dot clusters across
+  most metrics — the narrowest spreads among the improving models. Their
+  mean-pooling attention mechanism produces highly predictable per-image
+  improvements, making them the most reliable attention improvers.
+
+- MAE's strip patterns differ strikingly across metrics: tight cluster at
+  zero for IoU (nothing moves), but a wide spread for MSE and KL (the
+  distribution shifts substantially on a per-image basis). This per-image
+  view makes the "smoother but not more targeted" finding viscerally obvious.
+
+- For Coverage, CLIP shows a long positive tail — a subset of images sees
+  dramatic coverage increases (0.10-0.15+), likely images where frozen CLIP
+  attention was entirely off-target and fine-tuning re-directed it onto
+  annotated regions. These are the images that would make compelling
+  qualitative examples in a presentation.

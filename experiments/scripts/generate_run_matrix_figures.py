@@ -642,68 +642,8 @@ def fig_accuracy_vs_attention(rows: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 # Figure 7: Best-Epoch Distribution
 # ---------------------------------------------------------------------------
-def fig_best_epoch_distribution() -> str:
-    """Grouped bar chart of best-epoch counts by strategy."""
-    epochs = [1, 2, 3]
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    x = np.arange(len(epochs))
-    width = 0.24
-
-    for i, strat in enumerate(STRATEGIES):
-        counts = []
-        for ep in epochs:
-            count = sum(
-                1 for m in MODELS
-                if RUN_MATRIX[(m, strat)]["best_epoch"] == ep
-            )
-            counts.append(count)
-
-        bars = ax.bar(
-            x + i * width, counts, width * 0.9,
-            label=STRATEGY_LABELS[strat],
-            color=STRATEGY_COLORS[strat],
-            edgecolor="white", linewidth=0.3,
-        )
-        for bar, c in zip(bars, counts):
-            if c > 0:
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    bar.get_height() + 0.05,
-                    str(c), ha="center", va="bottom",
-                    fontsize=9, fontweight="bold", color=TEXT_COLOR,
-                )
-
-    ax.set_xticks(x + width)
-    ax.set_xticklabels([f"Epoch {e}" for e in epochs])
-    ax.set_ylabel("Number of Models")
-    ax.set_title("Best-Epoch Distribution by Fine-Tuning Strategy")
-    ax.set_ylim(0, max(6, ax.get_ylim()[1]) + 0.5)
-    ax.legend()
-    clean_axes(ax)
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-
-    fig.tight_layout()
-    save_figure(fig, "07_best_epoch_by_strategy.png")
-
-    strat_mode: dict[str, int] = {}
-    for strat in STRATEGIES:
-        epoch_counts = {e: 0 for e in epochs}
-        for m in MODELS:
-            ep = RUN_MATRIX[(m, strat)]["best_epoch"]
-            epoch_counts[ep] += 1
-        strat_mode[strat] = max(epoch_counts, key=lambda e: epoch_counts[e])
-
-    return (
-        f"Modal best epoch: Linear Probe -> {strat_mode['linear_probe']}, "
-        f"LoRA -> {strat_mode['lora']}, Full -> {strat_mode['full']}. "
-        "Full fine-tuning converges early (epochs 1-2), while LoRA and linear probe "
-        "are more spread across epochs, suggesting different optimization dynamics."
-    )
-
-
 # ---------------------------------------------------------------------------
-# Figure 8: Frozen vs Fine-Tuned — Cleveland Dot Plot
+# Figure 7: Frozen vs Fine-Tuned — Cleveland Dot Plot
 # ---------------------------------------------------------------------------
 def fig_frozen_vs_finetuned(rows: list[dict]) -> str:
     """2x3 dot plot: frozen baseline vs fine-tuned strategies per model.
@@ -781,13 +721,391 @@ def fig_frozen_vs_finetuned(rows: list[dict]) -> str:
         fontsize=12, fontweight="bold", color=TEXT_COLOR, y=1.05,
     )
     fig.tight_layout()
-    save_figure(fig, "08_frozen_vs_finetuned_all_metrics.png")
+    save_figure(fig, "07_frozen_vs_finetuned_all_metrics.png")
 
     return (
         "Cleveland dot plot: gray circles = frozen baseline, colored shapes = fine-tuned. "
         "Horizontal span shows the range of change. For higher-is-better metrics, "
         "rightward dots = improvement. For lower-is-better, leftward = improvement. "
         "Much clearer than grouped bars for comparing absolute performance levels."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure 8: Preserve / Enhance / Destroy Classification Matrix
+# ---------------------------------------------------------------------------
+CLASSIFY_STRATEGIES = ["lora", "full"]  # LP omitted (always Preserve)
+
+# Colors for the three outcome categories
+PED_COLORS = {
+    "Enhance": IMPROVED_COLOR,
+    "Preserve": FROZEN_COLOR,
+    "Destroy": DEGRADED_COLOR,
+}
+
+
+def _classify_ped(row: dict | None) -> str:
+    """Classify a row into Preserve / Enhance / Destroy."""
+    if row is None or not row.get("significant"):
+        return "Preserve"
+    direction = METRIC_DIRECTION[row["metric"]]
+    delta = row["mean_delta"]
+    improved = (direction == "higher" and delta > 0) or (
+        direction == "lower" and delta < 0
+    )
+    return "Enhance" if improved else "Destroy"
+
+
+def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
+    """6-metric panel: each metric shows a models × strategies grid colored by
+    Preserve / Enhance / Destroy classification based on significance + delta
+    direction.
+    """
+    n_metrics = len(HEATMAP_METRICS)
+    fig, axes = plt.subplots(2, 3, figsize=(14, 7))
+    axes = axes.flatten()
+
+    for idx, (metric, pctl, title) in enumerate(HEATMAP_METRICS):
+        ax = axes[idx]
+        n_models = len(MODELS)
+        n_strats = len(CLASSIFY_STRATEGIES)
+
+        # Build classification matrix
+        cell_colors = np.zeros((n_models, n_strats, 3))
+        cell_labels: list[list[str]] = []
+        cell_deltas: list[list[str]] = []
+
+        for mi, m in enumerate(MODELS):
+            row_labels: list[str] = []
+            row_deltas: list[str] = []
+            for si, strat in enumerate(CLASSIFY_STRATEGIES):
+                row = lookup_row(rows, m, strat, metric, pctl)
+                category = _classify_ped(row)
+                # Convert hex to RGB
+                hex_c = PED_COLORS[category]
+                rgb = tuple(int(hex_c[i:i+2], 16) / 255.0 for i in (1, 3, 5))
+                cell_colors[mi, si] = rgb
+                row_labels.append(category[0])  # E, P, or D
+
+                if row:
+                    direction = METRIC_DIRECTION[metric]
+                    d = row["mean_delta"]
+                    # Normalize: positive = improvement for display
+                    display_d = d if direction == "higher" else -d
+                    row_deltas.append(f"{display_d:+.3f}")
+                else:
+                    row_deltas.append("")
+            cell_labels.append(row_labels)
+            cell_deltas.append(row_deltas)
+
+        # Draw cells manually
+        for mi in range(n_models):
+            for si in range(n_strats):
+                color = cell_colors[mi, si]
+                # Lighter fill (blend with white)
+                fill = tuple(0.3 * c + 0.7 for c in color)
+                rect = plt.Rectangle(
+                    (si, mi), 1, 1,
+                    facecolor=fill, edgecolor="white", linewidth=2,
+                )
+                ax.add_patch(rect)
+
+                # Category letter
+                cat_letter = cell_labels[mi][si]
+                ax.text(
+                    si + 0.5, mi + 0.38, cat_letter,
+                    ha="center", va="center",
+                    fontsize=14, fontweight="bold",
+                    color=tuple(cell_colors[mi, si]),
+                )
+                # Delta value
+                ax.text(
+                    si + 0.5, mi + 0.68, cell_deltas[mi][si],
+                    ha="center", va="center",
+                    fontsize=8, color=TEXT_COLOR,
+                )
+
+        ax.set_xlim(0, n_strats)
+        ax.set_ylim(0, n_models)
+        ax.invert_yaxis()
+        ax.set_xticks([s + 0.5 for s in range(n_strats)])
+        ax.set_xticklabels([STRATEGY_LABELS[s] for s in CLASSIFY_STRATEGIES])
+        ax.set_yticks([m + 0.5 for m in range(n_models)])
+        ax.set_yticklabels(
+            [MODEL_LABELS[m] for m in MODELS] if idx % 3 == 0 else [],
+        )
+
+        direction = METRIC_DIRECTION[metric]
+        hint = "higher=better" if direction == "higher" else "lower=better"
+        ax.set_title(f"{title}  ({hint})", fontsize=10)
+
+        # Remove all spines
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.tick_params(length=0)
+
+    # Legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(
+            facecolor=tuple(0.3 * c + 0.7 for c in (int(PED_COLORS[cat][i:i+2], 16) / 255.0 for i in (1, 3, 5))),
+            edgecolor=PED_COLORS[cat], linewidth=1.5,
+            label=cat,
+        )
+        for cat in ["Enhance", "Preserve", "Destroy"]
+    ]
+    fig.legend(
+        handles=legend_elements, loc="upper center", ncol=3,
+        fontsize=10, bbox_to_anchor=(0.5, 1.02), columnspacing=3,
+    )
+    fig.suptitle(
+        "Preserve / Enhance / Destroy Classification by Metric",
+        fontsize=12, fontweight="bold", color=TEXT_COLOR, y=1.06,
+    )
+
+    fig.tight_layout()
+    save_figure(fig, "08_preserve_enhance_destroy.png")
+
+    # Count categories across all metrics
+    counts = {"Enhance": 0, "Preserve": 0, "Destroy": 0}
+    for metric, pctl, _ in HEATMAP_METRICS:
+        for m in MODELS:
+            for strat in CLASSIFY_STRATEGIES:
+                row = lookup_row(rows, m, strat, metric, pctl)
+                counts[_classify_ped(row)] += 1
+    total = sum(counts.values())
+
+    return (
+        f"Across all 6 metrics: {counts['Enhance']} Enhance, "
+        f"{counts['Preserve']} Preserve, {counts['Destroy']} Destroy "
+        f"(out of {total} model-strategy-metric combinations). "
+        "Linear Probe omitted (frozen backbone = always Preserve)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure 9: Forest Plot with 95% Confidence Intervals
+# ---------------------------------------------------------------------------
+def fig_forest_plot_ci(rows: list[dict]) -> str:
+    """2x3 faceted forest plot: point estimate + 95% CI whisker per model×strategy.
+
+    Each panel = one metric. Rows = 12 (6 models × 2 strategies), color by
+    strategy. Vertical dashed line at zero. Significance star on significant CIs.
+    """
+    fig, axes = plt.subplots(2, 3, figsize=(14, 9))
+    axes = axes.flatten()
+
+    strats = CLASSIFY_STRATEGIES  # LoRA + Full only
+    y_labels = []
+    for m in MODELS:
+        for strat in strats:
+            y_labels.append(f"{MODEL_LABELS[m]} — {STRATEGY_LABELS[strat]}")
+
+    for idx, (metric, pctl, title) in enumerate(HEATMAP_METRICS):
+        ax = axes[idx]
+        direction = METRIC_DIRECTION[metric]
+        y_pos = np.arange(len(y_labels))
+
+        means = []
+        ci_lows = []
+        ci_highs = []
+        colors = []
+        sigs = []
+        markers = []
+
+        for m in MODELS:
+            for strat in strats:
+                row = lookup_row(rows, m, strat, metric, pctl)
+                if row:
+                    d = row["mean_delta"]
+                    ci_lo = row.get("delta_ci_lower", d)
+                    ci_hi = row.get("delta_ci_upper", d)
+                    # Flip sign for lower-is-better so positive = improvement
+                    if direction == "lower":
+                        d, ci_lo, ci_hi = -d, -ci_hi, -ci_lo
+                    means.append(d)
+                    ci_lows.append(ci_lo)
+                    ci_highs.append(ci_hi)
+                    sigs.append(row.get("significant", False))
+                else:
+                    means.append(0.0)
+                    ci_lows.append(0.0)
+                    ci_highs.append(0.0)
+                    sigs.append(False)
+                colors.append(STRATEGY_COLORS[strat])
+                markers.append("D" if strat == "lora" else "o")
+
+        means = np.array(means)
+        ci_lows = np.array(ci_lows)
+        ci_highs = np.array(ci_highs)
+
+        # CI whiskers
+        for i in range(len(y_pos)):
+            ax.plot(
+                [ci_lows[i], ci_highs[i]], [y_pos[i], y_pos[i]],
+                color=colors[i], linewidth=1.5, solid_capstyle="round",
+            )
+
+        # Point estimates
+        for i in range(len(y_pos)):
+            ax.scatter(
+                means[i], y_pos[i],
+                c=colors[i], marker=markers[i], s=45, zorder=5,
+                edgecolors="white", linewidth=0.3,
+            )
+
+        # Significance stars
+        for i in range(len(y_pos)):
+            if sigs[i]:
+                ax.text(
+                    ci_highs[i] + abs(ci_highs[i] - ci_lows[i]) * 0.15 + 0.0003,
+                    y_pos[i], "*",
+                    ha="center", va="center",
+                    fontsize=10, fontweight="bold", color=SIG_COLOR,
+                )
+
+        # Zero line
+        ax.axvline(0, color=GRID_COLOR, linewidth=0.8, linestyle="--", zorder=0)
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(y_labels if idx % 3 == 0 else [], fontsize=8)
+        hint = "→ better" if direction == "higher" else "(sign flipped) → better"
+        ax.set_title(f"{title}  ({hint})", fontsize=10)
+        ax.invert_yaxis()
+        clean_axes(ax)
+
+    # Strategy legend
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], marker="D", color="w", markerfacecolor=STRATEGY_COLORS["lora"],
+               markersize=7, label="LoRA"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=STRATEGY_COLORS["full"],
+               markersize=7, label="Full"),
+    ]
+    fig.legend(
+        handles=legend_handles, loc="upper center", ncol=2,
+        fontsize=10, bbox_to_anchor=(0.5, 1.02), columnspacing=3,
+    )
+    fig.suptitle(
+        "Mean Δ with 95% Bootstrap CI  (* = significant after Holm correction)",
+        fontsize=12, fontweight="bold", color=TEXT_COLOR, y=1.05,
+    )
+
+    fig.tight_layout()
+    save_figure(fig, "09_forest_plot_ci.png")
+
+    # Count how many CIs exclude zero
+    n_exclude = sum(
+        1 for (metric, pctl, _) in HEATMAP_METRICS
+        for m in MODELS for strat in strats
+        if (r := lookup_row(rows, m, strat, metric, pctl))
+        and r.get("significant", False)
+    )
+    return (
+        f"Forest plot with 95% bootstrap CIs for LoRA and Full across all 6 metrics. "
+        f"{n_exclude} of {len(MODELS) * len(strats) * len(HEATMAP_METRICS)} CIs exclude "
+        f"zero (significant after Holm correction). Sign flipped for lower-is-better "
+        f"metrics so rightward always means improvement."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Figure 10: Per-Image Delta Strip Plot (Full fine-tuning only)
+# ---------------------------------------------------------------------------
+MODEL_COLORS = {
+    "clip": "#4e79a7",
+    "dinov2": "#f28e2b",
+    "dinov3": "#59a14f",
+    "mae": "#e15759",
+    "siglip": "#76b7b2",
+    "siglip2": "#b07aa1",
+}
+
+
+def fig_per_image_strips(rows: list[dict]) -> str:
+    """2x3 faceted strip plot: 139 per-image deltas as jittered dots per model.
+
+    Full fine-tuning only. Bold marker for mean, thin CI whisker overlay.
+    Reveals whether improvements are consistent or driven by outliers.
+    """
+    fig, axes = plt.subplots(2, 3, figsize=(14, 9))
+    axes = axes.flatten()
+
+    rng = np.random.default_rng(42)
+
+    for idx, (metric, pctl, title) in enumerate(HEATMAP_METRICS):
+        ax = axes[idx]
+        direction = METRIC_DIRECTION[metric]
+        y_pos = np.arange(len(MODELS))
+
+        for mi, m in enumerate(MODELS):
+            row = lookup_row(rows, m, "full", metric, pctl)
+            if not row or "per_image_deltas" not in row:
+                continue
+
+            deltas = np.array(list(row["per_image_deltas"].values()))
+            # Flip sign for lower-is-better
+            if direction == "lower":
+                deltas = -deltas
+
+            mean_d = row["mean_delta"]
+            ci_lo = row.get("delta_ci_lower", mean_d)
+            ci_hi = row.get("delta_ci_upper", mean_d)
+            if direction == "lower":
+                mean_d, ci_lo, ci_hi = -mean_d, -ci_hi, -ci_lo
+
+            # Jittered y for strip
+            jitter = rng.uniform(-0.3, 0.3, size=len(deltas))
+            color = MODEL_COLORS[m]
+
+            ax.scatter(
+                deltas, mi + jitter,
+                c=color, alpha=0.25, s=8, edgecolors="none", zorder=2,
+            )
+
+            # CI whisker
+            ax.plot(
+                [ci_lo, ci_hi], [mi, mi],
+                color=color, linewidth=2.5, solid_capstyle="round", zorder=4,
+            )
+
+            # Mean marker
+            ax.scatter(
+                mean_d, mi,
+                c=color, s=60, marker="D", zorder=5,
+                edgecolors="white", linewidth=0.8,
+            )
+
+        # Zero line
+        ax.axvline(0, color=GRID_COLOR, linewidth=0.8, linestyle="--", zorder=0)
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(
+            [MODEL_LABELS[m] for m in MODELS] if idx % 3 == 0 else [],
+        )
+        hint = "→ better" if direction == "higher" else "(sign flipped) → better"
+        ax.set_title(f"{title}  ({hint})", fontsize=10)
+        ax.invert_yaxis()
+        clean_axes(ax)
+
+    fig.suptitle(
+        "Per-Image Δ Distribution  (Full Fine-Tuning, n = 139 images)",
+        fontsize=12, fontweight="bold", color=TEXT_COLOR, y=1.05,
+    )
+    # Annotation for markers
+    fig.text(
+        0.5, 1.01,
+        "dots = individual images  |  diamond = mean  |  bar = 95% CI",
+        ha="center", fontsize=9, color=TEXT_COLOR,
+    )
+
+    fig.tight_layout()
+    save_figure(fig, "10_per_image_delta_strips.png")
+
+    return (
+        "Strip plot showing all 139 per-image deltas for Full fine-tuning. "
+        "Diamond = mean, thick bar = 95% bootstrap CI. Jittered dots reveal "
+        "whether improvement is consistent across images or driven by outliers."
     )
 
 
@@ -806,8 +1124,10 @@ def main() -> None:
         ("04 IoU Percentile Slopes", lambda: fig_iou_percentile_slopes(rows)),
         ("05 Radar Profiles", lambda: fig_radar_profiles(rows)),
         ("06 Accuracy vs Attention", lambda: fig_accuracy_vs_attention(rows)),
-        ("07 Best-Epoch Distribution", lambda: fig_best_epoch_distribution()),
-        ("08 Frozen vs Fine-Tuned", lambda: fig_frozen_vs_finetuned(rows)),
+        ("07 Frozen vs Fine-Tuned", lambda: fig_frozen_vs_finetuned(rows)),
+        ("08 Preserve / Enhance / Destroy", lambda: fig_preserve_enhance_destroy(rows)),
+        ("09 Forest Plot with CIs", lambda: fig_forest_plot_ci(rows)),
+        ("10 Per-Image Delta Strips", lambda: fig_per_image_strips(rows)),
     ]
 
     commentary_lines: list[str] = []
@@ -824,7 +1144,7 @@ def main() -> None:
         "# Run Matrix Figure Commentary\n\n" + "\n".join(commentary_lines)
     )
     print(f"\n{'='*60}")
-    print(f"  All 8 figures + commentary saved to {FIGURES_DIR}/")
+    print(f"  All 10 figures + commentary saved to {FIGURES_DIR}/")
     print(f"{'='*60}\n")
 
 
