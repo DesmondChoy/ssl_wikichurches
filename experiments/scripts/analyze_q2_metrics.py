@@ -162,6 +162,9 @@ class StrategyMetricSummary:
     corrected_p_value: float | None
     significant: bool
     test_name: str
+    correction_method: str | None = None
+    correction_family_id: str | None = None
+    correction_family_size: int | None = None
     per_image: list[PerImageMetricDelta] = field(default_factory=list)
     num_images: int = 0
 
@@ -199,6 +202,12 @@ class AnalysisResults:
 
 MetricBuckets = dict[AnalysisMetric, dict[int | None, list[tuple[str, float]]]]
 StrategyMetricResults = dict[str, dict[AnalysisMetric, dict[int | None, StrategyMetricSummary]]]
+
+
+def build_correction_family_id(metric: AnalysisMetric, percentile: int | None) -> str:
+    """Build a stable identifier for one cross-model correction bucket."""
+    percentile_label = f"p{percentile}" if percentile is not None else "threshold_free"
+    return f"cross_model_summary:{metric}:{percentile_label}"
 
 
 def resolve_layer_index(model_name: str, layer: int) -> int:
@@ -503,18 +512,15 @@ def apply_holm_correction(
     percentile: int | None,
     alpha: float = 0.05,
 ) -> None:
-    """Apply Holm correction across non-linear-probe rows for one metric bucket."""
+    """Apply Holm correction across all discovered rows for one metric bucket."""
     keys: list[tuple[str, str]] = []
     p_values: list[float] = []
+    family_id = build_correction_family_id(metric, percentile)
 
     for model_name, strategy_results in model_results.items():
         for strategy_id, metric_results in strategy_results.items():
             row = metric_results.get(metric, {}).get(percentile)
             if row is None:
-                continue
-            # Linear probe is a frozen-backbone control, so its zero-delta rows
-            # should remain visible in the output without diluting the Holm pool.
-            if strategy_id == "linear_probe":
                 continue
             keys.append((model_name, strategy_id))
             p_values.append(row.p_value)
@@ -522,11 +528,15 @@ def apply_holm_correction(
     if not p_values:
         return
 
+    family_size = len(p_values)
     corrected = multiple_comparison_correction(p_values, method="holm", alpha=alpha)
     for (model_name, strategy_id), (corrected_p, significant) in zip(keys, corrected, strict=True):
         row = model_results[model_name][strategy_id][metric][percentile]
         row.corrected_p_value = corrected_p
         row.significant = significant
+        row.correction_method = "holm"
+        row.correction_family_id = family_id
+        row.correction_family_size = family_size
 
 
 def compare_strategies_within_model(

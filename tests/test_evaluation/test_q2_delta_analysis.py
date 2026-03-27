@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
+from types import ModuleType
 
 
-def _load_module():
+def _load_module() -> ModuleType:
     script_path = Path(__file__).resolve().parents[2] / "experiments" / "scripts" / "analyze_q2_metrics.py"
     spec = importlib.util.spec_from_file_location("analyze_q2_metrics", script_path)
     assert spec and spec.loader
@@ -76,7 +78,7 @@ def test_compare_strategies_within_model_returns_pairwise_rows() -> None:
     assert row.corrected_p_value is not None
 
 
-def test_apply_holm_correction_excludes_linear_probe_rows() -> None:
+def test_apply_holm_correction_includes_all_strategies_in_same_family() -> None:
     module = _load_module()
 
     linear_probe = module.summarize_metric_delta(
@@ -111,8 +113,6 @@ def test_apply_holm_correction_excludes_linear_probe_rows() -> None:
     lora.p_value = 0.01
     full.p_value = 0.02
 
-    linear_probe_significant = linear_probe.significant
-
     model_results = {
         "clip": {
             "linear_probe": {"iou": {90: linear_probe}},
@@ -125,11 +125,84 @@ def test_apply_holm_correction_excludes_linear_probe_rows() -> None:
 
     module.apply_holm_correction(model_results, metric="iou", percentile=90)
 
-    expected = module.multiple_comparison_correction([0.01, 0.02], method="holm", alpha=0.05)
+    expected = module.multiple_comparison_correction([0.001, 0.01, 0.02], method="holm", alpha=0.05)
+    family_id = module.build_correction_family_id("iou", 90)
 
-    assert linear_probe.corrected_p_value is None
-    assert linear_probe.significant is linear_probe_significant
-    assert lora.corrected_p_value == expected[0][0]
-    assert lora.significant is expected[0][1]
-    assert full.corrected_p_value == expected[1][0]
-    assert full.significant is expected[1][1]
+    assert linear_probe.corrected_p_value == expected[0][0]
+    assert linear_probe.significant is expected[0][1]
+    assert linear_probe.correction_method == "holm"
+    assert linear_probe.correction_family_id == family_id
+    assert linear_probe.correction_family_size == 3
+
+    assert lora.corrected_p_value == expected[1][0]
+    assert lora.significant is expected[1][1]
+    assert lora.correction_method == "holm"
+    assert lora.correction_family_id == family_id
+    assert lora.correction_family_size == 3
+
+    assert full.corrected_p_value == expected[2][0]
+    assert full.significant is expected[2][1]
+    assert full.correction_method == "holm"
+    assert full.correction_family_id == family_id
+    assert full.correction_family_size == 3
+
+
+def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> None:
+    module = _load_module()
+
+    linear_probe = module.summarize_metric_delta(
+        model_name="clip",
+        strategy_id="linear_probe",
+        metric="iou",
+        percentile=90,
+        method="cls",
+        frozen_values={"a": 0.4, "b": 0.4},
+        finetuned_values={"a": 0.4, "b": 0.4},
+    )
+    lora = module.summarize_metric_delta(
+        model_name="clip",
+        strategy_id="lora",
+        metric="iou",
+        percentile=90,
+        method="cls",
+        frozen_values={"a": 0.4, "b": 0.4},
+        finetuned_values={"a": 0.45, "b": 0.44},
+    )
+
+    linear_probe.p_value = 0.001
+    lora.p_value = 0.01
+
+    model_results = {
+        "clip": {
+            "linear_probe": {"iou": {90: linear_probe}},
+            "lora": {"iou": {90: lora}},
+        },
+    }
+
+    module.apply_holm_correction(model_results, metric="iou", percentile=90)
+
+    output_path = tmp_path / "q2_metrics_analysis.json"
+    results = module.AnalysisResults(
+        experiment_id="exp",
+        split_id="split",
+        git_commit_sha="abc123",
+        percentiles=[90],
+        analyzed_layer=11,
+        evaluation_image_count=2,
+        checkpoint_selection_rule="best validation accuracy",
+        result_set_scope="primary",
+        metrics=list(module.METRIC_CONFIGS.values()),
+        rows=[linear_probe, lora],
+        strategy_comparisons=[],
+        timestamp="2026-03-28T00:00:00+08:00",
+    )
+
+    module.save_results(results, output_path)
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    row = next(item for item in payload["rows"] if item["strategy_id"] == "linear_probe")
+
+    assert row["correction_method"] == "holm"
+    assert row["correction_family_id"] == "cross_model_summary:iou:p90"
+    assert row["correction_family_size"] == 2
+    assert set(row["per_image_deltas"]) == {"a", "b"}

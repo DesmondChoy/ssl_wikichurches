@@ -176,7 +176,7 @@ To verify findings are robust to methodological choices:
 | RQ | Primary Metrics | Statistical Test | Visualization |
 |:---|:---------------|:-----------------|:--------------|
 | Q1 | IoU (at 90th percentile), MSE, KL divergence, EMD, Coverage | Paired t-test and Wilcoxon signed-rank across models; bootstrap CIs; Holm-Bonferroni correction for pairwise comparisons | Attention heatmaps with bbox overlay; model leaderboard |
-| Q2 | Δ IoU, Δ Coverage, Δ MSE, Δ KL, Δ EMD (fine-tuned − frozen); Preserve/Enhance/Destroy classification | Paired Wilcoxon tests on same 139 images; Holm correction across 12 model-strategy combinations (linear probe excluded as frozen-backbone control); Cohen's d effect sizes | Side-by-side frozen vs fine-tuned; Δ metric bar charts by method and model |
+| Q2 | Δ IoU, Δ Coverage, Δ MSE, Δ KL, Δ EMD (fine-tuned − frozen); Preserve/Enhance/Destroy classification | Paired Wilcoxon tests on same 139 images; Holm correction within each metric bucket across all discovered model-strategy rows (linear probe, LoRA, and full corrected together); Cohen's d effect sizes | Side-by-side frozen vs fine-tuned; Δ metric bar charts by method and model |
 | Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
 
 ### Baselines

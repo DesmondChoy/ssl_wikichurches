@@ -140,8 +140,17 @@ It includes:
 | `evaluation_image_count` | Number of annotated evaluation images |
 | `checkpoint_selection_rule` | Human-readable primary checkpoint rule |
 | `result_set_scope` | `primary` or `exploratory` |
-| `results` | Fine-tuned vs frozen metric rows |
-| `pairwise_strategy_comparisons` | Within-model strategy comparisons |
+| `rows` | Fine-tuned vs frozen metric rows |
+| `strategy_comparisons` | Within-model strategy comparisons |
+
+Each cross-model row also records the correction metadata used for the headline
+significance call:
+
+| Field | Meaning |
+|---|---|
+| `correction_method` | Multiple-comparison method applied to the row (`holm`) |
+| `correction_family_id` | Stable identifier for the shared `metric + percentile` correction bucket |
+| `correction_family_size` | Number of discovered model-strategy rows corrected together in that bucket |
 
 `q2_delta_iou_analysis.json` is retained only as a compatibility export for
 older consumers.
