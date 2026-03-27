@@ -29,22 +29,18 @@ if TYPE_CHECKING:
 EMD_GRID_SIZE = 8
 
 
-def normalize_attention_for_mse(attention: Tensor) -> Tensor:
-    """Normalize an attention heatmap into the repo's [0, 1] heatmap range."""
-    normalized = attention.float().nan_to_num(nan=0.0, posinf=1.0, neginf=0.0)
+def sanitize_nonnegative_heatmap(values: Tensor) -> Tensor:
+    """Sanitize a heatmap for metrics that require non-negative support."""
+    return values.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).clamp_min(0.0)
 
-    min_val = normalized.min().item()
-    max_val = normalized.max().item()
-    if min_val < 0.0 or max_val > 1.0:
-        scale = max_val - min_val
-        if scale > EPSILON:
-            normalized = (normalized - min_val) / scale
-        elif max_val <= 0.0:
-            normalized = torch.zeros_like(normalized)
-        else:
-            normalized = torch.ones_like(normalized)
 
-    return normalized.clamp(0.0, 1.0)
+def prepare_bounded_heatmap(values: Tensor) -> Tensor:
+    """Sanitize a heatmap into the shared bounded [0, 1] range.
+
+    Both attention and Gaussian ground truth use the same bounded
+    normalization rule so the MSE path does not rescale attention only.
+    """
+    return sanitize_nonnegative_heatmap(values).clamp(0.0, 1.0)
 
 
 def prepare_probability_distribution(values: Tensor) -> Tensor:
@@ -54,20 +50,13 @@ def prepare_probability_distribution(values: Tensor) -> Tensor:
     distributions. To keep the divergence finite, values are sanitized,
     clamped non-negative, epsilon-smoothed, and normalized to sum to 1.
     """
-    distribution = values.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
-    distribution = distribution.clamp_min(0.0)
-    distribution = distribution + EPSILON
+    distribution = sanitize_nonnegative_heatmap(values) + EPSILON
 
     total = distribution.sum()
     if not torch.isfinite(total) or total <= 0:
         return torch.full_like(distribution, 1.0 / distribution.numel())
 
     return distribution / total
-
-
-def sanitize_nonnegative_heatmap(values: Tensor) -> Tensor:
-    """Sanitize a heatmap for transport-style metrics without smoothing."""
-    return values.float().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).clamp_min(0.0)
 
 
 def resize_heatmap_for_emd(values: Tensor, size: int = EMD_GRID_SIZE) -> Tensor:
@@ -229,8 +218,8 @@ def compute_mse(attention: Tensor, gt_heatmap: Tensor) -> float:
     if gt_heatmap.device != attention.device:
         gt_heatmap = gt_heatmap.to(attention.device)
 
-    normalized_attention = normalize_attention_for_mse(attention)
-    normalized_gt = gt_heatmap.float().nan_to_num(nan=0.0, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
+    normalized_attention = prepare_bounded_heatmap(attention)
+    normalized_gt = prepare_bounded_heatmap(gt_heatmap)
     return torch.mean((normalized_attention - normalized_gt) ** 2).item()
 
 

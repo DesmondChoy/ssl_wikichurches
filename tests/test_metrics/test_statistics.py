@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ssl_attention.metrics.statistics import cohens_d
+from ssl_attention.metrics.statistics import cohens_d, paired_ttest
 
 
 class TestCohensD:
@@ -109,3 +109,25 @@ class TestCohensD:
         b = np.array([0.8, 0.9, 1.0, 0.85])
         assert cohens_d(a, b, paired=True) < 0
         assert cohens_d(a, b, paired=False) < 0
+
+
+class TestPairedTTest:
+    """Test paired_ttest() edge cases around zero-variance differences."""
+
+    def test_identical_arrays_are_not_significant(self) -> None:
+        a = np.array([0.4, 0.6, 0.8, 1.0])
+        b = np.array([0.4, 0.6, 0.8, 1.0])
+
+        t_stat, p_value = paired_ttest(a, b)
+
+        assert t_stat == 0.0
+        assert p_value == 1.0
+
+    def test_constant_nonzero_shift_returns_zero_p_value(self) -> None:
+        a = np.array([1.5, 1.5, 1.5, 1.5])
+        b = np.array([1.0, 1.0, 1.0, 1.0])
+
+        t_stat, p_value = paired_ttest(a, b)
+
+        assert t_stat == float("inf")
+        assert p_value == 0.0

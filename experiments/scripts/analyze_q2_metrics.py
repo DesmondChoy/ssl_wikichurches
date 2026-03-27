@@ -57,6 +57,16 @@ from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
     get_checkpoint_candidates,
     load_finetuned_model,
 )
+from ssl_attention.evaluation.fine_tuning_artifacts import (  # noqa: E402
+    get_experiment_paths,
+    get_git_commit_sha,
+    load_active_experiment,
+    load_run_matrix,
+    project_path,
+    repo_relative_path,
+    save_run_matrix,
+    write_active_experiment,
+)
 from ssl_attention.metrics import (  # noqa: E402
     compute_coverage,
     compute_image_emd,
@@ -173,8 +183,14 @@ class StrategyPairMetricComparison:
 
 @dataclass
 class AnalysisResults:
+    experiment_id: str | None
+    split_id: str | None
+    git_commit_sha: str | None
     percentiles: list[int]
     analyzed_layer: int
+    evaluation_image_count: int
+    checkpoint_selection_rule: str
+    result_set_scope: str
     metrics: list[MetricConfig]
     rows: list[StrategyMetricSummary]
     strategy_comparisons: list[StrategyPairMetricComparison]
@@ -206,21 +222,45 @@ def parse_strategy_from_checkpoint_name(checkpoint_path: Path, model_name: str) 
 def discover_strategy_checkpoints(
     model_names: list[str],
     strategy_ids: list[str],
-) -> dict[str, dict[str, Path]]:
-    """Discover checkpoint paths for requested model/strategy pairs."""
+    *,
+    experiment_id: str | None,
+    include_exploratory: bool,
+) -> tuple[dict[str, dict[str, Path]], str | None]:
+    """Discover checkpoint paths for requested model/strategy pairs.
+
+    Prefers the explicit experiment run matrix and falls back to empty results if
+    no active or requested experiment is available.
+    """
+    if experiment_id is None:
+        discovered_checkpoints: dict[str, dict[str, Path]] = {}
+        for model_name in model_names:
+            per_model: dict[str, Path] = {}
+            for strategy_id in strategy_ids:
+                candidates = get_checkpoint_candidates(model_name, strategy_id=strategy_id)
+                checkpoint = next((path for path in candidates if path.exists()), None)
+                if checkpoint is not None:
+                    per_model[strategy_id] = checkpoint
+            if per_model:
+                discovered_checkpoints[model_name] = per_model
+        return discovered_checkpoints, None
+
+    run_matrix = load_run_matrix(experiment_id)
+    split_id = run_matrix.get("split_id")
     discovered: dict[str, dict[str, Path]] = {}
 
-    for model_name in model_names:
-        per_model: dict[str, Path] = {}
-        for strategy_id in strategy_ids:
-            candidates = get_checkpoint_candidates(model_name, strategy_id=strategy_id)
-            checkpoint = next((path for path in candidates if path.exists()), None)
-            if checkpoint is not None:
-                per_model[strategy_id] = checkpoint
-        if per_model:
-            discovered[model_name] = per_model
+    for run in run_matrix.get("runs", {}).values():
+        model_name = run.get("model")
+        strategy_id = run.get("strategy")
+        if model_name not in model_names or strategy_id not in strategy_ids:
+            continue
+        if not include_exploratory and run.get("run_scope") != "primary":
+            continue
+        checkpoint_path = project_path(run.get("checkpoint_path"))
+        if checkpoint_path is None or not checkpoint_path.exists():
+            continue
+        discovered.setdefault(model_name, {})[strategy_id] = checkpoint_path
 
-    return discovered
+    return discovered, split_id
 
 
 def extract_attention_heatmap(
@@ -593,10 +633,30 @@ def parse_args() -> argparse.Namespace:
         help="Include ResNet-50 (unsupported in this script).",
     )
     parser.add_argument(
+        "--experiment-id",
+        type=str,
+        default=None,
+        help=(
+            "Experiment batch identifier to analyze. Defaults to the active "
+            "experiment pointer when available."
+        ),
+    )
+    parser.add_argument(
+        "--include-exploratory",
+        action="store_true",
+        help=(
+            "Include exploratory runs such as annotated-eval validation in the "
+            "analysis set. The default primary path excludes them."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Output JSON path. Default: outputs/results/q2_metrics_analysis.json",
+        help=(
+            "Output JSON path. Defaults to the experiment-scoped "
+            "q2_metrics_analysis.json for the selected experiment."
+        ),
     )
 
     return parser.parse_args()
@@ -641,8 +701,14 @@ def save_results(results: AnalysisResults, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     payload: dict[str, Any] = {
+        "experiment_id": results.experiment_id,
+        "split_id": results.split_id,
+        "git_commit_sha": results.git_commit_sha,
         "percentiles": results.percentiles,
         "analyzed_layer": results.analyzed_layer,
+        "evaluation_image_count": results.evaluation_image_count,
+        "checkpoint_selection_rule": results.checkpoint_selection_rule,
+        "result_set_scope": results.result_set_scope,
         "timestamp": results.timestamp,
         "metrics": [asdict(metric) for metric in results.metrics],
         "rows": [],
@@ -667,6 +733,8 @@ def main() -> None:
 
     args = parse_args()
     percentiles = [args.percentile] if args.percentile else [90, 80, 70, 60, 50]
+    active_experiment = load_active_experiment()
+    experiment_id = args.experiment_id or (active_experiment or {}).get("experiment_id")
 
     if args.models:
         requested_models = [model for model in args.models if model in FINETUNE_MODELS]
@@ -679,15 +747,24 @@ def main() -> None:
     if args.include_resnet:
         print("ResNet-50 uses Grad-CAM and is not supported by this script. Skipping.")
 
-    discovered = discover_strategy_checkpoints(requested_models, args.strategies)
+    discovered, split_id = discover_strategy_checkpoints(
+        requested_models,
+        args.strategies,
+        experiment_id=experiment_id,
+        include_exploratory=args.include_exploratory,
+    )
     if not discovered:
         print("No strategy checkpoints found. Exiting.")
         return
 
+    result_set_scope = "exploratory" if args.include_exploratory else "primary"
     print(f"Models to analyze: {sorted(discovered.keys())}")
     print(f"Strategies: {args.strategies}")
     print(f"Percentiles (IoU only): {percentiles}")
     print(f"Layer: {args.layer}")
+    if experiment_id:
+        print(f"Experiment ID: {experiment_id}")
+        print(f"Result set scope: {result_set_scope}")
 
     print("\nLoading annotated dataset...")
     dataset = AnnotatedSubset(DATASET_PATH)
@@ -783,14 +860,58 @@ def main() -> None:
     results = AnalysisResults(
         percentiles=percentiles,
         analyzed_layer=analyzed_layer,
+        experiment_id=experiment_id,
+        split_id=split_id,
+        git_commit_sha=get_git_commit_sha(),
+        evaluation_image_count=len(dataset),
+        checkpoint_selection_rule=(
+            "best classification validation accuracy on shared non-annotated validation split"
+        ),
+        result_set_scope=result_set_scope,
         metrics=list(METRIC_CONFIGS.values()),
         rows=flat_rows,
         strategy_comparisons=strategy_comparisons,
         timestamp=datetime.now().isoformat(),
     )
 
-    output_path = args.output or (RESULTS_PATH / "q2_metrics_analysis.json")
+    if args.output is not None:
+        output_path = args.output
+    elif experiment_id:
+        output_path = get_experiment_paths(experiment_id).q2_metrics_path
+    else:
+        output_path = RESULTS_PATH / "q2_metrics_analysis.json"
     save_results(results, output_path)
+
+    if experiment_id:
+        experiment_paths = get_experiment_paths(experiment_id)
+        compatibility_output = experiment_paths.q2_delta_iou_path
+        if output_path != compatibility_output:
+            save_results(results, compatibility_output)
+
+        run_matrix = load_run_matrix(experiment_id)
+        runs = dict(run_matrix.get("runs", {}))
+        for run_entry in runs.values():
+            if run_entry.get("run_scope") != "primary" and not args.include_exploratory:
+                continue
+            run_entry["analysis_artifact_paths"] = {
+                "q2_metrics": repo_relative_path(output_path),
+                "q2_delta_iou": repo_relative_path(compatibility_output),
+            }
+        save_run_matrix(
+            experiment_id,
+            {
+                **run_matrix,
+                "split_id": split_id,
+                "runs": runs,
+            },
+        )
+        write_active_experiment(
+            experiment_id,
+            split_id=split_id,
+            run_matrix_path=experiment_paths.run_matrix_path,
+            q2_metrics_path=output_path,
+            q2_delta_iou_path=compatibility_output,
+        )
 
     print("\nDone!")
 

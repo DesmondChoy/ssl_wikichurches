@@ -32,8 +32,9 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
@@ -45,11 +46,31 @@ from transformers import AutoImageProcessor, get_cosine_schedule_with_warmup
 
 from ssl_attention.config import (
     ANNOTATIONS_PATH,
+    DATASET_PATH,
     FINETUNE_MODELS,
     FINETUNE_STRATEGIES,
     MODELS,
     NUM_STYLES,
+    STYLE_NAMES,
     FineTuningStrategy,
+)
+from ssl_attention.evaluation.fine_tuning_artifacts import (
+    CHECKPOINTS_ROOT,
+    RESULTS_ROOT,
+    ExperimentPaths,
+    build_dataset_version_hint,
+    build_run_id,
+    ensure_experiment_layout,
+    get_experiment_paths,
+    get_git_commit_sha,
+    load_active_experiment,
+    load_json,
+    load_run_matrix,
+    make_experiment_id,
+    repo_relative_path,
+    save_json,
+    save_run_matrix,
+    write_active_experiment,
 )
 from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import clear_memory, get_device
@@ -65,9 +86,9 @@ if TYPE_CHECKING:
 # =============================================================================
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-CHECKPOINTS_PATH = _PROJECT_ROOT / "outputs" / "checkpoints"
-RESULTS_PATH = _PROJECT_ROOT / "outputs" / "results"
-MANIFESTS_PATH = RESULTS_PATH / "fine_tuning_manifests"
+CHECKPOINTS_PATH = CHECKPOINTS_ROOT
+RESULTS_PATH = RESULTS_ROOT
+LEGACY_MANIFESTS_PATH = RESULTS_PATH / "fine_tuning_manifests"
 
 # LoRA target modules per model (HF attention projection names differ)
 LORA_TARGET_MODULES: dict[str, list[str]] = {
@@ -80,6 +101,49 @@ LORA_TARGET_MODULES: dict[str, list[str]] = {
 }
 
 _LEGACY_FINETUNED_SUFFIX = "_finetuned.pt"
+
+PRIMARY_SPLIT_POLICY = "random_stratified_excluding_annotated_eval"
+EXPLORATORY_SPLIT_POLICY = "annotated_eval_validation"
+PRIMARY_SELECTION_METRIC = "classification_validation_accuracy"
+
+
+@dataclass
+class FineTuningSplitArtifact:
+    """Shared train/validation split provenance for an experiment batch."""
+
+    split_id: str
+    experiment_id: str
+    seed: int
+    dataset_root: str
+    dataset_version_hint: dict[str, Any]
+    policy: str
+    exclude_annotated_from_train: bool
+    exclude_annotated_from_val: bool
+    annotated_eval_image_ids: list[str]
+    train_image_ids: list[str]
+    val_image_ids: list[str]
+    train_class_counts: dict[str, int]
+    val_class_counts: dict[str, int]
+    created_at: str
+
+
+def build_split_id(experiment_id: str, *, seed: int, exploratory: bool) -> str:
+    """Build a stable split identifier inside one experiment batch."""
+    scope = "exploratory" if exploratory else "primary"
+    return f"{experiment_id}__{scope}__seed{seed}"
+
+
+def _style_count_dict() -> dict[str, int]:
+    """Create an empty style-count dictionary keyed by style name."""
+    return {style_name: 0 for style_name in STYLE_NAMES}
+
+
+def _labels_to_style_counts(labels: list[int]) -> dict[str, int]:
+    """Convert integer style labels into a readable count mapping."""
+    counts = _style_count_dict()
+    for label in labels:
+        counts[STYLE_NAMES[label]] += 1
+    return counts
 
 
 def infer_strategy_id(*, freeze_backbone: bool, use_lora: bool) -> str:
@@ -108,23 +172,43 @@ def strategy_uses_legacy_checkpoint_fallback(strategy_id: str | None) -> bool:
     return strategy_id == FineTuningStrategy.FULL.value
 
 
-def get_checkpoint_candidates(model_name: str, strategy_id: str | None = None) -> list[Path]:
-    """Return checkpoint candidates in preference order."""
+def get_checkpoint_candidates(
+    model_name: str,
+    strategy_id: str | None = None,
+    experiment_id: str | None = None,
+) -> list[Path]:
+    """Return checkpoint candidates in preference order.
+
+    Prefers experiment-scoped checkpoint directories when an explicit
+    `experiment_id` is provided or an active experiment is configured.
+    Falls back to the legacy top-level checkpoint layout for compatibility.
+    """
     candidates: list[Path] = []
+    checkpoint_dirs: list[Path] = []
+    resolved_experiment_id = experiment_id
+    if resolved_experiment_id is None:
+        active = load_active_experiment()
+        if active is not None:
+            resolved_experiment_id = active.get("experiment_id")
+    if resolved_experiment_id:
+        checkpoint_dirs.append(get_experiment_paths(resolved_experiment_id).checkpoints_dir)
+    checkpoint_dirs.append(CHECKPOINTS_PATH)
 
     if strategy_id is None:
-        for strategy in (
-            FineTuningStrategy.LORA.value,
-            FineTuningStrategy.FULL.value,
-            FineTuningStrategy.LINEAR_PROBE.value,
-        ):
-            candidates.append(CHECKPOINTS_PATH / get_checkpoint_filename(model_name, strategy))
-        candidates.append(CHECKPOINTS_PATH / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
+        for checkpoint_dir in checkpoint_dirs:
+            for strategy in (
+                FineTuningStrategy.LORA.value,
+                FineTuningStrategy.FULL.value,
+                FineTuningStrategy.LINEAR_PROBE.value,
+            ):
+                candidates.append(checkpoint_dir / get_checkpoint_filename(model_name, strategy))
+            candidates.append(checkpoint_dir / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
         return candidates
 
-    candidates.append(CHECKPOINTS_PATH / get_checkpoint_filename(model_name, strategy_id))
-    if strategy_uses_legacy_checkpoint_fallback(strategy_id):
-        candidates.append(CHECKPOINTS_PATH / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
+    for checkpoint_dir in checkpoint_dirs:
+        candidates.append(checkpoint_dir / get_checkpoint_filename(model_name, strategy_id))
+        if strategy_uses_legacy_checkpoint_fallback(strategy_id):
+            candidates.append(checkpoint_dir / f"{model_name}{_LEGACY_FINETUNED_SUFFIX}")
     return candidates
 
 
@@ -149,8 +233,19 @@ class FineTuningConfig:
         exclude_annotated_eval: If True, exclude bbox-annotated images from
             training/validation splits to avoid data leakage in Q2 evaluation.
         val_on_annotated_eval: If True, use bbox-annotated images as the
-            validation set and train on remaining labeled images.
+            validation set and train on remaining labeled images. This is an
+            exploratory mode because it reuses the annotated evaluation pool for
+            checkpoint selection.
         seed: Random seed for reproducibility.
+        experiment_id: Experiment-batch identifier for coordinated runs.
+        split_id: Shared split artifact identifier reused across runs in the
+            same experiment batch.
+        split_artifact_path: Optional repo-relative split artifact path.
+        run_scope: "primary" for the main experiment path and "exploratory" for
+            non-primary modes such as annotated-eval validation.
+        checkpoint_selection_metric: Criterion used for checkpoint selection.
+        checkpoint_selection_split: Human-readable identifier for the selection
+            split used during training.
         warmup_ratio: Fraction of total training steps for linear LR warmup.
         max_grad_norm: Maximum gradient norm for clipping (0 disables clipping).
         use_augmentation: Whether to apply training data augmentations.
@@ -172,6 +267,12 @@ class FineTuningConfig:
     exclude_annotated_eval: bool = True
     val_on_annotated_eval: bool = False
     seed: int = 42
+    experiment_id: str = field(default_factory=make_experiment_id)
+    split_id: str | None = None
+    split_artifact_path: str | None = None
+    run_scope: Literal["primary", "exploratory"] = "primary"
+    checkpoint_selection_metric: str = PRIMARY_SELECTION_METRIC
+    checkpoint_selection_split: str | None = None
     warmup_ratio: float = 0.1
     max_grad_norm: float = 1.0
     use_augmentation: bool = True
@@ -204,6 +305,18 @@ class FineTuningConfig:
                 "val_on_annotated_eval=True requires exclude_annotated_eval=True "
                 "so annotated eval images are not used in training."
             )
+        if self.val_on_annotated_eval:
+            self.run_scope = "exploratory"
+        if self.split_id is None:
+            self.split_id = build_split_id(
+                self.experiment_id,
+                seed=self.seed,
+                exploratory=self.val_on_annotated_eval,
+            )
+        if self.checkpoint_selection_split is None:
+            self.checkpoint_selection_split = (
+                EXPLORATORY_SPLIT_POLICY if self.val_on_annotated_eval else PRIMARY_SPLIT_POLICY
+            )
 
     @property
     def strategy_id(self) -> str:
@@ -212,6 +325,11 @@ class FineTuningConfig:
             freeze_backbone=self.freeze_backbone,
             use_lora=self.use_lora,
         )
+
+    @property
+    def run_id(self) -> str:
+        """Stable experiment-scoped run identifier."""
+        return build_run_id(self.experiment_id, self.model_name, self.strategy_id)
 
 
 @dataclass
@@ -234,6 +352,12 @@ class FineTuningResult:
     train_history: list[dict[str, float]]
     checkpoint_path: Path
     manifest_path: Path
+    experiment_id: str
+    run_id: str
+    split_id: str
+    split_artifact_path: Path
+    run_scope: Literal["primary", "exploratory"]
+    git_commit_sha: str | None = None
     num_train_samples: int = 0
     num_val_samples: int = 0
     num_excluded_eval_samples: int = 0
@@ -547,11 +671,17 @@ class FineTunableModel(nn.Module):
         Returns:
             ModelOutput compatible with attention analysis.
         """
-        with torch.no_grad():
-            model_output = self.backbone(
-                pixel_values=pixel_values,
-                output_attentions=True,
-            )
+        was_training = self.backbone.training
+        self.backbone.eval()
+        try:
+            with torch.inference_mode():
+                model_output = self.backbone(
+                    pixel_values=pixel_values,
+                    output_attentions=True,
+                )
+        finally:
+            if was_training:
+                self.backbone.train()
 
         hidden_states = model_output.last_hidden_state
         attentions = list(model_output.attentions)
@@ -673,7 +803,7 @@ class FineTuner:
         dataset: FullDataset,
         val_split: float,
         exclude_image_ids: set[str] | None = None,
-    ) -> tuple[Subset, Subset, int]:
+    ) -> tuple[list[int], list[int], int]:
         """Split dataset into train/val with stratification.
 
         Args:
@@ -683,7 +813,7 @@ class FineTuner:
                 bbox-annotated evaluation images to prevent data leakage).
 
         Returns:
-            Tuple of (train_subset, val_subset, n_excluded).
+            Tuple of (train_indices, val_indices, n_excluded).
         """
         # Get all labels, skipping excluded images
         all_labels = []
@@ -707,14 +837,15 @@ class FineTuner:
         # Split each class
         train_indices = []
         val_indices = []
+        rng = random.Random(self.config.seed)
 
         for _label, indices in label_to_indices.items():
-            random.shuffle(indices)
+            rng.shuffle(indices)
             n_val = max(1, int(len(indices) * val_split))
             val_indices.extend(indices[:n_val])
             train_indices.extend(indices[n_val:])
 
-        return Subset(dataset, train_indices), Subset(dataset, val_indices), n_excluded
+        return train_indices, val_indices, n_excluded
 
     def _collect_labels_for_indices(
         self,
@@ -733,7 +864,7 @@ class FineTuner:
         self,
         dataset: FullDataset,
         eval_image_ids: set[str],
-    ) -> tuple[Subset, Subset, int]:
+    ) -> tuple[list[int], list[int], int]:
         """Use annotated images as fixed validation set; others for training.
 
         Args:
@@ -741,7 +872,7 @@ class FineTuner:
             eval_image_ids: Image IDs in annotated subset.
 
         Returns:
-            Tuple of (train_subset, val_subset, n_val_annotated).
+            Tuple of (train_indices, val_indices, n_val_annotated).
         """
         train_indices: list[int] = []
         val_indices: list[int] = []
@@ -755,7 +886,89 @@ class FineTuner:
             else:
                 train_indices.append(i)
 
-        return Subset(dataset, train_indices), Subset(dataset, val_indices), len(val_indices)
+        return train_indices, val_indices, len(val_indices)
+
+    def _build_image_index_map(self, dataset: FullDataset) -> dict[str, int]:
+        """Map image IDs to dataset indices without loading image bytes."""
+        return {
+            dataset.get_metadata(index)["image_id"]: index
+            for index in range(len(dataset))
+        }
+
+    def _create_split_artifact(
+        self,
+        dataset: FullDataset,
+        eval_image_ids: set[str],
+        split_artifact_path: Path,
+    ) -> FineTuningSplitArtifact:
+        """Create and persist a shared split artifact for this experiment batch."""
+        if self.config.val_on_annotated_eval:
+            train_indices, val_indices, _ = self._split_with_annotated_eval_validation(
+                dataset,
+                eval_image_ids,
+            )
+            policy = EXPLORATORY_SPLIT_POLICY
+            exclude_annotated_from_val = False
+        else:
+            train_indices, val_indices, _ = self._stratified_split(
+                dataset,
+                self.config.val_split,
+                exclude_image_ids=eval_image_ids,
+            )
+            policy = PRIMARY_SPLIT_POLICY
+            exclude_annotated_from_val = True
+
+        train_image_ids = [dataset.get_metadata(index)["image_id"] for index in train_indices]
+        val_image_ids = [dataset.get_metadata(index)["image_id"] for index in val_indices]
+        train_labels = self._collect_labels_for_indices(dataset, train_indices)
+        val_labels = self._collect_labels_for_indices(dataset, val_indices)
+
+        artifact = FineTuningSplitArtifact(
+            split_id=self.config.split_id or build_split_id(
+                self.config.experiment_id,
+                seed=self.config.seed,
+                exploratory=self.config.val_on_annotated_eval,
+            ),
+            experiment_id=self.config.experiment_id,
+            seed=self.config.seed,
+            dataset_root=repo_relative_path(DATASET_PATH),
+            dataset_version_hint=build_dataset_version_hint(DATASET_PATH),
+            policy=policy,
+            exclude_annotated_from_train=self.config.exclude_annotated_eval,
+            exclude_annotated_from_val=exclude_annotated_from_val,
+            annotated_eval_image_ids=sorted(eval_image_ids),
+            train_image_ids=train_image_ids,
+            val_image_ids=val_image_ids,
+            train_class_counts=_labels_to_style_counts(train_labels),
+            val_class_counts=_labels_to_style_counts(val_labels),
+            created_at=datetime.now(UTC).isoformat(),
+        )
+        save_json(split_artifact_path, asdict(artifact))
+        return artifact
+
+    def _load_or_create_split_artifact(
+        self,
+        dataset: FullDataset,
+        eval_image_ids: set[str],
+        split_artifact_path: Path,
+    ) -> FineTuningSplitArtifact:
+        """Load an existing shared split artifact or create it once."""
+        if split_artifact_path.exists():
+            with open(split_artifact_path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+            return FineTuningSplitArtifact(**payload)
+        return self._create_split_artifact(dataset, eval_image_ids, split_artifact_path)
+
+    def _subset_from_image_ids(
+        self,
+        dataset: FullDataset,
+        image_ids: list[str],
+        *,
+        image_index_map: dict[str, int],
+    ) -> Subset:
+        """Build a subset from split-artifact image IDs."""
+        indices = [image_index_map[image_id] for image_id in image_ids]
+        return Subset(dataset, indices)
 
     def _collate_fn(self, batch: list[dict]) -> dict[str, Any]:
         """Collate function for DataLoader.
@@ -811,38 +1024,53 @@ class FineTuner:
         Returns:
             FineTuningResult with training metrics and checkpoint path.
         """
-        # Create output directories
-        CHECKPOINTS_PATH.mkdir(parents=True, exist_ok=True)
-        RESULTS_PATH.mkdir(parents=True, exist_ok=True)
-        MANIFESTS_PATH.mkdir(parents=True, exist_ok=True)
+        # Create experiment-scoped output directories
+        experiment_paths = ensure_experiment_layout(self.config.experiment_id)
 
         # Optionally exclude bbox-annotated image IDs to avoid data leakage.
-        eval_image_ids: set[str] | None = None
-        if self.config.exclude_annotated_eval:
+        eval_image_ids: set[str] = set()
+        if self.config.exclude_annotated_eval or self.config.val_on_annotated_eval:
             from ssl_attention.data import load_annotations
 
             annotations = load_annotations(ANNOTATIONS_PATH)
             eval_image_ids = set(annotations.keys())
 
-        # Split data
-        if self.config.val_on_annotated_eval:
-            if eval_image_ids is None:
-                raise ValueError(
-                    "val_on_annotated_eval=True requires annotated eval metadata, but none was loaded."
-                )
-            train_subset, val_subset, n_excluded = self._split_with_annotated_eval_validation(
-                dataset, eval_image_ids
+        split_artifact_path = experiment_paths.split_artifacts_dir / f"{self.config.split_id}.json"
+        split_artifact = self._load_or_create_split_artifact(
+            dataset,
+            eval_image_ids,
+            split_artifact_path,
+        )
+        self.config.split_artifact_path = repo_relative_path(split_artifact_path)
+
+        image_index_map = self._build_image_index_map(dataset)
+        train_subset = self._subset_from_image_ids(
+            dataset,
+            split_artifact.train_image_ids,
+            image_index_map=image_index_map,
+        )
+        val_subset = self._subset_from_image_ids(
+            dataset,
+            split_artifact.val_image_ids,
+            image_index_map=image_index_map,
+        )
+        n_excluded = len(split_artifact.annotated_eval_image_ids)
+
+        if split_artifact.policy == EXPLORATORY_SPLIT_POLICY:
+            print("Validation set source: annotated eval images (exploratory mode)")
+            print(
+                f"Exploratory run: reusing {len(split_artifact.val_image_ids)} annotated "
+                "images for checkpoint selection."
             )
-            print("Validation set source: annotated eval images (139 target)")
-            print(f"Held out {n_excluded} annotated eval images for validation")
         else:
-            train_subset, val_subset, n_excluded = self._stratified_split(
-                dataset, self.config.val_split, exclude_image_ids=eval_image_ids
+            print(
+                f"Primary run: excluded {len(split_artifact.annotated_eval_image_ids)} "
+                "bbox-annotated eval images from train/validation."
             )
-            if self.config.exclude_annotated_eval:
-                print(f"Excluded {n_excluded} bbox-annotated eval images from training")
-            else:
-                print("Using annotated images for training/validation (leakage-safe mode disabled)")
+            print(
+                f"Reusing shared validation split {split_artifact.split_id} "
+                f"({len(split_artifact.val_image_ids)} val images)."
+            )
         print(f"Train size: {len(train_subset)}, Val size: {len(val_subset)}")
 
         if len(train_subset) == 0 or len(val_subset) == 0:
@@ -901,7 +1129,7 @@ class FineTuner:
         best_val_acc = 0.0
         best_epoch = 0
         strategy_id = self.config.strategy_id
-        checkpoint_path = CHECKPOINTS_PATH / get_checkpoint_filename(
+        checkpoint_path = experiment_paths.checkpoints_dir / get_checkpoint_filename(
             self.config.model_name,
             strategy_id,
         )
@@ -1004,12 +1232,15 @@ class FineTuner:
         clear_memory()
 
         manifest_path = self._save_run_manifest(
+            experiment_paths=experiment_paths,
             checkpoint_path=checkpoint_path,
+            split_artifact=split_artifact,
             strategy_id=strategy_id,
+            best_epoch=best_epoch,
+            best_val_acc=best_val_acc,
             num_train_samples=len(train_subset),
             num_val_samples=len(val_subset),
             num_excluded_eval_samples=n_excluded,
-            val_source="annotated_eval" if self.config.val_on_annotated_eval else "stratified_split",
         )
 
         return FineTuningResult(
@@ -1020,6 +1251,12 @@ class FineTuner:
             train_history=train_history,
             checkpoint_path=checkpoint_path,
             manifest_path=manifest_path,
+            experiment_id=self.config.experiment_id,
+            run_id=self.config.run_id,
+            split_id=split_artifact.split_id,
+            split_artifact_path=split_artifact_path,
+            run_scope=self.config.run_scope,
+            git_commit_sha=get_git_commit_sha(),
             num_train_samples=len(train_subset),
             num_val_samples=len(val_subset),
             num_excluded_eval_samples=n_excluded,
@@ -1059,31 +1296,47 @@ class FineTuner:
 
     def _save_run_manifest(
         self,
+        experiment_paths: ExperimentPaths,
         checkpoint_path: Path,
+        split_artifact: FineTuningSplitArtifact,
         strategy_id: str,
+        best_epoch: int,
+        best_val_acc: float,
         num_train_samples: int,
         num_val_samples: int,
         num_excluded_eval_samples: int,
-        val_source: str,
     ) -> Path:
         """Persist run manifest for reproducibility and downstream analysis."""
-        manifest_path = MANIFESTS_PATH / f"{self.config.model_name}_{strategy_id}_manifest.json"
+        manifest_path = experiment_paths.manifests_dir / f"{self.config.run_id}_manifest.json"
+        git_commit_sha = get_git_commit_sha()
         manifest = {
+            "run_id": self.config.run_id,
+            "experiment_id": self.config.experiment_id,
+            "run_scope": self.config.run_scope,
             "model": self.config.model_name,
             "strategy": strategy_id,
+            "split_id": split_artifact.split_id,
             "seed": self.config.seed,
             "epochs": self.config.num_epochs,
-            "checkpoint_path": str(checkpoint_path),
+            "checkpoint_path": repo_relative_path(checkpoint_path),
+            "manifest_path": repo_relative_path(manifest_path),
+            "split_artifact_path": repo_relative_path(
+                experiment_paths.split_artifacts_dir / f"{split_artifact.split_id}.json"
+            ),
+            "git_commit_sha": git_commit_sha,
+            "checkpoint_selection_metric": self.config.checkpoint_selection_metric,
+            "checkpoint_selection_split": self.config.checkpoint_selection_split,
+            "selected_epoch": best_epoch,
+            "best_val_score": best_val_acc,
             "split": {
                 "train_samples": num_train_samples,
                 "val_samples": num_val_samples,
                 "excluded_eval_samples": num_excluded_eval_samples,
                 "val_split": self.config.val_split,
-                "val_source": val_source,
+                "val_source": split_artifact.policy,
             },
         }
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2)
+        save_json(manifest_path, manifest)
         return manifest_path
 
 
@@ -1096,6 +1349,7 @@ def load_finetuned_model(
     model_name: str,
     checkpoint_path: Path | None = None,
     strategy_id: str | None = None,
+    experiment_id: str | None = None,
     device: torch.device | None = None,
 ) -> FineTunableModel:
     """Load a fine-tuned model from checkpoint.
@@ -1105,6 +1359,8 @@ def load_finetuned_model(
         checkpoint_path: Path to checkpoint. If None, uses default path.
         strategy_id: Optional strategy selector ("linear_probe", "lora", "full").
             If omitted, uses first available checkpoint in default priority order.
+        experiment_id: Optional experiment batch identifier used for
+            experiment-scoped checkpoint discovery.
         device: Target device. Auto-detects if None.
 
     Returns:
@@ -1114,7 +1370,11 @@ def load_finetuned_model(
         FileNotFoundError: If checkpoint does not exist.
     """
     if checkpoint_path is None:
-        candidates = get_checkpoint_candidates(model_name, strategy_id=strategy_id)
+        candidates = get_checkpoint_candidates(
+            model_name,
+            strategy_id=strategy_id,
+            experiment_id=experiment_id,
+        )
         checkpoint_path = next((path for path in candidates if path.exists()), None)
         if checkpoint_path is None:
             if strategy_id is None:
@@ -1166,30 +1426,85 @@ def save_training_results(
         results: List of FineTuningResult objects.
         output_path: Path to save JSON. If None, uses default.
     """
+    if not results:
+        raise ValueError("save_training_results requires at least one result")
+
+    experiment_id = results[0].experiment_id
+    experiment_paths = ensure_experiment_layout(experiment_id)
     if output_path is None:
-        output_path = RESULTS_PATH / "fine_tuning_results.json"
+        output_path = experiment_paths.fine_tuning_results_path
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Convert to serializable format
-    data = []
+    existing_payload = load_json(output_path) or {}
+    existing_runs = {
+        run["run_id"]: run
+        for run in existing_payload.get("runs", [])
+        if isinstance(run, dict) and run.get("run_id")
+    }
+
+    # Convert to serializable format and merge with any previous runs in the batch.
     for result in results:
-        data.append({
+        existing_runs[result.run_id] = {
+            "experiment_id": result.experiment_id,
+            "run_id": result.run_id,
             "model_name": result.model_name,
             "strategy_id": result.strategy_id,
             "best_val_acc": result.best_val_acc,
             "best_epoch": result.best_epoch,
             "train_history": result.train_history,
-            "checkpoint_path": str(result.checkpoint_path),
-            "manifest_path": str(result.manifest_path),
+            "checkpoint_path": repo_relative_path(result.checkpoint_path),
+            "manifest_path": repo_relative_path(result.manifest_path),
+            "split_id": result.split_id,
+            "split_artifact_path": repo_relative_path(result.split_artifact_path),
+            "run_scope": result.run_scope,
+            "git_commit_sha": result.git_commit_sha,
             "num_train_samples": result.num_train_samples,
             "num_val_samples": result.num_val_samples,
             "num_excluded_eval_samples": result.num_excluded_eval_samples,
             "config": result.config,
-        })
+        }
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    ordered_runs = [
+        existing_runs[run_id]
+        for run_id in sorted(existing_runs)
+    ]
+
+    save_json(output_path, {"experiment_id": experiment_id, "runs": ordered_runs})
+
+    run_matrix = load_run_matrix(experiment_id)
+    runs = dict(run_matrix.get("runs", {}))
+    for result in results:
+        runs[result.run_id] = {
+            "run_id": result.run_id,
+            "experiment_id": result.experiment_id,
+            "model": result.model_name,
+            "strategy": result.strategy_id,
+            "split_id": result.split_id,
+            "checkpoint_path": repo_relative_path(result.checkpoint_path),
+            "selected_epoch": result.best_epoch,
+            "selection_metric": result.config.get("checkpoint_selection_metric", PRIMARY_SELECTION_METRIC),
+            "checkpoint_selection_split": result.config.get("checkpoint_selection_split"),
+            "best_val_score": result.best_val_acc,
+            "manifest_path": repo_relative_path(result.manifest_path),
+            "analysis_artifact_paths": {},
+            "run_scope": result.run_scope,
+            "git_commit_sha": result.git_commit_sha,
+        }
+    save_run_matrix(
+        experiment_id,
+        {
+            **run_matrix,
+            "split_id": results[0].split_id,
+            "runs": runs,
+        },
+    )
+    write_active_experiment(
+        experiment_id,
+        split_id=results[0].split_id,
+        run_matrix_path=experiment_paths.run_matrix_path,
+        fine_tuning_results_path=output_path,
+    )
 
     print(f"Saved training results to {output_path}")
 
@@ -1198,12 +1513,32 @@ def load_run_manifest(
     model_name: str,
     strategy_id: str,
     manifests_dir: Path | None = None,
+    experiment_id: str | None = None,
 ) -> dict[str, Any]:
     """Load strategy-specific fine-tuning run manifest."""
-    base_dir = manifests_dir or MANIFESTS_PATH
-    manifest_path = base_dir / f"{model_name}_{strategy_id}_manifest.json"
-    if not manifest_path.exists():
-        raise FileNotFoundError(f"Run manifest not found: {manifest_path}")
+    if manifests_dir is not None:
+        candidate_paths = [manifests_dir / f"{model_name}_{strategy_id}_manifest.json"]
+    else:
+        resolved_experiment_id = experiment_id
+        if resolved_experiment_id is None:
+            active = load_active_experiment()
+            if active is not None:
+                resolved_experiment_id = active.get("experiment_id")
+        manifest_candidates: list[Path] = []
+        if resolved_experiment_id:
+            run_id = build_run_id(resolved_experiment_id, model_name, strategy_id)
+            manifest_candidates.append(
+                get_experiment_paths(resolved_experiment_id).manifests_dir / f"{run_id}_manifest.json"
+            )
+        manifest_candidates.append(LEGACY_MANIFESTS_PATH / f"{model_name}_{strategy_id}_manifest.json")
+        candidate_paths = manifest_candidates
+
+    manifest_path = next((path for path in candidate_paths if path.exists()), None)
+    if manifest_path is None:
+        raise FileNotFoundError(
+            "Run manifest not found in any candidate path: "
+            + ", ".join(str(path) for path in candidate_paths)
+        )
     with open(manifest_path, encoding="utf-8") as f:
         data: dict[str, Any] = json.load(f)
         return data

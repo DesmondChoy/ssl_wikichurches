@@ -61,6 +61,7 @@ from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
     FineTuningResult,
     save_training_results,
 )
+from ssl_attention.evaluation.fine_tuning_artifacts import make_experiment_id  # noqa: E402
 from ssl_attention.utils.device import clear_memory  # noqa: E402
 
 
@@ -165,11 +166,29 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     eval_mode_group.add_argument(
+        "--val-on-annotated-eval",
+        action="store_true",
+        help=(
+            "Exploratory mode: choose checkpoints on the bbox-annotated pool. "
+            "This is not the primary methodology because it reuses the annotated "
+            "evaluation images for model selection."
+        ),
+    )
+    eval_mode_group.add_argument(
         "--val-on-random-split",
         action="store_true",
         help=(
-            "Use a random stratified validation split instead of the default "
-            "(validation on the 139 bbox-annotated holdout images)."
+            "Deprecated compatibility flag. Random stratified validation is now "
+            "the default primary path."
+        ),
+    )
+    parser.add_argument(
+        "--experiment-id",
+        type=str,
+        default=None,
+        help=(
+            "Experiment batch identifier. Defaults to a timestamped id and is "
+            "shared across all runs launched by this command."
         ),
     )
 
@@ -205,8 +224,9 @@ def train_single_model(
         freeze_backbone=args.freeze_backbone,
         val_split=args.val_split,
         exclude_annotated_eval=not args.include_annotated_eval,
-        val_on_annotated_eval=not args.val_on_random_split,
+        val_on_annotated_eval=args.val_on_annotated_eval,
         seed=args.seed,
+        experiment_id=args.experiment_id,
         use_lora=args.lora,
         lora_rank=args.lora_rank,
         lora_alpha=args.lora_alpha,
@@ -247,6 +267,13 @@ def train_single_model(
 def main() -> None:
     """Main entry point."""
     args = parse_args()
+    if args.experiment_id is None:
+        args.experiment_id = make_experiment_id()
+    if args.val_on_random_split:
+        print(
+            "--val-on-random-split is now redundant because the shared non-annotated "
+            "validation split is the default primary path."
+        )
 
     # Load dataset
     print("Loading WikiChurches dataset...")
@@ -258,13 +285,14 @@ def main() -> None:
     model_names = sorted(FINETUNE_MODELS) if args.all else [args.model]
 
     print(f"\nModels to train: {model_names}")
+    print(f"Experiment ID: {args.experiment_id}")
     print(f"Epochs: {args.epochs}")
     print(f"Freeze backbone: {args.freeze_backbone}")
     print(f"Exclude annotated eval images: {not args.include_annotated_eval}")
-    if args.val_on_random_split:
-        print("Validation: random stratified split")
+    if args.val_on_annotated_eval:
+        print("Validation: annotated eval holdout (exploratory only)")
     else:
-        print("Validation: annotated eval holdout (139 images)")
+        print("Validation: shared non-annotated stratified split (primary)")
 
     # Train models
     results: list[FineTuningResult] = []

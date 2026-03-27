@@ -90,7 +90,9 @@ def paired_ttest(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
 
     if std_d < 1e-10:
         # No variance in differences
-        return 0.0 if abs(mean_d) < 1e-10 else np.inf, 0.0
+        if abs(mean_d) < 1e-10:
+            return 0.0, 1.0
+        return np.inf, 0.0
 
     t_stat = mean_d / (std_d / np.sqrt(n))
 

@@ -29,6 +29,7 @@ import torch
 from torch import Tensor
 
 from ssl_attention.config import EPSILON
+from ssl_attention.metrics.continuous import sanitize_nonnegative_heatmap
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import ImageAnnotation
@@ -199,8 +200,7 @@ def compute_coverage(attention: Tensor, gt_mask: Tensor) -> float:
 
     gt_mask = gt_mask.bool()
 
-    # Ensure attention is non-negative
-    attention = attention.clamp(min=0)
+    attention = sanitize_nonnegative_heatmap(attention)
 
     # Total attention energy
     total_energy = attention.sum().item()
