@@ -72,6 +72,7 @@ from ssl_attention.evaluation.fine_tuning_artifacts import (
     save_run_matrix,
     write_active_experiment,
 )
+from ssl_attention.models.base import forward_mae_for_analysis
 from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import clear_memory, get_device
 
@@ -414,7 +415,7 @@ class FineTunableModel(nn.Module):
     Supports all 6 ViT SSL models with unified interface:
     - DINOv2: Uses CLS token from dinov2-with-registers
     - DINOv3: Uses CLS token from dinov3 with RoPE
-    - MAE: Uses CLS token (mask_ratio=0 for full image)
+    - MAE: Uses CLS token with all patches visible and deterministic analysis ordering
     - CLIP: Uses CLS token from vision encoder
     - SigLIP: Uses pooler_output (no CLS token in sequence)
 
@@ -509,7 +510,7 @@ class FineTunableModel(nn.Module):
         if self.model_name == "mae":
             mae_config = ViTMAEConfig.from_pretrained(model_id)
             mae_config.output_attentions = True
-            mae_config.mask_ratio = 0.0  # No masking for fine-tuning
+            mae_config.mask_ratio = 0.0  # Keep all patches visible; analysis adds deterministic noise
             return ViTMAEModel.from_pretrained(model_id, config=mae_config)
 
         elif self.model_name == "clip":
@@ -631,6 +632,42 @@ class FineTunableModel(nn.Module):
         pixel_values: Tensor = processed["pixel_values"]
         return pixel_values.to(device=self.device, dtype=self.dtype)
 
+    def _forward_backbone_for_analysis(
+        self,
+        pixel_values: Tensor,
+        *,
+        output_attentions: bool = False,
+        output_hidden_states: bool = False,
+    ) -> Any:
+        """Run an analysis forward pass with deterministic MAE behavior.
+
+        HuggingFace MAE still permutes patches when analysis forwards omit
+        explicit `noise`, even in eval mode with `mask_ratio=0.0`.
+        """
+        was_training = self.backbone.training
+        self.backbone.eval()
+        try:
+            with torch.inference_mode():
+                if self.model_name == "mae":
+                    return forward_mae_for_analysis(
+                        self.backbone,
+                        pixel_values,
+                        output_attentions=output_attentions,
+                        output_hidden_states=output_hidden_states,
+                    )
+                forward_kwargs: dict[str, bool] = {}
+                if output_attentions:
+                    forward_kwargs["output_attentions"] = True
+                if output_hidden_states:
+                    forward_kwargs["output_hidden_states"] = True
+                return self.backbone(
+                    pixel_values=pixel_values,
+                    **forward_kwargs,
+                )
+        finally:
+            if was_training:
+                self.backbone.train()
+
     def forward(
         self, pixel_values: Tensor
     ) -> tuple[Tensor, Tensor, list[Tensor]]:
@@ -671,17 +708,10 @@ class FineTunableModel(nn.Module):
         Returns:
             ModelOutput compatible with attention analysis.
         """
-        was_training = self.backbone.training
-        self.backbone.eval()
-        try:
-            with torch.inference_mode():
-                model_output = self.backbone(
-                    pixel_values=pixel_values,
-                    output_attentions=True,
-                )
-        finally:
-            if was_training:
-                self.backbone.train()
+        model_output = self._forward_backbone_for_analysis(
+            pixel_values,
+            output_attentions=True,
+        )
 
         hidden_states = model_output.last_hidden_state
         attentions = list(model_output.attentions)

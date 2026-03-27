@@ -104,6 +104,24 @@ def discover_checkpoints(
     return selected
 
 
+def extract_finetuned_hidden_states_for_cache(
+    model: Any,
+    pixel_values: torch.Tensor,
+) -> list[torch.Tensor]:
+    """Extract per-layer hidden states for fine-tuned cache generation.
+
+    Fine-tuned MAE must use the deterministic analysis path so feature-cache
+    patch tokens stay aligned with the attention cache and heatmaps.
+    """
+    backbone_output = model._forward_backbone_for_analysis(  # noqa: SLF001
+        pixel_values,
+        output_hidden_states=True,
+    )
+    if backbone_output.hidden_states is None:
+        raise ValueError("Fine-tuned backbone did not return hidden states.")
+    return list(backbone_output.hidden_states[1:])
+
+
 def generate_features_for_model(
     model_name: str,
     dataset: AnnotatedSubset,
@@ -180,15 +198,11 @@ def generate_features_for_model(
 
                 # Run inference once with hidden states to get all layer outputs
                 if finetuned:
-                    with torch.no_grad():
-                        pixel_values = model.preprocess([image])
-                        backbone_output = model.backbone(
-                            pixel_values=pixel_values,
-                            output_hidden_states=True,
-                        )
-                    if backbone_output.hidden_states is None:
-                        raise ValueError("Fine-tuned backbone did not return hidden states.")
-                    hidden_states = list(backbone_output.hidden_states[1:])
+                    pixel_values = model.preprocess([image])
+                    hidden_states = extract_finetuned_hidden_states_for_cache(
+                        model,
+                        pixel_values,
+                    )
                 else:
                     with torch.no_grad():
                         preprocessed = model.preprocess([image]).to(device)

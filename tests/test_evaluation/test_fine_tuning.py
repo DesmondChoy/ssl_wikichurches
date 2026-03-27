@@ -6,6 +6,7 @@ import json
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 import torch
@@ -29,7 +30,7 @@ from ssl_attention.evaluation.fine_tuning import (
 class _NoGetItemFullDataset(FullDataset):
     """Dataset variant that fails if training setup touches image bytes."""
 
-    def __getitem__(self, idx: int):  # type: ignore[override]
+    def __getitem__(self, idx: int) -> Any:
         raise AssertionError(f"fine-tuning setup should not index dataset[{idx}]")
 
 
@@ -277,7 +278,7 @@ class _DummyBackbone(nn.Module):
         super().__init__()
         self.training_states: list[bool] = []
 
-    def forward(self, pixel_values: torch.Tensor, output_attentions: bool = True) -> SimpleNamespace:  # type: ignore[override]
+    def forward(self, pixel_values: torch.Tensor, output_attentions: bool = True) -> SimpleNamespace:
         self.training_states.append(self.training)
         return SimpleNamespace(
             last_hidden_state=torch.arange(15, dtype=torch.float32).reshape(1, 5, 3),
@@ -293,7 +294,7 @@ def test_extract_attention_uses_eval_mode_and_restores_training_state() -> None:
     nn.Module.__init__(model)
     model.backbone = backbone
     model.model_name = "dinov2"
-    model._config = SimpleNamespace(num_registers=1)
+    model._config = cast(Any, SimpleNamespace(num_registers=1))
 
     output = FineTunableModel.extract_attention(model, torch.zeros((1, 3, 224, 224)))
 
@@ -302,6 +303,82 @@ def test_extract_attention_uses_eval_mode_and_restores_training_state() -> None:
     assert output.cls_token.shape == (1, 3)
     assert output.patch_tokens is not None
     assert output.patch_tokens.shape == (1, 3, 3)
+
+
+class _UnstableMAEBackbone(nn.Module):
+    """MAE-like backbone that is stable only when deterministic noise is supplied."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(patch_size=16)
+        self.call_index = 0
+        self.noise_inputs: list[torch.Tensor | None] = []
+        self.training_states: list[bool] = []
+
+    def forward(
+        self,
+        pixel_values: torch.Tensor,
+        noise: torch.Tensor | None = None,
+        output_attentions: bool = False,
+        output_hidden_states: bool = False,
+    ) -> SimpleNamespace:
+        self.call_index += 1
+        self.training_states.append(self.training)
+        self.noise_inputs.append(None if noise is None else noise.detach().clone())
+
+        batch_size = pixel_values.shape[0]
+        seq_length = (pixel_values.shape[-2] // 16) * (pixel_values.shape[-1] // 16)
+        patch_values = (
+            noise
+            if noise is not None
+            else torch.full((batch_size, seq_length), float(self.call_index), dtype=torch.float32)
+        )
+
+        cls_token = torch.zeros((batch_size, 1, 1), dtype=torch.float32)
+        patch_tokens = patch_values.unsqueeze(-1)
+        last_hidden_state = torch.cat((cls_token, patch_tokens), dim=1)
+
+        attention = torch.zeros((batch_size, 1, seq_length + 1, seq_length + 1), dtype=torch.float32)
+        attention[:, 0, 0, 1:] = patch_values
+
+        hidden_states = None
+        if output_hidden_states:
+            hidden_states = (torch.zeros_like(last_hidden_state), last_hidden_state)
+
+        return SimpleNamespace(
+            last_hidden_state=last_hidden_state,
+            attentions=(attention,) if output_attentions else (),
+            hidden_states=hidden_states,
+        )
+
+
+def test_extract_attention_mae_is_repeatable_and_restores_training_state() -> None:
+    backbone = _UnstableMAEBackbone()
+    backbone.train()
+
+    model = FineTunableModel.__new__(FineTunableModel)
+    nn.Module.__init__(model)
+    model.backbone = backbone
+    model.model_name = "mae"
+    model._config = cast(Any, SimpleNamespace(num_registers=0))
+
+    pixel_values = torch.zeros((2, 3, 224, 224))
+    output_a = FineTunableModel.extract_attention(model, pixel_values)
+    output_b = FineTunableModel.extract_attention(model, pixel_values)
+
+    expected = torch.arange(196, dtype=torch.float32).expand(2, -1)
+    first_noise = backbone.noise_inputs[0]
+    second_noise = backbone.noise_inputs[1]
+    assert first_noise is not None
+    assert second_noise is not None
+    assert torch.equal(first_noise, expected)
+    assert torch.equal(second_noise, expected)
+    assert backbone.training_states == [False, False]
+    assert backbone.training is True
+    assert output_a.patch_tokens is not None
+    assert output_b.patch_tokens is not None
+    assert torch.equal(output_a.patch_tokens, output_b.patch_tokens)
+    assert torch.equal(output_a.attention_weights[0], output_b.attention_weights[0])
 
 
 def test_save_training_results_merges_existing_experiment_runs(

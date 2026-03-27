@@ -14,6 +14,68 @@ from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import get_device, get_dtype_for_device
 
 
+def _resolve_mae_patch_size(model: nn.Module) -> tuple[int, int]:
+    """Resolve MAE patch size from the wrapped HF model or adapter wrapper."""
+    config_sources = (
+        getattr(model, "config", None),
+        getattr(getattr(model, "model", None), "config", None),
+        getattr(getattr(model, "base_model", None), "config", None),
+        getattr(getattr(getattr(model, "base_model", None), "model", None), "config", None),
+    )
+
+    for config in config_sources:
+        patch_size = getattr(config, "patch_size", None)
+        if patch_size is None:
+            continue
+        if isinstance(patch_size, int):
+            return patch_size, patch_size
+        if isinstance(patch_size, (tuple, list)) and len(patch_size) == 2:
+            return int(patch_size[0]), int(patch_size[1])
+
+    raise ValueError("Could not determine MAE patch size for deterministic analysis forward.")
+
+
+def build_mae_analysis_noise(model: nn.Module, pixel_values: Tensor) -> Tensor:
+    """Build canonical MAE noise so patch order stays stable during analysis.
+
+    HuggingFace MAE still calls `random_masking()` when `mask_ratio=0.0`; the
+    per-patch noise controls the patch ordering used by that path.
+    """
+    batch_size, _, height, width = pixel_values.shape
+    patch_height, patch_width = _resolve_mae_patch_size(model)
+
+    if height % patch_height != 0 or width % patch_width != 0:
+        raise ValueError(
+            "MAE analysis inputs must align with the model patch size. "
+            f"Got image size {height}x{width} for patches {patch_height}x{patch_width}."
+        )
+
+    seq_length = (height // patch_height) * (width // patch_width)
+    canonical_noise = torch.arange(
+        seq_length,
+        device=pixel_values.device,
+        dtype=torch.float32,
+    )
+    return canonical_noise.unsqueeze(0).expand(batch_size, -1)
+
+
+def forward_mae_for_analysis(
+    model: nn.Module,
+    pixel_values: Tensor,
+    *,
+    output_attentions: bool = True,
+    output_hidden_states: bool = False,
+) -> Any:
+    """Run a MAE analysis forward with deterministic patch ordering."""
+    noise = build_mae_analysis_noise(model, pixel_values)
+    return model(
+        pixel_values=pixel_values,
+        noise=noise,
+        output_attentions=output_attentions,
+        output_hidden_states=output_hidden_states,
+    )
+
+
 class BaseVisionModel(ABC, nn.Module):
     """Abstract base class for SSL vision model wrappers.
 
@@ -156,12 +218,21 @@ class BaseVisionModel(ABC, nn.Module):
             ModelOutput with embeddings, attention weights, and optionally hidden_states.
         """
         with self.inference_context():
-            # Most HuggingFace ViTs need output_attentions=True
-            model_output = self.model(
-                pixel_values=images,
-                output_attentions=True,
-                output_hidden_states=output_hidden_states,
-            )
+            # HuggingFace MAE still permutes patches unless analysis forwards
+            # supply deterministic noise alongside mask_ratio=0.0.
+            if self.model_name == "mae":
+                model_output = forward_mae_for_analysis(
+                    self.model,
+                    images,
+                    output_attentions=True,
+                    output_hidden_states=output_hidden_states,
+                )
+            else:
+                model_output = self.model(
+                    pixel_values=images,
+                    output_attentions=True,
+                    output_hidden_states=output_hidden_states,
+                )
             return self._extract_output(model_output, output_hidden_states)
 
     @property

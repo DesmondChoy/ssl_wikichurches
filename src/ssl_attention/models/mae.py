@@ -1,8 +1,8 @@
 """MAE (Masked Autoencoder) model wrapper.
 
 MAE is trained to reconstruct masked patches from visible patches.
-For attention analysis, we use mask_ratio=0.0 (no masking) so all
-patches are visible and we get full attention patterns.
+For attention analysis, we keep all patches visible and pass deterministic
+forward noise so HuggingFace MAE preserves canonical patch ordering.
 
 Sequence structure: [CLS] + [196 patches]
 - Patch size: 16 (so 224/16 = 14 patches per side = 196 total)
@@ -33,8 +33,9 @@ class MAE(BaseVisionModel):
     - 16x16 patches (196 patches for 224x224 images)
     - No register tokens
 
-    Note: We run with mask_ratio=0.0 to get attention over all patches.
-    During training MAE masks 75% of patches, but for analysis we need all.
+    Note: We set `mask_ratio=0.0` to keep every patch visible. The installed
+    HuggingFace MAE implementation still permutes patches unless analysis
+    forwards also pass deterministic `noise`, which the shared base wrapper does.
 
     Example:
         >>> model = MAE()
@@ -53,13 +54,15 @@ class MAE(BaseVisionModel):
     num_registers = _config.num_registers
 
     def _load_config(self) -> ViTMAEConfig:
-        """Load MAE config with attention output enabled and no masking.
+        """Load MAE config with attention output enabled and all patches visible.
 
-        Sets mask_ratio=0.0 so all patches are visible during inference.
+        Analysis forwards still need deterministic `noise` because the
+        HuggingFace MAE implementation calls `random_masking()` even when
+        `mask_ratio=0.0`.
         """
         config = ViTMAEConfig.from_pretrained(self.model_id)
         config.output_attentions = True
-        config.mask_ratio = 0.0  # No masking for attention analysis
+        config.mask_ratio = 0.0  # Keep all patches visible for analysis forwards
         return config
 
     def _load_model(self) -> nn.Module:
@@ -67,8 +70,8 @@ class MAE(BaseVisionModel):
         config = self._load_config()
         return ViTMAEModel.from_pretrained(self.model_id, config=config)
 
-    # Note: forward() is inherited from base class.
-    # mask_ratio=0.0 is set in config, so no masking occurs.
+    # Note: forward() is inherited from base class, which routes MAE analysis
+    # through the deterministic-noise helper to keep patch order stable.
 
     def _extract_output(
         self, model_output: Any, include_hidden_states: bool = False
