@@ -640,99 +640,7 @@ def fig_accuracy_vs_attention(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Figure 7: Best-Epoch Distribution
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Figure 7: Frozen vs Fine-Tuned — Cleveland Dot Plot
-# ---------------------------------------------------------------------------
-def fig_frozen_vs_finetuned(rows: list[dict]) -> str:
-    """2x3 dot plot: frozen baseline vs fine-tuned strategies per model.
-
-    Replaces the crowded grouped bar chart with a cleaner Cleveland dot plot.
-    Each row = one model. Dots show frozen (gray) and 3 strategy values (colored).
-    A thin gray line spans from frozen to the most extreme fine-tuned value.
-    """
-    fig, axes = plt.subplots(2, 3, figsize=(14, 9))
-    axes = axes.flatten()
-
-    dot_config = [
-        (None, FROZEN_COLOR, "o", 50, "Frozen"),
-        ("linear_probe", STRATEGY_COLORS["linear_probe"], "s", 40, "Linear Probe"),
-        ("lora", STRATEGY_COLORS["lora"], "D", 40, "LoRA"),
-        ("full", STRATEGY_COLORS["full"], "o", 50, "Full"),
-    ]
-
-    for idx, (metric, pctl, title) in enumerate(HEATMAP_METRICS):
-        ax = axes[idx]
-        direction = METRIC_DIRECTION[metric]
-        y_pos = np.arange(len(MODELS))
-
-        for mi, m in enumerate(MODELS):
-            # Get frozen value and all fine-tuned values
-            base_row = lookup_row(rows, m, "linear_probe", metric, pctl)
-            if not base_row:
-                continue
-            frozen_val = base_row["frozen_mean"]
-            all_vals = [frozen_val]
-
-            for strat in STRATEGIES:
-                row = lookup_row(rows, m, strat, metric, pctl)
-                if row:
-                    all_vals.append(row["finetuned_mean"])
-
-            # Span line from min to max value
-            ax.plot(
-                [min(all_vals), max(all_vals)], [mi, mi],
-                color=GRID_COLOR, linewidth=1.5, zorder=1,
-            )
-
-        # Plot dots for each category
-        for strat, color, marker, size, label in dot_config:
-            vals = []
-            for m in MODELS:
-                lookup_strat = strat if strat else "linear_probe"
-                row = lookup_row(rows, m, lookup_strat, metric, pctl)
-                if row:
-                    vals.append(row["frozen_mean"] if strat is None else row["finetuned_mean"])
-                else:
-                    vals.append(0.0)
-
-            ax.scatter(
-                vals, y_pos,
-                c=color, marker=marker, s=size,
-                edgecolors="white", linewidth=0.3, zorder=3,
-                label=label if idx == 0 else None,
-            )
-
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels([MODEL_LABELS[m] for m in MODELS] if idx % 3 == 0 else [])
-        hint = "higher=better" if direction == "higher" else "lower=better"
-        ax.set_title(f"{title}  ({hint})", fontsize=10)
-        ax.invert_yaxis()
-        clean_axes(ax)
-
-    fig.legend(
-        loc="upper center", ncol=4, fontsize=10,
-        bbox_to_anchor=(0.5, 1.02),
-        columnspacing=2,
-    )
-    fig.suptitle(
-        "Raw Metric Values: Frozen Baseline vs Fine-Tuned Strategies",
-        fontsize=12, fontweight="bold", color=TEXT_COLOR, y=1.05,
-    )
-    fig.tight_layout()
-    save_figure(fig, "07_frozen_vs_finetuned_all_metrics.png")
-
-    return (
-        "Cleveland dot plot: gray circles = frozen baseline, colored shapes = fine-tuned. "
-        "Horizontal span shows the range of change. For higher-is-better metrics, "
-        "rightward dots = improvement. For lower-is-better, leftward = improvement. "
-        "Much clearer than grouped bars for comparing absolute performance levels."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Figure 8: Preserve / Enhance / Destroy Classification Matrix
+# Figure 7: Preserve / Enhance / Destroy Classification Matrix
 # ---------------------------------------------------------------------------
 CLASSIFY_STRATEGIES = ["lora", "full"]  # LP omitted (always Preserve)
 
@@ -864,7 +772,7 @@ def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
     )
 
     fig.tight_layout()
-    save_figure(fig, "08_preserve_enhance_destroy.png")
+    save_figure(fig, "07_preserve_enhance_destroy.png")
 
     # Count categories across all metrics
     counts = {"Enhance": 0, "Preserve": 0, "Destroy": 0}
@@ -884,7 +792,7 @@ def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Figure 9: Forest Plot with 95% Confidence Intervals
+# Figure 8: Forest Plot with 95% Confidence Intervals
 # ---------------------------------------------------------------------------
 def fig_forest_plot_ci(rows: list[dict]) -> str:
     """2x3 faceted forest plot: point estimate + 95% CI whisker per model×strategy.
@@ -992,7 +900,7 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
     )
 
     fig.tight_layout()
-    save_figure(fig, "09_forest_plot_ci.png")
+    save_figure(fig, "08_forest_plot_ci.png")
 
     # Count how many CIs exclude zero
     n_exclude = sum(
@@ -1010,7 +918,7 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Figure 10: Per-Image Delta Strip Plot (Full fine-tuning only)
+# Figure 9: Per-Image Delta Strip Plot (Full fine-tuning only)
 # ---------------------------------------------------------------------------
 MODEL_COLORS = {
     "clip": "#4e79a7",
@@ -1100,7 +1008,7 @@ def fig_per_image_strips(rows: list[dict]) -> str:
     )
 
     fig.tight_layout()
-    save_figure(fig, "10_per_image_delta_strips.png")
+    save_figure(fig, "09_per_image_delta_strips.png")
 
     return (
         "Strip plot showing all 139 per-image deltas for Full fine-tuning. "
@@ -1124,10 +1032,9 @@ def main() -> None:
         ("04 IoU Percentile Slopes", lambda: fig_iou_percentile_slopes(rows)),
         ("05 Radar Profiles", lambda: fig_radar_profiles(rows)),
         ("06 Accuracy vs Attention", lambda: fig_accuracy_vs_attention(rows)),
-        ("07 Frozen vs Fine-Tuned", lambda: fig_frozen_vs_finetuned(rows)),
-        ("08 Preserve / Enhance / Destroy", lambda: fig_preserve_enhance_destroy(rows)),
-        ("09 Forest Plot with CIs", lambda: fig_forest_plot_ci(rows)),
-        ("10 Per-Image Delta Strips", lambda: fig_per_image_strips(rows)),
+        ("07 Preserve / Enhance / Destroy", lambda: fig_preserve_enhance_destroy(rows)),
+        ("08 Forest Plot with CIs", lambda: fig_forest_plot_ci(rows)),
+        ("09 Per-Image Delta Strips", lambda: fig_per_image_strips(rows)),
     ]
 
     commentary_lines: list[str] = []
@@ -1144,7 +1051,7 @@ def main() -> None:
         "# Run Matrix Figure Commentary\n\n" + "\n".join(commentary_lines)
     )
     print(f"\n{'='*60}")
-    print(f"  All 10 figures + commentary saved to {FIGURES_DIR}/")
+    print(f"  All 9 figures + commentary saved to {FIGURES_DIR}/")
     print(f"{'='*60}\n")
 
 

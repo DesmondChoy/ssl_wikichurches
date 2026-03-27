@@ -162,7 +162,7 @@ Key takeaways:
 
 - Caution: radar polygon area is sensitive to axis ordering and can mislead.
   Use this figure for qualitative shape comparison, not quantitative claims.
-  Figures 02 and 07 provide more reliable quantitative comparisons.
+  Figures 02 and 08 provide more reliable quantitative comparisons.
 
 
 ## 06 — Classification Accuracy vs Attention Alignment Change
@@ -199,46 +199,7 @@ Key takeaways:
   in this domain.
 
 
-## 07 — Frozen Baseline vs Fine-Tuned Absolute Values (Cleveland Dot Plot)
-
-Gray dots = frozen baseline; colored shapes = fine-tuned strategies. The
-horizontal gap between gray and colored dots shows the magnitude of change.
-This complements Figure 02 (which shows deltas) by revealing absolute
-performance levels — a model with a small delta may still lead in absolute
-terms if its frozen baseline was already strong.
-
-Key takeaways:
-
-- DINOv3 frozen has the highest absolute IoU@90 (~0.04) and IoU@50 (~0.08)
-  of any model. Despite showing near-zero deltas in Figure 02, it remains
-  competitive in absolute terms because its pretrained attention already
-  aligns well with expert annotations. The takeaway: "no improvement from
-  fine-tuning" is not "poor performance" — it's "already good."
-
-- CLIP Full's IoU@90 after fine-tuning (~0.06) overtakes DINOv3's frozen
-  baseline. CLIP starts from a low frozen IoU@90 (~0.018) but its
-  dramatic delta makes it the top performer post-fine-tuning. This
-  leapfrogging is only visible when comparing absolute values, not deltas.
-
-- KL divergence reveals the starkest absolute gap: CLIP frozen has the
-  worst KL (3.69) but CLIP Full reaches 2.90, narrowing toward DINOv2's
-  frozen KL of 2.68. Fine-tuning closes nearly a full point of KL
-  divergence — an enormous shift in distributional alignment.
-
-- For EMD, the overall range is compressed (0.27-0.43), making the metric
-  less discriminative between models. CLIP Full achieves the best absolute
-  EMD (0.31), but even the worst models are within 0.12 units of each other.
-  EMD's lower discriminative power at this spatial resolution (8x8 grid)
-  is worth noting if asked about metric selection.
-
-- SigLIP models show the best absolute MSE values both frozen and fine-tuned
-  (~0.019), meaning their attention distributions are the closest match to
-  the Gaussian ground truth in pixel-level error. This is consistent with
-  mean-pooling producing smoother, less spiky attention maps that naturally
-  resemble Gaussian targets.
-
-
-## 08 — Preserve / Enhance / Destroy Classification Matrix
+## 07 — Preserve / Enhance / Destroy Classification Matrix
 
 The Q2 punchline in one figure. Each cell classifies a model-strategy pair
 as Enhance (significant improvement, green), Preserve (no significant change,
@@ -278,7 +239,7 @@ Key takeaways:
   confirms the "smoother but not more targeted" behavior seen in Figure 02.
 
 
-## 09 — Forest Plot with 95% Bootstrap Confidence Intervals
+## 08 — Forest Plot with 95% Bootstrap Confidence Intervals
 
 The academic rigor figure. Each row shows one model-strategy pair's mean
 delta as a point with horizontal 95% bootstrap CI whiskers. Vertical dashed
@@ -314,7 +275,7 @@ Key takeaways:
   attention change.
 
 
-## 10 — Per-Image Delta Strip Plot (Full Fine-Tuning)
+## 09 — Per-Image Delta Strip Plot (Full Fine-Tuning)
 
 The "show me the data" figure. Each dot is one of 139 evaluation images'
 individual delta (fine-tuned minus frozen). Diamond = mean, thick bar = 95%
@@ -333,7 +294,7 @@ Key takeaways:
 - The KL panel shows the most dramatic spread. CLIP's per-image KL deltas
   range from roughly -5 to +3 (after sign flip), with the mean at ~+0.8.
   Some individual images see enormous distributional shifts while others
-  barely change. This variance is hidden by the forest plot (Figure 09),
+  barely change. This variance is hidden by the forest plot (Figure 08),
   which only shows the mean and CI.
 
 - SigLIP and SigLIP 2 show tight, consistently positive dot clusters across
