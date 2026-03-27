@@ -22,6 +22,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import torch
 from tqdm import tqdm
 
 # Add project root to path for imports
@@ -51,7 +52,13 @@ from ssl_attention.metrics import (
     compute_image_kl,
     compute_image_mse,
 )
-from ssl_attention.metrics.iou import aggregate_by_feature_type, compute_per_bbox_iou
+from ssl_attention.metrics.continuous import (
+    compute_emd,
+    compute_kl_divergence,
+    compute_mse,
+    gaussian_bbox_heatmap,
+)
+from ssl_attention.metrics.iou import compute_coverage, compute_per_bbox_iou
 
 DEFAULT_PERCENTILES = [90, 85, 80, 75, 70, 60, 50]
 IMAGE_METRIC_MIGRATIONS = {"mse": "REAL", "kl": "REAL", "emd": "REAL"}
@@ -67,6 +74,40 @@ AGGREGATE_METRIC_MIGRATIONS = {
     "median_emd": "REAL",
 }
 _FINETUNED_SUFFIX = "_finetuned"
+BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE = 90
+BREAKDOWN_METRICS = {
+    "iou": {"direction": "higher", "percentile_dependent": True, "column": "iou"},
+    "coverage": {"direction": "higher", "percentile_dependent": False, "column": "coverage"},
+    "mse": {"direction": "lower", "percentile_dependent": False, "column": "mse"},
+    "kl": {"direction": "lower", "percentile_dependent": False, "column": "kl"},
+    "emd": {"direction": "lower", "percentile_dependent": False, "column": "emd"},
+}
+STYLE_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "style_name": "TEXT",
+    "percentile": "INTEGER",
+    "mean_score": "REAL",
+    "num_images": "INTEGER",
+}
+FEATURE_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "feature_label": "INTEGER",
+    "feature_name": "TEXT",
+    "percentile": "INTEGER",
+    "mean_score": "REAL",
+    "std_score": "REAL",
+    "bbox_count": "INTEGER",
+}
 
 
 def ensure_table_columns(
@@ -82,6 +123,87 @@ def ensure_table_columns(
     for column_name, column_type in expected_columns.items():
         if column_name not in existing_columns:
             cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
+
+def get_table_columns(conn: sqlite3.Connection, table_name: str) -> dict[str, str]:
+    """Return the current column map for a SQLite table."""
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return {str(row[1]): str(row[2]).upper() for row in cursor.fetchall()}
+
+
+def recreate_metric_breakdown_tables(conn: sqlite3.Connection) -> None:
+    """Create the metric-generic style and feature breakdown tables."""
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS style_metrics")
+    cursor.execute("DROP TABLE IF EXISTS feature_metrics")
+
+    cursor.execute("""
+        CREATE TABLE style_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            style_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_score REAL NOT NULL,
+            num_images INTEGER NOT NULL,
+            UNIQUE(model, layer, method, metric, style_name, percentile)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE feature_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            feature_label INTEGER NOT NULL,
+            feature_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_score REAL NOT NULL,
+            std_score REAL NOT NULL,
+            bbox_count INTEGER NOT NULL,
+            UNIQUE(model, layer, method, metric, feature_label, percentile)
+        )
+    """)
+
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_style_model_layer_metric ON style_metrics(model, layer, method, metric, percentile)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_feature_model_layer_metric ON feature_metrics(model, layer, method, metric, percentile)"
+    )
+
+
+def ensure_metric_breakdown_schema(conn: sqlite3.Connection) -> None:
+    """Create or migrate metric-generic breakdown tables in place.
+
+    Recreate only when an older IoU-only schema is detected. If the tables
+    already match the current metric-generic shape, preserve the existing rows
+    so frozen and fine-tuned passes can append safely into the same database.
+    """
+    style_columns = get_table_columns(conn, "style_metrics")
+    feature_columns = get_table_columns(conn, "feature_metrics")
+
+    style_matches = style_columns == STYLE_METRICS_COLUMNS
+    feature_matches = feature_columns == FEATURE_METRICS_COLUMNS
+
+    if style_matches and feature_matches:
+        cursor = conn.cursor()
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_style_model_layer_metric ON style_metrics(model, layer, method, metric, percentile)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_feature_model_layer_metric ON feature_metrics(model, layer, method, metric, percentile)"
+        )
+        return
+
+    recreate_metric_breakdown_tables(conn)
 
 
 def create_database(db_path: Path) -> sqlite3.Connection:
@@ -135,40 +257,7 @@ def create_database(db_path: Path) -> sqlite3.Connection:
         )
     """)
 
-    # Style breakdown table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS style_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model TEXT NOT NULL,
-            layer TEXT NOT NULL,
-            method TEXT NOT NULL,
-            style_name TEXT NOT NULL,
-            percentile INTEGER NOT NULL,
-            mean_iou REAL NOT NULL,
-            num_images INTEGER NOT NULL,
-            UNIQUE(model, layer, method, style_name, percentile)
-        )
-    """)
-
-    # Feature breakdown table (per architectural feature type)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS feature_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model TEXT NOT NULL,
-            layer TEXT NOT NULL,
-            method TEXT NOT NULL,
-            feature_label INTEGER NOT NULL,
-            feature_name TEXT NOT NULL,
-            percentile INTEGER NOT NULL,
-            mean_iou REAL NOT NULL,
-            std_iou REAL NOT NULL,
-            bbox_count INTEGER NOT NULL,
-            UNIQUE(model, layer, method, feature_label, percentile)
-        )
-    """)
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_feature_model_layer ON feature_metrics(model, layer, method, percentile)"
-    )
+    ensure_metric_breakdown_schema(conn)
 
     # Indexes for fast queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_model_layer ON image_metrics(model, layer, method)")
@@ -180,6 +269,25 @@ def create_database(db_path: Path) -> sqlite3.Connection:
 
     conn.commit()
     return conn
+
+
+def aggregate_feature_scores(
+    scores_by_label: dict[int, list[float]],
+    feature_names: list[str] | None = None,
+) -> dict[int, dict[str, float | str]]:
+    """Aggregate per-bbox metric values by architectural feature label."""
+    aggregated: dict[int, dict[str, float | str]] = {}
+    for label, scores in scores_by_label.items():
+        if not scores:
+            continue
+        tensor = torch.tensor(scores, dtype=torch.float32)
+        aggregated[label] = {
+            "mean_score": tensor.mean().item(),
+            "std_score": tensor.std(unbiased=tensor.numel() > 1).item(),
+            "count": float(tensor.numel()),
+            "name": feature_names[label] if feature_names and label < len(feature_names) else f"feature_{label}",
+        }
+    return aggregated
 
 
 def compute_metrics_for_model(
@@ -392,27 +500,45 @@ def compute_metrics_for_model(
         for layer in layers_to_process:
             layer_key = f"layer{layer}"
 
-            for percentile in percentiles:
-                for style_name in STYLE_NAMES:
-                    style_images = [img_id for img_id, s in image_styles.items() if s == style_name]
-                    if not style_images:
-                        continue
+            for metric_name, metric_config in BREAKDOWN_METRICS.items():
+                query_percentiles = (
+                    percentiles
+                    if metric_config["percentile_dependent"]
+                    else [BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE]
+                )
+                metric_column = metric_config["column"]
 
-                    placeholders = ",".join("?" * len(style_images))
-                    cursor.execute(
-                        f"""SELECT AVG(iou), COUNT(*) FROM image_metrics
-                           WHERE model=? AND layer=? AND method=? AND percentile=? AND image_id IN ({placeholders})""",
-                        (model_key, layer_key, variant, percentile, *style_images),
-                    )
-                    row = cursor.fetchone()
+                for percentile in query_percentiles:
+                    for style_name in STYLE_NAMES:
+                        style_images = [img_id for img_id, s in image_styles.items() if s == style_name]
+                        if not style_images:
+                            continue
 
-                    if row and row[0] is not None:
+                        placeholders = ",".join("?" * len(style_images))
                         cursor.execute(
-                            """INSERT OR REPLACE INTO style_metrics
-                               (model, layer, method, style_name, percentile, mean_iou, num_images)
-                               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                            (model_key, layer_key, variant, style_name, percentile, row[0], row[1]),
+                            f"""SELECT AVG({metric_column}), COUNT(*) FROM image_metrics
+                               WHERE model=? AND layer=? AND method=? AND percentile=? AND image_id IN ({placeholders})""",
+                            (model_key, layer_key, variant, percentile, *style_images),
                         )
+                        row = cursor.fetchone()
+
+                        if row and row[0] is not None:
+                            cursor.execute(
+                                """INSERT OR REPLACE INTO style_metrics
+                                   (model, layer, method, metric, direction, style_name, percentile, mean_score, num_images)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (
+                                    model_key,
+                                    layer_key,
+                                    variant,
+                                    metric_name,
+                                    metric_config["direction"],
+                                    style_name,
+                                    percentile,
+                                    row[0],
+                                    row[1],
+                                ),
+                            )
 
         conn.commit()
 
@@ -423,9 +549,11 @@ def compute_metrics_for_model(
 
         for layer in layers_to_process:
             layer_key = f"layer{layer}"
-            per_bbox_by_pct: dict[int, list[list[tuple[int, float]]]] = {
-                p: [] for p in percentiles
+            feature_scores: dict[tuple[str, int], dict[int, list[float]]] = {
+                ("iou", percentile): {} for percentile in percentiles
             }
+            for metric_name in ("coverage", "mse", "kl", "emd"):
+                feature_scores[(metric_name, BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)] = {}
 
             for image_id in dataset.image_ids:
                 annotation = dataset.annotations[image_id]
@@ -436,30 +564,57 @@ def compute_metrics_for_model(
 
                 for percentile in percentiles:
                     bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
-                    per_bbox_by_pct[percentile].append(bbox_ious)
+                    for label, score in bbox_ious:
+                        feature_scores[("iou", percentile)].setdefault(label, []).append(score)
 
-            for percentile in percentiles:
-                per_bbox_results = per_bbox_by_pct[percentile]
-                if not per_bbox_results:
-                    continue
+                height, width = attention.shape[-2:]
+                for bbox in annotation.bboxes:
+                    label = bbox.label
+                    bbox_mask = bbox.to_mask(height, width).to(attention.device)
+                    bbox_heatmap = gaussian_bbox_heatmap(
+                        bbox,
+                        height,
+                        width,
+                        device=attention.device,
+                    )
+                    feature_scores[("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                        label,
+                        [],
+                    ).append(compute_coverage(attention, bbox_mask))
+                    feature_scores[("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                        label,
+                        [],
+                    ).append(compute_mse(attention, bbox_heatmap))
+                    feature_scores[("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                        label,
+                        [],
+                    ).append(compute_kl_divergence(attention, bbox_heatmap))
+                    feature_scores[("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                        label,
+                        [],
+                    ).append(compute_emd(attention, bbox_heatmap))
 
-                feature_stats = aggregate_by_feature_type(per_bbox_results, feature_names)
+            for (metric_name, percentile), scores_by_label in feature_scores.items():
+                metric_config = BREAKDOWN_METRICS[metric_name]
+                feature_stats = aggregate_feature_scores(scores_by_label, feature_names)
 
                 for label, stats_dict in feature_stats.items():
                     feature_name = stats_dict.get("name", f"feature_{label}")
                     cursor.execute(
                         """INSERT OR REPLACE INTO feature_metrics
-                           (model, layer, method, feature_label, feature_name, percentile, mean_iou, std_iou, bbox_count)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           (model, layer, method, metric, direction, feature_label, feature_name, percentile, mean_score, std_score, bbox_count)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             model_key,
                             layer_key,
                             variant,
+                            metric_name,
+                            metric_config["direction"],
                             label,
                             feature_name,
                             percentile,
-                            stats_dict["mean_iou"],
-                            stats_dict["std_iou"],
+                            stats_dict["mean_score"],
+                            stats_dict["std_score"],
                             int(stats_dict["count"]),
                         ),
                     )
@@ -519,6 +674,7 @@ def export_summary_json(conn: sqlite3.Connection, output_path: Path) -> None:
     leaderboards: dict[str, list[dict[str, Any]]] = {}
     metric_configs = {
         "iou": {"column": "mean_iou", "order": "DESC", "legacy_key": "best_iou"},
+        "coverage": {"column": "mean_coverage", "order": "DESC", "legacy_key": "best_coverage"},
         "mse": {"column": "mean_mse", "order": "ASC", "legacy_key": "best_mse"},
         "kl": {"column": "mean_kl", "order": "ASC", "legacy_key": "best_kl"},
         "emd": {"column": "mean_emd", "order": "ASC", "legacy_key": "best_emd"},

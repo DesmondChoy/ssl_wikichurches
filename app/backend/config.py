@@ -23,7 +23,7 @@ FEATURE_CACHE_PATH = CACHE_PATH / "features.h5"
 HEATMAPS_PATH = CACHE_PATH / "heatmaps"
 METRICS_DB_PATH = CACHE_PATH / "metrics.db"
 METRICS_SUMMARY_PATH = CACHE_PATH / "metrics_summary.json"
-Q2_RESULTS_PATH = PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json"
+LEGACY_Q2_RESULTS_PATH = PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json"
 
 # Available models (must match ssl_attention.config.MODELS)
 AVAILABLE_MODELS = ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2", "resnet50"]
@@ -60,6 +60,9 @@ from ssl_attention.config import MODEL_ALIASES
 from ssl_attention.config import MODEL_METHODS as MODEL_METHODS
 from ssl_attention.config import MODELS as MODELS
 from ssl_attention.config import AttentionMethod as AttentionMethod
+from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path
+
+Q2_RESULTS_PATH = resolve_active_artifact_path("q2_metrics_path", LEGACY_Q2_RESULTS_PATH)
 
 _FINETUNED_SUFFIX = "_finetuned"
 _FINETUNED_MARKER = "_finetuned_"

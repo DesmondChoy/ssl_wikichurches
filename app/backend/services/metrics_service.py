@@ -25,8 +25,10 @@ if TYPE_CHECKING:
 
 
 AnalysisMetricName = Literal["iou", "coverage", "mse", "kl", "emd"]
-MetricName = Literal["iou", "mse", "kl", "emd"]
+MetricName = Literal["iou", "coverage", "mse", "kl", "emd"]
 RankingMode = Literal["default_method", "best_available"]
+
+BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE = 90
 
 IMAGE_DETAIL_METRICS = (
     {
@@ -450,6 +452,8 @@ class MetricsService:
 
     def _metric_sql_config(self, metric: MetricName) -> tuple[str, str, str]:
         """Resolve aggregate score column, SQL sort direction, and selector."""
+        if metric == "coverage":
+            return "mean_coverage", "DESC", "MAX"
         if metric == "mse":
             return "mean_mse", "ASC", "MIN"
         if metric == "kl":
@@ -462,11 +466,13 @@ class MetricsService:
         """Extract the aggregate score for the selected metric."""
         if metric == "iou":
             return aggregate_metrics.get("mean_iou")
+        if metric == "coverage":
+            return aggregate_metrics.get("mean_coverage")
         return aggregate_metrics.get(f"mean_{metric}")
 
     def _aggregate_metric_column_available(self, conn: sqlite3.Connection, metric: MetricName) -> bool:
         """Return whether the aggregate table already stores the selected metric."""
-        if metric == "iou":
+        if metric in {"iou", "coverage"}:
             return True
 
         score_column, _, _ = self._metric_sql_config(metric)
@@ -736,32 +742,43 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
+        metric: AnalysisMetricName = "iou",
         method: str | None = None,
     ) -> dict:
-        """Get IoU breakdown by architectural style.
+        """Get metric breakdown by architectural style.
 
         Returns:
-            Dict with model, layer, percentile, styles (name->iou), style_counts.
+            Dict with model, layer, metric, percentile, styles, and style_counts.
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = (
+            percentile
+            if metric_config["percentile_dependent"]
+            else BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE
+        )
+        score_order = "DESC" if metric_config["direction"] == "higher" else "ASC"
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """SELECT style_name, mean_iou, num_images FROM style_metrics
-                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ?""",
-                (db_model, layer, resolved_method, percentile),
+                f"""SELECT style_name, mean_score, num_images FROM style_metrics
+                   WHERE model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ?
+                   ORDER BY mean_score {score_order}""",
+                (db_model, layer, resolved_method, metric, query_percentile),
             )
 
             styles = {}
             counts = {}
             for row in cursor.fetchall():
-                styles[row["style_name"]] = row["mean_iou"]
+                styles[row["style_name"]] = row["mean_score"]
                 counts[row["style_name"]] = row["num_images"]
 
             return {
                 "model": model,  # Return original name for display
                 "layer": layer,
+                "metric": metric,
+                "direction": metric_config["direction"],
                 "percentile": percentile,
                 "method": resolved_method,
                 "styles": styles,
@@ -911,7 +928,13 @@ class MetricsService:
             "direction": metric_config["direction"],
             "percentile_dependent": metric_config["percentile_dependent"],
             "selected_percentile": selected_percentile,
+            "experiment_id": data.get("experiment_id"),
+            "split_id": data.get("split_id"),
+            "git_commit_sha": data.get("git_commit_sha"),
             "analyzed_layer": data.get("analyzed_layer", get_model_num_layers("dinov2") - 1),
+            "evaluation_image_count": data.get("evaluation_image_count"),
+            "checkpoint_selection_rule": data.get("checkpoint_selection_rule"),
+            "result_set_scope": data.get("result_set_scope"),
             "timestamp": data.get("timestamp"),
             "rows": display_rows,
             "strategy_comparisons": display_strategy_comparisons,
@@ -922,17 +945,19 @@ class MetricsService:
         model: str,
         layer: str,
         percentile: int = 90,
-        sort_by: str = "mean_iou",
+        metric: AnalysisMetricName = "iou",
+        sort_by: str = "mean_score",
         min_count: int = 0,
         method: str | None = None,
     ) -> dict:
-        """Get IoU breakdown by architectural feature type.
+        """Get metric breakdown by architectural feature type.
 
         Args:
             model: Model name.
             layer: Layer key (e.g., "layer11").
             percentile: Percentile threshold.
-            sort_by: Field to sort by ("mean_iou", "bbox_count", "feature_name").
+            metric: Selected metric for the feature breakdown.
+            sort_by: Field to sort by ("mean_score", "bbox_count", "feature_name").
             min_count: Minimum bbox count to include a feature.
             method: Attention method. None = model default.
 
@@ -941,32 +966,40 @@ class MetricsService:
         """
         db_model = resolve_model_name(model)
         resolved_method = method if method else resolve_default_method(model)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = (
+            percentile
+            if metric_config["percentile_dependent"]
+            else BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE
+        )
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
             # Determine sort order
-            order_clause = "mean_iou DESC"
+            order_clause = "mean_score DESC" if metric_config["direction"] == "higher" else "mean_score ASC"
             if sort_by == "bbox_count":
                 order_clause = "bbox_count DESC"
             elif sort_by == "feature_name":
                 order_clause = "feature_name ASC"
             elif sort_by == "feature_label":
                 order_clause = "feature_label ASC"
+            elif sort_by == "mean_iou":
+                order_clause = "mean_score DESC"
 
             cursor.execute(
-                f"""SELECT feature_label, feature_name, mean_iou, std_iou, bbox_count
+                f"""SELECT feature_label, feature_name, mean_score, std_score, bbox_count
                    FROM feature_metrics
-                   WHERE model = ? AND layer = ? AND method = ? AND percentile = ? AND bbox_count >= ?
+                   WHERE model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ? AND bbox_count >= ?
                    ORDER BY {order_clause}""",
-                (db_model, layer, resolved_method, percentile, min_count),
+                (db_model, layer, resolved_method, metric, query_percentile, min_count),
             )
 
             features = [
                 {
                     "feature_label": row["feature_label"],
                     "feature_name": row["feature_name"],
-                    "mean_iou": row["mean_iou"],
-                    "std_iou": row["std_iou"],
+                    "mean_score": row["mean_score"],
+                    "std_score": row["std_score"],
                     "bbox_count": row["bbox_count"],
                 }
                 for row in cursor.fetchall()
@@ -975,6 +1008,8 @@ class MetricsService:
             return {
                 "model": model,  # Return original name for display
                 "layer": layer,
+                "metric": metric,
+                "direction": metric_config["direction"],
                 "percentile": percentile,
                 "method": resolved_method,
                 "features": features,

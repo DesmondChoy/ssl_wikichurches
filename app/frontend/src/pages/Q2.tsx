@@ -128,6 +128,18 @@ export function Q2Page() {
           <p className="mt-3 text-sm text-slate-600">
             This Q2 summary was computed at layer {analyzedLayer}. The compare link opens that same layer so the image-level playback starts from the aggregate analysis layer.
           </p>
+          {data?.experiment_id && (
+            <p className="mt-2 text-sm text-slate-600">
+              Active experiment: <span className="font-medium">{data.experiment_id}</span>
+              {data.result_set_scope ? ` • ${data.result_set_scope}` : ''}
+              {data.evaluation_image_count ? ` • ${data.evaluation_image_count} annotated images` : ''}
+            </p>
+          )}
+          {data?.checkpoint_selection_rule && (
+            <p className="mt-2 text-sm text-slate-600">
+              Checkpoint rule: {data.checkpoint_selection_rule}
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 AnalysisMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
-DashboardMetric = Literal["iou", "mse", "kl", "emd"]
+DashboardMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
 CompareVariant = Literal["frozen", "linear_probe", "lora", "full"]
 
 
@@ -140,13 +140,15 @@ class LayerProgressionSchema(BaseModel):
 
 
 class StyleBreakdownSchema(BaseModel):
-    """IoU breakdown by architectural style."""
+    """Metric breakdown by architectural style."""
 
     model: str
     layer: str
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
     percentile: int
-    styles: dict[str, float]  # style_name -> mean_iou
-    style_counts: dict[str, int]  # style_name -> num_images
+    styles: dict[str, float]
+    style_counts: dict[str, int]
     method: str | None = None
 
 
@@ -210,23 +212,25 @@ class SimilarityResponse(BaseModel):
     )
 
 
-class FeatureIoUEntry(BaseModel):
-    """IoU metrics for a single architectural feature type."""
+class FeatureMetricEntry(BaseModel):
+    """Metric summary for a single architectural feature type."""
 
     feature_label: int = Field(..., description="Feature type index (0-105)")
     feature_name: str = Field(..., description="Human-readable feature name")
-    mean_iou: float = Field(..., description="Mean IoU across all bboxes of this type")
-    std_iou: float = Field(..., description="Standard deviation of IoU")
+    mean_score: float = Field(..., description="Mean metric score across all bboxes of this type")
+    std_score: float = Field(..., description="Standard deviation of the metric")
     bbox_count: int = Field(..., description="Number of bboxes of this type")
 
 
 class FeatureBreakdownSchema(BaseModel):
-    """IoU breakdown by architectural feature type."""
+    """Metric breakdown by architectural feature type."""
 
     model: str
     layer: str
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
     percentile: int
-    features: list[FeatureIoUEntry]
+    features: list[FeatureMetricEntry]
     total_feature_types: int = Field(..., description="Total number of feature types returned")
     method: str | None = None
 
@@ -312,7 +316,13 @@ class Q2SummaryResponse(BaseModel):
     direction: Literal["higher", "lower"]
     percentile_dependent: bool
     selected_percentile: int | None = None
+    experiment_id: str | None = None
+    split_id: str | None = None
+    git_commit_sha: str | None = None
     analyzed_layer: int
+    evaluation_image_count: int | None = None
+    checkpoint_selection_rule: str | None = None
+    result_set_scope: str | None = None
     timestamp: str | None = None
     rows: list[Q2SummaryRowSchema]
     strategy_comparisons: list[Q2StrategyComparisonSchema]

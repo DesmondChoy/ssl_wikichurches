@@ -6,10 +6,16 @@ import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
 import type { AnalysisMetric, DashboardMetric, RankingMode } from '../types';
 
-export function useStyleBreakdown(model: string, layer: number, percentile: number, method?: string) {
+export function useStyleBreakdown(
+  model: string,
+  layer: number,
+  percentile: number,
+  metric: AnalysisMetric,
+  method?: string
+) {
   return useQuery({
-    queryKey: ['styleBreakdown', model, layer, percentile, method],
-    queryFn: () => metricsAPI.getStyleBreakdown(model, layer, percentile, method),
+    queryKey: ['styleBreakdown', model, layer, percentile, metric, method],
+    queryFn: () => metricsAPI.getStyleBreakdown(model, layer, percentile, metric, method),
   });
 }
 
@@ -17,13 +23,14 @@ export function useFeatureBreakdown(
   model: string,
   layer: number,
   percentile: number,
-  sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
+  metric: AnalysisMetric,
+  sortBy: 'mean_score' | 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_score',
   minCount = 0,
   method?: string
 ) {
   return useQuery({
-    queryKey: ['featureBreakdown', model, layer, percentile, sortBy, minCount, method],
-    queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, sortBy, minCount, method),
+    queryKey: ['featureBreakdown', model, layer, percentile, metric, sortBy, minCount, method],
+    queryFn: () => metricsAPI.getFeatureBreakdown(model, layer, percentile, metric, sortBy, minCount, method),
   });
 }
 

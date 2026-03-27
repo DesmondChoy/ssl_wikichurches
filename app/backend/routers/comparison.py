@@ -568,7 +568,7 @@ async def compare_layers(
 @router.get("/all_models_summary", response_model=AllModelsSummarySchema)
 async def compare_all_models_summary(
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
     ranking_mode: Annotated[Literal["default_method", "best_available"] | None, Query()] = None,
 ) -> AllModelsSummarySchema:

@@ -65,7 +65,13 @@ export function DashboardPage() {
     isLoading: summaryLoading,
     error: summaryError,
   } = useAllModelsSummary(percentile, metric, { rankingMode });
-  const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(model, layer, percentile, method);
+  const { data: styleBreakdown, isLoading: styleLoading } = useStyleBreakdown(
+    model,
+    layer,
+    percentile,
+    metric,
+    method
+  );
   const summaryContextMessage = getSummaryContextMessage(summary, rankingMode);
   const leaderboardEmptyMessage = getLeaderboardEmptyMessage(summary, rankingMode);
   const handleLeaderboardModelSelect = (entry: LeaderboardEntry) => {
@@ -103,12 +109,16 @@ export function DashboardPage() {
 
   // Style breakdown data
   const styleData = styleBreakdown
-    ? Object.entries(styleBreakdown.styles).map(([style, iou]) => ({
+    ? Object.entries(styleBreakdown.styles).map(([style, score]) => ({
         styleLabel: style,
-        iou,
+        score,
         count: styleBreakdown.style_counts[style] || 0,
       }))
     : [];
+  const styleAxisConfig = getNumericAxisConfig(
+    metricMetadata.axisMode,
+    styleData.map((row) => row.score)
+  );
 
   return (
     <div className="space-y-6">
@@ -260,8 +270,10 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
-              <h3 className="font-semibold">IoU by Architectural Style</h3>
-              <span className="text-xs text-gray-500 capitalize">{model} • IoU only</span>
+              <h3 className="font-semibold">{metricMetadata.optionLabel} by Architectural Style</h3>
+              <span className="text-xs text-gray-500 capitalize">
+                {model} • {metricMetadata.optionLabel}
+              </span>
             </div>
           </CardHeader>
           <CardContent>
@@ -272,7 +284,12 @@ export function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={styleData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                    <XAxis type="number" domain={[0, 1]} tick={{ fontSize: 12 }} />
+                    <XAxis
+                      type="number"
+                      domain={styleAxisConfig.domain}
+                      ticks={styleAxisConfig.ticks}
+                      tick={{ fontSize: 12 }}
+                    />
                     <YAxis 
                       type="category" 
                       dataKey="styleLabel" 
@@ -281,12 +298,12 @@ export function DashboardPage() {
                     />
                     <Tooltip 
                       formatter={(value: number, name: string) => {
-                        if (name === 'iou') return [value.toFixed(3), 'Mean IoU'];
+                        if (name === 'score') return [value.toFixed(3), `Mean ${metricMetadata.optionLabel}`];
                         return [value, 'Images'];
                       }}
                     />
                     <Bar 
-                      dataKey="iou" 
+                      dataKey="score" 
                       fill="#3b82f6" 
                       radius={[0, 4, 4, 0]}
                       isAnimationActive={false}
@@ -303,8 +320,14 @@ export function DashboardPage() {
         </Card>
 
         {/* Feature breakdown */}
-        <ErrorBoundary resetKeys={[model, layer, percentile, method]}>
-          <FeatureBreakdown model={model} layer={layer} percentile={percentile} method={method} />
+        <ErrorBoundary resetKeys={[model, layer, percentile, metric, method]}>
+          <FeatureBreakdown
+            model={model}
+            layer={layer}
+            percentile={percentile}
+            metric={metric}
+            method={method}
+          />
         </ErrorBoundary>
       </div>
 
@@ -405,16 +428,19 @@ function getYAxisConfig(
   chartData: Record<string, number | string>[]
 ): YAxisConfig {
   const axisMode = DASHBOARD_METRIC_METADATA[metric].axisMode;
-  if (axisMode === 'unit') {
-    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
-  }
-
   const values = chartData.flatMap((point) =>
     Object.entries(point)
       .filter(([key]) => key !== 'layer')
       .map(([, value]) => value)
       .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
   );
+  return getNumericAxisConfig(axisMode, values);
+}
+
+function getNumericAxisConfig(axisMode: 'unit' | 'auto', values: number[]): YAxisConfig {
+  if (axisMode === 'unit') {
+    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+  }
 
   if (!values.length) {
     return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };

@@ -77,6 +77,7 @@ export const ANALYSIS_METRIC_METADATA: Record<AnalysisMetric, AnalysisMetricMeta
 
 export const DASHBOARD_METRIC_METADATA: Record<DashboardMetric, AnalysisMetricMetadata> = {
   iou: ANALYSIS_METRIC_METADATA.iou,
+  coverage: ANALYSIS_METRIC_METADATA.coverage,
   mse: ANALYSIS_METRIC_METADATA.mse,
   kl: ANALYSIS_METRIC_METADATA.kl,
   emd: ANALYSIS_METRIC_METADATA.emd,

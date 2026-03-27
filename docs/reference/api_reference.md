@@ -22,7 +22,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/attention/{image_id}/raw` | Raw attention values for client rendering |
 | GET | `/api/attention/{image_id}/layers` | All layer overlay URLs for a model |
 | POST | `/api/attention/{image_id}/similarity` | Bbox cosine similarity across patches |
-| GET | `/api/metrics/q2_summary` | Strategy-aware Q2 delta-IoU summary |
+| GET | `/api/metrics/q2_summary` | Strategy-aware fine-tuning metric summary with experiment provenance |
 | GET | `/api/metrics/leaderboard` | Model rankings by the selected aggregate metric |
 | GET | `/api/metrics/summary` | Pre-computed metrics summary |
 | GET | `/api/metrics/{image_id}` | Per-image alignment metrics |
@@ -30,8 +30,8 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/{image_id}/bbox/{bbox_index}` | Per-bbox alignment metrics (computed on-the-fly) |
 | GET | `/api/metrics/{image_id}/all_models` | Per-image metrics across all models |
 | GET | `/api/metrics/model/{model}/progression` | Layer-by-layer aggregate metric progression |
-| GET | `/api/metrics/model/{model}/style_breakdown` | IoU by architectural style |
-| GET | `/api/metrics/model/{model}/feature_breakdown` | IoU by feature type |
+| GET | `/api/metrics/model/{model}/style_breakdown` | Metric breakdown by architectural style |
+| GET | `/api/metrics/model/{model}/feature_breakdown` | Metric breakdown by feature type |
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
@@ -472,7 +472,8 @@ Compute cosine similarity between a bounding box region and all image patches. E
 
 Most metrics endpoints require the pre-computed metrics database (`metrics.db`).
 Two exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
-and `/api/metrics/q2_summary`, which reads `q2_delta_iou_analysis.json`.
+and `/api/metrics/q2_summary`, which reads the active experiment's
+`q2_metrics_analysis.json`.
 
 ### `GET /api/metrics/leaderboard`
 
@@ -486,7 +487,7 @@ variants are not included in this leaderboard.
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
-| `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to rank by |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Aggregate metric to rank by |
 | `method` | string | No | model default | `cls`, `rollout`, `mean`, `gradcam` | Shared attention method filter; incompatible models are omitted |
 | `ranking_mode` | string | No | `default_method` | `default_method`, `best_available` | Ranking semantics when `method` is not provided |
 
@@ -533,15 +534,18 @@ This is a static snapshot exported with `ranking_mode = "default_method"`, not a
 
 ### `GET /api/metrics/q2_summary`
 
-Get the strategy-aware Q2 delta-IoU analysis summary exported by `experiments/scripts/analyze_delta_iou.py`.
+Get the strategy-aware fine-tuning attention-analysis summary exported by
+`experiments/scripts/analyze_q2_metrics.py`.
 
-> **Data source**: This endpoint reads `outputs/results/q2_delta_iou_analysis.json`.
+> **Data source**: This endpoint reads the active experiment's
+> `q2_metrics_analysis.json` through `outputs/results/active_experiment.json`.
 > It does not depend on `metrics.db`.
 
 **Query Parameters**
 
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Fine-tuning metric family to summarize |
 | `percentile` | int | No | `null` | 50–95 | Optional percentile filter |
 | `model` | string | No | `null` | See [Common Parameters](#common-parameters) | Optional base model filter |
 | `strategy` | string | No | `null` | `linear_probe`, `lora`, `full` | Optional fine-tuning strategy filter |
@@ -550,6 +554,12 @@ Get the strategy-aware Q2 delta-IoU analysis summary exported by `experiments/sc
 
 ```json
 {
+  "experiment_id": "fine_tuning_primary_20260327",
+  "split_id": "fine_tuning_primary_20260327__primary__seed42",
+  "git_commit_sha": "abcdef1234567890",
+  "evaluation_image_count": 139,
+  "checkpoint_selection_rule": "best classification validation accuracy on shared non-annotated validation split",
+  "result_set_scope": "primary",
   "percentiles": [90, 80, 70, 60, 50],
   "timestamp": "2026-03-16T21:23:57+08:00",
   "models": {
@@ -558,17 +568,17 @@ Get the strategy-aware Q2 delta-IoU analysis summary exported by `experiments/sc
         "90": {
           "model_name": "clip",
           "strategy_id": "lora",
+          "metric": "iou",
           "percentile": 90,
           "method": "cls",
-          "frozen_mean_iou": 0.018,
-          "finetuned_mean_iou": 0.082,
-          "mean_delta_iou": 0.063,
+          "frozen_mean": 0.018,
+          "finetuned_mean": 0.082,
+          "mean_delta": 0.063,
           "delta_ci_lower": 0.046,
           "delta_ci_upper": 0.079,
           "cohens_d": 0.91,
           "corrected_p_value": 0.004,
           "significant": true,
-          "iou_retention_ratio": 4.56,
           "num_images": 139
         }
       }
@@ -598,7 +608,7 @@ Get the strategy-aware Q2 delta-IoU analysis summary exported by `experiments/sc
 | Status | Condition |
 |--------|-----------|
 | 400 | Invalid model name |
-| 503 | Q2 summary JSON not available (run `analyze_delta_iou.py` first) |
+| 503 | Q2 summary JSON not available (run `analyze_q2_metrics.py` first) |
 
 ---
 
@@ -859,7 +869,7 @@ Get aggregate metric progression across all layers for a model. Shows how attent
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
-| `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to chart |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Aggregate metric to chart |
 | `method` | string | No | model default | Must be valid for model | Attention method |
 
 **Response**: `LayerProgressionSchema`
@@ -888,7 +898,8 @@ Get aggregate metric progression across all layers for a model. Shows how attent
 
 ### `GET /api/metrics/model/{model}/style_breakdown`
 
-Get IoU breakdown by architectural style (Romanesque, Gothic, Renaissance, Baroque).
+Get a metric-specific breakdown by architectural style (Romanesque, Gothic,
+Renaissance, Baroque).
 
 **Path Parameters**
 
@@ -902,6 +913,7 @@ Get IoU breakdown by architectural style (Romanesque, Gothic, Renaissance, Baroq
 |-----------|------|----------|---------|-------------|-------------|
 | `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric to aggregate by style |
 
 **Response**: `StyleBreakdownSchema`
 
@@ -909,12 +921,14 @@ Get IoU breakdown by architectural style (Romanesque, Gothic, Renaissance, Baroq
 {
   "model": "dinov2",
   "layer": "layer0",
+  "metric": "coverage",
+  "direction": "higher",
   "percentile": 90,
   "styles": {
-    "Romanesque": 0.31,
-    "Gothic": 0.28,
-    "Renaissance": 0.25,
-    "Baroque": 0.22
+    "Romanesque": 0.44,
+    "Gothic": 0.39,
+    "Renaissance": 0.33,
+    "Baroque": 0.29
   },
   "style_counts": {
     "Romanesque": 54,
@@ -936,7 +950,8 @@ Get IoU breakdown by architectural style (Romanesque, Gothic, Renaissance, Baroq
 
 ### `GET /api/metrics/model/{model}/feature_breakdown`
 
-Get IoU breakdown by architectural feature type (e.g., windows, doors, arches) across all 106 feature types.
+Get a metric-specific breakdown by architectural feature type (for example
+windows, doors, or arches) across all feature categories.
 
 **Path Parameters**
 
@@ -950,8 +965,9 @@ Get IoU breakdown by architectural feature type (e.g., windows, doors, arches) a
 |-----------|------|----------|---------|-------------|-------------|
 | `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric to aggregate by feature |
 | `min_count` | int | No | `0` | ≥ 0 | Minimum bbox count to include a feature type |
-| `sort_by` | string | No | `mean_iou` | `mean_iou`, `bbox_count`, `feature_name`, `feature_label` | Sort order |
+| `sort_by` | string | No | `mean_score` | `mean_score`, `bbox_count`, `feature_name`, `feature_label` | Sort order |
 
 **Response**: `FeatureBreakdownSchema`
 
@@ -959,13 +975,15 @@ Get IoU breakdown by architectural feature type (e.g., windows, doors, arches) a
 {
   "model": "dinov2",
   "layer": "layer0",
+  "metric": "emd",
+  "direction": "lower",
   "percentile": 90,
   "features": [
     {
       "feature_label": 42,
       "feature_name": "window",
-      "mean_iou": 0.35,
-      "std_iou": 0.12,
+      "mean_score": 0.18,
+      "std_score": 0.05,
       "bbox_count": 87
     }
   ],
@@ -1000,7 +1018,7 @@ Get aggregate statistics for a model/layer combination across all images, includ
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
 | `method` | string | No | model default | Must be valid for model | Attention method |
 
-**Response**: `dict` (keys include `mean_iou`, `std_iou`, `median_iou`, `mean_mse`, `std_mse`, `median_mse`, `mean_kl`, `std_kl`, `median_kl`, `mean_emd`, `std_emd`, `median_emd`, etc.)
+**Response**: `dict` (keys include `mean_iou`, `std_iou`, `median_iou`, `mean_coverage`, `mean_mse`, `std_mse`, `median_mse`, `mean_kl`, `std_kl`, `median_kl`, `mean_emd`, `std_emd`, `median_emd`, etc.)
 
 **Errors**
 
@@ -1296,7 +1314,7 @@ strategy-specific fine-tuned variants.
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
-| `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to rank and chart |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Aggregate metric to rank and chart |
 | `method` | string | No | — | `cls`, `rollout`, `mean`, `gradcam` | Shared attention method filter; incompatible models are excluded |
 | `ranking_mode` | string | No | `default_method` | `default_method`, `best_available` | Ranking semantics when `method` is not provided |
 
@@ -1501,7 +1519,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 |-------|------|-------------|
 | `rank` | int | Position in ranking |
 | `model` | string | Model name |
-| `metric` | string | Metric used for ranking (`iou`, `mse`, `kl`, `emd`) |
+| `metric` | string | Metric used for ranking (`iou`, `coverage`, `mse`, `kl`, `emd`) |
 | `score` | float | Best score achieved for the selected metric |
 | `best_layer` | string | Layer with the best score for the selected metric |
 | `method_used` | string | Attention method used for this model's ranked score |
@@ -1511,7 +1529,7 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `model` | string | Model name |
-| `metric` | string | Aggregate metric being charted (`iou`, `mse`, `kl`, `emd`) |
+| `metric` | string | Aggregate metric being charted (`iou`, `coverage`, `mse`, `kl`, `emd`) |
 | `percentile` | int | Percentile threshold used |
 | `method` | string \| null | Attention method used |
 | `layers` | list[string] | Layer keys in order |
@@ -1525,8 +1543,10 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 |-------|------|-------------|
 | `model` | string | Model name |
 | `layer` | string | Layer key |
+| `metric` | string | Selected metric (`iou`, `coverage`, `mse`, `kl`, `emd`) |
+| `direction` | string | Whether higher or lower scores are better |
 | `percentile` | int | Percentile threshold used |
-| `styles` | dict[string, float] | Style name → mean IoU |
+| `styles` | dict[string, float] | Style name → mean score for the selected metric |
 | `style_counts` | dict[string, int] | Style name → image count |
 
 ### `FeatureBreakdownSchema`
@@ -1535,18 +1555,20 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 |-------|------|-------------|
 | `model` | string | Model name |
 | `layer` | string | Layer key |
+| `metric` | string | Selected metric (`iou`, `coverage`, `mse`, `kl`, `emd`) |
+| `direction` | string | Whether higher or lower scores are better |
 | `percentile` | int | Percentile threshold used |
-| `features` | list[FeatureIoUEntry] | Per-feature IoU data |
+| `features` | list[FeatureMetricEntry] | Per-feature metric data |
 | `total_feature_types` | int | Total feature types returned |
 
-### `FeatureIoUEntry`
+### `FeatureMetricEntry`
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `feature_label` | int | Feature type index (0–105) |
 | `feature_name` | string | Human-readable feature name |
-| `mean_iou` | float | Mean IoU across all bboxes of this type |
-| `std_iou` | float | Standard deviation of IoU |
+| `mean_score` | float | Mean score across all bboxes of this type for the selected metric |
+| `std_score` | float | Standard deviation of the selected metric |
 | `bbox_count` | int | Number of bboxes of this type |
 
 ### `ModelComparisonSchema`
@@ -1614,4 +1636,4 @@ Several endpoints require offline pre-computation before they can serve data:
 | `generate_attention_cache.py` | HDF5 attention cache | `/attention/{id}/raw` |
 | `generate_feature_cache.py` | HDF5 feature cache | `/attention/{id}/similarity` |
 | `generate_metrics_cache.py` | SQLite metrics DB + `metrics_summary.json` | Union-metric `/metrics/*` endpoints plus `/compare/models`, `/compare/layers`, and `/compare/all_models_summary` |
-| `analyze_delta_iou.py` | `q2_delta_iou_analysis.json` | `/metrics/q2_summary` |
+| `analyze_q2_metrics.py` | Active experiment `q2_metrics_analysis.json` plus compatibility `q2_delta_iou_analysis.json` | `/metrics/q2_summary` |

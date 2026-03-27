@@ -40,13 +40,16 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 
 ### Important current gaps
 
-- `outputs/checkpoints/` is empty (no fine-tuned checkpoints currently present).
-- `outputs/results/fine_tuning_results.json` references a checkpoint path that is not present locally.
 - Fine-tuned comparison flows are integrated end-to-end when artifacts exist:
   - Frontend `FrozenVsFinetuned.tsx` supports both `Frozen vs Fine-tuned` and `Fine-tuning Method vs Method`.
   - Backend `/api/compare/frozen_vs_finetuned` and `/api/compare/finetuned_vs_finetuned` return strategy-aware overlay metadata.
   - The `/q2` page is wired and reads `/api/metrics/q2_summary`.
   - Precompute supports `--finetuned --strategies ...` for attention, feature, and heatmap generation.
+- The canonical fine-tuning outputs are now experiment-scoped:
+  - `outputs/results/active_experiment.json` selects the active batch.
+  - `outputs/results/experiments/<experiment_id>/run_matrix.json` is the source of truth for figures/docs refreshes.
+  - `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json` is the canonical app-facing analysis artifact.
+- If `active_experiment.json` is missing, the app falls back to legacy top-level artifacts when possible, but that should be treated as compatibility mode rather than the preferred workflow.
 - Remaining fine-tuned analytics gap:
   - Dashboard-style leaderboard and all-model summary views still focus on the base `AVAILABLE_MODELS` set rather than strategy-specific fine-tuned variants.
 
@@ -81,7 +84,8 @@ For Q2 fine-tuning, training should rely on the broader WikiChurches style-label
 ### Experiments
 
 - `experiments/scripts/fine_tune_models.py`
-- `experiments/scripts/analyze_delta_iou.py`
+- `experiments/scripts/analyze_q2_metrics.py`
+- `experiments/scripts/analyze_delta_iou.py` (compatibility wrapper only)
 
 ## 4. Suggested onboarding flow (first 1-2 days)
 

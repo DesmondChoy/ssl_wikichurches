@@ -8,6 +8,7 @@ Output: PNG images in outputs/slides/ for embedding in the PPTX.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -21,6 +22,10 @@ matplotlib.use("Agg")
 # Paths
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "src"))
+
+from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path  # noqa: E402
+
 CACHE = ROOT / "outputs" / "cache" / "heatmaps"
 ORIGINALS_CLEAN = CACHE / "originals" / "clean"
 ORIGINALS_BBOX = CACHE / "originals" / "bbox"
@@ -28,6 +33,11 @@ FIGURES = ROOT / "outputs" / "figures"
 RESULTS = ROOT / "outputs" / "results"
 OUT = ROOT / "outputs" / "slides"
 OUT.mkdir(parents=True, exist_ok=True)
+Q2_RESULTS = resolve_active_artifact_path(
+    "q2_metrics_path",
+    RESULTS / "q2_metrics_analysis.json",
+)
+METRICS_SUMMARY = ROOT / "outputs" / "cache" / "metrics_summary.json"
 
 # Selected images per style (highest bbox count)
 STYLE_IMAGES = {
@@ -48,6 +58,14 @@ CHARCOAL = "#2D3436"
 WARM_GRAY = "#8A817C"
 SUCCESS = "#3A7D44"
 FAILURE = "#C04E4E"
+MODEL_LABELS = {
+    "clip": "CLIP",
+    "dinov2": "DINOv2",
+    "dinov3": "DINOv3",
+    "mae": "MAE",
+    "siglip": "SigLIP",
+    "siglip2": "SigLIP 2",
+}
 
 
 def _load_cached_image(model: str, layer: str, method: str, variant: str, image_id: str) -> Image.Image:
@@ -185,15 +203,26 @@ def generate_slide6_pipeline():
 def generate_slide13_scatter():
     print("Generating Slide 13: Frozen IoU vs Delta IoU scatter...")
 
-    # Data from metrics_summary.json and q2_metrics_analysis.json
-    models_data = {
-        "DINOv3":  {"frozen": 0.1327, "delta": 0.009, "strategy": "LoRA", "sig": False},
-        "DINOv2":  {"frozen": 0.0816, "delta": 0.002, "strategy": "LoRA", "sig": False},
-        "CLIP":    {"frozen": 0.0485, "delta": 0.063, "strategy": "LoRA", "sig": True},
-        "SigLIP":  {"frozen": 0.0466, "delta": 0.036, "strategy": "Full", "sig": True},
-        "SigLIP 2": {"frozen": 0.0466, "delta": 0.036, "strategy": "Full", "sig": True},
-        "MAE":     {"frozen": 0.0374, "delta": 0.001, "strategy": "LoRA", "sig": False},
-    }
+    metrics_summary = json.loads(METRICS_SUMMARY.read_text(encoding="utf-8"))
+    q2_results = json.loads(Q2_RESULTS.read_text(encoding="utf-8"))
+
+    q2_rows = [
+        row for row in q2_results.get("rows", [])
+        if row.get("metric") == "iou" and row.get("percentile") == 90
+    ]
+
+    models_data: dict[str, dict[str, object]] = {}
+    for model_key, summary in metrics_summary.get("models", {}).items():
+        candidate_rows = [row for row in q2_rows if row.get("model_name") == model_key]
+        if not candidate_rows:
+            continue
+        best_row = max(candidate_rows, key=lambda row: row.get("mean_delta", float("-inf")))
+        models_data[MODEL_LABELS.get(model_key, model_key)] = {
+            "frozen": summary.get("best_iou", 0.0),
+            "delta": best_row.get("mean_delta", 0.0),
+            "strategy": str(best_row.get("strategy_id", "full")).replace("_", " ").title(),
+            "sig": bool(best_row.get("significant", False)),
+        }
 
     fig, ax = plt.subplots(figsize=(8, 6))
 

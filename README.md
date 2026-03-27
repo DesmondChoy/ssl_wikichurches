@@ -119,7 +119,7 @@ Fine-tune SSL backbones on architectural style classification (all ViT models; `
 
 **Fine-tunable model keys**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`.
 
-**Artifact naming**: strategy-aware checkpoints are saved as `outputs/checkpoints/{model}_{strategy}_finetuned.pt`, and fine-tuned cache keys use `{model}_finetuned_{strategy}`. A legacy `{model}_finetuned.pt` fallback is still accepted for older full-fine-tuning runs.
+**Artifact naming**: the primary fine-tuning pipeline now writes experiment-scoped checkpoints to `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`. Fine-tuned cache keys still use `{model}_finetuned_{strategy}`. A legacy `{model}_finetuned.pt` fallback is still accepted for older full-fine-tuning runs.
 
 ```python
 from ssl_attention.evaluation import FineTuningConfig, FineTuner, FineTunableModel
@@ -134,30 +134,55 @@ config = FineTuningConfig(model_name="dinov2", use_lora=True, lora_rank=8)
 result = tuner.train(FineTunableModel("dinov2"), dataset)
 ```
 
-See `src/ssl_attention/evaluation/` for full API. Checkpoints save to `outputs/checkpoints/`. LoRA support requires the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
+See `src/ssl_attention/evaluation/` for full API. The canonical experiment ledger now lives under `outputs/results/experiments/<experiment_id>/`, with `outputs/results/active_experiment.json` pointing the app, figure scripts, and docs refresh tools to the currently selected batch. LoRA support requires the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
 
 ### Fine-tuning Workflow
 
-Fine-tuning runs on **all style-labeled images** (~4,700+). The 139 bbox-annotated images are held out for evaluation so that Δ IoU is measured on unseen data.
+Fine-tuning runs on **all style-labeled images** (~4,700+). The 139 bbox-annotated images are excluded from the primary train/validation split and used only for final attention-alignment evaluation.
 
-1. **Train checkpoints** (one or more models × strategies):
+1. **Choose an experiment batch ID** and train checkpoints.
 
-```bash
-# Linear probe, LoRA, full (same --model; add --freeze-backbone or --lora as needed)
-uv run python experiments/scripts/fine_tune_models.py --model dinov3 --freeze-backbone
-uv run python experiments/scripts/fine_tune_models.py --model dinov3 --lora
-uv run python experiments/scripts/fine_tune_models.py --model dinov3
-```
+The primary rule is:
 
-   Validation uses the 139 bbox-annotated images by default. Use `--val-on-random-split` for a random stratified split instead. Use `--include-annotated-eval` only if your dataset contains only the 139 annotated images. These runs produce strategy-aware checkpoints such as `outputs/checkpoints/dinov3_linear_probe_finetuned.pt`, `outputs/checkpoints/dinov3_lora_finetuned.pt`, and `outputs/checkpoints/dinov3_full_finetuned.pt`.
+- use one shared non-annotated validation split for the whole batch
+- choose one checkpoint per `model × strategy` by best classification validation accuracy
+- evaluate all attention metrics from that checkpoint on the untouched annotated pool
 
-2. **Run Q2 metric analysis** (output: `outputs/results/q2_metrics_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page):
+The example below runs the full primary 18-run batch in three sweeps that all reuse the same shared split artifact:
 
 ```bash
-uv run python experiments/scripts/analyze_q2_metrics.py --models dinov3 --strategies linear_probe lora full
+EXPERIMENT_ID=fine_tuning_primary_20260327
+
+# Linear probe
+uv run python experiments/scripts/fine_tune_models.py --all --freeze-backbone --epochs 3 --experiment-id "$EXPERIMENT_ID"
+
+# LoRA
+uv run python experiments/scripts/fine_tune_models.py --all --lora --epochs 3 --experiment-id "$EXPERIMENT_ID"
+
+# Full fine-tuning
+uv run python experiments/scripts/fine_tune_models.py --all --epochs 3 --experiment-id "$EXPERIMENT_ID"
 ```
 
-   The legacy wrapper `experiments/scripts/analyze_delta_iou.py` still exists for compatibility, but it now delegates to the multi-metric analyzer. The generated artifact includes IoU, coverage, Gaussian MSE, KL, and EMD summaries for the selected analysis layer.
+   Each run writes:
+
+- `outputs/results/experiments/<experiment_id>/splits/<split_id>.json`
+- `outputs/results/experiments/<experiment_id>/manifests/<run_id>_manifest.json`
+- `outputs/results/experiments/<experiment_id>/run_matrix.json`
+- `outputs/results/experiments/<experiment_id>/fine_tuning_results.json`
+- `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`
+
+   `--val-on-annotated-eval` still exists, but it is explicitly marked as `exploratory` in manifests and downstream results. It should not be used for the main experiment. Use `--include-annotated-eval` only if your local dataset contains only the 139 annotated images and you are intentionally running an annotated-only fallback.
+
+2. **Run the fine-tuning attention analysis** (canonical output: `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page through `active_experiment.json`):
+
+```bash
+uv run python experiments/scripts/analyze_q2_metrics.py \
+  --experiment-id "$EXPERIMENT_ID" \
+  --models clip dinov2 dinov3 mae siglip siglip2 \
+  --strategies linear_probe lora full
+```
+
+   The generated artifact includes IoU, coverage, Gaussian MSE, KL, and EMD summaries plus experiment provenance such as `experiment_id`, `split_id`, evaluation image count, git commit SHA, and checkpoint-selection rule. The legacy wrapper `experiments/scripts/analyze_delta_iou.py` still exists for compatibility, but the canonical app-facing artifact is `q2_metrics_analysis.json`.
 
 3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints). Fine-tuned artifacts are written under strategy-aware cache keys such as `{model}_finetuned_lora` and `{model}_finetuned_full`.
 
@@ -185,7 +210,7 @@ uv run python -m app.precompute.generate_metrics_cache
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
 ```
 
-The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on `q2_metrics_analysis.json` plus the fine-tuned attention, feature, heatmap, and strategy-aware metrics caches above, not on a strategy-aware leaderboard surface in the dashboard.
+The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on the active experiment's `q2_metrics_analysis.json` plus the fine-tuned attention, feature, heatmap, and strategy-aware metrics caches above, not on a strategy-aware leaderboard surface in the dashboard.
 
 ## Data Exploration
 

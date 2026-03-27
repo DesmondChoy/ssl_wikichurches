@@ -160,6 +160,10 @@ function ExperimentSummaryCard({
 }) {
   const metric = summary.metric;
   const metricMetadata = ANALYSIS_METRIC_METADATA[metric];
+  const significanceLabel =
+    summary.corrected_p_value !== null
+      ? (summary.significant ? 'Holm-corrected significant' : 'Not significant after Holm correction')
+      : (summary.significant ? 'Significant' : 'Not significant');
 
   return (
     <Card>
@@ -196,7 +200,7 @@ function ExperimentSummaryCard({
             </p>
             <p>
               <span className="font-medium">Significance:</span>{' '}
-              {summary.significant ? 'Holm-corrected significant' : 'Not significant'}
+              {significanceLabel}
             </p>
           </div>
         </div>
@@ -218,6 +222,10 @@ function PairwiseSummaryCard({
     metricMetadata.direction === 'higher'
       ? `Positive means ${comparison.strategy_a} improves more than ${comparison.strategy_b}.`
       : `Negative means ${comparison.strategy_a} improves more than ${comparison.strategy_b}.`;
+  const significanceLabel =
+    comparison.corrected_p_value !== null
+      ? (comparison.significant ? 'Holm-corrected significant' : 'Not significant after Holm correction')
+      : (comparison.significant ? 'Significant' : 'Not significant');
 
   return (
     <Card>
@@ -247,7 +255,7 @@ function PairwiseSummaryCard({
             </p>
             <p>
               <span className="font-medium">Significance:</span>{' '}
-              {comparison.significant ? 'Holm-corrected significant' : 'Not significant'}
+              {significanceLabel}
             </p>
           </div>
         </div>

@@ -174,8 +174,18 @@ export const metricsAPI = {
     );
   },
 
-  getStyleBreakdown: (model: string, layer: number, percentile = 90, method?: string) => {
-    const params = new URLSearchParams({ layer: String(layer), percentile: String(percentile) });
+  getStyleBreakdown: (
+    model: string,
+    layer: number,
+    percentile = 90,
+    metric: import('../types').AnalysisMetric = 'iou',
+    method?: string
+  ) => {
+    const params = new URLSearchParams({
+      layer: String(layer),
+      percentile: String(percentile),
+      metric,
+    });
     if (method) params.set('method', method);
     return fetchJSON<import('../types').StyleBreakdown>(
       `/metrics/model/${model}/style_breakdown?${params}`
@@ -186,13 +196,15 @@ export const metricsAPI = {
     model: string,
     layer: number,
     percentile = 90,
-    sortBy: 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_iou',
+    metric: import('../types').AnalysisMetric = 'iou',
+    sortBy: 'mean_score' | 'mean_iou' | 'bbox_count' | 'feature_name' | 'feature_label' = 'mean_score',
     minCount = 0,
     method?: string
   ) => {
     const params = new URLSearchParams({
       layer: String(layer),
       percentile: String(percentile),
+      metric,
       sort_by: sortBy,
       min_count: String(minCount),
     });

@@ -39,12 +39,12 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 **Methodology:**
 1. Extract attention maps (CLS attention, rollout, mean attention for SigLIP/SigLIP 2, and Grad-CAM) from pretrained models (see [Attention Methods Guide](../research/attention_methods.md) for method details)
 2. Compute alignment metrics: threshold-dependent IoU at multiple percentiles, plus threshold-free MSE, KL divergence (KL(GT‖attention)), and EMD against Gaussian soft-union ground truth derived from expert bounding boxes
-3. Fine-tune on 4-class style classification (~4,790 images, 139 eval images held out) using three strategies: Linear Probe, LoRA, and Full fine-tuning
+3. Fine-tune on 4-class style classification (~4,790 images) using three strategies: Linear Probe, LoRA, and Full fine-tuning, with one shared non-annotated validation split per experiment batch and the 139 annotated images reserved for final attention evaluation
 4. Re-extract attention and measure delta-IoU to classify each model-strategy combination as Preserve (Δ ≈ 0, not significant), Enhance (Δ > 0, significant), or Destroy (Δ < 0, significant) using paired Wilcoxon tests with Holm correction
 
 ## Results
 
-**Result provenance:** Q1 frozen metrics from cache generated 2026-03-20 (`outputs/cache/metrics_summary.json`). Q2 delta-IoU analysis from `outputs/results/q2_delta_iou_analysis.json` (2026-03-15, *n* = 139 images, Holm-corrected).
+**Result provenance:** Q1 frozen metrics come from `outputs/cache/metrics_summary.json`. Publication-safe Q2 numbers should come from the active experiment's `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json` via `outputs/results/active_experiment.json`. Do not quote legacy top-level `q2_delta_iou_analysis.json` as the primary result source.
 
 ### Q1: Frozen Model Leaderboard
 
@@ -62,13 +62,15 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 
 ### Q2: Fine-Tuning Effects --- Preserve / Enhance / Destroy
 
-| Category | Models | Evidence |
-|----------|--------|----------|
-| **Enhance** | CLIP, SigLIP, SigLIP 2 | CLIP Full: Δ = +0.069, *p* < 0.001, *d* = 1.33. CLIP LoRA: Δ = +0.063, *p* < 0.001. SigLIP/SigLIP 2 Full: Δ ≈ +0.036, *p* < 0.001. All 6 contrastive model-strategy combinations significant after Holm correction. |
-| **Preserve** | DINOv3, MAE | DINOv3 Full: Δ = +0.003, corrected *p* > 1.0. MAE: Δ ≈ 0 across all strategies. Already aligned (DINOv3) or unreachable (MAE). |
-| **Destroy** | *(none conclusive)* | DINOv2 Full: Δ = −0.007, corrected *p* = 0.101 --- directionally negative but not statistically significant. |
+The interpretation framework is unchanged:
 
-12 of 18 model-strategy combinations show significant improvement after Holm correction (all from the Enhance category). LoRA is competitive with Full fine-tuning while training 285× fewer parameters. For strategy rationale and hyperparameters, see [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) and [Run Matrix](../reference/fine_tuning_run_matrix.md).
+- **Enhance**: fine-tuning moves attention toward expert-marked regions
+- **Preserve**: attention stays effectively unchanged
+- **Destroy**: fine-tuning moves attention away from expert-marked regions
+
+The concrete category assignments should be regenerated from the active
+experiment batch before they are quoted in slides or writeups. For strategy
+rationale and hyperparameters, see [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) and [Run Matrix](../reference/fine_tuning_run_matrix.md).
 
 ## Novelty
 

@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,18 @@ matplotlib.use("Agg")
 # Paths
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-Q2_JSON = PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json"
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path  # noqa: E402
+
+Q2_JSON = resolve_active_artifact_path(
+    "q2_metrics_path",
+    PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json",
+)
+RUN_MATRIX_JSON = resolve_active_artifact_path(
+    "run_matrix_path",
+    PROJECT_ROOT / "outputs" / "results" / "run_matrix.json",
+)
 FIGURES_DIR = PROJECT_ROOT / "outputs" / "figures"
 
 # ---------------------------------------------------------------------------
@@ -68,28 +80,6 @@ IMPROVED_COLOR = "#3a7d44"      # forest green (muted)
 DEGRADED_COLOR = "#c04e4e"      # muted red
 SIG_COLOR = "#2b2b2b"           # near-black for significance markers
 
-# Hardcoded from docs/reference/fine_tuning_run_matrix.md (lines 56-73)
-RUN_MATRIX: dict[tuple[str, str], dict[str, Any]] = {
-    ("clip", "full"): {"val_acc": 89.6, "best_epoch": 1},
-    ("clip", "linear_probe"): {"val_acc": 83.2, "best_epoch": 3},
-    ("clip", "lora"): {"val_acc": 84.8, "best_epoch": 3},
-    ("dinov2", "full"): {"val_acc": 87.2, "best_epoch": 2},
-    ("dinov2", "linear_probe"): {"val_acc": 89.6, "best_epoch": 1},
-    ("dinov2", "lora"): {"val_acc": 88.8, "best_epoch": 1},
-    ("dinov3", "full"): {"val_acc": 89.6, "best_epoch": 2},
-    ("dinov3", "linear_probe"): {"val_acc": 90.4, "best_epoch": 1},
-    ("dinov3", "lora"): {"val_acc": 91.2, "best_epoch": 2},
-    ("mae", "full"): {"val_acc": 75.2, "best_epoch": 2},
-    ("mae", "linear_probe"): {"val_acc": 60.0, "best_epoch": 2},
-    ("mae", "lora"): {"val_acc": 72.8, "best_epoch": 3},
-    ("siglip", "full"): {"val_acc": 88.0, "best_epoch": 2},
-    ("siglip", "linear_probe"): {"val_acc": 85.6, "best_epoch": 1},
-    ("siglip", "lora"): {"val_acc": 87.2, "best_epoch": 2},
-    ("siglip2", "full"): {"val_acc": 88.8, "best_epoch": 1},
-    ("siglip2", "linear_probe"): {"val_acc": 81.6, "best_epoch": 3},
-    ("siglip2", "lora"): {"val_acc": 88.8, "best_epoch": 3},
-}
-
 HEATMAP_METRICS = [
     ("iou", 90, "IoU@90"),
     ("iou", 50, "IoU@50"),
@@ -116,6 +106,26 @@ def load_q2_data() -> list[dict]:
     with open(Q2_JSON) as f:
         data = json.load(f)
     return data["rows"]
+
+
+def load_run_matrix() -> dict[tuple[str, str], dict[str, Any]]:
+    """Load run-matrix entries keyed by (model, strategy)."""
+    with open(RUN_MATRIX_JSON, encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    matrix: dict[tuple[str, str], dict[str, Any]] = {}
+    for run in payload.get("runs", {}).values():
+        if run.get("run_scope") != "primary":
+            continue
+        score = float(run.get("best_val_score", 0.0))
+        matrix[(run["model"], run["strategy"])] = {
+            "val_acc": score * 100 if score <= 1.0 else score,
+            "best_epoch": int(run.get("selected_epoch", 0)),
+        }
+    return matrix
+
+
+RUN_MATRIX = load_run_matrix()
 
 
 def lookup_row(

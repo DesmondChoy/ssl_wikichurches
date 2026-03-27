@@ -110,6 +110,96 @@ def test_create_database_migrates_existing_schema_with_continuous_metric_columns
     migrated.close()
 
 
+def test_create_database_preserves_metric_generic_breakdown_rows(tmp_path):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """INSERT INTO style_metrics
+           (model, layer, method, metric, direction, style_name, percentile, mean_score, num_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("clip", "layer11", "cls", "coverage", "higher", "Gothic", 90, 0.42, 12),
+    )
+    cursor.execute(
+        """INSERT INTO feature_metrics
+           (model, layer, method, metric, direction, feature_label, feature_name, percentile, mean_score, std_score, bbox_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("clip", "layer11", "cls", "emd", "lower", 7, "Rose Window", 90, 0.15, 0.01, 9),
+    )
+    conn.commit()
+    conn.close()
+
+    migrated = gm.create_database(db_path)
+    migrated_cursor = migrated.cursor()
+    migrated_cursor.execute("SELECT COUNT(*) FROM style_metrics")
+    assert migrated_cursor.fetchone()[0] == 1
+    migrated_cursor.execute("SELECT COUNT(*) FROM feature_metrics")
+    assert migrated_cursor.fetchone()[0] == 1
+    migrated.close()
+
+
+def test_create_database_recreates_legacy_breakdown_tables(tmp_path):
+    db_path = tmp_path / "metrics.db"
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """CREATE TABLE style_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            style_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_iou REAL NOT NULL,
+            num_images INTEGER NOT NULL
+        )"""
+    )
+    cursor.execute(
+        """CREATE TABLE feature_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            feature_label INTEGER NOT NULL,
+            feature_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_iou REAL NOT NULL,
+            std_iou REAL NOT NULL,
+            bbox_count INTEGER NOT NULL
+        )"""
+    )
+    cursor.execute(
+        """INSERT INTO style_metrics
+           (model, layer, method, style_name, percentile, mean_iou, num_images)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        ("clip", "layer11", "cls", "Gothic", 90, 0.25, 12),
+    )
+    cursor.execute(
+        """INSERT INTO feature_metrics
+           (model, layer, method, feature_label, feature_name, percentile, mean_iou, std_iou, bbox_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        ("clip", "layer11", "cls", 7, "Rose Window", 90, 0.25, 0.05, 9),
+    )
+    conn.commit()
+    conn.close()
+
+    migrated = gm.create_database(db_path)
+    migrated_cursor = migrated.cursor()
+    migrated_cursor.execute("PRAGMA table_info(style_metrics)")
+    style_columns = {row[1] for row in migrated_cursor.fetchall()}
+    assert {"metric", "direction", "mean_score"}.issubset(style_columns)
+    migrated_cursor.execute("PRAGMA table_info(feature_metrics)")
+    feature_columns = {row[1] for row in migrated_cursor.fetchall()}
+    assert {"metric", "direction", "mean_score", "std_score"}.issubset(feature_columns)
+    migrated_cursor.execute("SELECT COUNT(*) FROM style_metrics")
+    assert migrated_cursor.fetchone()[0] == 0
+    migrated_cursor.execute("SELECT COUNT(*) FROM feature_metrics")
+    assert migrated_cursor.fetchone()[0] == 0
+    migrated.close()
+
+
 def test_compute_metrics_for_finetuned_model_uses_canonical_storage_key(tmp_path, monkeypatch):
     db_path = tmp_path / "metrics.db"
     conn = gm.create_database(db_path)
@@ -138,8 +228,6 @@ def test_compute_metrics_for_finetuned_model_uses_canonical_storage_key(tmp_path
     )
     monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, []))
     monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(gm, "aggregate_by_feature_type", lambda *_args, **_kwargs: {})
-
     stats = gm.compute_metrics_for_model(
         base_model_name="dinov2",
         dataset=dataset,  # type: ignore[arg-type]
@@ -204,8 +292,6 @@ def test_compute_metrics_for_full_strategy_falls_back_to_legacy_cache_key(tmp_pa
     )
     monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, []))
     monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(gm, "aggregate_by_feature_type", lambda *_args, **_kwargs: {})
-
     stats = gm.compute_metrics_for_model(
         base_model_name="dinov2",
         dataset=dataset,  # type: ignore[arg-type]
@@ -385,8 +471,6 @@ def test_compute_metrics_for_model_main_loop_never_indexes_dataset(monkeypatch, 
     )
     monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, []))
     monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(gm, "aggregate_by_feature_type", lambda *_args, **_kwargs: {})
-
     stats = gm.compute_metrics_for_model(
         base_model_name="dinov2",
         dataset=dataset,  # type: ignore[arg-type]
@@ -431,14 +515,6 @@ def test_compute_metrics_for_model_feature_breakdown_never_indexes_dataset(monke
         lambda *_args, **_kwargs: (None, [SimpleNamespace(name="window")]),
     )
     monkeypatch.setattr(gm, "compute_per_bbox_iou", per_bbox_iou)
-    monkeypatch.setattr(
-        gm,
-        "aggregate_by_feature_type",
-        lambda *_args, **_kwargs: {
-            0: {"name": "window", "mean_iou": 0.5, "std_iou": 0.0, "count": 1},
-        },
-    )
-
     gm.compute_metrics_for_model(
         base_model_name="dinov2",
         dataset=dataset,  # type: ignore[arg-type]
@@ -451,10 +527,10 @@ def test_compute_metrics_for_model_feature_breakdown_never_indexes_dataset(monke
     )
 
     cursor = conn.cursor()
-    cursor.execute("SELECT feature_name, mean_iou, bbox_count FROM feature_metrics")
+    cursor.execute("SELECT feature_name, metric, mean_score, bbox_count FROM feature_metrics")
     feature_row = cursor.fetchone()
 
     assert per_bbox_iou.call_count == len(dataset.image_ids)
-    assert feature_row == ("window", 0.5, 1)
+    assert feature_row == ("window", "iou", 0.5, 1)
 
     conn.close()

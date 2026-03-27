@@ -395,25 +395,43 @@ Fine-tuning is implemented as a single module rather than the multi-file structu
 
 ### Checkpoint Storage
 
-Checkpoints are saved to `outputs/checkpoints/` with a flat naming convention:
+Primary fine-tuning runs are now stored per experiment batch rather than in one
+flat global output directory:
 
-```
-outputs/checkpoints/
+```text
+outputs/checkpoints/<experiment_id>/
 ├── {model_name}_linear_probe_finetuned.pt
 ├── {model_name}_lora_finetuned.pt
 └── {model_name}_full_finetuned.pt
 
-outputs/results/
+outputs/results/active_experiment.json
+outputs/results/experiments/<experiment_id>/
 ├── fine_tuning_results.json
-└── fine_tuning_manifests/
-    └── {model_name}_{strategy}_manifest.json
+├── q2_metrics_analysis.json
+├── q2_delta_iou_analysis.json
+├── run_matrix.json
+├── manifests/
+│   └── {run_id}_manifest.json
+└── splits/
+    └── {split_id}.json
 ```
 
-The strategy identifiers used throughout the project are `linear_probe`,
-`lora`, and `full`.
+The strategy identifiers used throughout the project are `linear_probe`, `lora`,
+and `full`.
 
-**Checkpoint discovery**: `load_finetuned_model()` and the fine-tuned
-precompute scripts prefer the strategy-aware filenames above. A legacy
+The primary experiment contract is:
+
+- one shared non-annotated validation split per experiment batch
+- one chosen checkpoint per `model × strategy`, selected by best classification
+  validation accuracy
+- one untouched annotated pool used only for final attention-alignment evaluation
+
+`--val-on-annotated-eval` is still available for exploratory runs, but those
+runs are labeled `exploratory` in manifests and downstream results so they do
+not quietly replace the primary workflow.
+
+**Checkpoint discovery**: `load_finetuned_model()` and the fine-tuned precompute
+scripts prefer the active experiment's strategy-aware checkpoint paths. A legacy
 `{model}_finetuned.pt` fallback is still accepted for historical **full**
 fine-tuning runs only.
 
@@ -435,6 +453,10 @@ precompute workflows are:
 ### Context: What Fine-Tuning Does in This Project
 
 The SSL models (DINOv2, CLIP, etc.) are pretrained vision backbones that produce **attention maps** — heatmaps showing which parts of an image the model "looks at." Fine-tuning on a classification task is **not the goal** — it's an **intervention** that reshapes the model's internal attention. The actual evaluation is always the same: do the attention maps align better or worse with the 631 expert bounding boxes on the 139 annotated images?
+
+For the primary experiment, those 139 annotated images are not used for
+checkpoint selection. They are excluded from the shared train/validation split
+and reserved for the final attention-alignment report.
 
 ```
 1. Frozen model     → extract attention → IoU with expert bboxes → "frozen IoU"
@@ -523,48 +545,27 @@ The existing `analyze_delta_iou.py` script is **task-agnostic** — it compares 
 
 #### Observed Results (Q2 Δ IoU)
 
-The following summarizes results from `analyze_delta_iou.py` over all fine-tunable models and strategies (linear probe, LoRA, full), evaluated on the 139 bbox-annotated images at **percentile 90** with Holm-corrected significance. Output: `outputs/results/q2_delta_iou_analysis.json`.
+Publication-safe Q2 summaries should now be read from the active experiment's
+`q2_metrics_analysis.json`, not from legacy top-level `q2_delta_iou_analysis.json`.
+The active batch is selected through `outputs/results/active_experiment.json`.
 
-**Linear probe**
+Interpret the regenerated results with the following guardrails:
 
-- Δ IoU = 0 for every model (CLIP, DINOv2, DINOv3, MAE, SigLIP, SigLIP2). Attention is unchanged because the backbone is frozen; this is the intended baseline.
+- `linear_probe` is the frozen-backbone control and should stay effectively
+  unchanged
+- `lora` and `full` are the two attention-changing strategies worth comparing
+  directly
+- all strategy comparisons should come from the same experiment batch so they
+  share one validation split and one checkpoint-selection rule
 
-**Impact of fine-tuning depends on frozen alignment**
+When reading a fresh primary batch, focus on:
 
-- **Models that gain:** CLIP (frozen IoU ≈ 0.018), SigLIP (≈ 0.036), SigLIP2 (≈ 0.022). Full and LoRA both yield significant, often large positive Δ IoU. For CLIP: full +0.069, LoRA +0.063; for SigLIP/SigLIP2: full slightly better than LoRA; both beat linear probe.
-- **Models that change little or worsen:** DINOv2 (frozen ≈ 0.082), DINOv3 (≈ 0.133), MAE (≈ 0.033). DINOv2 full gives **negative** Δ IoU (−0.007, significant); LoRA +0.002 (not significant). DINOv3 and MAE show tiny, non-significant deltas. Conclusion: when frozen alignment is already strong, classification fine-tuning does not improve (and can slightly reduce) attention–expert alignment.
-
-**Strategy ordering when fine-tuning helps**
-
-- For CLIP, SigLIP, SigLIP2: **Full ≥ LoRA > linear probe**. Full and LoRA are often not significantly different (e.g. CLIP); when they are (SigLIP, SigLIP2), full wins. LoRA is always significantly better than linear probe when there is a real gain.
-
-**DINOv2: full fine-tuning can hurt alignment**
-
-- Full fine-tuning is significantly worse than both linear probe and LoRA; IoU retention (finetuned / frozen) is **0.91** (only model below 1.0). Full fine-tuning may encourage task shortcuts and move attention away from expert-aligned regions; LoRA is safer for preserving alignment.
-
-**IoU retention (finetuned / frozen) at p90 — full fine-tuning**
-
-- DINOv2: 0.91 (only &lt; 1); DINOv3: 1.02; MAE: 1.11; CLIP: 4.81; SigLIP: 1.98; SigLIP2: 2.65. Large retention gains occur where frozen IoU was low; DINOv2 shows a small drop.
-
-**Summary table (percentile 90)**
-
-| Model    | Strategy     | Frozen IoU | Finetuned IoU | Δ IoU   | Significant?        |
-|----------|--------------|------------|---------------|---------|---------------------|
-| CLIP     | linear_probe | 0.018      | 0.018         | 0.000   | —                   |
-| CLIP     | lora         | 0.018      | 0.082         | +0.063  | Yes                 |
-| CLIP     | full         | 0.018      | 0.087         | +0.069  | Yes                 |
-| DINOv2   | full         | 0.082      | 0.074         | −0.007  | Yes (worse)         |
-| DINOv3   | full / lora  | 0.133      | ~0.134        | ~+0.002 | No                  |
-| SigLIP   | full         | 0.036      | 0.072         | +0.036  | Yes                 |
-| SigLIP2  | full         | 0.022      | 0.058         | +0.036  | Yes                 |
-| MAE      | all          | 0.033      | ~0.036        | ~+0.004 | No                  |
-
-**Takeaways**
-
-- Fine-tuning (LoRA or full) **improves** attention–expert IoU for CLIP, SigLIP, and SigLIP2; it **does not** improve it for DINOv2/DINOv3 and can slightly **worsen** it for DINOv2.
-- When improvement occurs, **full and LoRA both help**; full is sometimes better than LoRA; **linear probe never changes alignment**.
-- Pre-training family matters: contrastive models (CLIP, SigLIP) start with weaker alignment and benefit from task adaptation; DINO-style models already align well and gain little or lose under classification fine-tuning.
-- For DINOv2, **full fine-tuning is the only case where alignment significantly decreases**; LoRA is the safer option if the goal is to preserve or improve expert alignment.
+- which models show clear positive Δ IoU or Δ Coverage on the untouched annotated pool
+- whether the threshold-free metrics (`mse`, `kl`, `emd`) agree with the IoU story
+- whether `full` materially outperforms `lora`, or whether LoRA reaches the same
+  attention-shift conclusion with fewer trainable parameters
+- whether any model family consistently preserves, enhances, or degrades
+  attention alignment under style supervision
 
 ### UI Support: Feature-Local Fine-Tuning Comparison
 

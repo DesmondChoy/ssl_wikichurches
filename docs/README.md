@@ -29,7 +29,7 @@ Technical implementation details and model-specific considerations.
 |----------|-------------|
 | [attention_heatmap_implementation.md](reference/attention_heatmap_implementation.md) | Heatmap implementation architecture, model appropriateness, and two-phase design |
 | [api_reference.md](reference/api_reference.md) | Complete REST API documentation for all API endpoints |
-| [fine_tuning_run_matrix.md](reference/fine_tuning_run_matrix.md) | Git-tracked fine-tuning strategy settings, per-model checkpoint results, and result storage map |
+| [fine_tuning_run_matrix.md](reference/fine_tuning_run_matrix.md) | Canonical fine-tuning experiment-batch layout, run-matrix contract, and result storage map |
 | [metrics_methodology.md](reference/metrics_methodology.md) | IoU, Coverage, thresholding methodology, worked examples, and academic context |
 
 ### [`enhancements/`](enhancements/) — Ongoing Enhancements
@@ -38,7 +38,7 @@ Future improvements live here, but some documents also track partially or fully 
 | Document | Description | Status |
 |----------|-------------|--------|
 | [per_attention_head.md](enhancements/per_attention_head.md) | Per-head attention visualization | Proposed |
-| [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Strategy-aware fine-tuning implementation notes, observed Q2 results, and remaining research directions | Mixed (implemented + future work) |
+| [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Strategy-aware fine-tuning implementation notes, primary-vs-exploratory methodology, and remaining research directions | Mixed (implemented + future work) |
 
 ---
 

@@ -278,22 +278,22 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Configurable hyperparameters (epochs, batch size, learning rates)
    - Head-only training option (`--freeze-backbone`)
    - Fine-tunable model allowlist enforced (`resnet50` excluded)
-   - Save checkpoints: `outputs/checkpoints/{model}_{strategy}_finetuned.pt`
-   - Save run manifests: `outputs/results/fine_tuning_manifests/{model}_{strategy}_manifest.json`
+   - Save checkpoints per experiment batch: `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`
+   - Save split artifacts, manifests, and run matrix under `outputs/results/experiments/<experiment_id>/`
    - Training summary with per-model results
    - `generate_attention_cache.py --finetuned --strategies ...` caches strategy-aware fine-tuned attention maps under `{model}_finetuned_{strategy}` keys
    - `generate_feature_cache.py --finetuned --strategies ...` caches strategy-aware patch features under `{model}_finetuned_{strategy}` keys
    - `generate_heatmap_images.py --finetuned --strategies ...` renders fine-tuned overlays under `{model}_finetuned_{strategy}` keys
    - Legacy `{model}_finetuned.pt` fallback is retained only for older full-fine-tuning checkpoints
 
-3. **Comparative analysis** (`experiments/scripts/analyze_delta_iou.py`) ✅
+3. **Comparative analysis** (`experiments/scripts/analyze_q2_metrics.py`) ✅
    - Load frozen baseline and fine-tuned models
    - Extract attention on annotated subset
-   - Compute Δ IoU per model with per-image breakdown
+   - Compute Δ metrics per model with per-image breakdown
    - Bootstrap 95% CIs, Cohen's d effect sizes
    - Paired t-test / Wilcoxon (auto-selected based on normality)
    - Holm correction for multiple comparisons across models
-   - JSON export of full results consumed by `/api/metrics/q2_summary` and the `/q2` page
+   - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page
 
 4. **Visualization** 🔄
    - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Fine-tuning Method vs Method`

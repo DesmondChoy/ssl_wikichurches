@@ -115,7 +115,7 @@ Train linear classifiers on frozen features for 4-class style classification. Co
 
 ### 3.5 Fine-Tuning Analysis
 
-Fine-tune each backbone on 4-class style classification (using the style-labeled split of ~4,790 images), then re-extract attention on the 139 annotated images (held out from training). Compare deltas across all alignment metrics (IoU, Coverage, MSE, KL, EMD) between fine-tuned and frozen models.
+Fine-tune each backbone on 4-class style classification (using the style-labeled split of ~4,790 images), choose checkpoints by classification validation accuracy on a shared non-annotated validation split, then re-extract attention on the 139 annotated images that were excluded from both training and validation. Compare deltas across all alignment metrics (IoU, Coverage, MSE, KL, EMD) between fine-tuned and frozen models.
 
 Three fine-tuning strategies are compared (addressing Q2):
 
@@ -229,7 +229,7 @@ All models compared against:
 | IoU may be low across all models | Negative result is still publishable—report honestly what models do attend to |
 | Sparse annotation bias | Representative (not exhaustive) bbox annotations may deflate per-bbox IoU; mitigated via cross-metric validation (Coverage corroborates IoU findings); documented in [Sparse Annotation Bias](../enhancements/sparse_annotation_bias.md) |
 | Documentation drift between model keys and runtime behavior | Mitigate with periodic doc sync against `src/ssl_attention/config.py` and backend validators; keep `siglip` and `siglip2` documented as separate canonical keys |
-| Fine-tuning may overfit on small style subset | Validation split, early stopping, cosine LR schedule with warmup, gradient clipping, class-weighted loss, LoRA as parameter-efficient alternative, 139 eval images held out from training. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
+| Fine-tuning may overfit on small style subset | Shared non-annotated validation split, early stopping, cosine LR schedule with warmup, gradient clipping, class-weighted loss, LoRA as parameter-efficient alternative, and 139 annotated evaluation images excluded from both train and validation. Future work: expand to 5+ classes using unused styles (see Section 11.1) |
 
 ---
 

@@ -283,7 +283,7 @@ async def get_bbox_metrics(
 async def get_layer_progression(
     model: str,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
-    metric: Annotated[Literal["iou", "mse", "kl", "emd"], Query()] = "iou",
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> LayerProgressionSchema:
     """Get metric progression across all layers for a model.
@@ -308,9 +308,10 @@ async def get_style_breakdown(
     model: str,
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> StyleBreakdownSchema:
-    """Get IoU breakdown by architectural style.
+    """Get metric breakdown by architectural style.
 
     Shows how well the model attends to different architectural styles.
     """
@@ -324,7 +325,13 @@ async def get_style_breakdown(
             detail="Metrics database not available.",
         )
 
-    data = metrics_service.get_style_breakdown(model, layer_key, percentile, method=resolved_method)
+    data = metrics_service.get_style_breakdown(
+        model,
+        layer_key,
+        percentile,
+        metric=metric,
+        method=resolved_method,
+    )
     return StyleBreakdownSchema(**data)
 
 
@@ -334,10 +341,11 @@ async def get_feature_breakdown(
     layer: Annotated[int, Query(ge=0)] = 0,
     percentile: Annotated[int, Query(ge=50, le=95)] = 90,
     min_count: Annotated[int, Query(ge=0)] = 0,
-    sort_by: Annotated[str, Query(enum=["mean_iou", "bbox_count", "feature_name", "feature_label"])] = "mean_iou",
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
+    sort_by: Annotated[str, Query(enum=["mean_score", "mean_iou", "bbox_count", "feature_name", "feature_label"])] = "mean_score",
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
 ) -> FeatureBreakdownSchema:
-    """Get IoU breakdown by architectural feature type.
+    """Get metric breakdown by architectural feature type.
 
     Shows how well the model attends to different architectural features
     (e.g., windows, doors, arches) across all 106 feature types.
@@ -353,7 +361,13 @@ async def get_feature_breakdown(
         )
 
     data = metrics_service.get_feature_breakdown(
-        model, layer_key, percentile, sort_by=sort_by, min_count=min_count, method=resolved_method
+        model,
+        layer_key,
+        percentile,
+        metric=metric,
+        sort_by=sort_by,
+        min_count=min_count,
+        method=resolved_method,
     )
     return FeatureBreakdownSchema(**data)
 

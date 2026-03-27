@@ -270,6 +270,58 @@ def _create_image_progression_db(
     conn.commit()
 
 
+def _create_breakdown_db(conn: sqlite3.Connection) -> None:
+    """Populate style and feature breakdown tables for metric-generic tests."""
+    conn.execute(
+        """CREATE TABLE style_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            metric TEXT,
+            direction TEXT,
+            style_name TEXT,
+            percentile INTEGER,
+            mean_score REAL,
+            num_images INTEGER
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE feature_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            metric TEXT,
+            direction TEXT,
+            feature_label INTEGER,
+            feature_name TEXT,
+            percentile INTEGER,
+            mean_score REAL,
+            std_score REAL,
+            bbox_count INTEGER
+        )"""
+    )
+
+    conn.executemany(
+        "INSERT INTO style_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("dinov2", "layer11", "cls", "coverage", "higher", "Romanesque", 90, 0.52, 12),
+            ("dinov2", "layer11", "cls", "coverage", "higher", "Gothic", 90, 0.31, 9),
+            ("dinov2", "layer11", "cls", "iou", "higher", "Romanesque", 80, 0.18, 12),
+            ("dinov2", "layer11", "cls", "iou", "higher", "Gothic", 80, 0.24, 9),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO feature_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("dinov2", "layer11", "cls", "emd", "lower", 42, "window", 90, 0.18, 0.04, 10),
+            ("dinov2", "layer11", "cls", "emd", "lower", 7, "door", 90, 0.06, 0.02, 6),
+            ("dinov2", "layer11", "cls", "iou", "higher", 42, "window", 80, 0.33, 0.07, 10),
+            ("dinov2", "layer11", "cls", "iou", "higher", 7, "door", 80, 0.21, 0.05, 6),
+        ],
+    )
+    conn.commit()
+
+
 class TestLayerProgression:
     """Verify get_layer_progression() ordering and best-layer logic."""
 
@@ -990,6 +1042,63 @@ class TestSummaryMetadata:
         assert result["models"]["dinov2"]["method_used"] == "cls"
         assert result["leaderboard"][0]["method_used"] == "cls"
         assert result["leaderboards"]["iou"][0]["method_used"] == "cls"
+
+
+class TestMetricGenericBreakdowns:
+    """Verify style and feature breakdowns follow metric semantics."""
+
+    @pytest.fixture
+    def service(self):
+        from app.backend.services.metrics_service import MetricsService
+
+        return object.__new__(MetricsService)
+
+    @pytest.fixture
+    def mem_db(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_breakdown_db(conn)
+        yield conn
+        conn.close()
+
+    def test_style_breakdown_uses_metric_specific_direction_and_reference_percentile(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_style_breakdown(
+                model="dinov2",
+                layer="layer11",
+                percentile=50,
+                metric="coverage",
+                method="cls",
+            )
+
+        assert result["metric"] == "coverage"
+        assert result["direction"] == "higher"
+        assert result["percentile"] == 50
+        assert list(result["styles"]) == ["Romanesque", "Gothic"]
+        assert result["styles"]["Romanesque"] == pytest.approx(0.52)
+        assert result["style_counts"]["Gothic"] == 9
+
+    def test_feature_breakdown_sorts_lower_is_better_metrics_ascending(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_feature_breakdown(
+                model="dinov2",
+                layer="layer11",
+                percentile=50,
+                metric="emd",
+                method="cls",
+            )
+
+        assert result["metric"] == "emd"
+        assert result["direction"] == "lower"
+        assert result["percentile"] == 50
+        assert [feature["feature_name"] for feature in result["features"]] == ["door", "window"]
+        assert result["features"][0]["mean_score"] == pytest.approx(0.06)
 
 
 class TestQ2SummaryFiltering:

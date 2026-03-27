@@ -1,7 +1,7 @@
 // API Response Types
 
 export type AnalysisMetric = 'iou' | 'coverage' | 'mse' | 'kl' | 'emd';
-export type DashboardMetric = Exclude<AnalysisMetric, 'coverage'>;
+export type DashboardMetric = AnalysisMetric;
 export type CompareVariantId = 'frozen' | 'linear_probe' | 'lora' | 'full';
 
 export interface BoundingBox {
@@ -109,24 +109,28 @@ export interface LayerProgression {
 export interface StyleBreakdown {
   model: string;
   layer: string;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
   percentile: number;
   styles: Record<string, number>;
   style_counts: Record<string, number>;
 }
 
-export interface FeatureIoUEntry {
+export interface FeatureMetricEntry {
   feature_label: number;
   feature_name: string;
-  mean_iou: number;
-  std_iou: number;
+  mean_score: number;
+  std_score: number;
   bbox_count: number;
 }
 
 export interface FeatureBreakdown {
   model: string;
   layer: string;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
   percentile: number;
-  features: FeatureIoUEntry[];
+  features: FeatureMetricEntry[];
   total_feature_types: number;
 }
 
@@ -236,7 +240,13 @@ export interface Q2SummaryResponse {
   direction: MetricDirection;
   percentile_dependent: boolean;
   selected_percentile: number | null;
+  experiment_id: string | null;
+  split_id: string | null;
+  git_commit_sha: string | null;
   analyzed_layer: number;
+  evaluation_image_count: number | null;
+  checkpoint_selection_rule: string | null;
+  result_set_scope: string | null;
   timestamp: string | null;
   rows: Q2SummaryRow[];
   strategy_comparisons: Q2StrategyComparison[];
