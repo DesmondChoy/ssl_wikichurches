@@ -1,7 +1,7 @@
 {
   "experiment_id": "fine_tuning_primary_20260327",
   "split_id": "fine_tuning_primary_20260327__primary__seed42",
-  "git_commit_sha": "2f6e7706128d8709b80ab67dbd63dac38ae77f88",
+  "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73",
   "percentiles": [
     90,
     80,
@@ -13,7 +13,7 @@
   "evaluation_image_count": 139,
   "checkpoint_selection_rule": "best classification validation accuracy on shared non-annotated validation split",
   "result_set_scope": "primary",
-  "timestamp": "2026-03-28T07:22:49.516328",
+  "timestamp": "2026-03-28T07:44:47.682956",
   "metrics": [
     {
       "key": "iou",

@@ -1115,6 +1115,7 @@ class TestQ2SummaryFiltering:
         q2_path.write_text(
             json.dumps(
                 {
+                    "analysis_git_commit_sha": "analysissha",
                     "analyzed_layer": 11,
                     "timestamp": "2026-03-06T00:00:00",
                     "rows": [
@@ -1140,6 +1141,7 @@ class TestQ2SummaryFiltering:
             result = service.get_q2_summary(metric="iou", strategy="lora")
 
         assert result is not None
+        assert result["analysis_git_commit_sha"] == "analysissha"
         assert {row["strategy_id"] for row in result["rows"]} == {"lora"}
         assert {row["model_name"] for row in result["rows"]} == {"dinov2"}
         assert all(
@@ -1153,6 +1155,7 @@ class TestQ2SummaryFiltering:
         q2_path.write_text(
             json.dumps(
                 {
+                    "analysis_git_commit_sha": "analysissha",
                     "analyzed_layer": 11,
                     "timestamp": "2026-03-06T00:00:00",
                     "rows": [
@@ -1208,6 +1211,7 @@ class TestQ2SummaryFiltering:
         q2_path.write_text(
             json.dumps(
                 {
+                    "analysis_git_commit_sha": "analysissha",
                     "analyzed_layer": 11,
                     "timestamp": "2026-03-06T00:00:00",
                     "rows": [
@@ -1225,3 +1229,36 @@ class TestQ2SummaryFiltering:
         assert result is not None
         assert result["selected_percentile"] is None
         assert result["rows"][0]["metric"] == "mse"
+
+    def test_get_q2_summary_normalizes_legacy_analysis_provenance(self, service, tmp_path):
+        q2_path = tmp_path / "q2_metrics_analysis.json"
+        q2_path.write_text(
+            json.dumps(
+                {
+                    "git_commit_sha": "legacysha",
+                    "analyzed_layer": 11,
+                    "timestamp": "2026-03-06T00:00:00",
+                    "rows": [
+                        {
+                            "model_name": "dinov2",
+                            "strategy_id": "lora",
+                            "metric": "mse",
+                            "percentile": None,
+                            "label": "MSE",
+                            "direction": "lower",
+                            "percentile_dependent": False,
+                            "mean_delta": -0.01,
+                        }
+                    ],
+                    "strategy_comparisons": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+            result = service.get_q2_summary(metric="mse")
+
+        assert result is not None
+        assert result["analysis_git_commit_sha"] == "legacysha"
+        assert "git_commit_sha" not in result

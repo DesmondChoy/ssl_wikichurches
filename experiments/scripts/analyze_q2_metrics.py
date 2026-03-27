@@ -58,11 +58,14 @@ from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
     load_finetuned_model,
 )
 from ssl_attention.evaluation.fine_tuning_artifacts import (  # noqa: E402
+    ANALYSIS_GIT_COMMIT_SHA_FIELD,
     get_experiment_paths,
     get_git_commit_sha,
     load_active_experiment,
     load_run_matrix,
+    normalize_q2_analysis_payload,
     project_path,
+    refresh_experiment_training_provenance,
     repo_relative_path,
     save_run_matrix,
     write_active_experiment,
@@ -188,7 +191,7 @@ class StrategyPairMetricComparison:
 class AnalysisResults:
     experiment_id: str | None
     split_id: str | None
-    git_commit_sha: str | None
+    analysis_git_commit_sha: str | None
     percentiles: list[int]
     analyzed_layer: int
     evaluation_image_count: int
@@ -713,7 +716,7 @@ def save_results(results: AnalysisResults, output_path: Path) -> None:
     payload: dict[str, Any] = {
         "experiment_id": results.experiment_id,
         "split_id": results.split_id,
-        "git_commit_sha": results.git_commit_sha,
+        ANALYSIS_GIT_COMMIT_SHA_FIELD: results.analysis_git_commit_sha,
         "percentiles": results.percentiles,
         "analyzed_layer": results.analyzed_layer,
         "evaluation_image_count": results.evaluation_image_count,
@@ -733,9 +736,47 @@ def save_results(results: AnalysisResults, output_path: Path) -> None:
         payload["rows"].append(row_data)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
+        json.dump(normalize_q2_analysis_payload(payload, drop_legacy=True), f, indent=2)
 
     print(f"\nResults saved to: {output_path}")
+
+
+def update_experiment_analysis_outputs(
+    *,
+    experiment_id: str,
+    split_id: str | None,
+    output_path: Path,
+    compatibility_output: Path,
+    include_exploratory: bool,
+    analysis_git_commit_sha: str | None,
+) -> None:
+    """Update the run matrix and active pointer after saving Q2 analysis."""
+    experiment_paths = get_experiment_paths(experiment_id)
+    run_matrix = load_run_matrix(experiment_id)
+    runs = dict(run_matrix.get("runs", {}))
+    for run_entry in runs.values():
+        if run_entry.get("run_scope") != "primary" and not include_exploratory:
+            continue
+        run_entry["analysis_artifact_paths"] = {
+            "q2_metrics": repo_relative_path(output_path),
+            "q2_delta_iou": repo_relative_path(compatibility_output),
+        }
+        run_entry[ANALYSIS_GIT_COMMIT_SHA_FIELD] = analysis_git_commit_sha
+    save_run_matrix(
+        experiment_id,
+        {
+            **run_matrix,
+            "split_id": split_id,
+            "runs": runs,
+        },
+    )
+    write_active_experiment(
+        experiment_id,
+        split_id=split_id,
+        run_matrix_path=experiment_paths.run_matrix_path,
+        q2_metrics_path=output_path,
+        q2_delta_iou_path=compatibility_output,
+    )
 
 
 def main() -> None:
@@ -745,6 +786,14 @@ def main() -> None:
     percentiles = [args.percentile] if args.percentile else [90, 80, 70, 60, 50]
     active_experiment = load_active_experiment()
     experiment_id = args.experiment_id or (active_experiment or {}).get("experiment_id")
+    if args.experiment_id is not None and experiment_id is not None:
+        refreshed = refresh_experiment_training_provenance(experiment_id)
+        print(
+            "Refreshed training provenance fields: "
+            f"{refreshed['manifests']} manifests, "
+            f"{refreshed['fine_tuning_results']} fine_tuning_results.json, "
+            f"{refreshed['run_matrix']} run_matrix.json"
+        )
 
     if args.models:
         requested_models = [model for model in args.models if model in FINETUNE_MODELS]
@@ -872,7 +921,7 @@ def main() -> None:
         analyzed_layer=analyzed_layer,
         experiment_id=experiment_id,
         split_id=split_id,
-        git_commit_sha=get_git_commit_sha(),
+        analysis_git_commit_sha=get_git_commit_sha(),
         evaluation_image_count=len(dataset),
         checkpoint_selection_rule=(
             "best classification validation accuracy on shared non-annotated validation split"
@@ -898,29 +947,13 @@ def main() -> None:
         if output_path != compatibility_output:
             save_results(results, compatibility_output)
 
-        run_matrix = load_run_matrix(experiment_id)
-        runs = dict(run_matrix.get("runs", {}))
-        for run_entry in runs.values():
-            if run_entry.get("run_scope") != "primary" and not args.include_exploratory:
-                continue
-            run_entry["analysis_artifact_paths"] = {
-                "q2_metrics": repo_relative_path(output_path),
-                "q2_delta_iou": repo_relative_path(compatibility_output),
-            }
-        save_run_matrix(
-            experiment_id,
-            {
-                **run_matrix,
-                "split_id": split_id,
-                "runs": runs,
-            },
-        )
-        write_active_experiment(
-            experiment_id,
+        update_experiment_analysis_outputs(
+            experiment_id=experiment_id,
             split_id=split_id,
-            run_matrix_path=experiment_paths.run_matrix_path,
-            q2_metrics_path=output_path,
-            q2_delta_iou_path=compatibility_output,
+            output_path=output_path,
+            compatibility_output=compatibility_output,
+            include_exploratory=args.include_exploratory,
+            analysis_git_commit_sha=results.analysis_git_commit_sha,
         )
 
     print("\nDone!")

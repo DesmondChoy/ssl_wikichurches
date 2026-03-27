@@ -264,7 +264,8 @@ class TestFineTunerMetadataSetup:
             "outputs/results/experiments/exp_manifest/splits/"
             f"{split_artifact.split_id}.json"
         )
-        assert payload["git_commit_sha"] == "abc123"
+        assert payload["training_git_commit_sha"] == "abc123"
+        assert "git_commit_sha" not in payload
         assert payload["checkpoint_selection_metric"] == fine_tuning_module.PRIMARY_SELECTION_METRIC
         assert payload["checkpoint_selection_split"] == fine_tuning_module.PRIMARY_SPLIT_POLICY
         assert payload["selected_epoch"] == 4
@@ -412,7 +413,7 @@ def test_save_training_results_merges_existing_experiment_runs(
         split_id="exp_batch__primary__seed42",
         split_artifact_path=tmp_path / "outputs" / "results" / "experiments" / "exp_batch" / "splits" / "exp_batch__primary__seed42.json",
         run_scope="primary",
-        git_commit_sha="abc123",
+        training_git_commit_sha="abc123",
         config={"checkpoint_selection_metric": fine_tuning_module.PRIMARY_SELECTION_METRIC},
     )
     result_b = FineTuningResult(
@@ -428,7 +429,7 @@ def test_save_training_results_merges_existing_experiment_runs(
         split_id="exp_batch__primary__seed42",
         split_artifact_path=tmp_path / "outputs" / "results" / "experiments" / "exp_batch" / "splits" / "exp_batch__primary__seed42.json",
         run_scope="primary",
-        git_commit_sha="abc123",
+        training_git_commit_sha="abc123",
         config={"checkpoint_selection_metric": fine_tuning_module.PRIMARY_SELECTION_METRIC},
     )
 
@@ -450,3 +451,19 @@ def test_save_training_results_merges_existing_experiment_runs(
         "exp_batch__clip__full",
         "exp_batch__clip__linear_probe",
     ]
+    assert {run["training_git_commit_sha"] for run in payload["runs"]} == {"abc123"}
+    assert all("git_commit_sha" not in run for run in payload["runs"])
+
+    run_matrix_payload = json.loads(
+        (
+            tmp_path
+            / "outputs"
+            / "results"
+            / "experiments"
+            / "exp_batch"
+            / "run_matrix.json"
+        ).read_text(encoding="utf-8")
+    )
+    run_entries = list(run_matrix_payload["runs"].values())
+    assert {run["training_git_commit_sha"] for run in run_entries} == {"abc123"}
+    assert all("git_commit_sha" not in run for run in run_entries)

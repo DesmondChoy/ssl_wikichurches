@@ -19,7 +19,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov2__linear_probe": {
       "run_id": "fine_tuning_primary_20260327__dinov2__linear_probe",
@@ -38,7 +39,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov3__linear_probe": {
       "run_id": "fine_tuning_primary_20260327__dinov3__linear_probe",
@@ -57,7 +59,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__mae__linear_probe": {
       "run_id": "fine_tuning_primary_20260327__mae__linear_probe",
@@ -76,7 +79,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip__linear_probe": {
       "run_id": "fine_tuning_primary_20260327__siglip__linear_probe",
@@ -95,7 +99,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip2__linear_probe": {
       "run_id": "fine_tuning_primary_20260327__siglip2__linear_probe",
@@ -114,7 +119,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__clip__lora": {
       "run_id": "fine_tuning_primary_20260327__clip__lora",
@@ -133,7 +139,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov2__lora": {
       "run_id": "fine_tuning_primary_20260327__dinov2__lora",
@@ -152,7 +159,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov3__lora": {
       "run_id": "fine_tuning_primary_20260327__dinov3__lora",
@@ -171,7 +179,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__mae__lora": {
       "run_id": "fine_tuning_primary_20260327__mae__lora",
@@ -190,7 +199,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip__lora": {
       "run_id": "fine_tuning_primary_20260327__siglip__lora",
@@ -209,7 +219,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip2__lora": {
       "run_id": "fine_tuning_primary_20260327__siglip2__lora",
@@ -228,7 +239,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__clip__full": {
       "run_id": "fine_tuning_primary_20260327__clip__full",
@@ -247,7 +259,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov2__full": {
       "run_id": "fine_tuning_primary_20260327__dinov2__full",
@@ -266,7 +279,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__dinov3__full": {
       "run_id": "fine_tuning_primary_20260327__dinov3__full",
@@ -285,7 +299,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__mae__full": {
       "run_id": "fine_tuning_primary_20260327__mae__full",
@@ -304,7 +319,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip__full": {
       "run_id": "fine_tuning_primary_20260327__siglip__full",
@@ -323,7 +339,8 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     },
     "fine_tuning_primary_20260327__siglip2__full": {
       "run_id": "fine_tuning_primary_20260327__siglip2__full",
@@ -342,9 +359,10 @@
         "q2_delta_iou": "outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json"
       },
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
+      "analysis_git_commit_sha": "1ef7d6184a6b5c1beed3c02d6e631f16b12dec73"
     }
   },
   "split_id": "fine_tuning_primary_20260327__primary__seed42",
-  "updated_at": "2026-03-27T23:22:49.583901+00:00"
+  "updated_at": "2026-03-27T23:44:47.750486+00:00"
 }

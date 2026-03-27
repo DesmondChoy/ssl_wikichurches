@@ -19,6 +19,7 @@ from app.backend.config import (
     resolve_model_name,
 )
 from app.backend.validators import model_supports_method, resolve_default_method
+from ssl_attention.evaluation.fine_tuning_artifacts import normalize_q2_analysis_payload
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -876,6 +877,7 @@ class MetricsService:
 
         with open(Q2_RESULTS_PATH, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
+        data = normalize_q2_analysis_payload(data, drop_legacy=True)
 
         metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
         resolved_model = resolve_model_name(model) if model else None
@@ -930,7 +932,7 @@ class MetricsService:
             "selected_percentile": selected_percentile,
             "experiment_id": data.get("experiment_id"),
             "split_id": data.get("split_id"),
-            "git_commit_sha": data.get("git_commit_sha"),
+            "analysis_git_commit_sha": data.get("analysis_git_commit_sha"),
             "analyzed_layer": data.get("analyzed_layer", get_model_num_layers("dinov2") - 1),
             "evaluation_image_count": data.get("evaluation_image_count"),
             "checkpoint_selection_rule": data.get("checkpoint_selection_rule"),

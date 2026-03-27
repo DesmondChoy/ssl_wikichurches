@@ -242,7 +242,7 @@ export interface Q2SummaryResponse {
   selected_percentile: number | null;
   experiment_id: string | null;
   split_id: string | null;
-  git_commit_sha: string | null;
+  analysis_git_commit_sha: string | null;
   analyzed_layer: number;
   evaluation_image_count: number | null;
   checkpoint_selection_rule: string | null;

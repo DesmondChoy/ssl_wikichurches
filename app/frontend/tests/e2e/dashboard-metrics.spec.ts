@@ -338,7 +338,7 @@ test.describe('Dashboard metrics', () => {
           selected_percentile: 90,
           experiment_id: 'exp_test',
           split_id: 'split_test',
-          git_commit_sha: 'deadbeef',
+          analysis_git_commit_sha: 'deadbeef',
           analyzed_layer: 11,
           evaluation_image_count: 139,
           checkpoint_selection_rule: 'best classification validation accuracy on shared non-annotated validation split',

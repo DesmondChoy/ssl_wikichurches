@@ -57,6 +57,7 @@ from ssl_attention.config import (
 from ssl_attention.evaluation.fine_tuning_artifacts import (
     CHECKPOINTS_ROOT,
     RESULTS_ROOT,
+    TRAINING_GIT_COMMIT_SHA_FIELD,
     ExperimentPaths,
     build_dataset_version_hint,
     build_run_id,
@@ -67,6 +68,8 @@ from ssl_attention.evaluation.fine_tuning_artifacts import (
     load_json,
     load_run_matrix,
     make_experiment_id,
+    normalize_fine_tuning_results_payload,
+    normalize_run_manifest_payload,
     repo_relative_path,
     save_json,
     save_run_matrix,
@@ -358,7 +361,7 @@ class FineTuningResult:
     split_id: str
     split_artifact_path: Path
     run_scope: Literal["primary", "exploratory"]
-    git_commit_sha: str | None = None
+    training_git_commit_sha: str | None = None
     num_train_samples: int = 0
     num_val_samples: int = 0
     num_excluded_eval_samples: int = 0
@@ -1286,7 +1289,7 @@ class FineTuner:
             split_id=split_artifact.split_id,
             split_artifact_path=split_artifact_path,
             run_scope=self.config.run_scope,
-            git_commit_sha=get_git_commit_sha(),
+            training_git_commit_sha=get_git_commit_sha(),
             num_train_samples=len(train_subset),
             num_val_samples=len(val_subset),
             num_excluded_eval_samples=n_excluded,
@@ -1338,7 +1341,7 @@ class FineTuner:
     ) -> Path:
         """Persist run manifest for reproducibility and downstream analysis."""
         manifest_path = experiment_paths.manifests_dir / f"{self.config.run_id}_manifest.json"
-        git_commit_sha = get_git_commit_sha()
+        training_git_commit_sha = get_git_commit_sha()
         manifest = {
             "run_id": self.config.run_id,
             "experiment_id": self.config.experiment_id,
@@ -1353,7 +1356,7 @@ class FineTuner:
             "split_artifact_path": repo_relative_path(
                 experiment_paths.split_artifacts_dir / f"{split_artifact.split_id}.json"
             ),
-            "git_commit_sha": git_commit_sha,
+            TRAINING_GIT_COMMIT_SHA_FIELD: training_git_commit_sha,
             "checkpoint_selection_metric": self.config.checkpoint_selection_metric,
             "checkpoint_selection_split": self.config.checkpoint_selection_split,
             "selected_epoch": best_epoch,
@@ -1366,7 +1369,7 @@ class FineTuner:
                 "val_source": split_artifact.policy,
             },
         }
-        save_json(manifest_path, manifest)
+        save_json(manifest_path, normalize_run_manifest_payload(manifest, drop_legacy=True))
         return manifest_path
 
 
@@ -1466,7 +1469,7 @@ def save_training_results(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    existing_payload = load_json(output_path) or {}
+    existing_payload = normalize_fine_tuning_results_payload(load_json(output_path) or {}, drop_legacy=True)
     existing_runs = {
         run["run_id"]: run
         for run in existing_payload.get("runs", [])
@@ -1488,7 +1491,7 @@ def save_training_results(
             "split_id": result.split_id,
             "split_artifact_path": repo_relative_path(result.split_artifact_path),
             "run_scope": result.run_scope,
-            "git_commit_sha": result.git_commit_sha,
+            TRAINING_GIT_COMMIT_SHA_FIELD: result.training_git_commit_sha,
             "num_train_samples": result.num_train_samples,
             "num_val_samples": result.num_val_samples,
             "num_excluded_eval_samples": result.num_excluded_eval_samples,
@@ -1500,7 +1503,13 @@ def save_training_results(
         for run_id in sorted(existing_runs)
     ]
 
-    save_json(output_path, {"experiment_id": experiment_id, "runs": ordered_runs})
+    save_json(
+        output_path,
+        normalize_fine_tuning_results_payload(
+            {"experiment_id": experiment_id, "runs": ordered_runs},
+            drop_legacy=True,
+        ),
+    )
 
     run_matrix = load_run_matrix(experiment_id)
     runs = dict(run_matrix.get("runs", {}))
@@ -1519,7 +1528,7 @@ def save_training_results(
             "manifest_path": repo_relative_path(result.manifest_path),
             "analysis_artifact_paths": {},
             "run_scope": result.run_scope,
-            "git_commit_sha": result.git_commit_sha,
+            TRAINING_GIT_COMMIT_SHA_FIELD: result.training_git_commit_sha,
         }
     save_run_matrix(
         experiment_id,
@@ -1571,4 +1580,4 @@ def load_run_manifest(
         )
     with open(manifest_path, encoding="utf-8") as f:
         data: dict[str, Any] = json.load(f)
-        return data
+        return normalize_run_manifest_payload(data, drop_legacy=True)

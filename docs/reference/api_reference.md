@@ -556,7 +556,7 @@ Get the strategy-aware fine-tuning attention-analysis summary exported by
 {
   "experiment_id": "fine_tuning_primary_20260327",
   "split_id": "fine_tuning_primary_20260327__primary__seed42",
-  "git_commit_sha": "abcdef1234567890",
+  "analysis_git_commit_sha": "abcdef1234567890",
   "evaluation_image_count": 139,
   "checkpoint_selection_rule": "best classification validation accuracy on shared non-annotated validation split",
   "result_set_scope": "primary",

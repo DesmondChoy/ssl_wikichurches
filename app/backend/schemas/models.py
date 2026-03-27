@@ -318,7 +318,7 @@ class Q2SummaryResponse(BaseModel):
     selected_percentile: int | None = None
     experiment_id: str | None = None
     split_id: str | None = None
-    git_commit_sha: str | None = None
+    analysis_git_commit_sha: str | None = None
     analyzed_layer: int
     evaluation_image_count: int | None = None
     checkpoint_selection_rule: str | None = None

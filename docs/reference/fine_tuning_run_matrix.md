@@ -90,7 +90,7 @@ reproducibility and downstream analysis:
 | `checkpoint_path` | Repo-relative checkpoint path |
 | `manifest_path` | Repo-relative path to the manifest itself |
 | `split_artifact_path` | Repo-relative split artifact path |
-| `git_commit_sha` | Code revision used for the run |
+| `training_git_commit_sha` | Code revision that produced the checkpoint and training artifact |
 | `checkpoint_selection_metric` | Primary rule, currently classification validation accuracy |
 | `checkpoint_selection_split` | Human-readable split policy used for selection |
 | `selected_epoch` | Epoch of the chosen checkpoint |
@@ -119,7 +119,8 @@ Each run entry stores:
 | `manifest_path` | Repo-relative manifest path |
 | `analysis_artifact_paths` | Repo-relative analysis outputs for the run batch |
 | `run_scope` | `primary` or `exploratory` |
-| `git_commit_sha` | Code revision |
+| `training_git_commit_sha` | Code revision that produced the checkpoint for this run |
+| `analysis_git_commit_sha` | Code revision that produced the current batch-level Q2 analysis artifact |
 
 The run matrix is designed so figure-generation scripts do not need hardcoded
 tables.
@@ -136,12 +137,15 @@ It includes:
 |---|---|
 | `experiment_id` | Experiment batch being summarized |
 | `split_id` | Shared split artifact used for the batch |
-| `git_commit_sha` | Code revision used for the analysis |
+| `analysis_git_commit_sha` | Code revision used to generate the saved Q2 analysis artifact |
 | `evaluation_image_count` | Number of annotated evaluation images |
 | `checkpoint_selection_rule` | Human-readable primary checkpoint rule |
 | `result_set_scope` | `primary` or `exploratory` |
 | `rows` | Fine-tuned vs frozen metric rows |
 | `strategy_comparisons` | Within-model strategy comparisons |
+
+The git commit that later checks these JSON files into the repository is not
+serialized inside the artifact itself; use git history for that provenance.
 
 Each cross-model row also records the correction metadata used for the headline
 significance call:

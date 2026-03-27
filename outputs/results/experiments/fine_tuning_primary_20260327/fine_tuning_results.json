@@ -39,7 +39,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -69,7 +68,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -109,7 +109,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -139,7 +138,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -179,7 +179,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -209,7 +208,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -249,7 +249,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -279,7 +278,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -319,7 +319,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -349,7 +348,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -389,7 +389,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -419,7 +418,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -459,7 +459,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -489,7 +488,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -529,7 +529,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -559,7 +558,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -599,7 +599,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -629,7 +628,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -669,7 +669,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -699,7 +698,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -739,7 +739,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -769,7 +768,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -809,7 +809,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -839,7 +838,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -879,7 +879,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -909,7 +908,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -949,7 +949,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -979,7 +978,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -1019,7 +1019,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -1049,7 +1048,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -1089,7 +1089,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -1119,7 +1118,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -1159,7 +1159,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -1189,7 +1188,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     },
     {
       "experiment_id": "fine_tuning_primary_20260327",
@@ -1229,7 +1229,6 @@
       "split_id": "fine_tuning_primary_20260327__primary__seed42",
       "split_artifact_path": "outputs/results/experiments/fine_tuning_primary_20260327/splits/fine_tuning_primary_20260327__primary__seed42.json",
       "run_scope": "primary",
-      "git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0",
       "num_train_samples": 3671,
       "num_val_samples": 917,
       "num_excluded_eval_samples": 139,
@@ -1259,7 +1258,8 @@
         "lora_alpha": 32,
         "lora_dropout": 0.1,
         "lora_target_modules": null
-      }
+      },
+      "training_git_commit_sha": "46e1d75642c28b9edda6125b68f41535ec6e46f0"
     }
   ]
 }

@@ -18,6 +18,7 @@ def test_q2_summary_success() -> None:
         "direction": "lower",
         "percentile_dependent": False,
         "selected_percentile": None,
+        "analysis_git_commit_sha": "analysissha",
         "analyzed_layer": 11,
         "timestamp": "2026-03-06T00:00:00",
         "rows": [
@@ -68,6 +69,7 @@ def test_q2_summary_success() -> None:
     body = response.json()
     assert body["metric"] == "mse"
     assert body["selected_percentile"] is None
+    assert body["analysis_git_commit_sha"] == "analysissha"
     assert body["rows"][0]["strategy_id"] == "lora"
 
 

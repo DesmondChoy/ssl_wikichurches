@@ -6,7 +6,9 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 
 def _load_module() -> ModuleType:
@@ -185,7 +187,7 @@ def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> N
     results = module.AnalysisResults(
         experiment_id="exp",
         split_id="split",
-        git_commit_sha="abc123",
+        analysis_git_commit_sha="abc123",
         percentiles=[90],
         analyzed_layer=11,
         evaluation_image_count=2,
@@ -202,7 +204,78 @@ def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> N
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     row = next(item for item in payload["rows"] if item["strategy_id"] == "linear_probe")
 
+    assert payload["analysis_git_commit_sha"] == "abc123"
+    assert "git_commit_sha" not in payload
     assert row["correction_method"] == "holm"
     assert row["correction_family_id"] == "cross_model_summary:iou:p90"
     assert row["correction_family_size"] == 2
     assert set(row["per_image_deltas"]) == {"a", "b"}
+
+
+def test_update_experiment_analysis_outputs_writes_analysis_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+
+    experiment_paths = SimpleNamespace(
+        run_matrix_path=tmp_path / "run_matrix.json",
+        q2_delta_iou_path=tmp_path / "q2_delta_iou_analysis.json",
+    )
+    saved: dict[str, object] = {}
+    active_experiment_updates: dict[str, object] = {}
+
+    monkeypatch.setattr(module, "get_experiment_paths", lambda experiment_id: experiment_paths)
+    monkeypatch.setattr(
+        module,
+        "load_run_matrix",
+        lambda experiment_id: {
+            "experiment_id": experiment_id,
+            "runs": {
+                "primary_run": {"run_scope": "primary", "analysis_artifact_paths": {}, "training_git_commit_sha": "trainsha"},
+                "exploratory_run": {
+                    "run_scope": "exploratory",
+                    "analysis_artifact_paths": {},
+                    "training_git_commit_sha": "trainsha",
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "save_run_matrix",
+        lambda experiment_id, payload: saved.update({"experiment_id": experiment_id, "payload": payload}),
+    )
+    monkeypatch.setattr(
+        module,
+        "write_active_experiment",
+        lambda experiment_id, **kwargs: active_experiment_updates.update(
+            {"experiment_id": experiment_id, **kwargs}
+        ),
+    )
+    monkeypatch.setattr(module, "repo_relative_path", lambda path: path.name)
+
+    output_path = tmp_path / "q2_metrics_analysis.json"
+    compatibility_output = tmp_path / "q2_delta_iou_analysis.json"
+    module.update_experiment_analysis_outputs(
+        experiment_id="exp",
+        split_id="split",
+        output_path=output_path,
+        compatibility_output=compatibility_output,
+        include_exploratory=False,
+        analysis_git_commit_sha="analysissha",
+    )
+
+    assert saved["experiment_id"] == "exp"
+    saved_payload = saved["payload"]
+    assert isinstance(saved_payload, dict)
+    run_entries = saved_payload["runs"]
+    assert run_entries["primary_run"]["analysis_git_commit_sha"] == "analysissha"
+    assert run_entries["primary_run"]["analysis_artifact_paths"] == {
+        "q2_metrics": output_path.name,
+        "q2_delta_iou": compatibility_output.name,
+    }
+    assert "analysis_git_commit_sha" not in run_entries["exploratory_run"]
+    assert active_experiment_updates["experiment_id"] == "exp"
+    assert active_experiment_updates["q2_metrics_path"] == output_path
+    assert active_experiment_updates["q2_delta_iou_path"] == compatibility_output

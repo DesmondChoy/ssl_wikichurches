@@ -20,6 +20,10 @@ RESULTS_ROOT = PROJECT_ROOT / "outputs" / "results"
 EXPERIMENTS_ROOT = RESULTS_ROOT / "experiments"
 ACTIVE_EXPERIMENT_PATH = RESULTS_ROOT / "active_experiment.json"
 
+LEGACY_GIT_COMMIT_SHA_FIELD = "git_commit_sha"
+TRAINING_GIT_COMMIT_SHA_FIELD = "training_git_commit_sha"
+ANALYSIS_GIT_COMMIT_SHA_FIELD = "analysis_git_commit_sha"
+
 
 @dataclass(frozen=True)
 class ExperimentPaths:
@@ -125,6 +129,104 @@ def get_git_commit_sha() -> str | None:
     return sha or None
 
 
+def _normalize_git_commit_field(
+    payload: dict[str, Any],
+    *,
+    target_field: str,
+    drop_legacy: bool,
+) -> dict[str, Any]:
+    """Map legacy commit provenance onto an explicit field name."""
+    normalized = dict(payload)
+    legacy_value = normalized.get(LEGACY_GIT_COMMIT_SHA_FIELD)
+    if normalized.get(target_field) is None and legacy_value is not None:
+        normalized[target_field] = legacy_value
+    if drop_legacy:
+        normalized.pop(LEGACY_GIT_COMMIT_SHA_FIELD, None)
+    return normalized
+
+
+def normalize_training_provenance(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize legacy training provenance to the explicit training field."""
+    return _normalize_git_commit_field(
+        payload,
+        target_field=TRAINING_GIT_COMMIT_SHA_FIELD,
+        drop_legacy=drop_legacy,
+    )
+
+
+def normalize_analysis_provenance(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize legacy analysis provenance to the explicit analysis field."""
+    return _normalize_git_commit_field(
+        payload,
+        target_field=ANALYSIS_GIT_COMMIT_SHA_FIELD,
+        drop_legacy=drop_legacy,
+    )
+
+
+def normalize_run_manifest_payload(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize one run manifest to the explicit training provenance field."""
+    return normalize_training_provenance(payload, drop_legacy=drop_legacy)
+
+
+def normalize_fine_tuning_results_payload(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize one training-results ledger payload."""
+    normalized = dict(payload)
+    normalized["runs"] = [
+        normalize_training_provenance(run, drop_legacy=drop_legacy)
+        if isinstance(run, dict)
+        else run
+        for run in payload.get("runs", [])
+    ]
+    return normalized
+
+
+def normalize_run_matrix_payload(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize one run-matrix payload across training and analysis provenance."""
+    normalized = dict(payload)
+    runs: dict[str, Any] = {}
+    for run_id, run in payload.get("runs", {}).items():
+        if not isinstance(run, dict):
+            runs[run_id] = run
+            continue
+        normalized_run = normalize_training_provenance(run, drop_legacy=drop_legacy)
+        if ANALYSIS_GIT_COMMIT_SHA_FIELD in run:
+            normalized_run[ANALYSIS_GIT_COMMIT_SHA_FIELD] = run.get(ANALYSIS_GIT_COMMIT_SHA_FIELD)
+        runs[run_id] = normalized_run
+    normalized["runs"] = runs
+    if drop_legacy:
+        normalized.pop(LEGACY_GIT_COMMIT_SHA_FIELD, None)
+    return normalized
+
+
+def normalize_q2_analysis_payload(
+    payload: dict[str, Any],
+    *,
+    drop_legacy: bool = False,
+) -> dict[str, Any]:
+    """Normalize one Q2 analysis payload to the explicit analysis field."""
+    return normalize_analysis_provenance(payload, drop_legacy=drop_legacy)
+
+
 def load_json(path: Path) -> dict[str, Any] | None:
     """Load JSON if it exists."""
     if not path.exists():
@@ -196,7 +298,7 @@ def load_run_matrix(experiment_id: str) -> dict[str, Any]:
     paths = get_experiment_paths(experiment_id)
     existing = load_json(paths.run_matrix_path)
     if existing is not None:
-        return existing
+        return normalize_run_matrix_payload(existing, drop_legacy=True)
     return {
         "experiment_id": experiment_id,
         "selection_rule": "best classification validation accuracy on shared non-annotated validation split",
@@ -207,9 +309,44 @@ def load_run_matrix(experiment_id: str) -> dict[str, Any]:
 def save_run_matrix(experiment_id: str, payload: dict[str, Any]) -> None:
     """Persist a run matrix payload for one experiment."""
     paths = ensure_experiment_layout(experiment_id)
-    payload = {
+    payload = normalize_run_matrix_payload(
+        {
         **payload,
         "experiment_id": experiment_id,
         "updated_at": datetime.now(UTC).isoformat(),
-    }
+        },
+        drop_legacy=True,
+    )
     save_json(paths.run_matrix_path, payload)
+
+
+def refresh_experiment_training_provenance(experiment_id: str) -> dict[str, int]:
+    """Rewrite legacy training provenance fields for one experiment batch."""
+    paths = get_experiment_paths(experiment_id)
+    refreshed = {
+        "manifests": 0,
+        "fine_tuning_results": 0,
+        "run_matrix": 0,
+    }
+
+    for manifest_path in sorted(paths.manifests_dir.glob("*_manifest.json")):
+        payload = load_json(manifest_path)
+        if payload is None:
+            continue
+        save_json(manifest_path, normalize_run_manifest_payload(payload, drop_legacy=True))
+        refreshed["manifests"] += 1
+
+    fine_tuning_results = load_json(paths.fine_tuning_results_path)
+    if fine_tuning_results is not None:
+        save_json(
+            paths.fine_tuning_results_path,
+            normalize_fine_tuning_results_payload(fine_tuning_results, drop_legacy=True),
+        )
+        refreshed["fine_tuning_results"] = 1
+
+    run_matrix = load_json(paths.run_matrix_path)
+    if run_matrix is not None:
+        save_json(paths.run_matrix_path, normalize_run_matrix_payload(run_matrix, drop_legacy=True))
+        refreshed["run_matrix"] = 1
+
+    return refreshed
