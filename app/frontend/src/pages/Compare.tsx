@@ -151,6 +151,9 @@ export function ComparePage() {
     value: entry,
     label: entry,
   }));
+  const headerControlsClassName = comparisonType === 'models'
+    ? 'grid grid-cols-1 gap-4 md:grid-cols-3'
+    : 'grid grid-cols-1 gap-4 md:grid-cols-4';
 
   const buildSearchParams = (overrides?: Record<string, string>) => ({
     image: imageId,
@@ -183,7 +186,7 @@ export function ComparePage() {
 
       <Card>
         <CardContent>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className={headerControlsClassName} data-testid="compare-header-controls">
             <Select
               value={imageId}
               onChange={(value) => setSearchParams(buildSearchParams({ image: value }))}
@@ -197,29 +200,6 @@ export function ComparePage() {
               options={comparisonTypes}
               label="Comparison Type"
             />
-
-            {comparisonType === 'variants' ? (
-              <Select
-                value={compareModel}
-                onChange={(value) => {
-                  setModel(value);
-                  setSearchParams(buildSearchParams({ model: value }));
-                }}
-                options={variantModelOptions}
-                label="Model"
-              />
-            ) : (
-              <div className="flex items-end">
-                {imageId && (
-                  <Link
-                    to={`/image/${encodeURIComponent(imageId)}`}
-                    className="px-4 py-2 text-sm text-primary-600 hover:underline"
-                  >
-                    View Details &rarr;
-                  </Link>
-                )}
-              </div>
-            )}
 
             <Select
               value={String(comparePercentile)}
@@ -235,6 +215,15 @@ export function ComparePage() {
 
             {comparisonType === 'variants' && (
               <>
+                <Select
+                  value={compareModel}
+                  onChange={(value) => {
+                    setModel(value);
+                    setSearchParams(buildSearchParams({ model: value }));
+                  }}
+                  options={variantModelOptions}
+                  label="Model"
+                />
                 <Select
                   value={compareMetric}
                   onChange={(value) => setSearchParams(buildSearchParams({ metric: value }))}
