@@ -13,8 +13,8 @@ from app.backend.config import (
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
     MODEL_METHODS,
-    Q2_RESULTS_PATH,
     display_model_name,
+    get_current_q2_results_path,
     get_model_num_layers,
     resolve_model_name,
 )
@@ -872,10 +872,11 @@ class MetricsService:
         strategy: str | None = None,
     ) -> dict[str, Any] | None:
         """Load metric-generic Q2 results with optional filters."""
-        if not Q2_RESULTS_PATH.exists():
+        q2_results_path = get_current_q2_results_path()
+        if not q2_results_path.exists():
             return None
 
-        with open(Q2_RESULTS_PATH, encoding="utf-8") as f:
+        with open(q2_results_path, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
         data = normalize_q2_analysis_payload(data, drop_legacy=True)
 

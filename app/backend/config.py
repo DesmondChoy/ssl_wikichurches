@@ -62,11 +62,14 @@ from ssl_attention.config import MODELS as MODELS
 from ssl_attention.config import AttentionMethod as AttentionMethod
 from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path
 
-Q2_RESULTS_PATH = resolve_active_artifact_path("q2_metrics_path", LEGACY_Q2_RESULTS_PATH)
-
 _FINETUNED_SUFFIX = "_finetuned"
 _FINETUNED_MARKER = "_finetuned_"
 VALID_FINETUNE_STRATEGIES = {s.value for s in FINETUNE_STRATEGIES}
+
+
+def get_current_q2_results_path() -> Path:
+    """Resolve the current Q2 artifact path from the active experiment pointer."""
+    return resolve_active_artifact_path("q2_metrics_path", LEGACY_Q2_RESULTS_PATH)
 
 
 def split_model_name(model: str) -> tuple[str, bool, str | None]:

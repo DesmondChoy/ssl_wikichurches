@@ -4,12 +4,50 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import torch
 
+from app.backend import config as config_module
 from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
+from ssl_attention.evaluation import fine_tuning_artifacts as artifacts_module
+
+
+def _write_q2_summary_payload(
+    path: Path,
+    *,
+    experiment_id: str,
+    analysis_git_commit_sha: str,
+    mean_delta: float,
+) -> None:
+    """Write a minimal Q2 payload that exercises service-level filtering."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "experiment_id": experiment_id,
+                "analysis_git_commit_sha": analysis_git_commit_sha,
+                "analyzed_layer": 11,
+                "timestamp": "2026-03-06T00:00:00",
+                "rows": [
+                    {
+                        "model_name": "dinov2",
+                        "strategy_id": "lora",
+                        "metric": "mse",
+                        "percentile": None,
+                        "label": "MSE",
+                        "direction": "lower",
+                        "percentile_dependent": False,
+                        "mean_delta": mean_delta,
+                    }
+                ],
+                "strategy_comparisons": [],
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _create_progression_db(conn: sqlite3.Connection, num_layers: int = 12) -> None:
@@ -1110,6 +1148,21 @@ class TestQ2SummaryFiltering:
 
         return object.__new__(MetricsService)
 
+    def _configure_active_q2_environment(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> Path:
+        """Point backend Q2 path resolution at a temporary results tree."""
+        results_root = tmp_path / "outputs" / "results"
+        monkeypatch.setattr(artifacts_module, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(artifacts_module, "RESULTS_ROOT", results_root)
+        monkeypatch.setattr(artifacts_module, "EXPERIMENTS_ROOT", results_root / "experiments")
+        monkeypatch.setattr(artifacts_module, "ACTIVE_EXPERIMENT_PATH", results_root / "active_experiment.json")
+        legacy_path = results_root / "q2_metrics_analysis.json"
+        monkeypatch.setattr(config_module, "LEGACY_Q2_RESULTS_PATH", legacy_path)
+        return legacy_path
+
     def test_get_q2_summary_filters_strategy_rows_and_pairwise_comparisons(self, service, tmp_path):
         q2_path = tmp_path / "q2_metrics_analysis.json"
         q2_path.write_text(
@@ -1137,7 +1190,7 @@ class TestQ2SummaryFiltering:
             encoding="utf-8",
         )
 
-        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+        with patch("app.backend.services.metrics_service.get_current_q2_results_path", return_value=q2_path):
             result = service.get_q2_summary(metric="iou", strategy="lora")
 
         assert result is not None
@@ -1174,7 +1227,7 @@ class TestQ2SummaryFiltering:
             encoding="utf-8",
         )
 
-        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+        with patch("app.backend.services.metrics_service.get_current_q2_results_path", return_value=q2_path):
             result = service.get_q2_summary(
                 metric="iou",
                 percentile=80,
@@ -1223,7 +1276,7 @@ class TestQ2SummaryFiltering:
             encoding="utf-8",
         )
 
-        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+        with patch("app.backend.services.metrics_service.get_current_q2_results_path", return_value=q2_path):
             result = service.get_q2_summary(metric="mse", percentile=90)
 
         assert result is not None
@@ -1256,9 +1309,69 @@ class TestQ2SummaryFiltering:
             encoding="utf-8",
         )
 
-        with patch("app.backend.services.metrics_service.Q2_RESULTS_PATH", q2_path):
+        with patch("app.backend.services.metrics_service.get_current_q2_results_path", return_value=q2_path):
             result = service.get_q2_summary(metric="mse")
 
         assert result is not None
         assert result["analysis_git_commit_sha"] == "legacysha"
         assert "git_commit_sha" not in result
+
+    def test_get_q2_summary_resolves_active_experiment_path_per_call(
+        self,
+        service,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        self._configure_active_q2_environment(monkeypatch, tmp_path)
+        q2_path_a = tmp_path / "outputs" / "results" / "q2_metrics_analysis_a.json"
+        q2_path_b = tmp_path / "outputs" / "results" / "q2_metrics_analysis_b.json"
+        _write_q2_summary_payload(
+            q2_path_a,
+            experiment_id="exp_a",
+            analysis_git_commit_sha="sha-a",
+            mean_delta=-0.01,
+        )
+        _write_q2_summary_payload(
+            q2_path_b,
+            experiment_id="exp_b",
+            analysis_git_commit_sha="sha-b",
+            mean_delta=-0.02,
+        )
+
+        artifacts_module.write_active_experiment("exp_a", q2_metrics_path=q2_path_a)
+        result_a = service.get_q2_summary(metric="mse")
+
+        artifacts_module.write_active_experiment("exp_b", q2_metrics_path=q2_path_b)
+        result_b = service.get_q2_summary(metric="mse")
+
+        assert result_a is not None
+        assert result_a["experiment_id"] == "exp_a"
+        assert result_a["analysis_git_commit_sha"] == "sha-a"
+        assert result_a["rows"][0]["mean_delta"] == pytest.approx(-0.01)
+
+        assert result_b is not None
+        assert result_b["experiment_id"] == "exp_b"
+        assert result_b["analysis_git_commit_sha"] == "sha-b"
+        assert result_b["rows"][0]["mean_delta"] == pytest.approx(-0.02)
+
+    def test_get_q2_summary_falls_back_to_legacy_path_when_active_pointer_has_no_q2_artifact(
+        self,
+        service,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        legacy_path = self._configure_active_q2_environment(monkeypatch, tmp_path)
+        _write_q2_summary_payload(
+            legacy_path,
+            experiment_id="legacy_exp",
+            analysis_git_commit_sha="legacysha",
+            mean_delta=-0.03,
+        )
+
+        artifacts_module.write_active_experiment("exp_without_q2")
+        result = service.get_q2_summary(metric="mse")
+
+        assert result is not None
+        assert result["experiment_id"] == "legacy_exp"
+        assert result["analysis_git_commit_sha"] == "legacysha"
+        assert result["rows"][0]["mean_delta"] == pytest.approx(-0.03)
