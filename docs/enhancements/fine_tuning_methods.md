@@ -12,7 +12,7 @@
 This document outlines fine-tuning methods suitable for the SSL WikiChurches project. It supports:
 - **Research Question 2**: Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
 
-**Key insight:** The Δ IoU metric (post-fine-tuning IoU − pre-fine-tuning IoU) directly measures whether fine-tuning improves alignment between model attention and human expert annotations.
+**Key insight:** Q2 now reads attention shift as a multi-metric story. Δ IoU remains the Preserve / Enhance / Destroy anchor, while Coverage, MSE, KL, and EMD show whether the threshold-free evidence agrees with the same directional conclusion.
 App/API model keys in this project are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, and `resnet50`.
 Fine-tuning is supported for `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, and `siglip2` (`resnet50` excluded).
 For `siglip`/`siglip2`, attention analysis uses the mean-attention path (no CLS-token method).
@@ -110,7 +110,7 @@ model = get_peft_model(base_model, config)
 **Caution — Catastrophic Forgetting:**
 - DINO ViT-Base/16 loses over 70% ImageNet accuracy after just 10 iterations of fine-tuning on CIFAR-100
 - May need careful learning rate scheduling (lower LR for backbone, higher for head)
-- Consider early stopping based on validation IoU, not just classification accuracy
+- The current primary workflow selects checkpoints by classification validation accuracy on a shared non-annotated validation split; attention metrics are analyzed downstream rather than used for checkpoint selection
 
 **Implementation:**
 ```python
@@ -215,18 +215,18 @@ Adds new transformer blocks that can be trained while keeping original blocks fr
 | Dataset | Size | Labels | Use |
 |---------|------|--------|-----|
 | Bbox-annotated images | 139 images, 631 boxes | Expert architectural features | **Evaluation only** |
-| Style-labeled (4 classes) | 4,790 images | Romanesque, Gothic, Renaissance, Baroque | Fine-tuning training |
+| Style-labeled (4 classes) | Current `STYLE_MAPPING` subset from `churches.json` | Romanesque, Gothic, Renaissance, Baroque | Fine-tuning training |
 | Full WikiChurches | 9,485 images (official release) | Various style labels | Semi-supervised expansion |
 
 ### Recommended Split
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  TRAINING SET: 4,651 images                                 │
-│  └─ Style-labeled images EXCLUDING bbox-annotated set       │
+│  TRAINING SET: current non-annotated train split             │
+│  └─ Derived from the 4-style labeled subset for this batch   │
 ├─────────────────────────────────────────────────────────────┤
-│  VALIDATION SET: ~500 images                                │
-│  └─ 10-15% of training set (stratified by style)            │
+│  VALIDATION SET: shared non-annotated validation split      │
+│  └─ Reused across every model × strategy run in the batch   │
 ├─────────────────────────────────────────────────────────────┤
 │  EVALUATION SET: 139 images (HELD OUT COMPLETELY)           │
 │  └─ Bbox-annotated images for IoU measurement               │
@@ -237,7 +237,7 @@ Adds new transformer blocks that can be trained while keeping original blocks fr
 ### Why This Design
 
 1. **No data leakage:** The 139 bbox images must be completely held out from training
-2. **Sufficient training data:** 4,651 images is plenty for ViT fine-tuning (especially with LoRA)
+2. **Sufficient training data:** The 4-style labeled subset is large enough for ViT fine-tuning, especially with LoRA
 3. **Clean experimental design:** Measure IoU before → Fine-tune → Measure IoU after on *same* 139 images
 
 ### Optional: Semi-Supervised Expansion
@@ -522,16 +522,16 @@ Treat churches with **multiple styles as multi-label** instead of picking the fi
 
 ### Post-Fine-Tuning Evaluation
 
-The existing `analyze_delta_iou.py` script is **task-agnostic** — it compares attention maps between frozen and fine-tuned models regardless of the classification objective.
+The canonical post-fine-tuning analysis now runs through `analyze_q2_metrics.py`, which exports the active experiment's multi-metric `q2_metrics_analysis.json`. The older `analyze_delta_iou.py` script remains as a compatibility wrapper for legacy delta-IoU consumers.
 
 #### Key Metrics
 
 | Metric | What it measures | How to interpret |
 |--------|-----------------|------------------|
-| **Δ IoU** (fine-tuned − frozen) | Whether attention shifts toward/away from expert bboxes | Positive = Enhance, ≈0 = Preserve, Negative = Destroy |
-| **Paired statistical test** | Whether Δ IoU is significant after Holm correction | p < 0.05 after correction = confident claim |
-| **Cohen's d** | Practical magnitude of the shift | Small (0.2), Medium (0.5), Large (0.8) |
-| **Validation accuracy** | How well the model learned the task | Confirms fine-tuning worked before interpreting Δ IoU |
+| **Δ IoU** (fine-tuned − frozen) | Whether thresholded attention shifts toward/away from expert bboxes | Positive = Enhance, ≈0 = Preserve, Negative = Destroy |
+| **Δ Coverage / Δ MSE / Δ KL / Δ EMD** | Whether threshold-free metrics agree with the IoU story | Coverage higher is better; MSE, KL, and EMD lower is better |
+| **Paired statistical test** | Whether the reported shift is significant after Holm correction | p < 0.05 after correction = confident claim |
+| **Validation accuracy** | How well the model learned the task | Confirms fine-tuning worked before interpreting attention shift |
 
 #### Expected Outcomes
 
@@ -541,7 +541,7 @@ The existing `analyze_delta_iou.py` script is **task-agnostic** — it compares 
 
 #### Core Experimental Design
 
-> Same frozen baseline → different fine-tuning objectives → same Δ IoU evaluation on the 139 annotated images. This isolates the effect of the classification task on attention alignment.
+> Same frozen baseline → different fine-tuning objectives → same multi-metric evaluation on the 139 annotated images. This isolates the effect of the classification task on attention alignment.
 
 #### Observed Results (Q2 Δ IoU)
 
@@ -572,7 +572,7 @@ When reading a fresh primary batch, focus on:
 The shipped UI now exposes two fine-tuning comparison surfaces:
 
 - **Frozen vs Fine-tuned** compares a frozen backbone against one selected strategy, or an auto-discovered legacy fine-tuned variant when strategy is omitted
-- **Fine-tuning Method vs Method** compares two strategy-specific variants for the same base model
+- **Variant vs Variant** compares two strategy-specific variants for the same base model
 
 Both modes support a **feature-focused inspection flow**:
 

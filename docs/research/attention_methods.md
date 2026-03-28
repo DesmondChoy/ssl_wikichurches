@@ -42,7 +42,7 @@ This distinction matters enormously for trust and deployment. A model that achie
 
 The [WikiChurches dataset](../core/project_proposal.md#2-dataset) (Barz & Denzler, 2021) provides a rare opportunity: **631 expert-annotated bounding boxes** marking the specific architectural features (rose windows, buttresses, arches, towers) that define each style across 139 churches in 4 architectural styles. By comparing where models "look" to where experts say to look, we can quantitatively measure whether SSL models have learned meaningful visual concepts.
 
-This app visualizes these attention patterns and computes the overlap (IoU) between model attention and expert annotations.
+This app visualizes these attention patterns and computes multi-metric alignment between model attention and expert annotations.
 
 ### The Three Research Questions
 
@@ -50,9 +50,9 @@ This application helps answer three interconnected questions from our [research 
 
 | # | Research Question | How This App Helps |
 |---|-------------------|-------------------|
-| 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + IoU metrics |
-| 2 | Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Frozen vs. fine-tuned comparison + fine-tuning method comparison + Δ IoU by method |
-| 3 | Do individual attention heads specialize for different architectural features? | Per-head attention selector + per-head IoU analysis |
+| 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + multi-metric alignment views |
+| 2 | Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Frozen vs. fine-tuned comparison + Variant vs Variant comparison + multi-metric Q2 attention-shift tables |
+| 3 | Do individual attention heads specialize for different architectural features? | Planned per-head analysis workflow in the library and design docs (not yet exposed as a main app control) |
 
 ### Fine-Tuning Strategy Comparison (Research Question 2)
 
@@ -173,7 +173,7 @@ Source: src/ssl_attention/attention/rollout.py
 **Interpretation:**
 - Shows which patches are most attended to overall
 - Does not require a CLS token
-- Useful for models that use mean pooling instead of CLS pooling
+- Useful for models that use a separate pooling head instead of a CLS-token attention path
 
 **Available for:** SigLIP and SigLIP2 (and other models without CLS tokens)
 
@@ -253,8 +253,8 @@ To know if models perform well, we compare against [naive baselines](../core/pro
 ### The App Interface
 
 In the metrics dashboard, you can see:
-- **Model leaderboard:** Ranked by mean IoU across all images
-- **Layer progression:** How IoU changes across transformer layers
+- **Model leaderboard:** Ranked by the selected metric across all images
+- **Layer progression:** How the selected metric changes across transformer layers
 - **Per-feature breakdown:** Which architectural elements (windows, arches, towers) each model attends to best
 
 ---
@@ -302,9 +302,9 @@ This means DINOv2 has finer spatial resolution in its attention maps. For visual
 
 ### SigLIP / SigLIP2: No CLS Token
 
-SigLIP and SigLIP2 use **mean pooling** instead of a CLS token—they average patch representations to get a global representation. Therefore:
+SigLIP and SigLIP2 use a **separate pooling head** instead of a CLS token. In this app we visualize a mean-attention proxy rather than the exact pooler attention. Therefore:
 - CLS Attention is not available
-- Use **Mean Attention** instead
+- Use **Mean Attention** as an interpretability proxy
 
 ### ResNet-50: No Attention
 

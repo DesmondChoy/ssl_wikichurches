@@ -75,8 +75,8 @@ Open http://localhost:5173 in your browser.
 
 Key routes after startup:
 
-- `/compare` for `Model vs Model`, `Frozen vs Fine-tuned`, and `Fine-tuning Method vs Method`
-- `/q2` for the strategy-aware Q2 delta-IoU summary
+- `/compare` for `Model vs Model`, `Frozen vs Fine-tuned`, and `Variant vs Variant`
+- `/q2` for the strategy-aware multi-metric Q2 attention-shift summary
 - `/dashboard` for the base-model leaderboard and layer progression views
 
 <details>
@@ -105,7 +105,7 @@ All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attentio
 
 **Patch sizes**: DINOv2 uses 14×14 patches; other ViTs use 16×16. All maps are upsampled to 224×224 for comparison.
 
-**Attention methods**: CLS uses the [CLS] token row; Rollout multiplies attention across layers. SigLIP/SigLIP 2 use mean attention (no CLS). ResNet-50 uses Grad-CAM. Metrics are per-method.
+**Attention methods**: CLS uses the [CLS] token row; Rollout multiplies attention across layers. SigLIP/SigLIP 2 use a mean-attention visualization proxy because they do not expose a CLS-token path. ResNet-50 uses Grad-CAM. Metrics are per-method.
 
 ## Fine-Tuning
 
@@ -138,7 +138,7 @@ See `src/ssl_attention/evaluation/` for full API. The canonical experiment ledge
 
 ### Fine-tuning Workflow
 
-Fine-tuning runs on **all style-labeled images** (~4,700+). The 139 bbox-annotated images are excluded from the primary train/validation split and used only for final attention-alignment evaluation.
+Fine-tuning runs on the current 4-style labeled subset derived from `churches.json` via `STYLE_MAPPING`. The 139 bbox-annotated images are excluded from the primary train/validation split and used only for final attention-alignment evaluation.
 
 1. **Choose an experiment batch ID** and train checkpoints.
 
@@ -225,7 +225,7 @@ uv run jupyter lab notebooks/01_data_exploration.ipynb
 ```
 ssl_wikichurches/
 ├── app/
-│   ├── backend/          # FastAPI server (27 REST endpoints)
+│   ├── backend/          # FastAPI server
 │   ├── frontend/         # React + Vite + Tailwind
 │   └── precompute/       # Cache generation scripts
 ├── dataset/              # WikiChurches data (gitignored)

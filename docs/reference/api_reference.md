@@ -35,8 +35,9 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
+| GET | `/api/compare/variants` | Generalized variant comparison for frozen and fine-tuned model variants |
 | GET | `/api/compare/frozen_vs_finetuned` | Frozen vs fine-tuned comparison |
-| GET | `/api/compare/finetuned_vs_finetuned` | Fine-tuning Method vs Method comparison |
+| GET | `/api/compare/finetuned_vs_finetuned` | Legacy strategy-only variant comparison |
 | GET | `/api/compare/layers` | Layer comparison with heatmap URLs |
 | GET | `/api/compare/all_models_summary` | Full leaderboard with progressions |
 | GET | `/health` | Health check with degraded-mode detection |
@@ -487,7 +488,7 @@ variants are not included in this leaderboard.
 | Parameter | Type | Required | Default | Constraints | Description |
 |-----------|------|----------|---------|-------------|-------------|
 | `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
-| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Aggregate metric to rank by |
+| `metric` | string | No | `iou` | `iou`, `mse`, `kl`, `emd` | Aggregate metric to rank by |
 | `method` | string | No | model default | `cls`, `rollout`, `mean`, `gradcam` | Shared attention method filter; incompatible models are omitted |
 | `ranking_mode` | string | No | `default_method` | `default_method`, `best_available` | Ranking semantics when `method` is not provided |
 
@@ -1153,6 +1154,65 @@ may report per-model cache misses via `unavailable_models`.
 
 ---
 
+### `GET /api/compare/variants`
+
+Compare any two supported variants for the same base model on a single image.
+This is the generalized comparison endpoint behind the current `Variant vs Variant`
+mode in the Compare page.
+
+Use this endpoint when the compared pair could be:
+
+- frozen vs one fine-tuned strategy
+- one fine-tuned strategy vs another
+- any other supported left/right variant pair exposed by the UI
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Base model name |
+| `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `left_variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Left-hand comparison variant |
+| `right_variant` | string | No | `full` | `frozen`, `linear_probe`, `lora`, `full` | Right-hand comparison variant |
+| `show_bboxes` | bool | No | `true` | | Render overlays with annotation boxes and labels |
+
+**Response**: `VariantComparisonSchema`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "layer": "layer0",
+  "method": "cls",
+  "show_bboxes": true,
+  "left": {
+    "model_key": "dinov2",
+    "strategy": null,
+    "label": "Frozen",
+    "available": true,
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2&layer=0&method=cls&show_bboxes=true"
+  },
+  "right": {
+    "model_key": "dinov2_finetuned_full",
+    "strategy": "full",
+    "label": "Fine-tuned (full)",
+    "available": true,
+    "url": "/api/attention/Q2270_0.jpg/overlay?model=dinov2_finetuned_full&layer=0&method=cls&show_bboxes=true"
+  },
+  "note": "One or both overlays are unavailable for this model/layer/image. Generate fine-tuned attention + heatmap caches for the selected variants first."
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, layer, or variant |
+| 404 | Image not found |
+
+---
+
 ### `GET /api/compare/frozen_vs_finetuned`
 
 Compare frozen (pretrained) vs fine-tuned model attention on a single image.
@@ -1209,7 +1269,8 @@ variant in this order: `lora`, `full`, `linear_probe`, then the legacy generic
 ### `GET /api/compare/finetuned_vs_finetuned`
 
 Compare two fine-tuned strategy variants for the same base model on a single
-image. This powers the `Fine-tuning Method vs Method` mode on the Compare page.
+image. This is a legacy compatibility endpoint; the current Compare page is
+built around `GET /api/compare/variants` and the `Variant vs Variant` label.
 
 **Query Parameters**
 

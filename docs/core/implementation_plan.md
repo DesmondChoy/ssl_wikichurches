@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-03-16 (Strategy-aware Q2 summary, method-vs-method comparison, and fine-tuning docs synced to the merged implementation)
+**Last Updated:** 2026-03-28 (Archived obsolete onboarding, synced Q2 docs to the multi-metric active-experiment flow, and updated compare/dashboard wording)
 
 ---
 
@@ -21,7 +21,7 @@ Build a system to compare SSL model attention patterns against 631 expert-annota
 
 **Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP 2 (all ViT-B, evaluated frozen and fine-tuned)
 **Research Design:** Two-pass analysis comparing attention patterns before and after task-specific fine-tuning
-**Primary Metric:** IoU between thresholded attention and expert bounding boxes
+**Primary Metrics:** IoU plus threshold-free Coverage, MSE, KL, and EMD
 **Platform:** M4 Pro with MPS backend
 
 ---
@@ -96,8 +96,9 @@ ssl_wikichurches/
 │
 ├── experiments/
 │   └── scripts/
-│       ├── fine_tune_models.py  # Fine-tuning script
-│       └── analyze_delta_iou.py # Frozen vs fine-tuned delta analysis
+│       ├── fine_tune_models.py   # Fine-tuning script
+│       ├── analyze_q2_metrics.py # Canonical multi-metric Q2 analysis
+│       └── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
 │
 ├── outputs/                     # Git-ignored
 │   ├── cache/
@@ -296,8 +297,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page
 
 4. **Visualization** 🔄
-   - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Fine-tuning Method vs Method`
-   - Q2 summary page ships strategy-aware ΔIoU tables and cross-strategy paired comparisons
+   - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Variant vs Variant`
+   - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
 > **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
@@ -326,7 +327,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `/api/images` - Image listing, filtering, serving
    - `/api/attention` - Heatmap and overlay serving
    - `/api/metrics` - IoU metrics, leaderboard, layer progression, and Q2 strategy summary
-   - `/api/compare` - Model comparison, Frozen vs Fine-tuned, and Fine-tuning Method vs Method
+   - `/api/compare` - Model comparison, Frozen vs Fine-tuned, and Variant vs Variant flows
 
 5. **Representation Similarity Exploration (Utility Feature)** ✅
    - Click on bounding box to compute cosine similarity with all image patches

@@ -17,7 +17,7 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 | # | Question | Method |
 |---|----------|--------|
 | **Q1** | Do SSL models attend to expert-identified diagnostic features? | IoU, MSE, KL divergence, and EMD between attention maps and 631 expert bounding boxes across 7 models and 12 layers |
-| **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Compare delta-IoU (fine-tuned minus frozen) across Linear Probe vs LoRA vs Full fine-tuning; classify outcomes as Preserve, Enhance, or Destroy using paired Wilcoxon tests with Holm correction |
+| **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Compare frozen-vs-fine-tuned attention-shift deltas across IoU, Coverage, MSE, KL, and EMD for Linear Probe, LoRA, and Full fine-tuning; retain Preserve / Enhance / Destroy as the IoU-centered interpretation layer and test strategy differences with paired Wilcoxon tests plus Holm correction |
 | **Q3** | Do individual attention heads specialize for different architectural features? | Per-head IoU against expert bounding boxes; rank-based analysis to identify heads consistently aligned with specific feature types *(planned --- see Roadmap)* |
 
 ## Approach
@@ -39,8 +39,8 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 **Methodology:**
 1. Extract attention maps (CLS attention, rollout, mean attention for SigLIP/SigLIP 2, and Grad-CAM) from pretrained models (see [Attention Methods Guide](../research/attention_methods.md) for method details)
 2. Compute alignment metrics: threshold-dependent IoU at multiple percentiles, plus threshold-free MSE, KL divergence (KL(GT‖attention)), and EMD against Gaussian soft-union ground truth derived from expert bounding boxes
-3. Fine-tune on 4-class style classification (~4,790 images) using three strategies: Linear Probe, LoRA, and Full fine-tuning, with one shared non-annotated validation split per experiment batch and the 139 annotated images reserved for final attention evaluation
-4. Re-extract attention and measure delta-IoU to classify each model-strategy combination as Preserve (Δ ≈ 0, not significant), Enhance (Δ > 0, significant), or Destroy (Δ < 0, significant) using paired Wilcoxon tests with Holm correction
+3. Fine-tune on the current 4-style labeled subset using three strategies: Linear Probe, LoRA, and Full fine-tuning, with one shared non-annotated validation split per experiment batch and the 139 annotated images reserved for final attention evaluation
+4. Re-extract attention and measure attention-shift deltas across IoU, Coverage, MSE, KL, and EMD; classify IoU shifts as Preserve (Δ ≈ 0, not significant), Enhance (Δ > 0, significant), or Destroy (Δ < 0, significant) using paired Wilcoxon tests with Holm correction
 
 ## Results
 
@@ -60,23 +60,21 @@ This project fills that gap by quantitatively measuring alignment between SSL at
 
 **Paradigm ranking (frozen):** Unimodal self-distillation (DINOv3 > DINOv2) > supervised baseline (ResNet-50) > multimodal VLMs (CLIP ≈ SigLIP ≈ SigLIP 2) > reconstruction (MAE). Language-image alignment does not improve localization of architectural features.
 
-### Q2: Fine-Tuning Effects --- Preserve / Enhance / Destroy
+### Q2: Fine-Tuning Effects --- Multi-Metric Attention Shift
 
-The interpretation framework is unchanged:
+The interpretation framework is unchanged, but the current Q2 pipeline is multi-metric:
 
 - **Enhance**: fine-tuning moves attention toward expert-marked regions
 - **Preserve**: attention stays effectively unchanged
 - **Destroy**: fine-tuning moves attention away from expert-marked regions
 
-The concrete category assignments should be regenerated from the active
-experiment batch before they are quoted in slides or writeups. For strategy
-rationale and hyperparameters, see [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) and [Run Matrix](../reference/fine_tuning_run_matrix.md).
+The concrete category assignments should be regenerated from the active experiment batch before they are quoted in slides or writeups. Use IoU as the taxonomy anchor, then read Coverage, MSE, KL, and EMD as supporting evidence for the same attention-shift story. For strategy rationale and hyperparameters, see [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md) and [Run Matrix](../reference/fine_tuning_run_matrix.md).
 
 ## Novelty
 
 1. **Multi-paradigm attention benchmark:** First study to compare 7 models spanning 4 SSL paradigms plus a supervised baseline on the same expert-annotated architectural dataset, using both threshold-dependent (IoU) and threshold-free (MSE, KL, EMD) metrics.
 2. **Preserve / Enhance / Destroy taxonomy:** Systematic classification of how fine-tuning strategies interact with pre-training paradigms to shift attention alignment. The finding that contrastive VLMs Enhance while self-distillation models Preserve is new. This addresses the open question raised by Chung et al. (2025, medical imaging), whose finding that "DINO does NOT necessarily outperform supervised/MAE on medical data" strengthens the case for domain-specific evaluation.
-3. **Delta-IoU methodology:** Paired statistical comparison of attention alignment before and after fine-tuning with Holm-corrected significance testing and effect sizes --- unexplored in prior literature.
+3. **Paired attention-shift methodology:** Paired statistical comparison of attention alignment before and after fine-tuning, combining an IoU-centered Preserve / Enhance / Destroy taxonomy with supporting threshold-free metrics and Holm-corrected significance testing.
 
 Future extension (Q3) would apply Voita et al.'s (ACL 2019) head specialization framework to vision transformers with domain-specific ground truth --- no existing work computes per-head IoU against expert-annotated architectural features.
 

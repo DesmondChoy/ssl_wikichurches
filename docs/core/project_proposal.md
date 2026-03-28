@@ -20,8 +20,8 @@ Existing interpretability tools address parts of this problem but leave a critic
 
 | Research Question | Approach | Tool/Method |
 |-------------------|----------|-------------|
-| **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU, MSE, KL divergence, and EMD between attention maps and expert bounding boxes across 7 models and 12 layers | Attention heatmap overlay, multi-metric dashboard, model leaderboard |
-| **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare Δ IoU (fine-tuned − frozen) with paired statistical tests on same images; classify outcomes as Preserve, Enhance, or Destroy; compare across three fine-tuning methods using paired Wilcoxon tests with Holm correction; compute Cohen's d effect sizes | Frozen vs fine-tuned comparison view, attention shift visualization, Δ IoU bar charts by method |
+| **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU, Coverage, MSE, KL divergence, and EMD between attention maps and expert bounding boxes across 7 models and 12 layers | Attention heatmap overlay, multi-metric dashboard, model leaderboard |
+| **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare frozen-vs-fine-tuned attention-shift deltas across IoU, Coverage, MSE, KL, and EMD on the same images; retain Preserve / Enhance / Destroy as the IoU-centered interpretation layer; compare strategies with paired Wilcoxon tests, Holm correction, and Cohen's d effect sizes | Frozen vs fine-tuned comparison view, Variant vs Variant comparison view, and strategy-aware Q2 metric tables |
 | **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Per-head attention selector, head IoU heatmap (head × feature type), head specialization dashboard |
 
 > **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
@@ -47,7 +47,7 @@ Existing interpretability tools address parts of this problem but leave a critic
 
 - **Annotations:** `building_parts.json` containing 106 feature types and 631 bounding boxes
 - **Coordinate format:** Normalized (0-1) as `left, top, width, height`
-- **Style distribution:** Gothic (54), Romanesque (49), Baroque (22), Renaissance (17)
+- **Style distribution:** Romanesque (51), Gothic (49), Renaissance (22), Baroque (17)
 - **Style IDs:** Wikidata Q-IDs (Q46261=Romanesque, Q176483=Gothic, Q236122=Renaissance, Q840829=Baroque)
 
 **Preprocessing:**
@@ -85,7 +85,7 @@ Extract attention maps from each model using multiple methods:
 
 1. **CLS token attention:** Aggregate attention from [CLS] token to spatial patches across heads (DINOv2, DINOv3, MAE, CLIP). Supports head fusion strategies: mean (default), max, or min across the 12 attention heads.
 2. **Attention rollout:** Propagate attention through layers to capture indirect dependencies (DINOv2, DINOv3, MAE, CLIP). Recursive layer-wise multiplication following Abnar & Zuidema (2020).
-3. **Mean attention:** Average attention across all tokens for models without [CLS] token (SigLIP, SigLIP 2). Supports the same head fusion strategies.
+3. **Mean attention:** Average attention across all tokens for models without [CLS] token (SigLIP, SigLIP 2). In this project it is used as an interpretability proxy for models that expose a separate pooling head rather than a CLS-token attention path.
 4. **Grad-CAM (baseline):** Gradient-weighted activation maps across all 4 ResNet stages (7×7 final feature grid).
 
 For each image with expert annotations, generate attention heatmaps at the original image resolution.
@@ -115,19 +115,20 @@ Train linear classifiers on frozen features for 4-class style classification. Co
 
 ### 3.5 Fine-Tuning Analysis
 
-Fine-tune each backbone on 4-class style classification (using the style-labeled split of ~4,790 images), choose checkpoints by classification validation accuracy on a shared non-annotated validation split, then re-extract attention on the 139 annotated images that were excluded from both training and validation. Compare deltas across all alignment metrics (IoU, Coverage, MSE, KL, EMD) between fine-tuned and frozen models.
+Fine-tune each backbone on the current 4-style labeled subset derived from `churches.json` via `STYLE_MAPPING`, choose checkpoints by classification validation accuracy on a shared non-annotated validation split, then re-extract attention on the 139 annotated images that were excluded from both training and validation. Compare deltas across all alignment metrics (IoU, Coverage, MSE, KL, EMD) between fine-tuned and frozen models.
 
 Three fine-tuning strategies are compared (addressing Q2):
 
 | Strategy | Description | Key Parameters |
 |:---------|:-----------|:---------------|
-| Full fine-tuning | Unfreeze last N backbone layers + classification head | Backbone LR: 1e-5, Head LR: 1e-3 |
+| Full fine-tuning | Unfreeze the full backbone and classification head end-to-end | Backbone LR: 1e-5, Head LR: 1e-3 |
 | LoRA | Low-rank adapters on backbone attention layers (via HuggingFace PEFT) | rank=8, alpha=32, dropout=0.1 |
 | Linear Probe | Freeze backbone, train classification head only | Head LR: 1e-3 |
 
 | Parameter | Value |
 |:----------|:------|
-| Epochs | 10-20 with early stopping |
+| Epoch schedule | Experiment-specific; the current primary checked-in batch uses 3-epoch sweeps |
+| Checkpoint selection | Best classification validation accuracy on the shared non-annotated validation split |
 | LR schedule | Cosine decay with linear warmup (warmup_ratio=0.1) |
 | Gradient clipping | Max norm 1.0 |
 | Loss | Cross-entropy with class weights (handles style imbalance) |
@@ -150,8 +151,8 @@ Web-based dashboard (FastAPI backend + React frontend) for exploring attention-a
 - **Image browser:** 139 annotated churches with model/layer/method selectors
 - **Visualization:** Attention heatmap overlay with expert bounding boxes and per-metric scores
 - **Metrics dashboard:** All 5 metrics (IoU, Coverage, MSE, KL, EMD) with model leaderboard
-- **Fine-tuning comparison:** Side-by-side frozen vs fine-tuned attention with Δ IoU overlay
-- **Method comparison:** Linear Probe vs LoRA vs Full comparison across models
+- **Fine-tuning comparison:** Side-by-side frozen vs fine-tuned attention with multi-metric deltas
+- **Variant comparison:** Variant vs Variant comparison across strategies for the same base model
 - **Per-bbox drill-down:** Select individual bounding boxes to see per-feature metrics computed on-the-fly
 
 ---

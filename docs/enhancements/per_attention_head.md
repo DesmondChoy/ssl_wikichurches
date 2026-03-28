@@ -116,12 +116,12 @@ def get_per_head_mean_attention(
     Returns:
         Attention map for the specified head [batch, num_patches]
     """
-    # Similar implementation to get_per_head_attention()
-    # but using mean pooling instead of CLS token
+    # Similar implementation to get_per_head_attention(),
+    # but using a mean-attention proxy for models without a CLS-token path
     ...
 ```
 
-**Why this is needed:** The existing `get_per_head_attention()` extracts CLS-to-patch attention for a single head. We need an equivalent for Mean attention (averaging all patch-to-patch attention for a single head).
+**Why this is needed:** The existing `get_per_head_attention()` extracts CLS-to-patch attention for a single head. We need an equivalent mean-attention proxy for a single head when the model exposes a separate pooling head instead of CLS attention.
 
 #### 1.3 Update Cache Generation
 

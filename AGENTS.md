@@ -9,6 +9,11 @@
 - Run Python commands from repository root unless a specific file lives in a deeper subdirectory.
 - Prefer existing scripts and documented workflows in `README.md` and in scoped subdirectory docs.
 
+## Documentation Source of Truth
+- Treat the root `README.md`, `docs/reference/`, `docs/core/project_proposal.md`, `docs/core/implementation_plan.md`, and the live code as the current source of truth.
+- Do NOT use `docs/archive/**` for present-day answers or implementation decisions unless the user explicitly asks for historical context.
+- There is no current teammate onboarding document in this repo. Do not recreate or cite one for present-day guidance unless the user explicitly asks for historical context.
+
 ## Git Workspace Safety
 - Do NOT use git worktrees.
 - Work only in the main working directory.
