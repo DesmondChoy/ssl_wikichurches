@@ -48,7 +48,7 @@ export function LayerMetricsChart({
     [layers, visibleMetrics, currentLayer, isPlaying],
   );
 
-  const { max: yAxisMax, ticks: yAxisTicks } = useMemo(
+  const yAxisConfig = useMemo(
     () => computeYAxisConfig(layers, visibleMetricKeys),
     [layers, visibleMetricKeys],
   );
@@ -78,8 +78,8 @@ export function LayerMetricsChart({
             <YAxis
               axisLine={false}
               tickLine={false}
-              domain={[0, yAxisMax]}
-              ticks={yAxisTicks}
+              domain={yAxisConfig.domain}
+              ticks={yAxisConfig.ticks}
               tickFormatter={(value: number) => formatAxisTick(value)}
               tickMargin={8}
               width={60}

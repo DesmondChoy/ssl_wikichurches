@@ -1,4 +1,117 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+const METRIC_SUMMARY_FIXTURES = {
+  iou: {
+    leaderboard: [
+      { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11', method_used: 'cls' },
+      { rank: 2, model: 'clip', metric: 'iou', score: 0.31, best_layer: 'layer10', method_used: 'cls' },
+    ],
+    models: {
+      dinov2: {
+        rank: 1,
+        best_layer: 'layer11',
+        best_score: 0.58,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.22, layer1: 0.31, layer6: 0.44, layer11: 0.58 },
+      },
+      clip: {
+        rank: 2,
+        best_layer: 'layer10',
+        best_score: 0.31,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.11, layer1: 0.16, layer7: 0.28, layer10: 0.31 },
+      },
+    },
+  },
+  coverage: {
+    leaderboard: [
+      { rank: 1, model: 'clip', metric: 'coverage', score: 0.33, best_layer: 'layer9', method_used: 'cls' },
+      { rank: 2, model: 'dinov2', metric: 'coverage', score: 0.29, best_layer: 'layer11', method_used: 'cls' },
+    ],
+    models: {
+      clip: {
+        rank: 1,
+        best_layer: 'layer9',
+        best_score: 0.33,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.18, layer1: 0.24, layer6: 0.29, layer9: 0.33 },
+      },
+      dinov2: {
+        rank: 2,
+        best_layer: 'layer11',
+        best_score: 0.29,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.14, layer1: 0.19, layer7: 0.25, layer11: 0.29 },
+      },
+    },
+  },
+  mse: {
+    leaderboard: [
+      { rank: 1, model: 'dinov2', metric: 'mse', score: 0.012, best_layer: 'layer8', method_used: 'cls' },
+      { rank: 2, model: 'clip', metric: 'mse', score: 0.018, best_layer: 'layer10', method_used: 'cls' },
+    ],
+    models: {
+      dinov2: {
+        rank: 1,
+        best_layer: 'layer8',
+        best_score: 0.012,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.03, layer1: 0.027, layer8: 0.012, layer11: 0.015 },
+      },
+      clip: {
+        rank: 2,
+        best_layer: 'layer10',
+        best_score: 0.018,
+        method_used: 'cls',
+        layer_progression: { layer0: 0.036, layer1: 0.031, layer7: 0.022, layer10: 0.018 },
+      },
+    },
+  },
+  kl: {
+    leaderboard: [
+      { rank: 1, model: 'dinov2', metric: 'kl', score: 2.8, best_layer: 'layer10', method_used: 'cls' },
+      { rank: 2, model: 'clip', metric: 'kl', score: 3.6, best_layer: 'layer11', method_used: 'cls' },
+    ],
+    models: {
+      dinov2: {
+        rank: 1,
+        best_layer: 'layer10',
+        best_score: 2.8,
+        method_used: 'cls',
+        layer_progression: { layer0: 6.2, layer1: 5.4, layer7: 3.4, layer10: 2.8 },
+      },
+      clip: {
+        rank: 2,
+        best_layer: 'layer11',
+        best_score: 3.6,
+        method_used: 'cls',
+        layer_progression: { layer0: 5.8, layer1: 5.1, layer8: 4.1, layer11: 3.6 },
+      },
+    },
+  },
+  emd: {
+    leaderboard: [
+      { rank: 1, model: 'dinov2', metric: 'emd', score: 2.6, best_layer: 'layer9', method_used: 'cls' },
+      { rank: 2, model: 'clip', metric: 'emd', score: 2.9, best_layer: 'layer10', method_used: 'cls' },
+    ],
+    models: {
+      dinov2: {
+        rank: 1,
+        best_layer: 'layer9',
+        best_score: 2.6,
+        method_used: 'cls',
+        layer_progression: { layer0: 4.4, layer1: 4.0, layer6: 3.1, layer9: 2.6 },
+      },
+      clip: {
+        rank: 2,
+        best_layer: 'layer10',
+        best_score: 2.9,
+        method_used: 'cls',
+        layer_progression: { layer0: 4.2, layer1: 3.7, layer7: 3.2, layer10: 2.9 },
+      },
+    },
+  },
+} as const;
 
 async function stubDashboardApis(page: Page) {
   await page.route('**/api/attention/models', async (route) => {
@@ -31,27 +144,20 @@ async function stubDashboardApis(page: Page) {
   });
 
   await page.route('**/api/compare/all_models_summary?**', async (route) => {
+    const url = new URL(route.request().url());
+    const metric = (url.searchParams.get('metric') ?? 'iou') as keyof typeof METRIC_SUMMARY_FIXTURES;
+    const fixture = METRIC_SUMMARY_FIXTURES[metric] ?? METRIC_SUMMARY_FIXTURES.iou;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         percentile: 90,
-        metric: 'iou',
+        metric,
         ranking_mode: 'default_method',
         method: null,
         excluded_models: [],
-        leaderboard: [
-          { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11', method_used: 'cls' },
-        ],
-        models: {
-          dinov2: {
-            rank: 1,
-            best_layer: 'layer11',
-            best_score: 0.58,
-            method_used: 'cls',
-            layer_progression: { layer0: 0.22, layer11: 0.58 },
-          },
-        },
+        leaderboard: fixture.leaderboard,
+        models: fixture.models,
       }),
     });
   });
@@ -60,14 +166,16 @@ async function stubDashboardApis(page: Page) {
     const url = new URL(route.request().url());
     const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/style_breakdown/);
     const model = match?.[1] ?? 'dinov2';
+    const metric = url.searchParams.get('metric') ?? 'iou';
+    const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         model,
         layer: 'layer0',
-        metric: 'iou',
-        direction: 'higher',
+        metric,
+        direction,
         percentile: 90,
         method: 'cls',
         styles: { Gothic: 0.55, Romanesque: 0.48 },
@@ -80,14 +188,16 @@ async function stubDashboardApis(page: Page) {
     const url = new URL(route.request().url());
     const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/feature_breakdown/);
     const model = match?.[1] ?? 'dinov2';
+    const metric = url.searchParams.get('metric') ?? 'iou';
+    const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         model,
         layer: 'layer0',
-        metric: 'iou',
-        direction: 'higher',
+        metric,
+        direction,
         percentile: 90,
         method: 'cls',
         total_feature_types: 1,
@@ -105,8 +215,17 @@ async function stubDashboardApis(page: Page) {
   });
 }
 
+async function getYAxisTickValues(chart: Locator): Promise<number[]> {
+  const textValues = await chart.locator('svg text').allTextContents();
+  return textValues
+    .map((value) => value.trim())
+    .filter((value) => /^\d+(?:\.\d+)?$/.test(value))
+    .map((value) => Number(value));
+}
+
 test.describe('Dashboard metrics', () => {
   test('supports selecting EMD and shows the threshold-free guidance', async ({ page }) => {
+    await stubDashboardApis(page);
     await page.goto('/dashboard');
 
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
@@ -116,6 +235,37 @@ test.describe('Dashboard metrics', () => {
     await expect(
       page.getByText(/Earth Mover's Distance \/ Wasserstein-1 on a shared 8x8 support/)
     ).toBeVisible();
+  });
+
+  test('rescales the layer progression y-axis for every dashboard metric', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard');
+
+    const metricSelect = page.getByRole('combobox').first();
+    const chart = page.getByTestId('dashboard-layer-progression-chart');
+    const expectedMaxTicks: Array<[string, number]> = [
+      ['iou', 0.6],
+      ['coverage', 0.4],
+      ['mse', 0.04],
+      ['kl', 8],
+      ['emd', 5],
+      ['iou', 0.6],
+    ];
+
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+    for (const [metric, expectedMaxTick] of expectedMaxTicks) {
+      await metricSelect.selectOption(metric);
+      await expect.poll(async () => {
+        const ticks = await getYAxisTickValues(chart);
+        return Math.max(...ticks);
+      }).toBe(expectedMaxTick);
+    }
+
+    await expect.poll(async () => {
+      const ticks = await getYAxisTickValues(chart);
+      return ticks.includes(1);
+    }).toBe(false);
   });
 
   test('switches dashboard ranking modes and uses the selected row method', async ({ page }) => {

@@ -11,10 +11,15 @@ export interface LayerChartDatum {
   [key: string]: boolean | number | string | null;
 }
 
-export interface YAxisConfig {
-  max: number;
+export interface NumericAxisConfig {
+  domain: [number, number];
   ticks: number[];
 }
+
+const DEFAULT_AXIS_CONFIG: NumericAxisConfig = {
+  domain: [0, 1],
+  ticks: [0, 0.2, 0.4, 0.6, 0.8, 1],
+};
 
 export function getRenderedSeriesKey(metricKey: string): string {
   return `series_${metricKey}`;
@@ -45,20 +50,29 @@ export function buildLayerChartData(
 export function computeYAxisConfig(
   layers: ImageLayerMetricPoint[],
   visibleMetricKeys: string[]
-): YAxisConfig {
+): NumericAxisConfig {
   const values = layers.flatMap((point) =>
     visibleMetricKeys
       .map((metricKey) => point.values[metricKey])
       .filter((value): value is number => value !== null && value !== undefined)
   );
 
+  return computeFlexibleNumericAxisConfig(values);
+}
+
+export function computeFlexibleNumericAxisConfig(values: number[]): NumericAxisConfig {
   if (values.length === 0) {
-    return { max: 1, ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+    return DEFAULT_AXIS_CONFIG;
   }
 
-  const maxValue = Math.max(...values);
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+  if (finiteValues.length === 0) {
+    return DEFAULT_AXIS_CONFIG;
+  }
+
+  const maxValue = Math.max(...finiteValues);
   if (maxValue <= 0) {
-    return { max: 1, ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
+    return DEFAULT_AXIS_CONFIG;
   }
 
   const roughStep = maxValue / 5;
@@ -69,7 +83,7 @@ export function computeYAxisConfig(
     roundAxisValue(index * step)
   );
 
-  return { max, ticks };
+  return { domain: [0, max], ticks };
 }
 
 export function getXAxisTicks(layers: ImageLayerMetricPoint[]): number[] {

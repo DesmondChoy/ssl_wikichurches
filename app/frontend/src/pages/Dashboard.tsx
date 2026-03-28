@@ -16,6 +16,7 @@ import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
+import { computeFlexibleNumericAxisConfig } from '../components/metrics/layerChartUtils';
 import { getAttentionMethodLabel } from '../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 import type { AllModelsSummary, DashboardMetric, LeaderboardEntry, RankingMode } from '../types';
@@ -105,7 +106,13 @@ export function DashboardPage() {
     }
     return layerData;
   });
-  const yAxisConfig = getYAxisConfig(metric, chartData);
+  const layerProgressionValues = chartData.flatMap((point) =>
+    Object.entries(point)
+      .filter(([key]) => key !== 'layer')
+      .map(([, value]) => value)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  );
+  const yAxisConfig = computeFlexibleNumericAxisConfig(layerProgressionValues);
 
   // Style breakdown data
   const styleData = styleBreakdown
@@ -223,7 +230,7 @@ export function DashboardPage() {
                   {leaderboardEmptyMessage}
                 </div>
               ) : (
-                <div className="h-[300px]">
+                <div className="h-[300px]" data-testid="dashboard-layer-progression-chart">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -423,58 +430,12 @@ function getSummaryContextMessage(
   return "Leaderboard and layer progression rank each model by its default attention method.";
 }
 
-function getYAxisConfig(
-  metric: DashboardMetric,
-  chartData: Record<string, number | string>[]
-): YAxisConfig {
-  const axisMode = DASHBOARD_METRIC_METADATA[metric].axisMode;
-  const values = chartData.flatMap((point) =>
-    Object.entries(point)
-      .filter(([key]) => key !== 'layer')
-      .map(([, value]) => value)
-      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-  );
-  return getNumericAxisConfig(axisMode, values);
-}
-
 function getNumericAxisConfig(axisMode: 'unit' | 'auto', values: number[]): YAxisConfig {
   if (axisMode === 'unit') {
     return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
   }
 
-  if (!values.length) {
-    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
-  }
-
-  const maxValue = Math.max(...values);
-  if (maxValue <= 0) {
-    return { domain: [0, 1], ticks: [0, 0.2, 0.4, 0.6, 0.8, 1] };
-  }
-
-  const roughStep = maxValue / 5;
-  const step = getNiceStep(roughStep);
-  const max = roundAxisValue(Math.ceil(maxValue / step) * step);
-  const tickCount = Math.max(1, Math.round(max / step));
-  const ticks = Array.from({ length: tickCount + 1 }, (_, index) =>
-    roundAxisValue(index * step)
-  );
-
-  return { domain: [0, max], ticks };
-}
-
-function getNiceStep(value: number): number {
-  const exponent = Math.floor(Math.log10(value));
-  const magnitude = 10 ** exponent;
-  const normalized = value / magnitude;
-
-  if (normalized <= 1) return 1 * magnitude;
-  if (normalized <= 2) return 2 * magnitude;
-  if (normalized <= 5) return 5 * magnitude;
-  return 10 * magnitude;
-}
-
-function roundAxisValue(value: number): number {
-  return Number(value.toFixed(6));
+  return computeFlexibleNumericAxisConfig(values);
 }
 
 function formatAxisTick(value: number): string {
