@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate visualizations for the fine-tuning run matrix.
 
-Produces 8 publication-quality figures from Q2 metric deltas and hardcoded
+Produces 9 publication-quality figures from Q2 metric deltas and hardcoded
 run matrix data, saved to outputs/figures/.
 
 Design principles (Tufte + Datawrapper best practices):
@@ -20,13 +20,12 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
-import seaborn as sns
+import seaborn as sns  # type: ignore[import-untyped]
 
 matplotlib.use("Agg")
 
@@ -36,7 +35,9 @@ matplotlib.use("Agg")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path  # noqa: E402
+from ssl_attention.evaluation.fine_tuning_artifacts import (  # noqa: E402
+    resolve_active_artifact_path,
+)
 
 Q2_JSON = resolve_active_artifact_path(
     "q2_metrics_path",
@@ -101,11 +102,11 @@ METRIC_DIRECTION = {
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
-def load_q2_data() -> list[dict]:
+def load_q2_data() -> list[dict[str, Any]]:
     """Load Q2 metrics analysis JSON and return the rows list."""
     with open(Q2_JSON) as f:
         data = json.load(f)
-    return data["rows"]
+    return cast(list[dict[str, Any]], data["rows"])
 
 
 def load_run_matrix() -> dict[tuple[str, str], dict[str, Any]]:
@@ -213,7 +214,7 @@ def fig_validation_accuracy() -> str:
             edgecolor="white",
             linewidth=0.3,
         )
-        for bar, v in zip(bars, vals):
+        for bar, v in zip(bars, vals, strict=True):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.4,
@@ -238,9 +239,11 @@ def fig_validation_accuracy() -> str:
         f"Best: {MODEL_LABELS[best_overall[0][0]]} {STRATEGY_LABELS[best_overall[0][1]]} "
         f"({best_overall[1]['val_acc']:.1f}%). "
         f"Worst: {MODEL_LABELS[worst_overall[0][0]]} {STRATEGY_LABELS[worst_overall[0][1]]} "
-        f"({worst_overall[1]['val_acc']:.1f}%). "
-        "MAE consistently lags; DINOv3 LoRA leads. Full fine-tuning "
-        "does not always beat LoRA on classification accuracy."
+        f"({worst_overall[1]['val_acc']:.1f}%). MAE consistently lags; DINOv3 LoRA "
+        "leads. Full fine-tuning does not always beat LoRA on classification accuracy. "
+        "The practical takeaway is that stronger adaptation helps, but lightweight "
+        "LoRA often captures most of the downstream gain without needing full backbone "
+        "updates."
     )
 
 
@@ -303,7 +306,10 @@ def fig_delta_heatmap(rows: list[dict]) -> str:
         "All deltas normalized to improvement direction: positive (blue) = better, "
         "negative (red) = worse. For MSE/KL/EMD the sign is flipped so blue still "
         "means the metric decreased (improved). Linear probe near-zero confirms frozen "
-        "backbones don't shift attention. SigLIP shows the most significant improvements."
+        "backbones don't shift attention. SigLIP shows the most significant "
+        "improvements. Read the blue clusters less as \"every metric moved\" and more "
+        "as \"this model genuinely reallocated attention in a better direction across "
+        "multiple views.\""
     )
 
 
@@ -394,8 +400,10 @@ def fig_diverging_bars(rows: list[dict]) -> str:
     return (
         "Bars sorted by delta (largest improvement at top). Colors represent models, "
         "making it easy to spot which models consistently rank high or low. "
-        "Linear probe omitted (all near zero). "
-        "SigLIP entries cluster near the top across most metrics."
+        "Linear probe omitted (all near zero). SigLIP entries cluster near the top "
+        "across most metrics. The ranking makes the model hierarchy easier to trust: "
+        "improvement is not evenly distributed, and CLIP/SigLIP benefit much more "
+        "than the DINO family here."
     )
 
 
@@ -432,7 +440,7 @@ def fig_iou_percentile_slopes(rows: list[dict]) -> str:
                 linewidth=1.8, markersize=4,
             )
 
-            for p, d, sig in zip(percentiles, deltas, sigs):
+            for p, d, sig in zip(percentiles, deltas, sigs, strict=True):
                 if sig:
                     ax.annotate(
                         "*", (p, d),
@@ -465,7 +473,9 @@ def fig_iou_percentile_slopes(rows: list[dict]) -> str:
         "Slopes reveal how fine-tuning affects top-k attention alignment at different "
         "thresholds. Steeper slopes at high percentiles indicate that fine-tuning "
         "particularly shifts the most-attended regions. Flat slopes near zero confirm "
-        "linear probe has no effect (omitted)."
+        "linear probe has no effect (omitted). The interesting pattern is that gains "
+        "are often strongest where attention is most concentrated, which suggests "
+        "sharpening around diagnostic parts rather than a uniform boost everywhere."
     )
 
 
@@ -559,7 +569,10 @@ def fig_radar_profiles(rows: list[dict]) -> str:
         "Radar charts show each model's metric profile normalized globally. "
         "Outward = better for all axes (lower-is-better metrics are inverted). "
         "Frozen baseline in gray; fine-tuned strategies overlaid. "
-        "Models where the colored polygon expands beyond gray show genuine improvement."
+        "Models where the colored polygon expands beyond gray show genuine "
+        "improvement. Use this chart to judge breadth, not raw size: outward "
+        "expansion across several axes means the gain is multi-metric rather than a "
+        "single-metric artifact."
     )
 
 
@@ -633,9 +646,13 @@ def fig_accuracy_vs_attention(rows: list[dict]) -> str:
 
     return (
         "Each panel shows one model's trajectory from Linear Probe (square) through "
-        "LoRA (diamond) to Full (circle). Shared axes enable cross-model comparison. "
+        "LoRA (diamond) to Full (circle). Shared x-axis enables accuracy comparison, "
+        "while panel-specific y-axes keep small IoU changes legible. "
         "Points above the dashed y=0 line improved attention alignment. "
-        "Models like CLIP/SigLIP show clear upward trajectories; DINOv2/DINOv3 stay flat."
+        "Models like CLIP/SigLIP show clear upward trajectories; DINOv2/DINOv3 stay "
+        "flat. The main read is that better classification and more expert-like "
+        "attention often travel together, but not tightly enough to treat one as a "
+        "substitute for the other."
     )
 
 
@@ -669,7 +686,6 @@ def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
     Preserve / Enhance / Destroy classification based on significance + delta
     direction.
     """
-    n_metrics = len(HEATMAP_METRICS)
     fig, axes = plt.subplots(2, 3, figsize=(14, 7))
     axes = axes.flatten()
 
@@ -754,14 +770,18 @@ def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
 
     # Legend
     from matplotlib.patches import Patch
-    legend_elements = [
-        Patch(
-            facecolor=tuple(0.3 * c + 0.7 for c in (int(PED_COLORS[cat][i:i+2], 16) / 255.0 for i in (1, 3, 5))),
-            edgecolor=PED_COLORS[cat], linewidth=1.5,
-            label=cat,
+    legend_elements = []
+    for cat in ["Enhance", "Preserve", "Destroy"]:
+        rgb = tuple(int(PED_COLORS[cat][i : i + 2], 16) / 255.0 for i in (1, 3, 5))
+        fill = cast(tuple[float, float, float], tuple(0.3 * c + 0.7 for c in rgb))
+        legend_elements.append(
+            Patch(
+                facecolor=fill,
+                edgecolor=PED_COLORS[cat],
+                linewidth=1.5,
+                label=cat,
+            )
         )
-        for cat in ["Enhance", "Preserve", "Destroy"]
-    ]
     fig.legend(
         handles=legend_elements, loc="upper center", ncol=3,
         fontsize=10, bbox_to_anchor=(0.5, 1.02), columnspacing=3,
@@ -786,8 +806,10 @@ def fig_preserve_enhance_destroy(rows: list[dict]) -> str:
     return (
         f"Across all 6 metrics: {counts['Enhance']} Enhance, "
         f"{counts['Preserve']} Preserve, {counts['Destroy']} Destroy "
-        f"(out of {total} model-strategy-metric combinations). "
-        "Linear Probe omitted (frozen backbone = always Preserve)."
+        f"(out of {total} model-strategy-metric combinations). Linear Probe omitted "
+        "(frozen backbone = always Preserve). The encouraging part is that "
+        "improvement is the dominant outcome; the caution is that regressions are "
+        "still common enough that strategy choice matters."
     )
 
 
@@ -843,21 +865,21 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
                 colors.append(STRATEGY_COLORS[strat])
                 markers.append("D" if strat == "lora" else "o")
 
-        means = np.array(means)
-        ci_lows = np.array(ci_lows)
-        ci_highs = np.array(ci_highs)
+        means_arr = np.array(means)
+        ci_lows_arr = np.array(ci_lows)
+        ci_highs_arr = np.array(ci_highs)
 
         # CI whiskers
         for i in range(len(y_pos)):
             ax.plot(
-                [ci_lows[i], ci_highs[i]], [y_pos[i], y_pos[i]],
+                [ci_lows_arr[i], ci_highs_arr[i]], [y_pos[i], y_pos[i]],
                 color=colors[i], linewidth=1.5, solid_capstyle="round",
             )
 
         # Point estimates
         for i in range(len(y_pos)):
             ax.scatter(
-                means[i], y_pos[i],
+                means_arr[i], y_pos[i],
                 c=colors[i], marker=markers[i], s=45, zorder=5,
                 edgecolors="white", linewidth=0.3,
             )
@@ -866,7 +888,7 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
         for i in range(len(y_pos)):
             if sigs[i]:
                 ax.text(
-                    ci_highs[i] + abs(ci_highs[i] - ci_lows[i]) * 0.15 + 0.0003,
+                    ci_highs_arr[i] + abs(ci_highs_arr[i] - ci_lows_arr[i]) * 0.15 + 0.0003,
                     y_pos[i], "*",
                     ha="center", va="center",
                     fontsize=10, fontweight="bold", color=SIG_COLOR,
@@ -902,8 +924,17 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
     fig.tight_layout()
     save_figure(fig, "08_forest_plot_ci.png")
 
-    # Count how many CIs exclude zero
-    n_exclude = sum(
+    # Count how many displayed bootstrap CIs exclude zero.
+    n_ci_exclude_zero = sum(
+        1 for (metric, pctl, _) in HEATMAP_METRICS
+        for m in MODELS for strat in strats
+        if (r := lookup_row(rows, m, strat, metric, pctl))
+        and (
+            (r.get("delta_ci_lower", 0.0) > 0 and r.get("delta_ci_upper", 0.0) > 0)
+            or (r.get("delta_ci_lower", 0.0) < 0 and r.get("delta_ci_upper", 0.0) < 0)
+        )
+    )
+    n_significant = sum(
         1 for (metric, pctl, _) in HEATMAP_METRICS
         for m in MODELS for strat in strats
         if (r := lookup_row(rows, m, strat, metric, pctl))
@@ -911,9 +942,13 @@ def fig_forest_plot_ci(rows: list[dict]) -> str:
     )
     return (
         f"Forest plot with 95% bootstrap CIs for LoRA and Full across all 6 metrics. "
-        f"{n_exclude} of {len(MODELS) * len(strats) * len(HEATMAP_METRICS)} CIs exclude "
-        f"zero (significant after Holm correction). Sign flipped for lower-is-better "
-        f"metrics so rightward always means improvement."
+        f"{n_ci_exclude_zero} of {len(MODELS) * len(strats) * len(HEATMAP_METRICS)} "
+        f"displayed CIs exclude zero, and {n_significant} of "
+        f"{len(MODELS) * len(strats) * len(HEATMAP_METRICS)} rows remain significant "
+        f"after Holm correction. Sign flipped for lower-is-better metrics so rightward "
+        f"always means improvement. This is the clearest \"signal vs noise\" figure: "
+        f"when CLIP and SigLIP sit clearly to the right of zero across multiple "
+        f"panels, the improvement looks robust rather than anecdotal."
     )
 
 
@@ -1013,7 +1048,10 @@ def fig_per_image_strips(rows: list[dict]) -> str:
     return (
         "Strip plot showing all 139 per-image deltas for Full fine-tuning. "
         "Diamond = mean, thick bar = 95% bootstrap CI. Jittered dots reveal "
-        "whether improvement is consistent across images or driven by outliers."
+        "whether improvement is consistent across images or driven by outliers. "
+        "This figure is useful for spotting unevenness: strong mean gains are more "
+        "convincing when most dots lean positive, but the negative tails remind us "
+        "that some images still regress."
     )
 
 
