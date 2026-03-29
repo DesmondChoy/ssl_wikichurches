@@ -1,0 +1,461 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="frontendGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#2563eb"/>
+    </linearGradient>
+    <linearGradient id="backendGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    <linearGradient id="dataGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="precomputeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ec4899"/>
+      <stop offset="100%" style="stop-color:#db2777"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#94a3b8"/>
+      <stop offset="100%" style="stop-color:#64748b"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <!-- Arrow marker -->
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    </marker>
+    <marker id="arrowheadDown" markerWidth="10" markerHeight="7" refX="3.5" refY="7" orient="auto">
+      <polygon points="0 0, 7 0, 3.5 7" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="url(#bgGrad)" rx="12"/>
+
+  <!-- Title -->
+  <text x="600" y="52" text-anchor="middle" fill="#f8fafc" font-size="28" font-weight="700" letter-spacing="1">SSL Attention Visualization</text>
+  <text x="600" y="78" text-anchor="middle" fill="#94a3b8" font-size="14">WikiChurches Dataset | 7 Vision Models | Expert-Annotated Architectural Features</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- DATASET (top left) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="40" y="110" width="260" height="200" rx="10" fill="#1e1b4b" stroke="url(#dataGrad)" stroke-width="2" opacity="0.95"/>
+    <rect x="40" y="110" width="260" height="36" rx="10" fill="url(#dataGrad)" opacity="0.9"/>
+    <rect x="40" y="136" width="260" height="10" fill="url(#dataGrad)" opacity="0.9"/>
+  </g>
+  <text x="170" y="134" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">WikiChurches Dataset</text>
+  <!-- Church icon -->
+  <g transform="translate(80, 165)">
+    <polygon points="40,0 0,25 0,55 80,55 80,25" fill="none" stroke="#c4b5fd" stroke-width="1.5"/>
+    <rect x="30" y="35" width="20" height="20" fill="none" stroke="#c4b5fd" stroke-width="1.5"/>
+    <line x1="40" y1="0" x2="40" y2="-10" stroke="#c4b5fd" stroke-width="1.5"/>
+    <circle cx="40" cy="-13" r="3" fill="#c4b5fd"/>
+  </g>
+  <text x="195" y="175" fill="#c4b5fd" font-size="12" font-weight="600">139 Annotated Images</text>
+  <text x="195" y="193" fill="#a78bfa" font-size="11">631 Bounding Boxes</text>
+  <text x="195" y="211" fill="#a78bfa" font-size="11">Expert Annotations</text>
+  <!-- Building parts -->
+  <g transform="translate(60, 235)">
+    <rect x="0" y="0" width="70" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="35" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Windows</text>
+    <rect x="78" y="0" width="55" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="105" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Doors</text>
+    <rect x="141" y="0" width="55" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="168" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Towers</text>
+  </g>
+  <g transform="translate(60, 263)">
+    <rect x="0" y="0" width="60" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="30" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Roofs</text>
+    <rect x="68" y="0" width="65" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="100" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Columns</text>
+    <rect x="141" y="0" width="55" height="22" rx="4" fill="#7c3aed" opacity="0.3" stroke="#7c3aed" stroke-width="1"/>
+    <text x="168" y="15" text-anchor="middle" fill="#c4b5fd" font-size="9">Arches</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- MODELS (top center) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="340" y="110" width="340" height="200" rx="10" fill="#1c1917" stroke="url(#coreGrad)" stroke-width="2" opacity="0.95"/>
+    <rect x="340" y="110" width="340" height="36" rx="10" fill="url(#coreGrad)" opacity="0.9"/>
+    <rect x="340" y="136" width="340" height="10" fill="url(#coreGrad)" opacity="0.9"/>
+  </g>
+  <text x="510" y="134" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Vision Models (PyTorch)</text>
+
+  <!-- Model cards grid -->
+  <g transform="translate(355, 155)">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="48" y="15" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">DINOv2</text>
+    <text x="48" y="28" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/14 | CLS,Roll</text>
+
+    <rect x="105" y="0" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="153" y="15" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">DINOv3</text>
+    <text x="153" y="28" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/16 | CLS,Roll</text>
+
+    <rect x="210" y="0" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="258" y="15" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">MAE</text>
+    <text x="258" y="28" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/16 | CLS,Roll</text>
+
+    <!-- Row 2 -->
+    <rect x="0" y="42" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="48" y="57" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">CLIP</text>
+    <text x="48" y="70" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/16 | CLS,Roll</text>
+
+    <rect x="105" y="42" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="153" y="57" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">SigLIP</text>
+    <text x="153" y="70" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/16 | Mean</text>
+
+    <rect x="210" y="42" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="258" y="57" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">SigLIP 2</text>
+    <text x="258" y="70" text-anchor="middle" fill="#d97706" font-size="8">ViT-B/16 | Mean</text>
+
+    <!-- Row 3 - ResNet centered -->
+    <rect x="105" y="84" width="95" height="34" rx="6" fill="#78350f" opacity="0.5" stroke="#f59e0b" stroke-width="1"/>
+    <text x="153" y="99" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">ResNet-50</text>
+    <text x="153" y="112" text-anchor="middle" fill="#d97706" font-size="8">CNN | Grad-CAM</text>
+  </g>
+
+  <!-- Fine-tuning strategies -->
+  <g transform="translate(360, 280)">
+    <text x="0" y="0" fill="#fbbf24" font-size="10" font-weight="600">Fine-tuning:</text>
+    <rect x="80" y="-12" width="72" height="18" rx="4" fill="#92400e" opacity="0.4" stroke="#d97706" stroke-width="0.8"/>
+    <text x="116" y="2" text-anchor="middle" fill="#fcd34d" font-size="9">Linear Probe</text>
+    <rect x="160" y="-12" width="50" height="18" rx="4" fill="#92400e" opacity="0.4" stroke="#d97706" stroke-width="0.8"/>
+    <text x="185" y="2" text-anchor="middle" fill="#fcd34d" font-size="9">LoRA</text>
+    <rect x="218" y="-12" width="42" height="18" rx="4" fill="#92400e" opacity="0.4" stroke="#d97706" stroke-width="0.8"/>
+    <text x="239" y="2" text-anchor="middle" fill="#fcd34d" font-size="9">Full</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- METRICS (top right) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="720" y="110" width="220" height="200" rx="10" fill="#1a1a2e" stroke="#06b6d4" stroke-width="2" opacity="0.95"/>
+    <rect x="720" y="110" width="220" height="36" rx="10" fill="#06b6d4" opacity="0.8"/>
+    <rect x="720" y="136" width="220" height="10" fill="#06b6d4" opacity="0.8"/>
+  </g>
+  <text x="830" y="134" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Evaluation Metrics</text>
+
+  <!-- Metric items -->
+  <g transform="translate(740, 160)">
+    <circle cx="8" cy="8" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="12" fill="#67e8f9" font-size="12" font-weight="500">IoU (Intersection/Union)</text>
+
+    <circle cx="8" cy="34" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="38" fill="#67e8f9" font-size="12" font-weight="500">Pointing Game</text>
+
+    <circle cx="8" cy="60" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="64" fill="#67e8f9" font-size="12" font-weight="500">Coverage</text>
+
+    <circle cx="8" cy="86" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="90" fill="#67e8f9" font-size="12" font-weight="500">Gaussian MSE</text>
+
+    <circle cx="8" cy="112" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="116" fill="#67e8f9" font-size="12" font-weight="500">KL Divergence</text>
+
+    <circle cx="8" cy="138" r="5" fill="#22d3ee" opacity="0.6"/>
+    <text x="20" y="142" fill="#67e8f9" font-size="12" font-weight="500">Earth Mover's Distance</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- RESEARCH QUESTIONS (top right corner) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="980" y="110" width="185" height="200" rx="10" fill="#1a1a2e" stroke="#f472b6" stroke-width="2" opacity="0.95"/>
+    <rect x="980" y="110" width="185" height="36" rx="10" fill="#ec4899" opacity="0.8"/>
+    <rect x="980" y="136" width="185" height="10" fill="#ec4899" opacity="0.8"/>
+  </g>
+  <text x="1072" y="134" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Research Questions</text>
+
+  <g transform="translate(995, 160)">
+    <rect x="0" y="0" width="155" height="45" rx="5" fill="#831843" opacity="0.4" stroke="#f472b6" stroke-width="0.8"/>
+    <text x="10" y="16" fill="#f9a8d4" font-size="10" font-weight="700">Q1</text>
+    <text x="30" y="16" fill="#f9a8d4" font-size="10">Attention alignment</text>
+    <text x="10" y="32" fill="#f472b6" font-size="9">with expert annotations</text>
+
+    <rect x="0" y="52" width="155" height="45" rx="5" fill="#831843" opacity="0.4" stroke="#f472b6" stroke-width="0.8"/>
+    <text x="10" y="68" fill="#f9a8d4" font-size="10" font-weight="700">Q2</text>
+    <text x="30" y="68" fill="#f9a8d4" font-size="10">Fine-tuning effects</text>
+    <text x="10" y="84" fill="#f472b6" font-size="9">on attention shift</text>
+
+    <rect x="0" y="104" width="155" height="45" rx="5" fill="#831843" opacity="0.4" stroke="#f472b6" stroke-width="0.8"/>
+    <text x="10" y="120" fill="#f9a8d4" font-size="10" font-weight="700">Q3</text>
+    <text x="30" y="120" fill="#f9a8d4" font-size="10">Head specialization</text>
+    <text x="10" y="136" fill="#f472b6" font-size="9">per building feature</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PRECOMPUTE PIPELINE (middle) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="40" y="360" width="520" height="80" rx="10" fill="#1a1a2e" stroke="url(#precomputeGrad)" stroke-width="2" opacity="0.95"/>
+  </g>
+  <text x="55" y="388" fill="#f9a8d4" font-size="13" font-weight="700">Precompute Pipeline</text>
+  <text x="55" y="405" fill="#f472b6" font-size="10">(One-time batch processing)</text>
+
+  <!-- Pipeline steps as flow -->
+  <g transform="translate(250, 375)">
+    <rect x="0" y="0" width="70" height="30" rx="5" fill="#9d174d" opacity="0.4" stroke="#ec4899" stroke-width="1"/>
+    <text x="35" y="19" text-anchor="middle" fill="#fda4af" font-size="9">Attention</text>
+
+    <line x1="75" y1="15" x2="85" y2="15" stroke="#f472b6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="90" y="0" width="65" height="30" rx="5" fill="#9d174d" opacity="0.4" stroke="#ec4899" stroke-width="1"/>
+    <text x="122" y="19" text-anchor="middle" fill="#fda4af" font-size="9">Heatmaps</text>
+
+    <line x1="160" y1="15" x2="170" y2="15" stroke="#f472b6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="175" y="0" width="60" height="30" rx="5" fill="#9d174d" opacity="0.4" stroke="#ec4899" stroke-width="1"/>
+    <text x="205" y="19" text-anchor="middle" fill="#fda4af" font-size="9">Metrics</text>
+
+    <line x1="240" y1="15" x2="250" y2="15" stroke="#f472b6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="255" y="0" width="50" height="30" rx="5" fill="#9d174d" opacity="0.4" stroke="#ec4899" stroke-width="1"/>
+    <text x="280" y="19" text-anchor="middle" fill="#fda4af" font-size="9">Cache</text>
+  </g>
+
+  <!-- Cache box -->
+  <g filter="shadow">
+    <rect x="600" y="360" width="150" height="80" rx="10" fill="#1a1a2e" stroke="#94a3b8" stroke-width="2" opacity="0.95"/>
+  </g>
+  <!-- HDD icon -->
+  <g transform="translate(620, 378)">
+    <rect x="0" y="0" width="24" height="18" rx="3" fill="none" stroke="#94a3b8" stroke-width="1.5"/>
+    <line x1="4" y1="12" x2="20" y2="12" stroke="#94a3b8" stroke-width="1"/>
+    <circle cx="18" cy="15" r="2" fill="#94a3b8"/>
+  </g>
+  <text x="650" y="392" fill="#e2e8f0" font-size="13" font-weight="700">Cache</text>
+  <text x="615" y="415" fill="#94a3b8" font-size="10">HDF5 + PNG files</text>
+  <text x="615" y="430" fill="#94a3b8" font-size="10">outputs/ directory</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ARROWS: Dataset + Models -> Precompute -->
+  <!-- ═══════════════════════════════════════════ -->
+  <line x1="170" y1="310" x2="170" y2="355" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <line x1="510" y1="310" x2="400" y2="355" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+
+  <!-- Arrow: Precompute -> Cache -->
+  <line x1="560" y1="400" x2="595" y2="400" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- BACKEND (bottom left-center) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="40" y="490" width="430" height="220" rx="10" fill="#022c22" stroke="url(#backendGrad)" stroke-width="2" opacity="0.95"/>
+    <rect x="40" y="490" width="430" height="36" rx="10" fill="url(#backendGrad)" opacity="0.9"/>
+    <rect x="40" y="516" width="430" height="10" fill="url(#backendGrad)" opacity="0.9"/>
+  </g>
+  <text x="255" y="514" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">FastAPI Backend</text>
+  <text x="380" y="514" fill="#a7f3d0" font-size="10">:8000</text>
+
+  <!-- API Routes -->
+  <g transform="translate(60, 540)">
+    <text x="0" y="0" fill="#6ee7b7" font-size="11" font-weight="700">API Routes</text>
+
+    <rect x="0" y="10" width="95" height="26" rx="5" fill="#065f46" opacity="0.5" stroke="#10b981" stroke-width="1"/>
+    <text x="8" y="28" fill="#6ee7b7" font-size="10">/api/images</text>
+
+    <rect x="103" y="10" width="105" height="26" rx="5" fill="#065f46" opacity="0.5" stroke="#10b981" stroke-width="1"/>
+    <text x="111" y="28" fill="#6ee7b7" font-size="10">/api/attention</text>
+
+    <rect x="216" y="10" width="95" height="26" rx="5" fill="#065f46" opacity="0.5" stroke="#10b981" stroke-width="1"/>
+    <text x="224" y="28" fill="#6ee7b7" font-size="10">/api/metrics</text>
+
+    <rect x="319" y="10" width="105" height="26" rx="5" fill="#065f46" opacity="0.5" stroke="#10b981" stroke-width="1"/>
+    <text x="327" y="28" fill="#6ee7b7" font-size="10">/api/compare</text>
+  </g>
+
+  <!-- Services -->
+  <g transform="translate(60, 600)">
+    <text x="0" y="0" fill="#6ee7b7" font-size="11" font-weight="700">Services</text>
+
+    <rect x="0" y="10" width="100" height="26" rx="5" fill="#065f46" opacity="0.3" stroke="#059669" stroke-width="0.8"/>
+    <text x="50" y="28" text-anchor="middle" fill="#34d399" font-size="9">ImageService</text>
+
+    <rect x="108" y="10" width="110" height="26" rx="5" fill="#065f46" opacity="0.3" stroke="#059669" stroke-width="0.8"/>
+    <text x="163" y="28" text-anchor="middle" fill="#34d399" font-size="9">AttentionService</text>
+
+    <rect x="226" y="10" width="100" height="26" rx="5" fill="#065f46" opacity="0.3" stroke="#059669" stroke-width="0.8"/>
+    <text x="276" y="28" text-anchor="middle" fill="#34d399" font-size="9">MetricsService</text>
+
+    <rect x="334" y="10" width="110" height="26" rx="5" fill="#065f46" opacity="0.3" stroke="#059669" stroke-width="0.8"/>
+    <text x="389" y="28" text-anchor="middle" fill="#34d399" font-size="9">SimilarityService</text>
+  </g>
+
+  <!-- Schemas + Validators -->
+  <g transform="translate(60, 655)">
+    <text x="0" y="0" fill="#6ee7b7" font-size="11" font-weight="700">Data Layer</text>
+    <rect x="0" y="10" width="90" height="24" rx="5" fill="#065f46" opacity="0.2" stroke="#059669" stroke-width="0.6"/>
+    <text x="45" y="27" text-anchor="middle" fill="#34d399" font-size="9">Pydantic Schemas</text>
+    <rect x="98" y="10" width="80" height="24" rx="5" fill="#065f46" opacity="0.2" stroke="#059669" stroke-width="0.6"/>
+    <text x="138" y="27" text-anchor="middle" fill="#34d399" font-size="9">Validators</text>
+    <rect x="186" y="10" width="80" height="24" rx="5" fill="#065f46" opacity="0.2" stroke="#059669" stroke-width="0.6"/>
+    <text x="226" y="27" text-anchor="middle" fill="#34d399" font-size="9">Cache Mgr</text>
+  </g>
+
+  <!-- Arrow: Cache -> Backend -->
+  <line x1="675" y1="440" x2="675" y2="480" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="675" y1="480" x2="470" y2="530" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- FRONTEND (bottom right) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g filter="shadow">
+    <rect x="520" y="490" width="440" height="355" rx="10" fill="#172554" stroke="url(#frontendGrad)" stroke-width="2" opacity="0.95"/>
+    <rect x="520" y="490" width="440" height="36" rx="10" fill="url(#frontendGrad)" opacity="0.9"/>
+    <rect x="520" y="516" width="440" height="10" fill="url(#frontendGrad)" opacity="0.9"/>
+  </g>
+  <text x="740" y="514" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">React Frontend</text>
+  <text x="870" y="514" fill="#93c5fd" font-size="10">:5173</text>
+
+  <!-- Tech badges -->
+  <g transform="translate(540, 536)">
+    <rect x="0" y="0" width="40" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="20" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">Vite</text>
+    <rect x="48" y="0" width="60" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="78" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">Tailwind</text>
+    <rect x="116" y="0" width="60" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="146" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">Zustand</text>
+    <rect x="184" y="0" width="75" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="221" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">React Query</text>
+    <rect x="267" y="0" width="65" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="299" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">Recharts</text>
+    <rect x="340" y="0" width="80" height="18" rx="4" fill="#1e40af" opacity="0.5" stroke="#3b82f6" stroke-width="0.8"/>
+    <text x="380" y="13" text-anchor="middle" fill="#93c5fd" font-size="8">TypeScript</text>
+  </g>
+
+  <!-- Pages -->
+  <g transform="translate(540, 570)">
+    <text x="0" y="0" fill="#93c5fd" font-size="11" font-weight="700">Pages</text>
+
+    <!-- Gallery -->
+    <rect x="0" y="10" width="125" height="55" rx="6" fill="#1e3a5f" opacity="0.6" stroke="#3b82f6" stroke-width="1"/>
+    <text x="63" y="28" text-anchor="middle" fill="#bfdbfe" font-size="10" font-weight="600">/ Gallery</text>
+    <text x="63" y="42" text-anchor="middle" fill="#60a5fa" font-size="8">Image grid</text>
+    <text x="63" y="54" text-anchor="middle" fill="#60a5fa" font-size="8">139 church images</text>
+
+    <!-- Image Detail -->
+    <rect x="133" y="10" width="125" height="55" rx="6" fill="#1e3a5f" opacity="0.6" stroke="#3b82f6" stroke-width="1"/>
+    <text x="196" y="28" text-anchor="middle" fill="#bfdbfe" font-size="10" font-weight="600">/image/:id</text>
+    <text x="196" y="42" text-anchor="middle" fill="#60a5fa" font-size="8">Attention viewer</text>
+    <text x="196" y="54" text-anchor="middle" fill="#60a5fa" font-size="8">Layer slider + bbox</text>
+
+    <!-- Compare -->
+    <rect x="266" y="10" width="125" height="55" rx="6" fill="#1e3a5f" opacity="0.6" stroke="#3b82f6" stroke-width="1"/>
+    <text x="329" y="28" text-anchor="middle" fill="#bfdbfe" font-size="10" font-weight="600">/compare</text>
+    <text x="329" y="42" text-anchor="middle" fill="#60a5fa" font-size="8">Side-by-side models</text>
+    <text x="329" y="54" text-anchor="middle" fill="#60a5fa" font-size="8">Frozen vs fine-tuned</text>
+  </g>
+
+  <g transform="translate(540, 645)">
+    <!-- Dashboard -->
+    <rect x="0" y="0" width="125" height="55" rx="6" fill="#1e3a5f" opacity="0.6" stroke="#3b82f6" stroke-width="1"/>
+    <text x="63" y="18" text-anchor="middle" fill="#bfdbfe" font-size="10" font-weight="600">/dashboard</text>
+    <text x="63" y="32" text-anchor="middle" fill="#60a5fa" font-size="8">Model leaderboard</text>
+    <text x="63" y="44" text-anchor="middle" fill="#60a5fa" font-size="8">Layer progression</text>
+
+    <!-- Q2 -->
+    <rect x="133" y="0" width="125" height="55" rx="6" fill="#1e3a5f" opacity="0.6" stroke="#3b82f6" stroke-width="1"/>
+    <text x="196" y="18" text-anchor="middle" fill="#bfdbfe" font-size="10" font-weight="600">/q2</text>
+    <text x="196" y="32" text-anchor="middle" fill="#60a5fa" font-size="8">Fine-tuning analysis</text>
+    <text x="196" y="44" text-anchor="middle" fill="#60a5fa" font-size="8">Strategy comparison</text>
+  </g>
+
+  <!-- Components -->
+  <g transform="translate(540, 715)">
+    <text x="0" y="0" fill="#93c5fd" font-size="11" font-weight="700">Key Components</text>
+
+    <rect x="0" y="10" width="100" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="50" y="25" text-anchor="middle" fill="#60a5fa" font-size="9">AttentionViewer</text>
+
+    <rect x="108" y="10" width="90" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="153" y="25" text-anchor="middle" fill="#60a5fa" font-size="9">ControlPanel</text>
+
+    <rect x="206" y="10" width="85" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="248" y="25" text-anchor="middle" fill="#60a5fa" font-size="9">ModelCompare</text>
+
+    <rect x="299" y="10" width="110" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="354" y="25" text-anchor="middle" fill="#60a5fa" font-size="9">ModelLeaderboard</text>
+
+    <rect x="0" y="40" width="95" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="48" y="55" text-anchor="middle" fill="#60a5fa" font-size="9">LayerSlider</text>
+
+    <rect x="103" y="40" width="115" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="160" y="55" text-anchor="middle" fill="#60a5fa" font-size="9">BboxOverlay</text>
+
+    <rect x="226" y="40" width="115" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="283" y="55" text-anchor="middle" fill="#60a5fa" font-size="9">SimilarityViewer</text>
+
+    <rect x="349" y="40" width="60" height="22" rx="4" fill="#1e3a5f" opacity="0.3" stroke="#2563eb" stroke-width="0.6"/>
+    <text x="379" y="55" text-anchor="middle" fill="#60a5fa" font-size="9">Charts</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- API Arrow: Backend -> Frontend -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g>
+    <line x1="470" y1="600" x2="515" y2="600" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <rect x="472" y="585" width="38" height="16" rx="3" fill="#1e293b" stroke="#94a3b8" stroke-width="0.8"/>
+    <text x="491" y="597" text-anchor="middle" fill="#cbd5e1" font-size="8" font-weight="600">REST</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- DATA FLOW LABEL (bottom) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <g transform="translate(40, 856)">
+    <text x="0" y="0" fill="#64748b" font-size="11" font-weight="500">Data Flow:</text>
+    <text x="75" y="0" fill="#a78bfa" font-size="11">Dataset</text>
+    <text x="130" y="0" fill="#64748b" font-size="11">+</text>
+    <text x="145" y="0" fill="#fbbf24" font-size="11">Models</text>
+    <text x="200" y="0" fill="#64748b" font-size="11">&#8594;</text>
+    <text x="220" y="0" fill="#f472b6" font-size="11">Precompute</text>
+    <text x="295" y="0" fill="#64748b" font-size="11">&#8594;</text>
+    <text x="315" y="0" fill="#94a3b8" font-size="11">Cache (HDF5/PNG)</text>
+    <text x="445" y="0" fill="#64748b" font-size="11">&#8594;</text>
+    <text x="465" y="0" fill="#34d399" font-size="11">FastAPI</text>
+    <text x="520" y="0" fill="#64748b" font-size="11">&#8594;</text>
+    <text x="540" y="0" fill="#60a5fa" font-size="11">React UI</text>
+    <text x="605" y="0" fill="#64748b" font-size="11">&#8594;</text>
+    <text x="625" y="0" fill="#e2e8f0" font-size="11">User</text>
+  </g>
+
+  <!-- User icon bottom right -->
+  <g transform="translate(1100, 810)">
+    <circle cx="30" cy="15" r="14" fill="none" stroke="#475569" stroke-width="1.5"/>
+    <circle cx="30" cy="10" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    <path d="M 16 28 Q 30 38 44 28" fill="none" stroke="#475569" stroke-width="1.5"/>
+    <text x="30" y="50" text-anchor="middle" fill="#475569" font-size="10">Researcher</text>
+  </g>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.03">
+    <line x1="0" y1="0" x2="0" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="200" y1="0" x2="200" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="400" y1="0" x2="400" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="600" y1="0" x2="600" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="800" y1="0" x2="800" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="1000" y1="0" x2="1000" y2="900" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="200" x2="1200" y2="200" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="400" x2="1200" y2="400" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="600" x2="1200" y2="600" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="800" x2="1200" y2="800" stroke="#fff" stroke-width="0.5"/>
+  </g>
+</svg>
