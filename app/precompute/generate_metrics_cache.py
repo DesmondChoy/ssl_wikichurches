@@ -53,6 +53,7 @@ from ssl_attention.metrics import (
     compute_image_mse,
 )
 from ssl_attention.metrics.continuous import (
+    annotation_to_gaussian_heatmap,
     compute_emd,
     compute_kl_divergence,
     compute_mse,
@@ -75,6 +76,7 @@ AGGREGATE_METRIC_MIGRATIONS = {
 }
 _FINETUNED_SUFFIX = "_finetuned"
 BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE = 90
+PER_HEAD_METHODS = {"cls", "mean"}
 BREAKDOWN_METRICS = {
     "iou": {"direction": "higher", "percentile_dependent": True, "column": "iou"},
     "coverage": {"direction": "higher", "percentile_dependent": False, "column": "coverage"},
@@ -108,6 +110,57 @@ FEATURE_METRICS_COLUMNS = {
     "std_score": "REAL",
     "bbox_count": "INTEGER",
 }
+HEAD_IMAGE_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "head": "INTEGER",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "image_id": "TEXT",
+    "percentile": "INTEGER",
+    "score": "REAL",
+}
+HEAD_SUMMARY_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "head": "INTEGER",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "percentile": "INTEGER",
+    "mean_score": "REAL",
+    "std_score": "REAL",
+    "mean_rank": "REAL",
+    "top1_count": "INTEGER",
+    "top3_count": "INTEGER",
+    "image_count": "INTEGER",
+}
+HEAD_FEATURE_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "head": "INTEGER",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "feature_label": "INTEGER",
+    "feature_name": "TEXT",
+    "percentile": "INTEGER",
+    "mean_score": "REAL",
+    "std_score": "REAL",
+    "bbox_count": "INTEGER",
+}
+
+
+def metric_query_percentiles(metric_name: str, percentiles: list[int]) -> list[int]:
+    """Return the relevant percentile keys for a metric."""
+    metric_config = BREAKDOWN_METRICS[metric_name]
+    if metric_config["percentile_dependent"]:
+        return list(percentiles)
+    return [BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE]
 
 
 def ensure_table_columns(
@@ -206,6 +259,87 @@ def ensure_metric_breakdown_schema(conn: sqlite3.Connection) -> None:
     recreate_metric_breakdown_tables(conn)
 
 
+def create_head_metric_tables(conn: sqlite3.Connection) -> None:
+    """Create Q3 per-head metric tables if they do not exist."""
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS head_image_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            head INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            image_id TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            score REAL NOT NULL,
+            UNIQUE(model, layer, method, head, metric, image_id, percentile)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS head_summary_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            head INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_score REAL NOT NULL,
+            std_score REAL NOT NULL,
+            mean_rank REAL NOT NULL,
+            top1_count INTEGER NOT NULL,
+            top3_count INTEGER NOT NULL,
+            image_count INTEGER NOT NULL,
+            UNIQUE(model, layer, method, head, metric, percentile)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS head_feature_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            head INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            feature_label INTEGER NOT NULL,
+            feature_name TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            mean_score REAL NOT NULL,
+            std_score REAL NOT NULL,
+            bbox_count INTEGER NOT NULL,
+            UNIQUE(model, layer, method, head, metric, feature_label, percentile)
+        )
+    """)
+
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_head_image_metric_lookup "
+        "ON head_image_metrics(model, layer, method, metric, percentile, image_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_head_summary_metric_lookup "
+        "ON head_summary_metrics(model, layer, method, metric, percentile)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_head_feature_metric_lookup "
+        "ON head_feature_metrics(model, layer, method, metric, percentile)"
+    )
+
+
+def ensure_head_metric_schema(conn: sqlite3.Connection) -> None:
+    """Ensure the Q3 per-head metric tables expose the current schema."""
+    create_head_metric_tables(conn)
+    ensure_table_columns(conn, "head_image_metrics", HEAD_IMAGE_METRICS_COLUMNS)
+    ensure_table_columns(conn, "head_summary_metrics", HEAD_SUMMARY_METRICS_COLUMNS)
+    ensure_table_columns(conn, "head_feature_metrics", HEAD_FEATURE_METRICS_COLUMNS)
+
+
 def create_database(db_path: Path) -> sqlite3.Connection:
     """Create metrics database with schema."""
     conn = sqlite3.connect(db_path)
@@ -258,6 +392,7 @@ def create_database(db_path: Path) -> sqlite3.Connection:
     """)
 
     ensure_metric_breakdown_schema(conn)
+    ensure_head_metric_schema(conn)
 
     # Indexes for fast queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_image_model_layer ON image_metrics(model, layer, method)")
@@ -288,6 +423,23 @@ def aggregate_feature_scores(
             "name": feature_names[label] if feature_names and label < len(feature_names) else f"feature_{label}",
         }
     return aggregated
+
+
+def rank_head_scores(
+    scores_by_head: dict[int, float],
+    *,
+    direction: str,
+) -> dict[int, int]:
+    """Rank head scores for one image/metric combination."""
+    reverse = direction == "higher"
+    ordered = sorted(
+        scores_by_head.items(),
+        key=lambda item: (-item[1], item[0]) if reverse else (item[1], item[0]),
+    )
+    return {
+        head: rank
+        for rank, (head, _score) in enumerate(ordered, start=1)
+    }
 
 
 def compute_metrics_for_model(
@@ -624,6 +776,273 @@ def compute_metrics_for_model(
     return stats
 
 
+def compute_per_head_metrics_for_model(
+    base_model_name: str,
+    dataset: AnnotatedSubset,
+    attention_cache: AttentionCache,
+    conn: sqlite3.Connection,
+    percentiles: list[int],
+    layers: list[int] | None = None,
+    methods: list[str] | None = None,
+    skip_existing: bool = True,
+    storage_model_key: str | None = None,
+    cache_model_keys: list[str] | None = None,
+) -> dict[str, int]:
+    """Compute Q3 per-head metrics for a single model."""
+    stats = {"processed": 0, "skipped": 0, "errors": 0}
+    model_key = storage_model_key or base_model_name
+    cache_keys = cache_model_keys or [model_key]
+    model_config = MODELS[base_model_name]
+
+    if model_config.num_heads <= 1:
+        return stats
+
+    def _std_value(values: torch.Tensor) -> float:
+        return values.std(unbiased=values.numel() > 1).item()
+
+    num_layers = model_config.num_layers
+    layers_to_process = layers if layers else list(range(num_layers))
+    all_methods = [m.value for m in MODEL_METHODS[base_model_name] if m.value in PER_HEAD_METHODS]
+    methods_to_process = [m for m in methods if m in all_methods] if methods else all_methods
+
+    if not methods_to_process:
+        return stats
+
+    print(f"\nProcessing per-head metrics for {model_key} ({len(layers_to_process)} layers, methods: {methods_to_process})")
+
+    cursor = conn.cursor()
+    _, feature_types = load_annotations_with_features(ANNOTATIONS_PATH)
+    feature_names = [ft.name for ft in feature_types]
+    query_percentiles_by_metric = {
+        metric_name: metric_query_percentiles(metric_name, percentiles)
+        for metric_name in BREAKDOWN_METRICS
+    }
+    expected_summary_rows = model_config.num_heads * sum(
+        len(query_percentiles_by_metric[metric_name]) for metric_name in BREAKDOWN_METRICS
+    )
+
+    for variant in methods_to_process:
+        print(f"  Method: {variant}")
+
+        for layer in layers_to_process:
+            layer_key = f"layer{layer}"
+
+            if skip_existing:
+                cursor.execute(
+                    """SELECT COUNT(*) FROM head_summary_metrics
+                       WHERE model = ? AND layer = ? AND method = ?""",
+                    (model_key, layer_key, variant),
+                )
+                existing_count = cursor.fetchone()[0]
+                if existing_count >= expected_summary_rows:
+                    stats["skipped"] += existing_count
+                    continue
+
+            print(f"    Layer: {layer_key}")
+            score_accumulator: dict[tuple[str, int, int], list[float]] = {}
+            rank_accumulator: dict[tuple[str, int, int], list[float]] = {}
+            top1_counts: dict[tuple[str, int, int], int] = {}
+            top3_counts: dict[tuple[str, int, int], int] = {}
+            feature_scores: dict[tuple[str, int, int], dict[int, list[float]]] = {}
+
+            for metric_name, query_percentiles in query_percentiles_by_metric.items():
+                for percentile in query_percentiles:
+                    for head_idx in range(model_config.num_heads):
+                        key = (metric_name, percentile, head_idx)
+                        score_accumulator[key] = []
+                        rank_accumulator[key] = []
+                        top1_counts[key] = 0
+                        top3_counts[key] = 0
+                        feature_scores[key] = {}
+
+            for image_id in tqdm(dataset.image_ids, desc=f"{model_key}/{variant}/{layer_key}"):
+                annotation = dataset.annotations[image_id]
+                image_metric_scores: dict[tuple[str, int], dict[int, float]] = {}
+
+                for head_idx in range(model_config.num_heads):
+                    per_head_variant = f"{variant}_head{head_idx}"
+                    attention = None
+                    for cache_key in cache_keys:
+                        try:
+                            attention = attention_cache.load(
+                                cache_key,
+                                layer_key,
+                                image_id,
+                                variant=per_head_variant,
+                            )
+                            break
+                        except KeyError:
+                            continue
+
+                    if attention is None:
+                        continue
+
+                    try:
+                        height, width = attention.shape[-2:]
+                        union_mask = annotation.get_union_mask(height, width).to(attention.device)
+                        union_heatmap = annotation_to_gaussian_heatmap(
+                            annotation,
+                            height,
+                            width,
+                            device=attention.device,
+                        )
+                        bbox_targets = [
+                            (
+                                bbox.label,
+                                bbox.to_mask(height, width).to(attention.device),
+                                gaussian_bbox_heatmap(
+                                    bbox,
+                                    height,
+                                    width,
+                                    device=attention.device,
+                                ),
+                            )
+                            for bbox in annotation.bboxes
+                        ]
+
+                        coverage = compute_coverage(attention, union_mask)
+                        mse = compute_mse(attention, union_heatmap)
+                        kl = compute_kl_divergence(attention, union_heatmap)
+                        emd = compute_emd(attention, union_heatmap)
+
+                        metric_values = {
+                            ("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE): coverage,
+                            ("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE): mse,
+                            ("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE): kl,
+                            ("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE): emd,
+                        }
+
+                        for percentile in percentiles:
+                            iou_result = compute_image_iou(
+                                attention=attention,
+                                annotation=annotation,
+                                image_id=image_id,
+                                percentile=percentile,
+                            )
+                            metric_values[("iou", percentile)] = iou_result.iou
+
+                            bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
+                            for label, score in bbox_ious:
+                                feature_scores[("iou", percentile, head_idx)].setdefault(label, []).append(score)
+
+                        for label, bbox_mask, bbox_heatmap in bbox_targets:
+                            feature_scores[("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
+                                label,
+                                [],
+                            ).append(compute_coverage(attention, bbox_mask))
+                            feature_scores[("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
+                                label,
+                                [],
+                            ).append(compute_mse(attention, bbox_heatmap))
+                            feature_scores[("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
+                                label,
+                                [],
+                            ).append(compute_kl_divergence(attention, bbox_heatmap))
+                            feature_scores[("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
+                                label,
+                                [],
+                            ).append(compute_emd(attention, bbox_heatmap))
+
+                        for (metric_name, percentile), score in metric_values.items():
+                            metric_config = BREAKDOWN_METRICS[metric_name]
+                            cursor.execute(
+                                """INSERT OR REPLACE INTO head_image_metrics
+                                   (model, layer, method, head, metric, direction, image_id, percentile, score)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (
+                                    model_key,
+                                    layer_key,
+                                    variant,
+                                    head_idx,
+                                    metric_name,
+                                    metric_config["direction"],
+                                    image_id,
+                                    percentile,
+                                    score,
+                                ),
+                            )
+                            score_accumulator[(metric_name, percentile, head_idx)].append(score)
+                            image_metric_scores.setdefault((metric_name, percentile), {})[head_idx] = score
+                            stats["processed"] += 1
+
+                    except Exception as exc:
+                        print(
+                            f"\nError computing per-head metrics for "
+                            f"{image_id} {layer_key}/{per_head_variant}: {exc}"
+                        )
+                        stats["errors"] += 1
+
+                for (metric_name, percentile), scores_by_head in image_metric_scores.items():
+                    metric_config = BREAKDOWN_METRICS[metric_name]
+                    direction = str(metric_config["direction"])
+                    ranks = rank_head_scores(scores_by_head, direction=direction)
+                    ordered_heads = sorted(ranks, key=lambda head: ranks[head])
+                    for head_idx, rank in ranks.items():
+                        rank_accumulator[(metric_name, percentile, head_idx)].append(float(rank))
+                    if ordered_heads:
+                        top1_counts[(metric_name, percentile, ordered_heads[0])] += 1
+                    for head_idx in ordered_heads[:3]:
+                        top3_counts[(metric_name, percentile, head_idx)] += 1
+
+            for (metric_name, percentile, head_idx), scores in score_accumulator.items():
+                if not scores:
+                    continue
+
+                rank_values = rank_accumulator[(metric_name, percentile, head_idx)]
+                score_tensor = torch.tensor(scores, dtype=torch.float32)
+                rank_tensor = torch.tensor(rank_values, dtype=torch.float32)
+                metric_config = BREAKDOWN_METRICS[metric_name]
+                cursor.execute(
+                    """INSERT OR REPLACE INTO head_summary_metrics
+                       (model, layer, method, head, metric, direction, percentile, mean_score, std_score, mean_rank, top1_count, top3_count, image_count)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        model_key,
+                        layer_key,
+                        variant,
+                        head_idx,
+                        metric_name,
+                        metric_config["direction"],
+                        percentile,
+                        score_tensor.mean().item(),
+                        _std_value(score_tensor),
+                        rank_tensor.mean().item() if rank_values else 0.0,
+                        top1_counts[(metric_name, percentile, head_idx)],
+                        top3_counts[(metric_name, percentile, head_idx)],
+                        len(scores),
+                    ),
+                )
+
+            for (metric_name, percentile, head_idx), scores_by_label in feature_scores.items():
+                metric_config = BREAKDOWN_METRICS[metric_name]
+                feature_stats = aggregate_feature_scores(scores_by_label, feature_names)
+                for label, stats_dict in feature_stats.items():
+                    feature_name = stats_dict.get("name", f"feature_{label}")
+                    cursor.execute(
+                        """INSERT OR REPLACE INTO head_feature_metrics
+                           (model, layer, method, head, metric, direction, feature_label, feature_name, percentile, mean_score, std_score, bbox_count)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            model_key,
+                            layer_key,
+                            variant,
+                            head_idx,
+                            metric_name,
+                            metric_config["direction"],
+                            label,
+                            feature_name,
+                            percentile,
+                            stats_dict["mean_score"],
+                            stats_dict["std_score"],
+                            int(stats_dict["count"]),
+                        ),
+                    )
+
+            conn.commit()
+
+    return stats
+
+
 def resolve_models_to_process(
     requested_models: list[str],
     *,
@@ -847,6 +1266,11 @@ def main() -> int:
             "Defaults to all canonical strategies."
         ),
     )
+    parser.add_argument(
+        "--per-head",
+        action="store_true",
+        help="Also compute Q3 per-head metrics from per-head attention cache variants.",
+    )
     args = parser.parse_args()
 
     # Validate
@@ -918,6 +1342,23 @@ def main() -> int:
                     cache_model_keys=cache_model_keys,
                 )
 
+                if args.per_head:
+                    head_stats = compute_per_head_metrics_for_model(
+                        base_model_name=model_name,
+                        dataset=dataset,
+                        attention_cache=attention_cache,
+                        conn=conn,
+                        percentiles=args.percentiles,
+                        layers=args.layers,
+                        methods=args.methods,
+                        skip_existing=not args.no_skip,
+                        storage_model_key=storage_model_key,
+                        cache_model_keys=cache_model_keys,
+                    )
+                    for key in total_stats:
+                        total_stats[key] += head_stats[key]
+                    print(f"{storage_model_key} per-head complete: {head_stats}")
+
                 for key in total_stats:
                     total_stats[key] += stats[key]
 
@@ -934,6 +1375,22 @@ def main() -> int:
                 skip_existing=not args.no_skip,
                 storage_model_key=model_name,
             )
+
+            if args.per_head:
+                head_stats = compute_per_head_metrics_for_model(
+                    base_model_name=model_name,
+                    dataset=dataset,
+                    attention_cache=attention_cache,
+                    conn=conn,
+                    percentiles=args.percentiles,
+                    layers=args.layers,
+                    methods=args.methods,
+                    skip_existing=not args.no_skip,
+                    storage_model_key=model_name,
+                )
+                for key in total_stats:
+                    total_stats[key] += head_stats[key]
+                print(f"{model_name} per-head complete: {head_stats}")
 
             for key in total_stats:
                 total_stats[key] += stats[key]

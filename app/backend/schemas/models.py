@@ -235,6 +235,59 @@ class FeatureBreakdownSchema(BaseModel):
     method: str | None = None
 
 
+class HeadRankingEntrySchema(BaseModel):
+    """Aggregate Q3 ranking stats for one attention head."""
+
+    head: int
+    mean_score: float
+    std_score: float
+    mean_rank: float
+    top1_count: int
+    top3_count: int
+    image_count: int
+
+
+class HeadRankingResponse(BaseModel):
+    """Metric-specific Q3 head ranking payload."""
+
+    model: str
+    variant: CompareVariant
+    layer: str
+    method: str | None = None
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
+    percentile: int
+    supported: bool = True
+    reason: str | None = None
+    heads: list[HeadRankingEntrySchema] = Field(default_factory=list)
+
+
+class HeadFeatureMatrixRowSchema(BaseModel):
+    """One feature row in the Q3 head-by-feature matrix."""
+
+    feature_label: int
+    feature_name: str
+    bbox_count: int
+    scores: list[float | None]
+
+
+class HeadFeatureMatrixResponse(BaseModel):
+    """Metric-specific Q3 feature matrix payload."""
+
+    model: str
+    variant: CompareVariant
+    layer: str
+    method: str | None = None
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
+    percentile: int
+    supported: bool = True
+    reason: str | None = None
+    heads: list[int] = Field(default_factory=list)
+    features: list[HeadFeatureMatrixRowSchema] = Field(default_factory=list)
+    total_feature_types: int = 0
+
+
 class RawAttentionResponse(BaseModel):
     """Raw attention values for client-side rendering."""
 

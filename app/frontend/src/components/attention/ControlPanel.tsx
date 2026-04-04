@@ -22,20 +22,25 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     model,
     layer,
     method,
+    head,
     percentile,
     showBboxes,
     heatmapOpacity,
     heatmapStyle,
     availableMethods,
+    numHeadsPerModel,
+    perHeadMethods,
     setModel,
     setLayer,
     setMethod,
+    setHead,
     setPercentile,
     setShowBboxes,
     setHeatmapOpacity,
     setHeatmapStyle,
     setMethodsConfig,
     setNumLayersPerModel,
+    setPerHeadConfig,
   } = useViewStore();
 
   const { data: modelsData, isLoading } = useModels();
@@ -53,6 +58,12 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
       setNumLayersPerModel(modelsData.num_layers_per_model);
     }
   }, [modelsData, setNumLayersPerModel]);
+
+  useEffect(() => {
+    if (modelsData?.num_heads_per_model && modelsData?.per_head_methods) {
+      setPerHeadConfig(modelsData.num_heads_per_model, modelsData.per_head_methods);
+    }
+  }, [modelsData, setPerHeadConfig]);
 
   // Get max layer for current model (0-indexed, so subtract 1)
   const maxLayer = modelsData?.num_layers_per_model?.[model]
@@ -86,6 +97,14 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     value: m,
     label: getAttentionMethodLabel(m),
   }));
+  const supportsHeadSelection = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+  const headOptions = [
+    { value: '-1', label: 'All (Fused)' },
+    ...Array.from({ length: numHeadsPerModel[model] || 0 }, (_, idx) => ({
+      value: String(idx),
+      label: `Head ${idx}`,
+    })),
+  ];
 
   const heatmapStyleOptions = [
     { value: 'smooth', label: 'Smooth Gradient' },
@@ -113,6 +132,16 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
           options={methodOptions}
           label="Attention Method"
           tooltip={GLOSSARY['Attention Method']}
+        />
+      )}
+
+      {supportsHeadSelection && (
+        <Select
+          value={head === null ? '-1' : String(head)}
+          onChange={(value) => setHead(value === '-1' ? null : Number(value))}
+          options={headOptions}
+          label="Attention Head"
+          tooltip={GLOSSARY['Attention Head']}
         />
       )}
 

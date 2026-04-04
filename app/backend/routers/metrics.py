@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Query
 from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
 from app.backend.schemas import (
     FeatureBreakdownSchema,
+    HeadFeatureMatrixResponse,
+    HeadRankingResponse,
     ImageLayerProgressionSchema,
     IoUResultSchema,
     LayerProgressionSchema,
@@ -370,6 +372,62 @@ async def get_feature_breakdown(
         method=resolved_method,
     )
     return FeatureBreakdownSchema(**data)
+
+
+@router.get("/model/{model}/head_ranking", response_model=HeadRankingResponse)
+async def get_head_ranking(
+    model: str,
+    layer: Annotated[int, Query(ge=0)] = 11,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
+    variant: Annotated[Literal["frozen", "linear_probe", "lora", "full"], Query()] = "frozen",
+) -> HeadRankingResponse:
+    """Get the Q3 per-head ranking summary for one model/layer/metric."""
+    validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
+
+    if not metrics_service.db_exists:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics database not available.",
+        )
+
+    data = metrics_service.get_head_ranking(
+        model=model,
+        layer=layer_key,
+        percentile=percentile,
+        metric=metric,
+        variant=variant,
+    )
+    return HeadRankingResponse(**data)
+
+
+@router.get("/model/{model}/head_feature_matrix", response_model=HeadFeatureMatrixResponse)
+async def get_head_feature_matrix(
+    model: str,
+    layer: Annotated[int, Query(ge=0)] = 11,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
+    variant: Annotated[Literal["frozen", "linear_probe", "lora", "full"], Query()] = "frozen",
+) -> HeadFeatureMatrixResponse:
+    """Get the Q3 head-by-feature matrix for one model/layer/metric."""
+    validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
+
+    if not metrics_service.db_exists:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics database not available.",
+        )
+
+    data = metrics_service.get_head_feature_matrix(
+        model=model,
+        layer=layer_key,
+        percentile=percentile,
+        metric=metric,
+        variant=variant,
+    )
+    return HeadFeatureMatrixResponse(**data)
 
 
 @router.get("/model/{model}/aggregate")

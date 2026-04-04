@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
 
+from app.precompute import generate_attention_cache as generate_attention_cache_module
 from app.precompute.generate_attention_cache import (
     FINETUNE_MODELS,
     discover_checkpoints,
     discover_checkpoints_by_strategy,
+    generate_attention_for_model,
 )
-from ssl_attention.config import MODELS
+from ssl_attention.config import MODELS, AttentionMethod
 
 
 class TestDiscoverCheckpoints:
@@ -135,3 +139,72 @@ class TestFineTuneModelsConstant:
         """Every model in FINETUNE_MODELS must exist in MODELS config."""
         for name in FINETUNE_MODELS:
             assert name in MODELS, f"{name} in FINETUNE_MODELS but not in MODELS config"
+
+
+class FakeCache:
+    """Minimal cache test double for per-head generation tests."""
+
+    def __init__(self) -> None:
+        self.stored_variants: list[str] = []
+
+    def exists(self, model: str, layer: str, image_id: str, variant: str) -> bool:
+        return variant == "cls"
+
+    def store(self, model: str, layer: str, image_id: str, tensor: torch.Tensor, variant: str) -> None:
+        self.stored_variants.append(variant)
+
+
+class FakeModel:
+    """Minimal model test double for attention cache generation."""
+
+    def to(self, device: str) -> FakeModel:
+        return self
+
+    def eval(self) -> FakeModel:
+        return self
+
+    def preprocess(self, images: list[object]) -> torch.Tensor:
+        return torch.zeros((1, 3, 224, 224), dtype=torch.float32)
+
+    def forward(self, inputs: torch.Tensor) -> SimpleNamespace:
+        return SimpleNamespace(attention_weights=[torch.zeros(1)] * 12)
+
+
+class TestPerHeadAttentionGeneration:
+    """Verify --per-head generation handles partially cached attention safely."""
+
+    def test_backfills_missing_heads_when_fused_attention_is_already_cached(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        dataset = [{"image_id": "img1.jpg", "image": object()}]
+        cache = FakeCache()
+
+        monkeypatch.setattr(generate_attention_cache_module, "create_model", lambda _model_name: FakeModel())
+        monkeypatch.setattr(
+            generate_attention_cache_module,
+            "extract_cls_attention",
+            lambda *_args, **_kwargs: torch.ones((1, 14, 14), dtype=torch.float32),
+        )
+        monkeypatch.setattr(
+            generate_attention_cache_module,
+            "attention_to_heatmap",
+            lambda attention, image_size: attention,
+        )
+
+        stats = generate_attention_for_model(
+            "dinov2",
+            dataset=dataset,  # type: ignore[arg-type]
+            cache=cache,  # type: ignore[arg-type]
+            layers=[11],
+            methods=[AttentionMethod.CLS],
+            device="cpu",
+            skip_existing=True,
+            per_head=True,
+        )
+
+        assert stats["processed"] == MODELS["dinov2"].num_heads
+        assert stats["skipped"] == 1
+        assert cache.stored_variants == [
+            f"cls_head{head_idx}" for head_idx in range(MODELS["dinov2"].num_heads)
+        ]

@@ -4,7 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
-import type { AnalysisMetric, DashboardMetric, RankingMode } from '../types';
+import type { AnalysisMetric, CompareVariantId, DashboardMetric, RankingMode } from '../types';
 
 export function useStyleBreakdown(
   model: string,
@@ -54,5 +54,31 @@ export function useQ2Summary(
   return useQuery({
     queryKey: ['q2Summary', metric, percentile, model, strategy],
     queryFn: () => metricsAPI.getQ2Summary({ metric, percentile, model, strategy }),
+  });
+}
+
+export function useHeadRanking(
+  model: string,
+  layer: number,
+  percentile: number,
+  metric: AnalysisMetric,
+  variant: CompareVariantId
+) {
+  return useQuery({
+    queryKey: ['headRanking', model, layer, percentile, metric, variant],
+    queryFn: () => metricsAPI.getHeadRanking(model, layer, percentile, metric, variant),
+  });
+}
+
+export function useHeadFeatureMatrix(
+  model: string,
+  layer: number,
+  percentile: number,
+  metric: AnalysisMetric,
+  variant: CompareVariantId
+) {
+  return useQuery({
+    queryKey: ['headFeatureMatrix', model, layer, percentile, metric, variant],
+    queryFn: () => metricsAPI.getHeadFeatureMatrix(model, layer, percentile, metric, variant),
   });
 }

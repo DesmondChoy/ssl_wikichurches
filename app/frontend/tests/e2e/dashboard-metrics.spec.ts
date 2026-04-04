@@ -133,6 +133,13 @@ async function stubDashboardApis(page: Page) {
           siglip2: ['mean'],
           resnet50: ['gradcam'],
         },
+        num_heads_per_model: {
+          dinov2: 12,
+          clip: 12,
+          siglip2: 12,
+          resnet50: 0,
+        },
+        per_head_methods: ['cls', 'mean'],
         default_methods: {
           dinov2: 'cls',
           clip: 'cls',
@@ -210,6 +217,66 @@ async function stubDashboardApis(page: Page) {
             bbox_count: 12,
           },
         ],
+      }),
+    });
+  });
+
+  await page.route('**/api/metrics/model/*/head_ranking?**', async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_ranking/);
+    const model = match?.[1] ?? 'dinov2';
+    const metric = url.searchParams.get('metric') ?? 'iou';
+    const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model,
+        variant: url.searchParams.get('variant') ?? 'frozen',
+        layer: 'layer11',
+        method: model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+        metric,
+        direction,
+        percentile: Number(url.searchParams.get('percentile') ?? '90'),
+        supported: model !== 'resnet50',
+        reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+        heads: model === 'resnet50'
+          ? []
+          : [
+              { head: 0, mean_score: 0.44, std_score: 0.04, mean_rank: 1.2, top1_count: 8, top3_count: 11, image_count: 12 },
+              { head: 5, mean_score: 0.32, std_score: 0.05, mean_rank: 2.4, top1_count: 2, top3_count: 7, image_count: 12 },
+            ],
+      }),
+    });
+  });
+
+  await page.route('**/api/metrics/model/*/head_feature_matrix?**', async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_feature_matrix/);
+    const model = match?.[1] ?? 'dinov2';
+    const metric = url.searchParams.get('metric') ?? 'iou';
+    const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        model,
+        variant: url.searchParams.get('variant') ?? 'frozen',
+        layer: 'layer11',
+        method: model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+        metric,
+        direction,
+        percentile: Number(url.searchParams.get('percentile') ?? '90'),
+        supported: model !== 'resnet50',
+        reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+        heads: model === 'resnet50' ? [] : [0, 1, 2],
+        total_feature_types: model === 'resnet50' ? 0 : 2,
+        features: model === 'resnet50'
+          ? []
+          : [
+              { feature_label: 7, feature_name: 'Door', bbox_count: 5, scores: [0.21, 0.33, 0.27] },
+              { feature_label: 42, feature_name: 'Window', bbox_count: 9, scores: [0.48, 0.51, 0.45] },
+            ],
       }),
     });
   });
@@ -294,6 +361,16 @@ test.describe('Dashboard metrics', () => {
             siglip2: ['mean'],
             resnet50: ['gradcam'],
           },
+          num_heads_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 0,
+          },
+          per_head_methods: ['cls', 'mean'],
           default_methods: {
             dinov2: 'cls',
             dinov3: 'cls',
@@ -422,6 +499,58 @@ test.describe('Dashboard metrics', () => {
       });
     });
 
+    await page.route('**/api/metrics/model/*/head_ranking?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_ranking/);
+      const model = match?.[1] ?? 'dinov2';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          variant: url.searchParams.get('variant') ?? 'frozen',
+          layer: 'layer11',
+          method: model === 'siglip' || model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+          metric: url.searchParams.get('metric') ?? 'iou',
+          direction: 'higher',
+          percentile: Number(url.searchParams.get('percentile') ?? '90'),
+          supported: model !== 'resnet50',
+          reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+          heads: model === 'resnet50'
+            ? []
+            : [
+                { head: 0, mean_score: 0.44, std_score: 0.04, mean_rank: 1.2, top1_count: 8, top3_count: 11, image_count: 12 },
+              ],
+        }),
+      });
+    });
+
+    await page.route('**/api/metrics/model/*/head_feature_matrix?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_feature_matrix/);
+      const model = match?.[1] ?? 'dinov2';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          variant: url.searchParams.get('variant') ?? 'frozen',
+          layer: 'layer11',
+          method: model === 'siglip' || model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+          metric: url.searchParams.get('metric') ?? 'iou',
+          direction: 'higher',
+          percentile: Number(url.searchParams.get('percentile') ?? '90'),
+          supported: model !== 'resnet50',
+          reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+          heads: model === 'resnet50' ? [] : [0, 1, 2],
+          total_feature_types: model === 'resnet50' ? 0 : 1,
+          features: model === 'resnet50'
+            ? []
+            : [{ feature_label: 1, feature_name: 'Window', bbox_count: 12, scores: [0.41, 0.35, 0.28] }],
+        }),
+      });
+    });
+
     const summaryResponse = page.waitForResponse(
       (response) =>
         response.url().includes('/api/compare/all_models_summary')
@@ -472,6 +601,28 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByTestId('dashboard-method-context')).toContainText(
       "Leaderboard and layer progression rank each model by its strongest available attention method."
     );
+  });
+
+  test('renders the Q3 panel, supports metric switching, and shows unsupported model states', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard');
+
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
+    await expect(page.getByText('Head Ranking')).toBeVisible();
+    await expect(page.getByText('Head × Feature Matrix')).toBeVisible();
+    await expect(page.getByText('Door').first()).toBeVisible();
+    await expect(page.getByText('Window').first()).toBeVisible();
+
+    const q3Section = page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+
+    await q3Section.locator('select').nth(3).selectOption('coverage');
+    await expect(page.getByText(/Coverage measures how much attention energy lands inside the annotated regions/)).toBeVisible();
+
+    await q3Section.locator('select').nth(0).selectOption('resnet50');
+    await expect(page.getByText(/Q3 per-head analysis is not supported for model 'resnet50'\./)).toBeVisible();
   });
 
   test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {

@@ -16,6 +16,7 @@ interface AttentionViewerProps {
   model: string;
   layer: number;
   method: string;
+  head: number | null;
   percentile: number;
   showBboxes: boolean;
   bboxes?: BoundingBox[];
@@ -29,6 +30,7 @@ export function AttentionViewer({
   model,
   layer,
   method,
+  head,
   percentile,
   showBboxes,
   bboxes = [],
@@ -42,7 +44,7 @@ export function AttentionViewer({
   // Reset error state when model/layer/method changes
   // Uses the "adjust state during render" pattern recommended by React
   // instead of setState-in-effect which causes cascading renders.
-  const errorResetKey = `${imageId}|${model}|${layer}|${method}`;
+  const errorResetKey = `${imageId}|${model}|${layer}|${method}|${head ?? 'all'}`;
   const [prevResetKey, setPrevResetKey] = useState(errorResetKey);
   if (errorResetKey !== prevResetKey) {
     setPrevResetKey(errorResetKey);
@@ -60,8 +62,8 @@ export function AttentionViewer({
 
   // Fetch raw attention data for dynamic rendering
   const { data: rawAttentionData, isLoading: attentionLoading, error: attentionError } = useQuery({
-    queryKey: ['rawAttention', imageId, model, layer, method],
-    queryFn: () => attentionAPI.getRawAttention(imageId, model, layer, method),
+    queryKey: ['rawAttention', imageId, model, layer, method, head],
+    queryFn: () => attentionAPI.getRawAttention(imageId, model, layer, method, head),
     staleTime: 60000, // Cache for 1 minute
     placeholderData: keepPreviousData,
   });
@@ -100,7 +102,7 @@ export function AttentionViewer({
         layer
       );
     },
-    enabled: !!selectedBbox,
+    enabled: !!selectedBbox && head === null,
     staleTime: 60000, // Cache for 1 minute
     placeholderData: keepPreviousData,
   });
@@ -162,7 +164,7 @@ export function AttentionViewer({
   }
 
   // Determine which image to show
-  const showSimilarityHeatmap = selectedBbox && similarityHeatmapUrl && !similarityLoading;
+  const showSimilarityHeatmap = head === null && selectedBbox && similarityHeatmapUrl && !similarityLoading;
 
   return (
     <div className={`relative group ${className}`}>
@@ -239,6 +241,9 @@ export function AttentionViewer({
       {/* Info badge */}
       <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
         {model} / {method} / Layer {layer} / Top {100 - percentile}%
+        {head !== null && (
+          <span className="ml-2 text-sky-300">Head {head}</span>
+        )}
         {selectedBbox && (
           <span className="ml-2 text-green-300">
             {selectedBbox.label_name || `Feature ${selectedBbox.label}`}

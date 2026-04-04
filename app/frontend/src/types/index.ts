@@ -134,6 +134,51 @@ export interface FeatureBreakdown {
   total_feature_types: number;
 }
 
+export interface HeadRankingEntry {
+  head: number;
+  mean_score: number;
+  std_score: number;
+  mean_rank: number;
+  top1_count: number;
+  top3_count: number;
+  image_count: number;
+}
+
+export interface HeadRankingResponse {
+  model: string;
+  variant: CompareVariantId;
+  layer: string;
+  method: string | null;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
+  percentile: number;
+  supported: boolean;
+  reason: string | null;
+  heads: HeadRankingEntry[];
+}
+
+export interface HeadFeatureMatrixRow {
+  feature_label: number;
+  feature_name: string;
+  bbox_count: number;
+  scores: Array<number | null>;
+}
+
+export interface HeadFeatureMatrixResponse {
+  model: string;
+  variant: CompareVariantId;
+  layer: string;
+  method: string | null;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
+  percentile: number;
+  supported: boolean;
+  reason: string | null;
+  heads: number[];
+  features: HeadFeatureMatrixRow[];
+  total_feature_types: number;
+}
+
 export interface ModelComparison {
   image_id: string;
   models: string[];
@@ -260,6 +305,7 @@ export interface ViewSettings {
   model: string;
   layer: number;
   method: string;
+  head: number | null;
   percentile: number;
   showBboxes: boolean;
   heatmapOpacity: number;
@@ -272,6 +318,8 @@ export interface ModelsResponse {
   num_layers: number;  // Legacy: global default
   num_layers_per_model: Record<string, number>;  // Per-model layer counts
   methods: Record<string, string[]>;
+  num_heads_per_model: Record<string, number>;
+  per_head_methods: string[];
   default_methods: Record<string, string>;
 }
 

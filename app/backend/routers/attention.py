@@ -14,7 +14,9 @@ from app.backend.config import (
     DEBUG,
     DEFAULT_METHOD,
     MODEL_METHODS,
+    MODEL_NUM_HEADS,
     NUM_LAYERS,
+    PER_HEAD_METHODS,
     AttentionMethod,
     get_model_num_layers,
     resolve_model_name,
@@ -120,6 +122,7 @@ async def get_raw_attention(
     model: Annotated[str, Query(description="Model name")] = "dinov2",
     layer: Annotated[int, Query(ge=0, description="Layer number")] = 11,
     method: Annotated[str | None, Query(description="Attention method (cls, rollout, mean, gradcam)")] = None,
+    head: Annotated[int | None, Query(ge=0, le=11, description="Optional attention head index")] = None,
 ) -> RawAttentionResponse:
     """Get raw attention values for client-side rendering.
 
@@ -135,11 +138,31 @@ async def get_raw_attention(
     resolved_model = validate_model(model)
     layer_key = validate_layer_for_model(layer, resolved_model)
     resolved_method = validate_method(resolved_model, method)
+    num_heads = MODEL_NUM_HEADS.get(resolve_model_name(model), 0)
+
+    if head is not None:
+        if resolved_method not in PER_HEAD_METHODS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"head parameter not supported for method '{resolved_method}'.",
+            )
+        if num_heads <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"head parameter not supported for model '{model}'.",
+            )
+        if head >= num_heads:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid head: {head}. Model '{model}' has heads 0-{num_heads - 1}.",
+            )
+
+    variant = attention_service.resolve_variant(resolved_method, head)
 
     # Check if attention is cached
-    if not attention_service.exists(resolved_model, layer_key, image_id, method=resolved_method):
+    if not attention_service.exists(resolved_model, layer_key, image_id, method=variant):
         detail = (
-            f"Attention not cached for {resolved_model}/{layer_key}/{resolved_method}/{image_id}. "
+            f"Attention not cached for {resolved_model}/{layer_key}/{variant}/{image_id}. "
             "Run generate_attention_cache.py first."
         ) if DEBUG else "Requested resource not found"
         raise HTTPException(status_code=404, detail=detail)
@@ -150,6 +173,7 @@ async def get_raw_attention(
             model=resolved_model,
             layer=layer,
             method=resolved_method,
+            head=head,
         )
         return RawAttentionResponse(**result)
     except ValueError as e:
@@ -218,6 +242,11 @@ async def list_models() -> dict:
             m: [method.value for method in MODEL_METHODS.get(resolve_model_name(m), [])]
             for m in AVAILABLE_MODELS
         },
+        "num_heads_per_model": {
+            m: MODEL_NUM_HEADS.get(resolve_model_name(m), 0)
+            for m in AVAILABLE_MODELS
+        },
+        "per_head_methods": sorted(PER_HEAD_METHODS),
         "default_methods": {
             m: DEFAULT_METHOD.get(resolve_model_name(m), AttentionMethod.CLS).value
             for m in AVAILABLE_MODELS

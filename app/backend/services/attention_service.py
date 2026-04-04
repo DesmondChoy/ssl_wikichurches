@@ -80,12 +80,17 @@ class AttentionService:
         result: bool = self.cache.exists(cache_model, layer, image_id, variant=method)
         return result
 
+    def resolve_variant(self, method: str, head: int | None = None) -> str:
+        """Build the cache variant key for fused or per-head attention."""
+        return f"{method}_head{head}" if head is not None else method
+
     def get_raw_attention(
         self,
         image_id: str,
         model: str,
         layer: int,
         method: str = "cls",
+        head: int | None = None,
     ) -> dict:
         """Load raw attention values from cache.
 
@@ -94,6 +99,7 @@ class AttentionService:
             model: Model name.
             layer: Layer number (0-11).
             method: Attention method (cls, rollout, mean, gradcam).
+            head: Optional per-head selector.
 
         Returns:
             Dict with:
@@ -104,13 +110,14 @@ class AttentionService:
         """
         layer_key = f"layer{layer}"
         cache_model = resolve_model_name(model)
+        variant = self.resolve_variant(method, head)
 
         # Load from cache
         try:
-            attention_tensor = self.cache.load(cache_model, layer_key, image_id, variant=method)
+            attention_tensor = self.cache.load(cache_model, layer_key, image_id, variant=variant)
         except KeyError as e:
             raise ValueError(
-                f"Attention not cached for {model}/{layer_key}/{method}/{image_id}. "
+                f"Attention not cached for {model}/{layer_key}/{variant}/{image_id}. "
                 "Run generate_attention_cache.py first."
             ) from e
 

@@ -4,6 +4,8 @@
  */
 
 export const GLOSSARY: Record<string, string> = {
+  'Attention Head':
+    'Individual transformer attention head. "All (Fused)" averages all heads, while a specific head lets you inspect one learned attention pattern at a time.',
   'Attention Method':
     'How attention is computed. CLS uses class token attention. Rollout accumulates attention across layers.',
   'Attention Threshold':

@@ -360,6 +360,63 @@ def _create_breakdown_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _create_head_q3_db(conn: sqlite3.Connection) -> None:
+    """Populate per-head Q3 tables for service-level tests."""
+    conn.execute(
+        """CREATE TABLE head_summary_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            head INTEGER,
+            metric TEXT,
+            direction TEXT,
+            percentile INTEGER,
+            mean_score REAL,
+            std_score REAL,
+            mean_rank REAL,
+            top1_count INTEGER,
+            top3_count INTEGER,
+            image_count INTEGER
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE head_feature_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            head INTEGER,
+            metric TEXT,
+            direction TEXT,
+            feature_label INTEGER,
+            feature_name TEXT,
+            percentile INTEGER,
+            mean_score REAL,
+            std_score REAL,
+            bbox_count INTEGER
+        )"""
+    )
+
+    conn.executemany(
+        "INSERT INTO head_summary_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("dinov2", "layer11", "cls", 5, "iou", "higher", 80, 0.52, 0.04, 1.3, 7, 10, 12),
+            ("dinov2", "layer11", "cls", 2, "iou", "higher", 80, 0.41, 0.06, 2.2, 3, 9, 12),
+            ("dinov2", "layer11", "cls", 1, "emd", "lower", 90, 0.08, 0.01, 1.1, 8, 11, 12),
+            ("dinov2", "layer11", "cls", 7, "emd", "lower", 90, 0.14, 0.03, 2.6, 2, 5, 12),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO head_feature_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("dinov2", "layer11", "cls", 0, "coverage", "higher", 7, "door", 90, 0.21, 0.03, 5),
+            ("dinov2", "layer11", "cls", 1, "coverage", "higher", 7, "door", 90, 0.33, 0.02, 5),
+            ("dinov2", "layer11", "cls", 0, "coverage", "higher", 42, "window", 90, 0.48, 0.05, 9),
+            ("dinov2", "layer11", "cls", 1, "coverage", "higher", 42, "window", 90, 0.51, 0.04, 9),
+        ],
+    )
+    conn.commit()
+
+
 class TestLayerProgression:
     """Verify get_layer_progression() ordering and best-layer logic."""
 
@@ -1137,6 +1194,88 @@ class TestMetricGenericBreakdowns:
         assert result["percentile"] == 50
         assert [feature["feature_name"] for feature in result["features"]] == ["door", "window"]
         assert result["features"][0]["mean_score"] == pytest.approx(0.06)
+
+
+class TestQ3HeadMetrics:
+    """Verify Q3 service queries respect metric semantics and unsupported models."""
+
+    @pytest.fixture
+    def service(self):
+        from app.backend.services.metrics_service import MetricsService
+
+        return object.__new__(MetricsService)
+
+    @pytest.fixture
+    def mem_db(self):
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        _create_head_q3_db(conn)
+        yield conn
+        conn.close()
+
+    def test_get_head_ranking_uses_metric_specific_percentile_and_ordering(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            iou_result = service.get_head_ranking(
+                model="dinov2",
+                layer="layer11",
+                percentile=80,
+                metric="iou",
+                variant="frozen",
+            )
+            emd_result = service.get_head_ranking(
+                model="dinov2",
+                layer="layer11",
+                percentile=50,
+                metric="emd",
+                variant="frozen",
+            )
+
+        assert iou_result["supported"] is True
+        assert iou_result["method"] == "cls"
+        assert [entry["head"] for entry in iou_result["heads"]] == [5, 2]
+        assert iou_result["heads"][0]["mean_rank"] == pytest.approx(1.3)
+
+        assert emd_result["supported"] is True
+        assert emd_result["percentile"] == 50
+        assert [entry["head"] for entry in emd_result["heads"]] == [1, 7]
+        assert emd_result["heads"][0]["mean_score"] == pytest.approx(0.08)
+
+    def test_get_head_feature_matrix_builds_dense_head_columns(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_head_feature_matrix(
+                model="dinov2",
+                layer="layer11",
+                percentile=50,
+                metric="coverage",
+                variant="frozen",
+            )
+
+        assert result["supported"] is True
+        assert result["percentile"] == 50
+        assert result["heads"][:2] == [0, 1]
+        assert result["total_feature_types"] == 2
+        assert result["features"][0]["feature_name"] == "door"
+        assert result["features"][0]["scores"][0] == pytest.approx(0.21)
+        assert result["features"][0]["scores"][1] == pytest.approx(0.33)
+        assert result["features"][0]["scores"][2] is None
+
+    def test_get_head_ranking_returns_unsupported_payload_for_resnet(self, service):
+        result = service.get_head_ranking(
+            model="resnet50",
+            layer="layer0",
+            percentile=90,
+            metric="iou",
+            variant="frozen",
+        )
+
+        assert result["supported"] is False
+        assert "not supported" in str(result["reason"]).lower()
 
 
 class TestQ2SummaryFiltering:

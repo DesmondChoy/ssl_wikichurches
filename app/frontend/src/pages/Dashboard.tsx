@@ -13,6 +13,7 @@ import { useAllModelsSummary, useStyleBreakdown } from '../hooks/useMetrics';
 import { useModels } from '../hooks/useAttention';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
+import { Q3HeadAnalysis } from '../components/metrics/Q3HeadAnalysis';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Select } from '../components/ui/Select';
@@ -337,6 +338,10 @@ export function DashboardPage() {
           />
         </ErrorBoundary>
       </div>
+
+      <ErrorBoundary>
+        <Q3HeadAnalysis />
+      </ErrorBoundary>
 
       {/* Quick links */}
       <Card>

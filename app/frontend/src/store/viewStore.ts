@@ -15,11 +15,14 @@ interface ViewStore extends ViewSettings {
 
   // Number of layers per model (populated from API)
   numLayersPerModel: Record<string, number>;
+  numHeadsPerModel: Record<string, number>;
+  perHeadMethods: string[];
 
   // Actions
   setModel: (model: string) => void;
   setLayer: (layer: number) => void;
   setMethod: (method: string) => void;
+  setHead: (head: number | null) => void;
   setModelWithPreferredMethod: (model: string, preferredMethod: string) => void;
   setPercentile: (percentile: number) => void;
   setShowBboxes: (show: boolean) => void;
@@ -28,6 +31,7 @@ interface ViewStore extends ViewSettings {
   setSelectedBboxIndex: (index: number | null) => void;
   setMethodsConfig: (methods: Record<string, string[]>, defaults: Record<string, string>) => void;
   setNumLayersPerModel: (numLayers: Record<string, number>) => void;
+  setPerHeadConfig: (numHeads: Record<string, number>, methods: string[]) => void;
   reset: () => void;
 }
 
@@ -35,6 +39,7 @@ const DEFAULT_SETTINGS: ViewSettings = {
   model: 'dinov2',
   layer: 0,  // Safe default for all models (including ResNet-50 which has only 4 layers)
   method: 'cls',
+  head: null,
   percentile: 90,
   showBboxes: true,
   heatmapOpacity: 0.5,
@@ -47,25 +52,34 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   availableMethods: {},
   defaultMethods: {},
   numLayersPerModel: {},
+  numHeadsPerModel: {},
+  perHeadMethods: [],
 
   setModel: (model) => {
-    const { defaultMethods, numLayersPerModel, layer } = get();
+    const { defaultMethods, numLayersPerModel, numHeadsPerModel, layer, perHeadMethods, head } = get();
     const newMethod = defaultMethods[model] || 'cls';
     const maxLayer = (numLayersPerModel[model] || 12) - 1;
     const clampedLayer = Math.min(layer, maxLayer);
-    set({ model, method: newMethod, layer: clampedLayer, selectedBboxIndex: null });
+    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(newMethod);
+    set({ model, method: newMethod, head: supportsHead ? head : null, layer: clampedLayer, selectedBboxIndex: null });
   },
   setLayer: (layer) => set({ layer }), // Keep selection on layer change to compare
-  setMethod: (method) => set({ method }),
+  setMethod: (method) => {
+    const { model, numHeadsPerModel, perHeadMethods } = get();
+    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+    set({ method, head: supportsHead ? get().head : null });
+  },
+  setHead: (head) => set({ head }),
   setModelWithPreferredMethod: (model, preferredMethod) => {
-    const { availableMethods, defaultMethods, numLayersPerModel, layer } = get();
+    const { availableMethods, defaultMethods, numLayersPerModel, numHeadsPerModel, perHeadMethods, layer } = get();
     const modelMethods = availableMethods[model] || [];
     const nextMethod = modelMethods.includes(preferredMethod)
       ? preferredMethod
       : (defaultMethods[model] || preferredMethod || 'cls');
     const maxLayer = (numLayersPerModel[model] || 12) - 1;
     const clampedLayer = Math.min(layer, maxLayer);
-    set({ model, method: nextMethod, layer: clampedLayer, selectedBboxIndex: null });
+    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(nextMethod);
+    set({ model, method: nextMethod, head: supportsHead ? get().head : null, layer: clampedLayer, selectedBboxIndex: null });
   },
   setPercentile: (percentile) => set({ percentile }),
   setShowBboxes: (showBboxes) => set({ showBboxes }),
@@ -86,6 +100,15 @@ export const useViewStore = create<ViewStore>((set, get) => ({
     const clampedLayer = Math.min(layer, maxLayer);
     set({ numLayersPerModel, layer: clampedLayer });
   },
+  setPerHeadConfig: (numHeadsPerModel, perHeadMethods) => {
+    const { model, method, head } = get();
+    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+    set({
+      numHeadsPerModel,
+      perHeadMethods,
+      head: supportsHead ? head : null,
+    });
+  },
   reset: () => set({ ...DEFAULT_SETTINGS, selectedBboxIndex: null }),
 }));
 
@@ -93,6 +116,7 @@ export const useViewStore = create<ViewStore>((set, get) => ({
 export const useModel = () => useViewStore((state) => state.model);
 export const useLayer = () => useViewStore((state) => state.layer);
 export const useMethod = () => useViewStore((state) => state.method);
+export const useHead = () => useViewStore((state) => state.head);
 export const usePercentile = () => useViewStore((state) => state.percentile);
 export const useShowBboxes = () => useViewStore((state) => state.showBboxes);
 export const useHeatmapOpacity = () => useViewStore((state) => state.heatmapOpacity);

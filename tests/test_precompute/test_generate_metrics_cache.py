@@ -139,6 +139,34 @@ def test_create_database_preserves_metric_generic_breakdown_rows(tmp_path):
     migrated.close()
 
 
+def test_create_database_creates_q3_head_tables(tmp_path):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(head_image_metrics)")
+    head_image_columns = {row[1] for row in cursor.fetchall()}
+    assert {"model", "layer", "method", "head", "metric", "image_id", "percentile", "score"}.issubset(head_image_columns)
+
+    cursor.execute("PRAGMA table_info(head_summary_metrics)")
+    head_summary_columns = {row[1] for row in cursor.fetchall()}
+    assert {"mean_score", "std_score", "mean_rank", "top1_count", "top3_count", "image_count"}.issubset(head_summary_columns)
+
+    cursor.execute("PRAGMA table_info(head_feature_metrics)")
+    head_feature_columns = {row[1] for row in cursor.fetchall()}
+    assert {"feature_label", "feature_name", "mean_score", "std_score", "bbox_count"}.issubset(head_feature_columns)
+
+    conn.close()
+
+
+def test_rank_head_scores_respects_metric_direction():
+    higher = gm.rank_head_scores({0: 0.25, 1: 0.8, 2: 0.5}, direction="higher")
+    lower = gm.rank_head_scores({0: 0.25, 1: 0.8, 2: 0.5}, direction="lower")
+
+    assert higher == {1: 1, 2: 2, 0: 3}
+    assert lower == {0: 1, 2: 2, 1: 3}
+
+
 def test_create_database_recreates_legacy_breakdown_tables(tmp_path):
     db_path = tmp_path / "metrics.db"
     conn = sqlite3.connect(db_path)

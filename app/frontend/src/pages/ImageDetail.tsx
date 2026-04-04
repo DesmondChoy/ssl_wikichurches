@@ -21,7 +21,7 @@ export function ImageDetailPage() {
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const { model, layer, method, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
+  const { model, layer, method, head, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
 
   // Get models config for per-model layer counts
   const { data: modelsData } = useModels();
@@ -119,12 +119,13 @@ export function ImageDetailPage() {
 
         {/* Center: Attention viewer */}
         <div className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1" data-testid="image-detail-center-column">
-          <ErrorBoundary resetKeys={[model, layer, method, percentile]}>
+          <ErrorBoundary resetKeys={[model, layer, method, head, percentile]}>
             <AttentionViewer
               imageId={decodedId}
               model={model}
               layer={layer}
               method={method}
+              head={head}
               percentile={percentile}
               showBboxes={showBboxes}
               bboxes={imageDetail?.annotation.bboxes}

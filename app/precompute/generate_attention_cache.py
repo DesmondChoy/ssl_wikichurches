@@ -62,6 +62,8 @@ from ssl_attention.evaluation.fine_tuning import (
 from ssl_attention.models import create_model
 from ssl_attention.utils import get_device
 
+PER_HEAD_METHODS = {AttentionMethod.CLS, AttentionMethod.MEAN}
+
 
 def discover_checkpoints_by_strategy(
     checkpoint_dir: Path,
@@ -141,6 +143,7 @@ def generate_attention_for_model(
     finetuned: bool = False,
     checkpoint_path: Path | None = None,
     strategy_id: str | None = None,
+    per_head: bool = False,
 ) -> dict[str, int]:
     """Generate attention maps for a single model.
 
@@ -184,6 +187,9 @@ def generate_attention_for_model(
     print(f"\n{'='*60}")
     print(f"Processing {model_name} [{mode_label}] ({len(layers_to_process)} layers, "
           f"{len(methods_to_process)} methods: {[m.value for m in methods_to_process]})")
+    if per_head:
+        supported = [m.value for m in methods_to_process if m in PER_HEAD_METHODS and model_config.num_heads > 1]
+        print(f"Per-head variants enabled for: {supported or 'none'}")
     print(f"{'='*60}")
 
     model: Any
@@ -212,13 +218,36 @@ def generate_attention_for_model(
             try:
                 # Check if all layer/method combos already cached
                 if skip_existing:
-                    all_cached = all(
-                        cache.exists(cache_model_key, f"layer{layer}", image_id, variant=method.value)
-                        for layer in layers_to_process
-                        for method in methods_to_process
-                    )
+                    all_cached = True
+                    for layer in layers_to_process:
+                        for method in methods_to_process:
+                            layer_key = f"layer{layer}"
+                            if not cache.exists(cache_model_key, layer_key, image_id, variant=method.value):
+                                all_cached = False
+                                break
+                            if per_head and method in PER_HEAD_METHODS and model_config.num_heads > 1:
+                                for head_idx in range(model_config.num_heads):
+                                    if not cache.exists(
+                                        cache_model_key,
+                                        layer_key,
+                                        image_id,
+                                        variant=f"{method.value}_head{head_idx}",
+                                    ):
+                                        all_cached = False
+                                        break
+                            if not all_cached:
+                                break
+                        if not all_cached:
+                            break
                     if all_cached:
-                        stats["skipped"] += len(layers_to_process) * len(methods_to_process)
+                        skipped = len(layers_to_process) * len(methods_to_process)
+                        if per_head:
+                            skipped += sum(
+                                model_config.num_heads
+                                for method in methods_to_process
+                                if method in PER_HEAD_METHODS and model_config.num_heads > 1
+                            ) * len(layers_to_process)
+                        stats["skipped"] += skipped
                         continue
 
                 # Run inference once
@@ -242,10 +271,17 @@ def generate_attention_for_model(
                     layer_key = f"layer{layer}"
 
                     for method in methods_to_process:
-                        if skip_existing and cache.exists(
-                            cache_model_key, layer_key, image_id, variant=method.value
-                        ):
+                        fused_cached = skip_existing and cache.exists(
+                            cache_model_key,
+                            layer_key,
+                            image_id,
+                            variant=method.value,
+                        )
+                        if fused_cached:
                             stats["skipped"] += 1
+
+                        needs_per_head = per_head and method in PER_HEAD_METHODS and model_config.num_heads > 1
+                        if fused_cached and not needs_per_head:
                             continue
 
                         # Compute attention based on method
@@ -294,15 +330,55 @@ def generate_attention_for_model(
                             stats["errors"] += 1
                             continue
 
-                        # Store in cache with method as variant
-                        cache.store(
-                            cache_model_key,
-                            layer_key,
-                            image_id,
-                            heatmap.squeeze(0),
-                            variant=method.value,
-                        )
-                        stats["processed"] += 1
+                        if not fused_cached:
+                            # Store in cache with method as variant
+                            cache.store(
+                                cache_model_key,
+                                layer_key,
+                                image_id,
+                                heatmap.squeeze(0),
+                                variant=method.value,
+                            )
+                            stats["processed"] += 1
+
+                        if needs_per_head:
+                            for head_idx in range(model_config.num_heads):
+                                per_head_variant = f"{method.value}_head{head_idx}"
+                                if skip_existing and cache.exists(
+                                    cache_model_key,
+                                    layer_key,
+                                    image_id,
+                                    variant=per_head_variant,
+                                ):
+                                    stats["skipped"] += 1
+                                    continue
+
+                                if method == AttentionMethod.CLS:
+                                    per_head_attention = extract_cls_attention(
+                                        output.attention_weights,
+                                        layer=layer,
+                                        num_registers=model_config.num_registers,
+                                        head_indices=[head_idx],
+                                    )
+                                else:
+                                    per_head_attention = extract_mean_attention(
+                                        output.attention_weights,
+                                        layer=layer,
+                                        head_indices=[head_idx],
+                                    )
+
+                                per_head_heatmap = attention_to_heatmap(
+                                    per_head_attention,
+                                    image_size=224,
+                                )
+                                cache.store(
+                                    cache_model_key,
+                                    layer_key,
+                                    image_id,
+                                    per_head_heatmap.squeeze(0),
+                                    variant=per_head_variant,
+                                )
+                                stats["processed"] += 1
 
             except Exception as e:
                 print(f"\nError processing {image_id}: {e}")
@@ -379,6 +455,11 @@ def main() -> int:
             "Fine-tuning strategies to cache in --finetuned mode. "
             "'auto' keeps legacy behavior (one best checkpoint per model)."
         ),
+    )
+    parser.add_argument(
+        "--per-head",
+        action="store_true",
+        help="Also generate per-head attention variants for supported ViT methods.",
     )
     args = parser.parse_args()
 
@@ -477,6 +558,7 @@ def main() -> int:
             finetuned=args.finetuned,
             checkpoint_path=checkpoint_path,
             strategy_id=strategy_id,
+            per_head=args.per_head,
         )
 
         for key in total_stats:

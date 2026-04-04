@@ -13,6 +13,8 @@ from app.backend.config import (
     METRICS_DB_PATH,
     METRICS_SUMMARY_PATH,
     MODEL_METHODS,
+    MODEL_NUM_HEADS,
+    PER_HEAD_METHODS,
     display_model_name,
     get_current_q2_results_path,
     get_model_num_layers,
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
 AnalysisMetricName = Literal["iou", "coverage", "mse", "kl", "emd"]
 MetricName = Literal["iou", "coverage", "mse", "kl", "emd"]
 RankingMode = Literal["default_method", "best_available"]
+Q3Variant = Literal["frozen", "linear_probe", "lora", "full"]
 
 BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE = 90
 
@@ -1019,6 +1022,173 @@ class MetricsService:
                 "total_feature_types": len(features),
             }
 
+    def get_head_ranking(
+        self,
+        model: str,
+        layer: str,
+        metric: AnalysisMetricName = "iou",
+        percentile: int = 90,
+        variant: Q3Variant = "frozen",
+    ) -> dict[str, Any]:
+        """Get metric-specific Q3 head ranking rows."""
+        method, db_model, unsupported_reason = self._resolve_q3_model_context(model, variant)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = self._metric_query_percentile(metric, percentile)
+
+        if unsupported_reason:
+            return {
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "method": method,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "supported": False,
+                "reason": unsupported_reason,
+                "heads": [],
+            }
+
+        with self.get_connection() as conn:
+            if not self._table_exists(conn, "head_summary_metrics"):
+                return {
+                    "model": model,
+                    "variant": variant,
+                    "layer": layer,
+                    "method": method,
+                    "metric": metric,
+                    "direction": metric_config["direction"],
+                    "percentile": percentile,
+                    "supported": False,
+                    "reason": "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first.",
+                    "heads": [],
+                }
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT head, mean_score, std_score, mean_rank, top1_count, top3_count, image_count
+                   FROM head_summary_metrics
+                   WHERE model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ?
+                   ORDER BY mean_rank ASC, head ASC""",
+                (db_model, layer, method, metric, query_percentile),
+            )
+            heads = [
+                {
+                    "head": row["head"],
+                    "mean_score": row["mean_score"],
+                    "std_score": row["std_score"],
+                    "mean_rank": row["mean_rank"],
+                    "top1_count": row["top1_count"],
+                    "top3_count": row["top3_count"],
+                    "image_count": row["image_count"],
+                }
+                for row in cursor.fetchall()
+            ]
+
+        return {
+            "model": model,
+            "variant": variant,
+            "layer": layer,
+            "method": method,
+            "metric": metric,
+            "direction": metric_config["direction"],
+            "percentile": percentile,
+            "supported": True,
+            "reason": None,
+            "heads": heads,
+        }
+
+    def get_head_feature_matrix(
+        self,
+        model: str,
+        layer: str,
+        metric: AnalysisMetricName = "iou",
+        percentile: int = 90,
+        variant: Q3Variant = "frozen",
+    ) -> dict[str, Any]:
+        """Get the Q3 head-by-feature matrix for one metric."""
+        method, db_model, unsupported_reason = self._resolve_q3_model_context(model, variant)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = self._metric_query_percentile(metric, percentile)
+        num_heads = MODEL_NUM_HEADS.get(resolve_model_name(model), 0)
+
+        if unsupported_reason:
+            return {
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "method": method,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "supported": False,
+                "reason": unsupported_reason,
+                "heads": list(range(num_heads)),
+                "features": [],
+                "total_feature_types": 0,
+            }
+
+        with self.get_connection() as conn:
+            if not self._table_exists(conn, "head_feature_metrics"):
+                return {
+                    "model": model,
+                    "variant": variant,
+                    "layer": layer,
+                    "method": method,
+                    "metric": metric,
+                    "direction": metric_config["direction"],
+                    "percentile": percentile,
+                    "supported": False,
+                    "reason": "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first.",
+                    "heads": list(range(num_heads)),
+                    "features": [],
+                    "total_feature_types": 0,
+                }
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT feature_label, feature_name, bbox_count, head, mean_score
+                   FROM head_feature_metrics
+                   WHERE model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ?
+                   ORDER BY feature_name ASC, head ASC""",
+                (db_model, layer, method, metric, query_percentile),
+            )
+            rows = cursor.fetchall()
+
+        matrix: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            feature_label = row["feature_label"]
+            entry = matrix.setdefault(
+                feature_label,
+                {
+                    "feature_label": feature_label,
+                    "feature_name": row["feature_name"],
+                    "bbox_count": row["bbox_count"],
+                    "scores": [None] * num_heads,
+                },
+            )
+            head_idx = row["head"]
+            if 0 <= head_idx < num_heads:
+                entry["scores"][head_idx] = row["mean_score"]
+
+        features = sorted(
+            matrix.values(),
+            key=lambda row: row["feature_name"].lower(),
+        )
+
+        return {
+            "model": model,
+            "variant": variant,
+            "layer": layer,
+            "method": method,
+            "metric": metric,
+            "direction": metric_config["direction"],
+            "percentile": percentile,
+            "supported": True,
+            "reason": None,
+            "heads": list(range(num_heads)),
+            "features": features,
+            "total_feature_types": len(features),
+        }
+
     def _compute_image_mse_from_cache(
         self,
         image_id: str,
@@ -1178,6 +1348,19 @@ class MetricsService:
         cursor.execute(f"PRAGMA table_info({table_name})")
         return any(row[1] == column_name for row in cursor.fetchall())
 
+    def _table_exists(
+        self,
+        conn: sqlite3.Connection,
+        table_name: str,
+    ) -> bool:
+        """Check whether a SQLite table exists."""
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        )
+        return cursor.fetchone() is not None
+
     def _load_attention_tensor(
         self,
         model: str,
@@ -1249,6 +1432,37 @@ class MetricsService:
             "metrics": [dict(metric) for metric in IMAGE_DETAIL_METRICS],
             "layers": ordered_layers,
         }
+
+    def _resolve_q3_model_context(
+        self,
+        model: str,
+        variant: Q3Variant,
+    ) -> tuple[str | None, str, str | None]:
+        """Resolve the automatic Q3 method plus storage model key."""
+        base_model = resolve_model_name(model)
+        if MODEL_NUM_HEADS.get(base_model, 0) <= 0:
+            return None, base_model, f"Q3 per-head analysis is not supported for model '{model}'."
+
+        available_methods = [method.value for method in MODEL_METHODS.get(base_model, [])]
+        supported_methods = [method for method in available_methods if method in PER_HEAD_METHODS]
+        if not supported_methods:
+            return None, base_model, f"Q3 per-head analysis is not supported for model '{model}'."
+
+        method = supported_methods[0]
+        if variant == "frozen":
+            return method, base_model, None
+        return method, f"{base_model}_finetuned_{variant}", None
+
+    def _metric_query_percentile(
+        self,
+        metric: AnalysisMetricName,
+        percentile: int,
+    ) -> int:
+        """Map threshold-free metrics to the shared reference percentile key."""
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        if metric_config["percentile_dependent"]:
+            return percentile
+        return BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE
 
     def _compute_mse_aggregate_from_images(
         self,

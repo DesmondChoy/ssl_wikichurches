@@ -65,6 +65,11 @@ from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifa
 _FINETUNED_SUFFIX = "_finetuned"
 _FINETUNED_MARKER = "_finetuned_"
 VALID_FINETUNE_STRATEGIES = {s.value for s in FINETUNE_STRATEGIES}
+PER_HEAD_METHODS = {AttentionMethod.CLS.value, AttentionMethod.MEAN.value}
+MODEL_NUM_HEADS = {
+    model_name: (0 if model_name == "resnet50" else model_config.num_heads)
+    for model_name, model_config in MODELS.items()
+}
 
 
 def get_current_q2_results_path() -> Path:

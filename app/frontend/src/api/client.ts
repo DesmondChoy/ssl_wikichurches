@@ -110,9 +110,10 @@ export const attentionAPI = {
 
   getModels: () => fetchJSON<import('../types').ModelsResponse>('/attention/models'),
 
-  getRawAttention: (imageId: string, model: string, layer: number, method?: string) => {
+  getRawAttention: (imageId: string, model: string, layer: number, method?: string, head?: number | null) => {
     const params = new URLSearchParams({ model, layer: String(layer) });
     if (method) params.set('method', method);
+    if (head !== null && head !== undefined) params.set('head', String(head));
     return fetchJSON<import('../types').RawAttentionResponse>(
       `/attention/${imageId}/raw?${params}`
     );
@@ -228,6 +229,42 @@ export const metricsAPI = {
     const queryStr = query.toString();
     return fetchJSON<import('../types').Q2SummaryResponse>(
       `/metrics/q2_summary${queryStr ? `?${queryStr}` : ''}`
+    );
+  },
+
+  getHeadRanking: (
+    model: string,
+    layer: number,
+    percentile = 90,
+    metric: import('../types').AnalysisMetric = 'iou',
+    variant: import('../types').CompareVariantId = 'frozen',
+  ) => {
+    const params = new URLSearchParams({
+      layer: String(layer),
+      percentile: String(percentile),
+      metric,
+      variant,
+    });
+    return fetchJSON<import('../types').HeadRankingResponse>(
+      `/metrics/model/${model}/head_ranking?${params}`
+    );
+  },
+
+  getHeadFeatureMatrix: (
+    model: string,
+    layer: number,
+    percentile = 90,
+    metric: import('../types').AnalysisMetric = 'iou',
+    variant: import('../types').CompareVariantId = 'frozen',
+  ) => {
+    const params = new URLSearchParams({
+      layer: String(layer),
+      percentile: String(percentile),
+      metric,
+      variant,
+    });
+    return fetchJSON<import('../types').HeadFeatureMatrixResponse>(
+      `/metrics/model/${model}/head_feature_matrix?${params}`
     );
   },
 
