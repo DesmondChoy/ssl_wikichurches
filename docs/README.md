@@ -31,13 +31,14 @@ Technical implementation details and model-specific considerations.
 | [api_reference.md](reference/api_reference.md) | Complete REST API documentation for all API endpoints |
 | [fine_tuning_run_matrix.md](reference/fine_tuning_run_matrix.md) | Canonical fine-tuning experiment-batch layout, run-matrix contract, and result storage map |
 | [metrics_methodology.md](reference/metrics_methodology.md) | IoU, Coverage, thresholding methodology, worked examples, and academic context |
+| [per_head_methodology.md](reference/per_head_methodology.md) | Q3 per-head extraction rules, metric pipeline, alternatives, and limitations |
 
 ### [`enhancements/`](enhancements/) — Ongoing Enhancements
 Future improvements live here, but some documents also track partially or fully shipped work plus the remaining follow-up ideas.
 
 | Document | Description | Status |
 |----------|-------------|--------|
-| [per_attention_head.md](enhancements/per_attention_head.md) | Per-head attention visualization | Proposed |
+| [per_attention_head.md](enhancements/per_attention_head.md) | Per-head attention visualization | Mixed (implemented + follow-up work) |
 | [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Strategy-aware fine-tuning implementation notes, primary-vs-exploratory methodology, and remaining research directions | Mixed (implemented + future work) |
 
 ---

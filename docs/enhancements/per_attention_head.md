@@ -1,17 +1,20 @@
 # Per-Head Attention Visualization
 
 > **Enhancement proposed:** January 2026
-> **Status:** Planned
+> **Status:** Mixed (core implementation shipped, methodology and follow-up refinements remain)
 > **Purpose:** Reveal attention head specialization patterns documented in DINO literature
 
 > **Related documents:**
 > - [Project Proposal — Q3: Head Specialization](../core/project_proposal.md#research-questions-and-approaches)
 > - [Attention Methods — Head Fusion Strategies](../research/attention_methods.md#head-fusion-strategies)
+> - [Q3 Per-Head Attention Methodology](../reference/per_head_methodology.md)
 > - [Implementation Plan](../core/implementation_plan.md)
 
 ## Executive Summary
 
 This enhancement adds UI controls to visualize attention from individual transformer heads (0-11) instead of only the current "fused" (averaged) view. Research shows that different attention heads in Vision Transformers specialize for different visual patterns—some focus on texture, others on object boundaries, and others on semantic regions.
+
+This document keeps the original enhancement plan and follow-up ideas for historical context. For the current shipped Q3 extraction rules, architecture-specific caveats, alternatives, and limitations, use [Q3 Per-Head Attention Methodology](../reference/per_head_methodology.md) as the primary reference.
 
 **Key insight:** By examining per-head attention, users can understand *which* heads align with expert-annotated architectural features, not just whether the model as a whole attends to them.
 
@@ -48,26 +51,23 @@ The original DINO paper (Caron et al., 2021) demonstrated that self-supervised V
 | Model | Attention Method | Per-Head Support | Reason |
 |-------|------------------|------------------|--------|
 | DINOv2 | CLS | ✅ Yes | Direct head access |
-| DINOv2 | Mean | ✅ Yes | Direct head access |
 | DINOv2 | Rollout | ❌ No | Complex multi-layer aggregation |
 | DINOv3 | CLS | ✅ Yes | Direct head access |
-| DINOv3 | Mean | ✅ Yes | Direct head access |
 | DINOv3 | Rollout | ❌ No | Complex multi-layer aggregation |
 | MAE | CLS | ✅ Yes | Direct head access |
-| MAE | Mean | ✅ Yes | Direct head access |
 | MAE | Rollout | ❌ No | Complex multi-layer aggregation |
 | CLIP | CLS | ✅ Yes | Direct head access |
-| CLIP | Mean | ✅ Yes | Direct head access |
 | CLIP | Rollout | ❌ No | Complex multi-layer aggregation |
-| SigLIP | Mean | ✅ Yes | Direct head access (no CLS token) |
-| SigLIP2 | Mean | ✅ Yes | Direct head access (no CLS token) |
+| SigLIP | Mean | ✅ Yes | Proxy derived from per-head self-attention (no CLS-token path) |
+| SigLIP2 | Mean | ✅ Yes | Proxy derived from per-head self-attention (no CLS-token path) |
 | ResNet-50 | Grad-CAM | ❌ No | CNN architecture, no attention heads |
 
 ### Technical Constraints
 
 - **All ViT-Base models have 12 attention heads** (index 0-11)
-- **Rollout cannot be decomposed** — it accumulates attention across all layers and heads, making per-head visualization mathematically undefined
+- **Rollout is excluded by design** — it is a multi-layer post hoc aggregation method and is not the current Q3 unit of analysis
 - **Grad-CAM is gradient-based** — ResNet-50 uses convolutional layers, not attention mechanisms
+- **SigLIP and SigLIP2 use learned attention pooling heads** — the current Q3 implementation uses a mean-attention proxy for per-head analysis, not the pooling head itself
 
 ---
 
