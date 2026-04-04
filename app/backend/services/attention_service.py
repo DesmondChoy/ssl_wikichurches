@@ -32,6 +32,8 @@ class AttentionService:
 
     _instance: AttentionService | None = None
     _cache: AttentionCache | None = None
+    _per_head_available_models_cache: list[str] | None = None
+    _per_head_available_models_signature: tuple[int, int] | None = None
 
     def __new__(cls) -> AttentionService:
         """Singleton pattern for cache access."""
@@ -83,6 +85,34 @@ class AttentionService:
     def resolve_variant(self, method: str, head: int | None = None) -> str:
         """Build the cache variant key for fused or per-head attention."""
         return f"{method}_head{head}" if head is not None else method
+
+    def list_models_with_per_head_cache(self) -> list[str]:
+        """Return base-model names that currently have any per-head attention cached."""
+        if not self.cache.path.exists():
+            self._per_head_available_models_cache = []
+            self._per_head_available_models_signature = None
+            return []
+
+        stat = self.cache.path.stat()
+        signature = (stat.st_mtime_ns, stat.st_size)
+        if (
+            self._per_head_available_models_cache is not None
+            and self._per_head_available_models_signature == signature
+        ):
+            return list(self._per_head_available_models_cache)
+
+        available_models: set[str] = set()
+        for key in self.cache.list_cached():
+            variant = key.variant
+            base_variant, sep, head_suffix = variant.rpartition("_head")
+            if sep and base_variant and head_suffix.isdigit():
+                base_model, _, _ = split_model_name(key.model)
+                available_models.add(base_model)
+
+        ordered = sorted(available_models)
+        self._per_head_available_models_cache = ordered
+        self._per_head_available_models_signature = signature
+        return list(ordered)
 
     def get_raw_attention(
         self,

@@ -30,6 +30,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     availableMethods,
     numHeadsPerModel,
     perHeadMethods,
+    perHeadAvailableModels,
     setModel,
     setLayer,
     setMethod,
@@ -61,7 +62,11 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
 
   useEffect(() => {
     if (modelsData?.num_heads_per_model && modelsData?.per_head_methods) {
-      setPerHeadConfig(modelsData.num_heads_per_model, modelsData.per_head_methods);
+      setPerHeadConfig(
+        modelsData.num_heads_per_model,
+        modelsData.per_head_methods,
+        modelsData.per_head_available_models ?? [],
+      );
     }
   }, [modelsData, setPerHeadConfig]);
 
@@ -97,7 +102,10 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
     value: m,
     label: getAttentionMethodLabel(m),
   }));
-  const supportsHeadSelection = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+  const supportsHeadSelection =
+    (numHeadsPerModel[model] || 0) > 0
+    && perHeadMethods.includes(method)
+    && perHeadAvailableModels.includes(model);
   const headOptions = [
     { value: '-1', label: 'All (Fused)' },
     ...Array.from({ length: numHeadsPerModel[model] || 0 }, (_, idx) => ({

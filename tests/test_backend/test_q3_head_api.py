@@ -16,6 +16,16 @@ IMAGE_ID = "Q1234_test"
 class TestRawAttentionHeadValidation:
     """The raw attention endpoint should validate per-head requests cleanly."""
 
+    def test_models_endpoint_reports_models_with_per_head_cache(self):
+        with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
+            mock_attention_service.list_models_with_per_head_cache.return_value = ["clip", "dinov2"]
+
+            response = client.get("/api/attention/models")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["per_head_available_models"] == ["dinov2", "clip"]
+
     def test_rejects_head_for_rollout_method(self):
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
             mock_attention_service.exists.return_value = True

@@ -231,6 +231,7 @@ async def list_models() -> dict:
     """List available models and their configurations including attention methods."""
     # Use original model names as keys (e.g., 'siglip2' not 'siglip')
     # so frontend can look up by the name it uses
+    per_head_available_models = attention_service.list_models_with_per_head_cache()
     return {
         "models": AVAILABLE_MODELS,
         "num_layers": NUM_LAYERS,  # Legacy: global default for backwards compatibility
@@ -247,6 +248,10 @@ async def list_models() -> dict:
             for m in AVAILABLE_MODELS
         },
         "per_head_methods": sorted(PER_HEAD_METHODS),
+        "per_head_available_models": [
+            m for m in AVAILABLE_MODELS
+            if resolve_model_name(m) in per_head_available_models
+        ],
         "default_methods": {
             m: DEFAULT_METHOD.get(resolve_model_name(m), AttentionMethod.CLS).value
             for m in AVAILABLE_MODELS

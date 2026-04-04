@@ -17,6 +17,7 @@ interface ViewStore extends ViewSettings {
   numLayersPerModel: Record<string, number>;
   numHeadsPerModel: Record<string, number>;
   perHeadMethods: string[];
+  perHeadAvailableModels: string[];
 
   // Actions
   setModel: (model: string) => void;
@@ -31,7 +32,7 @@ interface ViewStore extends ViewSettings {
   setSelectedBboxIndex: (index: number | null) => void;
   setMethodsConfig: (methods: Record<string, string[]>, defaults: Record<string, string>) => void;
   setNumLayersPerModel: (numLayers: Record<string, number>) => void;
-  setPerHeadConfig: (numHeads: Record<string, number>, methods: string[]) => void;
+  setPerHeadConfig: (numHeads: Record<string, number>, methods: string[], availableModels?: string[]) => void;
   reset: () => void;
 }
 
@@ -54,31 +55,57 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   numLayersPerModel: {},
   numHeadsPerModel: {},
   perHeadMethods: [],
+  perHeadAvailableModels: [],
 
   setModel: (model) => {
-    const { defaultMethods, numLayersPerModel, numHeadsPerModel, layer, perHeadMethods, head } = get();
+    const {
+      defaultMethods,
+      numLayersPerModel,
+      numHeadsPerModel,
+      layer,
+      perHeadMethods,
+      perHeadAvailableModels,
+      head,
+    } = get();
     const newMethod = defaultMethods[model] || 'cls';
     const maxLayer = (numLayersPerModel[model] || 12) - 1;
     const clampedLayer = Math.min(layer, maxLayer);
-    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(newMethod);
+    const supportsHead =
+      (numHeadsPerModel[model] || 0) > 0
+      && perHeadMethods.includes(newMethod)
+      && perHeadAvailableModels.includes(model);
     set({ model, method: newMethod, head: supportsHead ? head : null, layer: clampedLayer, selectedBboxIndex: null });
   },
   setLayer: (layer) => set({ layer }), // Keep selection on layer change to compare
   setMethod: (method) => {
-    const { model, numHeadsPerModel, perHeadMethods } = get();
-    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+    const { model, numHeadsPerModel, perHeadMethods, perHeadAvailableModels } = get();
+    const supportsHead =
+      (numHeadsPerModel[model] || 0) > 0
+      && perHeadMethods.includes(method)
+      && perHeadAvailableModels.includes(model);
     set({ method, head: supportsHead ? get().head : null });
   },
   setHead: (head) => set({ head }),
   setModelWithPreferredMethod: (model, preferredMethod) => {
-    const { availableMethods, defaultMethods, numLayersPerModel, numHeadsPerModel, perHeadMethods, layer } = get();
+    const {
+      availableMethods,
+      defaultMethods,
+      numLayersPerModel,
+      numHeadsPerModel,
+      perHeadMethods,
+      perHeadAvailableModels,
+      layer,
+    } = get();
     const modelMethods = availableMethods[model] || [];
     const nextMethod = modelMethods.includes(preferredMethod)
       ? preferredMethod
       : (defaultMethods[model] || preferredMethod || 'cls');
     const maxLayer = (numLayersPerModel[model] || 12) - 1;
     const clampedLayer = Math.min(layer, maxLayer);
-    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(nextMethod);
+    const supportsHead =
+      (numHeadsPerModel[model] || 0) > 0
+      && perHeadMethods.includes(nextMethod)
+      && perHeadAvailableModels.includes(model);
     set({ model, method: nextMethod, head: supportsHead ? get().head : null, layer: clampedLayer, selectedBboxIndex: null });
   },
   setPercentile: (percentile) => set({ percentile }),
@@ -100,12 +127,16 @@ export const useViewStore = create<ViewStore>((set, get) => ({
     const clampedLayer = Math.min(layer, maxLayer);
     set({ numLayersPerModel, layer: clampedLayer });
   },
-  setPerHeadConfig: (numHeadsPerModel, perHeadMethods) => {
+  setPerHeadConfig: (numHeadsPerModel, perHeadMethods, perHeadAvailableModels = []) => {
     const { model, method, head } = get();
-    const supportsHead = (numHeadsPerModel[model] || 0) > 0 && perHeadMethods.includes(method);
+    const supportsHead =
+      (numHeadsPerModel[model] || 0) > 0
+      && perHeadMethods.includes(method)
+      && perHeadAvailableModels.includes(model);
     set({
       numHeadsPerModel,
       perHeadMethods,
+      perHeadAvailableModels,
       head: supportsHead ? head : null,
     });
   },

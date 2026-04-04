@@ -46,6 +46,12 @@ This skill provides a systematic checklist for visually testing and inspecting t
    - Backend API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
 
+4. **Fallback if Playwright MCP cannot start**:
+   - If the browser MCP fails before navigation because of a local environment issue, do not stop at "could not test".
+   - Document the exact MCP error first.
+   - Then run the repo's Playwright test suite with `npx playwright test` from `app/frontend`, using the same checklist scope you intended to cover.
+   - If the existing suite does not cover the changed behavior, add or update Playwright tests before reporting the result.
+
 ---
 
 ## Bug Handling Workflow
@@ -192,6 +198,11 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Attention Method dropdown appears for models with multiple methods (e.g., DINOv2: CLS Attention, Attention Rollout)
 - [ ] Attention Method dropdown is hidden for single-method models (e.g., SigLIP shows only Mean Attention)
 - [ ] Changing attention method updates the attention visualization and metrics
+- [ ] Attention Head dropdown appears for per-head-compatible configurations and defaults to "All (Fused)"
+- [ ] Attention Head dropdown offers fused plus all head indices for the selected ViT model
+- [ ] Selecting a specific head updates the viewer badge to show `Head N`
+- [ ] Switching from DINOv2 `CLS` to `Rollout` hides the Attention Head dropdown and resets head state back to fused when returning to `CLS`
+- [ ] Switching to ResNet-50 hides the Attention Head dropdown
 
 #### Similarity Heatmap Controls (Left Column - below Core Controls)
 - [ ] "Similarity Heatmap" section header is visible
@@ -229,6 +240,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Feature similarity heatmap loads when bbox is selected
 - [ ] Per-bbox metrics update in the Metrics card when bbox is selected
 - [ ] Clicking outside or re-clicking deselects the bbox
+- [ ] When a specific attention head is selected, bbox highlighting still works but the attention overlay stays in per-head mode instead of switching to the similarity heatmap takeover
 
 #### Navigation Links
 - [ ] No page-local "Compare Models" CTA appears beneath the image-detail metrics panel
@@ -309,6 +321,14 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Changing percentile updates charts
 - [ ] In MSE/KL mode, percentile changes keep the threshold-free leaderboard ordering stable
 
+#### Q3 Per-Head Specialization
+- [ ] "Q3 Per-Head Specialization" section is visible
+- [ ] Q3 local controls show model, variant, layer, metric, and percentile selectors
+- [ ] Head Ranking table renders head rows with score and rank summary columns
+- [ ] Head × Feature Matrix renders feature rows and head columns
+- [ ] Switching the Q3 metric updates the explainer text and ranking direction
+- [ ] Unsupported models (for example, ResNet-50) show a clear empty-state explanation instead of a blank panel
+
 ---
 
 ### Phase 6: Desktop Layout Verification
@@ -380,10 +400,12 @@ For rapid testing, verify these critical paths:
 12. [ ] **Dashboard page renders content (NOT blank screen!)**
 13. [ ] Dashboard metric selector switches between IoU, MSE, and KL
 14. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
-15. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
-16. [ ] Invalid routes show the custom 404 page instead of a blank screen
-17. [ ] No console errors throughout
-18. [ ] No blank pages anywhere in the app
+15. [ ] Dashboard Q3 section shows the per-head ranking table and head-by-feature matrix
+16. [ ] Image detail page shows the Attention Head selector for supported model/method combinations
+17. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
+18. [ ] Invalid routes show the custom 404 page instead of a blank screen
+19. [ ] No console errors throughout
+20. [ ] No blank pages anywhere in the app
 
 ---
 
@@ -432,11 +454,11 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Layout (4 items) - three-column layout
    └── Annotations Panel (5 items) - left column
    └── Attention Viewer (5 items) - center column
-   └── Control Panel (12 items) - left column settings and tooltips
+   └── Control Panel (17 items) - left column settings, tooltips, and per-head controls
    └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
    └── Layer Animation Slider (7 items) - includes stop-at-end behavior
    └── Metrics Chart Panel (10 items) - directionality, playback reveal, bbox mode
-   └── Bounding Box Interaction (7 items) - includes per-bbox metrics
+   └── Bounding Box Interaction (8 items) - includes per-bbox metrics and per-head overlay behavior
    └── Navigation Links (1 item)
 
    PHASE 4: Compare Page
@@ -452,6 +474,7 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Feature Type Breakdown (7 items) - new component
    └── Quick Actions Card (3 items)
    └── Percentile Threshold Control (4 items)
+   └── Q3 Per-Head Specialization (6 items)
 
    PHASE 6: Desktop Layout Verification
    └── Standard Desktop 1280px (6 items)
@@ -469,4 +492,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~130 items
+**Total checklist items**: ~142 items

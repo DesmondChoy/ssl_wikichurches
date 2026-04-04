@@ -320,6 +320,7 @@ export interface ModelsResponse {
   methods: Record<string, string[]>;
   num_heads_per_model: Record<string, number>;
   per_head_methods: string[];
+  per_head_available_models?: string[];
   default_methods: Record<string, string>;
 }
 
