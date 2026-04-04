@@ -28,32 +28,6 @@
 - For static typing checks, use `uv run mypy`.
 - For frontend changes under `app/frontend`, use `npm install` (or your project lockfile workflow), `npm run lint`, and `npm run build` from `app/frontend`.
 
-## Issue Tracking (`bd`)
-Use beads for task tracking:
-
-- `bd list`
-- `bd ready`
-- `bd show <id>`
-- `bd update <id> --status in_progress`
-- `bd close <id>`
-- `bd sync`
-
-Before starting work:
-
-- Run `bd list` or `bd ready` to find relevant existing work.
-- If the work maps to an existing issue, use that issue ID.
-- If no matching issue exists, create a bead before starting implementation.
-
-During implementation:
-
-- Create or reopen tracking artifacts for meaningful work, including follow-up tasks.
-- Reference the bead or issue ID in commit messages when relevant.
-
-After completing work:
-
-- Close finished beads with a reason via `bd close <id> -r "reason"`.
-- Optionally use `bd close <id> --suggest-next` to surface newly unblocked follow-up work.
-
 ## Quality Gate (Before Finishing)
 Before finishing work or preparing to commit, run all relevant checks for touched areas:
 

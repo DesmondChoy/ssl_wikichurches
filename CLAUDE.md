@@ -4,41 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **bd** (beads) for issue tracking. Run `bd prime` to get started.
 
 ## Documentation Source of Truth
 
 - Treat the root `README.md`, `docs/reference/`, `docs/core/project_proposal.md`, `docs/core/implementation_plan.md`, and the live code as the current source of truth.
 - Do NOT use `docs/archive/**` for present-day answers or implementation decisions unless the user explicitly asks for historical context.
 - There is no current teammate onboarding document in this repo. Do not recreate or cite one for present-day guidance unless the user explicitly asks for historical context.
-
-## Quick Reference
-
-```bash
-bd list               # List open issues
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
-```
-
-## Issue Tracking Rules
-
-Before starting work:
-
-- Run `bd list` or `bd ready` to find relevant existing work.
-- If the work maps to an existing issue, use that issue ID.
-- If no matching issue exists, create a bead before starting implementation.
-
-During implementation:
-
-- Reference the bead or issue ID in commit messages when relevant.
-
-After completing work:
-
-- Close finished beads with a reason via `bd close <id> -r "reason"`.
-- Optionally use `bd close <id> --suggest-next` to surface newly unblocked follow-up work.
 
 ## Git Workspace Safety
 
@@ -54,34 +26,6 @@ After completing work:
 ./dev.sh              # Start the frontend React app
 pytest                # Run tests
 ```
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run tests before any commit** - `pytest` must pass before committing code changes
-3. **Review complete changed files** - Read whole changed files, not only diffs, before committing
-4. **Run quality gates** (if code changed) - Linters, builds
-5. **Update issue status** - Close finished work, update in-progress items with reasons
-6. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-7. **Clean up** - Clear stashes, prune remote branches
-8. **Verify** - All changes committed AND pushed
-9. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
 
 ---
 
