@@ -77,11 +77,11 @@ pytest                # Run tests
 
 ## Task Management
 
-1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+1. **Plan First**: Capture plans in the active `bd` issue description, notes, or design fields. Do not create markdown TODO trackers such as `tasks/todo.md`.
 2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
+3. **Track Progress**: Update the relevant `bd` issue status or notes as you go
 4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/todo.md`
+5. **Document Results**: Record the outcome in the `bd` issue and in the final handoff, not in `tasks/todo.md`
 6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
 
 ---
@@ -149,6 +149,7 @@ bd close <id>         # Complete work
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- This repository intentionally keeps beads tracker state visible to Git; do not re-add ignore rules that hide beads or Dolt tracker files.
 
 ## Session Completion
 
