@@ -81,6 +81,35 @@ def prepare_emd_distribution(values: Tensor, size: int = EMD_GRID_SIZE) -> Tenso
     return distribution / total
 
 
+def normalize_transport_weights(weights: np.ndarray) -> np.ndarray:
+    """Normalize transport weights while keeping the total mass exactly 1.0.
+
+    The exact LP fallback omits one target constraint to remove redundancy.
+    If the total mass drifts below or above 1.0 by floating-point rounding,
+    the implied last-cell mass can become slightly negative and make the
+    transport problem infeasible even though the underlying distributions are
+    valid. We absorb the tiny residual into the largest support cell so the
+    final vector is non-negative and sums to exactly 1.0.
+    """
+    normalized = np.asarray(weights, dtype=np.float64).copy()
+    normalized[~np.isfinite(normalized)] = 0.0
+    normalized = np.clip(normalized, 0.0, None)
+
+    total = normalized.sum()
+    if not np.isfinite(total) or total <= 0:
+        return np.full_like(normalized, 1.0 / normalized.size, dtype=np.float64)
+
+    normalized /= total
+
+    anchor_index = int(np.argmax(normalized))
+    other_total = normalized.sum() - normalized[anchor_index]
+    anchor_value = 1.0 - other_total
+    if anchor_value < 0.0 and np.isclose(anchor_value, 0.0, atol=1e-12):
+        anchor_value = 0.0
+    normalized[anchor_index] = anchor_value
+    return normalized
+
+
 @cache
 def emd_support_grid(height: int = EMD_GRID_SIZE, width: int = EMD_GRID_SIZE) -> list[list[float]]:
     """Build the normalized cell-center support grid for exact 2D Wasserstein."""
@@ -95,10 +124,12 @@ def emd_support_grid(height: int = EMD_GRID_SIZE, width: int = EMD_GRID_SIZE) ->
 def emd_transport_problem(
     height: int = EMD_GRID_SIZE,
     width: int = EMD_GRID_SIZE,
+    omitted_target_index: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, sparse.csr_matrix]:
-    """Cache the shared support, transport cost vector, and non-redundant constraints."""
+    """Cache the shared support, transport cost vector, and reduced constraints."""
     support = np.asarray(emd_support_grid(height, width), dtype=np.float64)
     num_points = support.shape[0]
+    omitted_target = num_points - 1 if omitted_target_index is None else omitted_target_index
 
     row_indices: list[int] = []
     col_indices: list[int] = []
@@ -110,8 +141,9 @@ def emd_transport_problem(
             row_indices.append(source_index)
             col_indices.append(variable_index)
             data.append(1.0)
-            if target_index < num_points - 1:
-                row_indices.append(num_points + target_index)
+            if target_index != omitted_target:
+                target_row = num_points + target_index - (1 if target_index > omitted_target else 0)
+                row_indices.append(target_row)
                 col_indices.append(variable_index)
                 data.append(1.0)
 
@@ -130,11 +162,18 @@ def compute_emd_via_linprog(
     width: int,
 ) -> float:
     """Solve the exact discrete OT problem via linear programming."""
-    _, cost, constraints = emd_transport_problem(height, width)
+    source_weights = normalize_transport_weights(source_weights)
+    target_weights = normalize_transport_weights(target_weights)
+    omitted_target = int(np.argmax(target_weights))
+    _, cost, constraints = emd_transport_problem(
+        height,
+        width,
+        omitted_target_index=omitted_target,
+    )
     result = linprog(
         c=cost,
         A_eq=constraints,
-        b_eq=np.concatenate((source_weights, target_weights[:-1])),
+        b_eq=np.concatenate((source_weights, np.delete(target_weights, omitted_target))),
         bounds=(0.0, None),
         method="highs",
     )
@@ -269,10 +308,12 @@ def compute_emd(attention: Tensor, gt_heatmap: Tensor) -> float:
     gt_distribution = prepare_emd_distribution(gt_heatmap)
     height, width = attention_distribution.shape[-2:]
     support, _, _ = emd_transport_problem(height, width)
-    source_weights = attention_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
-    target_weights = gt_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
-    source_weights /= source_weights.sum()
-    target_weights /= target_weights.sum()
+    source_weights = normalize_transport_weights(
+        attention_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
+    )
+    target_weights = normalize_transport_weights(
+        gt_distribution.detach().cpu().reshape(-1).numpy().astype(np.float64)
+    )
 
     try:
         distance = wasserstein_distance_nd(

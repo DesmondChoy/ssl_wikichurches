@@ -16,6 +16,7 @@ from ssl_attention.metrics.continuous import (
     compute_kl_divergence,
     compute_mse,
     gaussian_bbox_heatmap,
+    prepare_emd_distribution,
     soft_union_heatmap,
 )
 
@@ -194,6 +195,24 @@ class TestComputeEmd:
         monkeypatch.setattr(continuous_module, "wasserstein_distance_nd", lambda *args, **kwargs: None)
 
         emd = compute_emd(shifted, gt)
+
+        assert torch.isfinite(torch.tensor(emd))
+        assert emd > 0.0
+
+    def test_exact_linprog_handles_zero_tail_mass(self, monkeypatch):
+        attention = torch.zeros((64, 64), dtype=torch.float32)
+        attention[:8, :8] = 1.0
+        gt = torch.zeros((64, 64), dtype=torch.float32)
+        gt[16:24, 16:24] = 1.0
+
+        # This shape produces a zero-mass final support cell after resizing,
+        # which previously made the exact LP fallback numerically infeasible.
+        assert prepare_emd_distribution(attention).reshape(-1)[-1].item() == 0.0
+        assert prepare_emd_distribution(gt).reshape(-1)[-1].item() == 0.0
+
+        monkeypatch.setattr(continuous_module, "wasserstein_distance_nd", lambda *args, **kwargs: None)
+
+        emd = compute_emd(attention, gt)
 
         assert torch.isfinite(torch.tensor(emd))
         assert emd > 0.0
