@@ -77,11 +77,11 @@ pytest                # Run tests
 
 ## Task Management
 
-1. **Plan First**: Capture plans in the active `bd` issue description, notes, or design fields. Do not create markdown TODO trackers such as `tasks/todo.md`.
+1. **Plan First**: Capture plans in the active `bd` issue description, notes, or design fields. Do not create markdown TODO trackers.
 2. **Verify Plan**: Check in before starting implementation
 3. **Track Progress**: Update the relevant `bd` issue status or notes as you go
 4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Record the outcome in the `bd` issue and in the final handoff, not in `tasks/todo.md`
+5. **Document Results**: Record the outcome in the `bd` issue and in the final handoff.
 6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
 
 ---
