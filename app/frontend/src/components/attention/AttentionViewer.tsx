@@ -273,7 +273,7 @@ export function AttentionViewer({
           <>
             Head Attention · {model} / {method} / Layer {layer} / Top {100 - percentile}%
             {head !== null && (
-              <span className="ml-2 text-sky-300">Head {head}</span>
+              <span className="ml-2 text-sky-300"> · Head {head}</span>
             )}
           </>
         ) : (
@@ -281,7 +281,8 @@ export function AttentionViewer({
         )}
         {selectedBbox && (
           <span className="ml-2 text-green-300">
-            {selectedBbox.label_name || `Feature ${selectedBbox.label}`}
+            {' '}
+            · {selectedBbox.label_name || `Feature ${selectedBbox.label}`}
           </span>
         )}
       </div>
