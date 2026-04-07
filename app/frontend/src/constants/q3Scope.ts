@@ -1,4 +1,4 @@
-import type { AnalysisMetric, CompareVariantId } from '../types';
+import type { AnalysisMetric, CompareVariantId, ImageDetailMode } from '../types';
 
 export type Q3ScopeStatus = 'primary' | 'control' | 'outside';
 
@@ -6,15 +6,29 @@ export const Q3_PRIMARY_MODELS = ['dinov2', 'dinov3', 'mae', 'clip'] as const;
 export const Q3_OUTSIDE_MODELS = ['siglip', 'siglip2', 'resnet50'] as const;
 export const Q3_PRIMARY_VARIANTS: CompareVariantId[] = ['frozen', 'lora', 'full'];
 export const Q3_CONTROL_VARIANT: CompareVariantId = 'linear_probe';
+export const Q3_VARIANT_OPTIONS: Array<{ value: CompareVariantId; label: string }> = [
+  { value: 'frozen', label: 'Frozen' },
+  { value: 'lora', label: 'LoRA' },
+  { value: 'full', label: 'Full Fine-tune' },
+  { value: 'linear_probe', label: 'Linear Probe' },
+];
 
 export const Q3_SCOPE_COPY = {
-  title: 'Primary Q3 study scope',
-  summary:
-    'Primary claim centers dinov2, dinov3, mae, and clip, with frozen, LoRA, and full as the headline comparison set.',
-  detail:
-    'Linear Probe stays available as a control. SigLIP, SigLIP2, and ResNet-50 remain explorable outside the primary claim.',
-  imageDetailNote:
-    'Use Dashboard Q3 to compare frozen, LoRA, and full. Linear Probe stays available there as a control condition.',
+  title: 'Primary Q3 workflow',
+  dashboardSummary:
+    'Start on Dashboard Q3 to compare candidate heads across dinov2, dinov3, mae, and clip.',
+  dashboardDetail:
+    'Use Inspect exemplar to open one concrete image in Image Detail Q3 with the same variant, layer, head, and feature context already loaded.',
+  dashboardSelectionNote:
+    'Frozen, LoRA, and Full are the headline comparison set. Linear Probe remains available as a control condition.',
+  imageDetailSummary:
+    'Image Detail Q3 is the qualitative drill-down step for a finding you selected on Dashboard Q3.',
+  imageDetailDetail:
+    'Stay inside the selected model, variant, layer, and head context while you inspect a representative image and its annotations.',
+  imageDetailCurrentContext:
+    'This drill-down keeps the dashboard context loaded so you can inspect the chosen exemplar without re-entering the Q3 state by hand.',
+  scopeNote:
+    'The broader model set still stays available on the non-Q3 exploration surfaces.',
 } as const;
 
 export const Q3_DEFAULTS: {
@@ -22,15 +36,21 @@ export const Q3_DEFAULTS: {
   method: string;
   variant: CompareVariantId;
   layer: number;
+  head: number | null;
   metric: AnalysisMetric;
   percentile: number;
+  mode: ImageDetailMode;
+  showBboxes: boolean;
 } = {
   model: 'dinov2',
   method: 'cls',
   variant: 'frozen',
   layer: 11,
+  head: null,
   metric: 'iou',
   percentile: 90,
+  mode: 'head_attention',
+  showBboxes: true,
 };
 
 const Q3_SCOPE_LABELS: Record<Q3ScopeStatus, string> = {
@@ -75,12 +95,12 @@ export function getQ3SelectionHelperText(
   variantStatus?: Q3ScopeStatus,
 ): string {
   if (modelStatus === 'outside') {
-    return 'This selection remains available for exploratory inspection, but it sits outside the headline Q3 claim.';
+    return 'This selection falls outside the primary Q3 workflow and is only available on the broader exploration surfaces.';
   }
 
   if (variantStatus === 'control') {
     return 'Linear Probe remains visible as a control rather than a peer headline comparison condition.';
   }
 
-  return 'This selection is inside the headline Q3 study scope.';
+  return 'This selection stays inside the primary Q3 workflow.';
 }

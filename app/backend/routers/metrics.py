@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.backend.config import AVAILABLE_MODELS, get_model_num_layers, resolve_model_name
 from app.backend.schemas import (
     FeatureBreakdownSchema,
+    HeadExemplarResponse,
     HeadFeatureMatrixResponse,
     HeadRankingResponse,
     ImageLayerProgressionSchema,
@@ -428,6 +429,40 @@ async def get_head_feature_matrix(
         variant=variant,
     )
     return HeadFeatureMatrixResponse(**data)
+
+
+@router.get("/model/{model}/head_exemplars", response_model=HeadExemplarResponse)
+async def get_head_exemplars(
+    model: str,
+    head: Annotated[int, Query(ge=0, le=11)] = 0,
+    layer: Annotated[int, Query(ge=0)] = 11,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
+    variant: Annotated[Literal["frozen", "linear_probe", "lora", "full"], Query()] = "frozen",
+    feature_label: Annotated[int | None, Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=24)] = 12,
+) -> HeadExemplarResponse:
+    """Get representative image candidates for a selected Q3 head."""
+    validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
+
+    if not metrics_service.db_exists:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics database not available.",
+        )
+
+    data = metrics_service.get_head_exemplars(
+        model=model,
+        layer=layer_key,
+        head=head,
+        percentile=percentile,
+        metric=metric,
+        variant=variant,
+        feature_label=feature_label,
+        limit=limit,
+    )
+    return HeadExemplarResponse(**data)
 
 
 @router.get("/model/{model}/aggregate")

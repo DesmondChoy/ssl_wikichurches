@@ -46,6 +46,9 @@ export function Q3StudyScopeCallout({
   currentModelStatus,
   action,
 }: Q3StudyScopeCalloutProps) {
+  const summary = context === 'dashboard' ? Q3_SCOPE_COPY.dashboardSummary : Q3_SCOPE_COPY.imageDetailSummary;
+  const detail = context === 'dashboard' ? Q3_SCOPE_COPY.dashboardDetail : Q3_SCOPE_COPY.imageDetailDetail;
+
   return (
     <div
       data-testid={dataTestId}
@@ -54,14 +57,14 @@ export function Q3StudyScopeCallout({
       <div className="space-y-3">
         <div className="space-y-1">
           <div className="font-semibold text-slate-900">{Q3_SCOPE_COPY.title}</div>
-          <p>{Q3_SCOPE_COPY.summary}</p>
-          <p>{Q3_SCOPE_COPY.detail}</p>
+          <p>{summary}</p>
+          <p>{detail}</p>
+          <p>{Q3_SCOPE_COPY.scopeNote}</p>
         </div>
 
         <div className="flex flex-wrap gap-2" data-testid={dataTestId ? `${dataTestId}-legend` : undefined}>
           <Q3ScopeChip status="primary" />
           <Q3ScopeChip status="control" />
-          <Q3ScopeChip status="outside" />
         </div>
 
         {context === 'imageDetail' && currentModelLabel && currentModelStatus && (
@@ -79,7 +82,7 @@ export function Q3StudyScopeCallout({
                 dataTestId="image-detail-q3-current-model-status"
               />
             </div>
-            <p className="text-xs text-slate-600">{Q3_SCOPE_COPY.imageDetailNote}</p>
+            <p className="text-xs text-slate-600">{Q3_SCOPE_COPY.imageDetailCurrentContext}</p>
           </div>
         )}
 

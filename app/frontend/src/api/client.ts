@@ -268,6 +268,36 @@ export const metricsAPI = {
     );
   },
 
+  getHeadExemplars: (
+    model: string,
+    head: number,
+    layer: number,
+    percentile = 90,
+    metric: import('../types').AnalysisMetric = 'iou',
+    variant: import('../types').CompareVariantId = 'frozen',
+    options?: {
+      featureLabel?: number;
+      limit?: number;
+    },
+  ) => {
+    const params = new URLSearchParams({
+      head: String(head),
+      layer: String(layer),
+      percentile: String(percentile),
+      metric,
+      variant,
+    });
+    if (options?.featureLabel !== undefined) {
+      params.set('feature_label', String(options.featureLabel));
+    }
+    if (options?.limit !== undefined) {
+      params.set('limit', String(options.limit));
+    }
+    return fetchJSON<import('../types').HeadExemplarResponse>(
+      `/metrics/model/${model}/head_exemplars?${params}`
+    );
+  },
+
   getBboxMetrics: (
     imageId: string,
     model: string,

@@ -20,6 +20,7 @@ from app.backend.config import (
     get_model_num_layers,
     resolve_model_name,
 )
+from app.backend.services.image_service import image_service
 from app.backend.validators import model_supports_method, resolve_default_method
 from ssl_attention.evaluation.fine_tuning_artifacts import normalize_q2_analysis_payload
 
@@ -1187,6 +1188,109 @@ class MetricsService:
             "heads": list(range(num_heads)),
             "features": features,
             "total_feature_types": len(features),
+        }
+
+    def get_head_exemplars(
+        self,
+        model: str,
+        layer: str,
+        head: int,
+        metric: AnalysisMetricName = "iou",
+        percentile: int = 90,
+        variant: Q3Variant = "frozen",
+        feature_label: int | None = None,
+        limit: int = 12,
+    ) -> dict[str, Any]:
+        """Return representative image candidates for a selected Q3 head."""
+        method, db_model, unsupported_reason = self._resolve_q3_model_context(model, variant)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = self._metric_query_percentile(metric, percentile)
+        feature_name = image_service.get_feature_name(feature_label) if feature_label is not None else None
+
+        if unsupported_reason:
+            return {
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "head": head,
+                "feature_label": feature_label,
+                "feature_name": feature_name,
+                "supported": False,
+                "reason": unsupported_reason,
+                "candidates": [],
+            }
+
+        order_direction = "DESC" if metric_config["direction"] == "higher" else "ASC"
+        with self.get_connection() as conn:
+            if not self._table_exists(conn, "head_image_metrics"):
+                return {
+                    "model": model,
+                    "variant": variant,
+                    "layer": layer,
+                    "metric": metric,
+                    "direction": metric_config["direction"],
+                    "percentile": percentile,
+                    "head": head,
+                    "feature_label": feature_label,
+                    "feature_name": feature_name,
+                    "supported": False,
+                    "reason": "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first.",
+                    "candidates": [],
+                }
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""SELECT image_id, score
+                    FROM head_image_metrics
+                    WHERE model = ? AND layer = ? AND method = ? AND head = ? AND metric = ? AND percentile = ?
+                    ORDER BY score {order_direction}, image_id ASC""",
+                (db_model, layer, method, head, metric, query_percentile),
+            )
+            rows = cursor.fetchall()
+
+        candidates: list[dict[str, Any]] = []
+        for row in rows:
+            image_id = row["image_id"]
+            annotation = image_service.get_annotation(image_id)
+            if annotation is None:
+                continue
+
+            matching_bbox_indices = [
+                index
+                for index, bbox in enumerate(annotation.bboxes)
+                if feature_label is not None and bbox.label == feature_label
+            ]
+            if feature_label is not None and not matching_bbox_indices:
+                continue
+
+            candidates.append(
+                {
+                    "image_id": image_id,
+                    "score": row["score"],
+                    "thumbnail_url": f"/api/images/{image_id}/thumbnail",
+                    "style_names": image_service.get_style_names(list(annotation.styles)),
+                    "matching_bbox_indices": matching_bbox_indices,
+                    "default_bbox_index": matching_bbox_indices[0] if matching_bbox_indices else None,
+                }
+            )
+            if len(candidates) >= limit:
+                break
+
+        return {
+            "model": model,
+            "variant": variant,
+            "layer": layer,
+            "metric": metric,
+            "direction": metric_config["direction"],
+            "percentile": percentile,
+            "head": head,
+            "feature_label": feature_label,
+            "feature_name": feature_name,
+            "supported": True,
+            "reason": None,
+            "candidates": candidates,
         }
 
     def _compute_image_mse_from_cache(

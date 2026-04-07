@@ -82,3 +82,23 @@ export function useHeadFeatureMatrix(
     queryFn: () => metricsAPI.getHeadFeatureMatrix(model, layer, percentile, metric, variant),
   });
 }
+
+export function useHeadExemplars(
+  model: string,
+  head: number | null,
+  layer: number,
+  percentile: number,
+  metric: AnalysisMetric,
+  variant: CompareVariantId,
+  options?: {
+    featureLabel?: number;
+    limit?: number;
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ['headExemplars', model, head, layer, percentile, metric, variant, options?.featureLabel, options?.limit],
+    queryFn: () => metricsAPI.getHeadExemplars(model, head ?? 0, layer, percentile, metric, variant, options),
+    enabled: options?.enabled ?? head !== null,
+  });
+}

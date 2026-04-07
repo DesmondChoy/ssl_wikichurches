@@ -179,6 +179,30 @@ export interface HeadFeatureMatrixResponse {
   total_feature_types: number;
 }
 
+export interface HeadExemplarCandidate {
+  image_id: string;
+  score: number;
+  thumbnail_url: string;
+  style_names: string[];
+  matching_bbox_indices: number[];
+  default_bbox_index: number | null;
+}
+
+export interface HeadExemplarResponse {
+  model: string;
+  variant: CompareVariantId;
+  layer: string;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
+  percentile: number;
+  head: number;
+  feature_label: number | null;
+  feature_name: string | null;
+  supported: boolean;
+  reason: string | null;
+  candidates: HeadExemplarCandidate[];
+}
+
 export interface ModelComparison {
   image_id: string;
   models: string[];

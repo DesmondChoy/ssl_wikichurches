@@ -146,3 +146,48 @@ class TestQ3MetricsApi:
         body = response.json()
         assert body["supported"] is False
         assert body["features"] == []
+
+    def test_head_exemplars_endpoint_returns_service_payload(self):
+        payload = {
+            "model": "dinov2",
+            "variant": "lora",
+            "layer": "layer11",
+            "metric": "iou",
+            "direction": "higher",
+            "percentile": 90,
+            "head": 3,
+            "feature_label": 7,
+            "feature_name": "Door",
+            "supported": True,
+            "reason": None,
+            "candidates": [
+                {
+                    "image_id": "Q1.jpg",
+                    "score": 0.72,
+                    "thumbnail_url": "/api/images/Q1.jpg/thumbnail",
+                    "style_names": ["Gothic"],
+                    "matching_bbox_indices": [1],
+                    "default_bbox_index": 1,
+                }
+            ],
+        }
+        with patch("app.backend.routers.metrics.metrics_service") as mock_metrics_service:
+            mock_metrics_service.db_exists = True
+            mock_metrics_service.get_head_exemplars.return_value = payload
+
+            response = client.get(
+                "/api/metrics/model/dinov2/head_exemplars",
+                params={
+                    "layer": 11,
+                    "metric": "iou",
+                    "percentile": 90,
+                    "variant": "lora",
+                    "head": 3,
+                    "feature_label": 7,
+                },
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["variant"] == "lora"
+        assert body["candidates"][0]["default_bbox_index"] == 1

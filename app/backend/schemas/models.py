@@ -288,6 +288,34 @@ class HeadFeatureMatrixResponse(BaseModel):
     total_feature_types: int = 0
 
 
+class HeadExemplarCandidateSchema(BaseModel):
+    """One candidate image for drilling into a selected Q3 head."""
+
+    image_id: str
+    score: float
+    thumbnail_url: str
+    style_names: list[str] = Field(default_factory=list)
+    matching_bbox_indices: list[int] = Field(default_factory=list)
+    default_bbox_index: int | None = None
+
+
+class HeadExemplarResponse(BaseModel):
+    """Representative image candidates for one Q3 head drill-down."""
+
+    model: str
+    variant: CompareVariant
+    layer: str
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
+    percentile: int
+    head: int
+    feature_label: int | None = None
+    feature_name: str | None = None
+    supported: bool = True
+    reason: str | None = None
+    candidates: list[HeadExemplarCandidateSchema] = Field(default_factory=list)
+
+
 class RawAttentionResponse(BaseModel):
     """Raw attention values for client-side rendering."""
 

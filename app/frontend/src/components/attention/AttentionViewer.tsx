@@ -3,7 +3,7 @@
  * Supports dynamic percentile thresholding via client-side Canvas rendering.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
@@ -42,6 +42,7 @@ export function AttentionViewer({
 }: AttentionViewerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const previousImageIdRef = useRef(imageId);
   const isHeadAttentionMode = mode === 'head_attention';
   const isFeatureSimilarityMode = mode === 'feature_similarity';
 
@@ -141,8 +142,13 @@ export function AttentionViewer({
   // Generate legend URL (static, computed once)
   const legendUrl = useMemo(() => renderHeatmapLegend(120, 12), []);
 
-  // Reset selection when image changes
+  // Reset bbox selection only after the user actually navigates to a different image.
+  // This preserves URL-restored bbox state on the initial mount.
   useEffect(() => {
+    if (previousImageIdRef.current === imageId) {
+      return;
+    }
+    previousImageIdRef.current = imageId;
     onBboxSelect(null);
   }, [imageId, onBboxSelect]);
 

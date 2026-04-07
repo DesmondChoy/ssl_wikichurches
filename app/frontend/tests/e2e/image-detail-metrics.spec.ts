@@ -387,6 +387,13 @@ test.describe('Image detail metrics chart', () => {
   });
 
   test('keeps Q3 framing behind the Q3 tab and resets the inspector to Q3 defaults there', async ({ page }) => {
+    const rawRequestModels: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes(`/api/attention/${IMAGE_ID}/raw`)) {
+        rawRequestModels.push(new URL(request.url()).searchParams.get('model') ?? '');
+      }
+    });
+
     await page.route('**/api/attention/models', async (route) => {
       await route.fulfill({
         status: 200,
@@ -455,7 +462,7 @@ test.describe('Image detail metrics chart', () => {
     const q3Tab = page.getByRole('tab', { name: 'Q3' });
     const modelSelect = getSelectByLabel(page, 'Model');
     const methodSelect = getSelectByLabel(page, 'Attention Method');
-    const headSelect = getSelectByLabel(page, 'Attention Head');
+    const headSelect = () => getSelectByLabel(page, 'Attention Head');
     const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
     const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
     const centerColumn = page.getByTestId('image-detail-center-column');
@@ -488,27 +495,45 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('image-detail-q3-spacer')).toBeVisible();
     await expect(page.getByTestId('image-detail-mode-switch')).toBeVisible();
     await expect(page.getByTestId('q3-controls-panel').getByText('Show Bounding Boxes')).toBeVisible();
-    await expect(q3ScopeCard).toContainText('Primary Q3 study scope');
+    await expect(q3ScopeCard).toContainText('Primary Q3 workflow');
     await expect(q3ScopeCard).toContainText(
-      'Primary claim centers dinov2, dinov3, mae, and clip'
+      'Image Detail Q3 is the qualitative drill-down step'
     );
     await expect(q3ScopeCard).toContainText(
-      'Use Dashboard Q3 to compare frozen, LoRA, and full'
+      'Dashboard Q3'
     );
     await expect(currentModelStatus).toHaveText('Primary study');
     await expect(page.getByTestId('annotations-card')).toBeVisible();
-    await expect(headSelect).toBeVisible();
+    await expect(headSelect()).toBeVisible();
+    await expect(getSelectByLabel(page, 'Model').locator('option')).toHaveText([
+      'dinov2',
+      'dinov3',
+      'mae',
+      'clip',
+    ]);
+    await expect(getSelectByLabel(page, 'Variant').locator('option')).toHaveText([
+      'Frozen (Primary study)',
+      'LoRA (Primary study)',
+      'Full Fine-tune (Primary study)',
+      'Linear Probe (Control)',
+    ]);
 
     const q3CenterBox = await centerColumn.boundingBox();
     expect(q3CenterBox).not.toBeNull();
     expect(Math.abs(q3CenterBox!.width - mainCenterBox!.width)).toBeLessThanOrEqual(16);
 
-    await modelSelect.selectOption('siglip2');
-    await expect(currentModelStatus).toHaveText('Outside primary scope');
+    await getSelectByLabel(page, 'Variant').selectOption('lora');
+    await expect(getSelectByLabel(page, 'Variant')).toHaveValue('lora');
+    await expect(page).toHaveURL(/variant=lora/);
+    await expect.poll(
+      () => rawRequestModels.includes('dinov2_finetuned_lora'),
+      { timeout: 10000 },
+    ).toBe(true);
 
     await page.getByTestId('image-detail-use-q3-defaults').click();
 
     await expect(page.getByTestId('image-detail-q3-current-model-status')).toHaveText('Primary study');
+    await expect(getSelectByLabel(page, 'Variant')).toHaveValue('frozen');
 
     await mainTab.click();
 
@@ -518,7 +543,7 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('view-settings-panel')).toBeVisible();
     await expect(page.getByTestId('q3-controls-panel')).toHaveCount(0);
     await expect(page.getByTestId('metrics-panel')).toBeVisible();
-    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 0');
     await expect(modelSelect).toHaveValue('dinov2');
     await expect(methodSelect).toHaveValue('cls');
     await expect(getSelectByLabel(page, 'Attention Head')).toBeVisible();
@@ -532,7 +557,7 @@ test.describe('Image detail metrics chart', () => {
       'Siglip2',
       'Resnet50',
     ]);
-    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 0');
   });
 
   test('keeps the chart synced with layer controls and playback reveal state', async ({ page }) => {
@@ -579,7 +604,7 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('annotations-helper-copy')).toContainText('context while you inspect attention');
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
     await expect(headSelect()).toBeVisible();
-    await expect(headSelect()).toHaveValue('-1');
+    await expect(headSelect()).toHaveValue('all');
     await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
 
     await headSelect().selectOption('3');
@@ -588,7 +613,8 @@ test.describe('Image detail metrics chart', () => {
     await featureModeButton.click();
 
     await expect(featureModeButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(headSelect()).toHaveCount(0);
+    await expect(headSelect()).toBeVisible();
+    await expect(headSelect()).toHaveValue('3');
     await expect(page.getByTestId('attention-overlay-image')).toHaveCount(0);
     await expect(page.getByTestId('annotations-helper-copy')).toContainText('feature-similarity query');
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
@@ -614,6 +640,8 @@ test.describe('Image detail metrics chart', () => {
     await page.getByRole('tab', { name: 'Q3' }).click();
 
     await expect(featureModeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(headSelect()).toBeVisible();
+    await expect(headSelect()).toHaveValue('3');
     await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
     await expect(page.getByTestId('similarity-stats')).toBeVisible();
     await expect(page.getByTestId('similarity-legend')).toBeVisible();
@@ -630,7 +658,7 @@ test.describe('Image detail metrics chart', () => {
   });
 
   test('restores tab and mode query params together and falls back to the default tab for invalid values', async ({ page }) => {
-    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=q3&mode=feature_similarity`);
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=q3&mode=feature_similarity&model=dinov2&variant=lora&layer=7&head=3&feature_label=1&feature_name=Spire&bbox_index=0`);
     await expect(page.getByTestId('image-detail-q3-scope-card')).toBeVisible({ timeout: 20000 });
 
     await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
@@ -639,8 +667,11 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('q3-controls-panel')).toBeVisible();
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
     await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
-    await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
+    await expect(getSelectByLabel(page, 'Model')).toHaveValue('dinov2');
+    await expect(getSelectByLabel(page, 'Variant')).toHaveValue('lora');
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveValue('3');
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Feature Similarity');
+    await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
 
     await page.reload();
 
@@ -648,7 +679,12 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
     await expect(page).toHaveURL(/tab=q3/);
     await expect(page).toHaveURL(/mode=feature_similarity/);
-    await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
+    await expect(page).toHaveURL(/variant=lora/);
+    await expect(page).toHaveURL(/layer=7/);
+    await expect(page).toHaveURL(/head=3/);
+    await expect(page).toHaveURL(/bbox_index=0/);
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveValue('3');
+    await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
 
     await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=not_a_real_tab&mode=not_a_real_mode`);
     await expect(page.getByTestId('view-settings-panel')).toBeVisible({ timeout: 20000 });

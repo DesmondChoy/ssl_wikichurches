@@ -11,7 +11,7 @@ const MODE_SUMMARY: Record<ImageDetailMode, string> = {
   head_attention:
     'Inspect fused or per-head attention overlays. Bounding boxes stay available as visual context, but similarity is not the active interpretation in this mode.',
   feature_similarity:
-    'Select a bounding box to use it as the similarity query. This mode focuses on bbox-conditioned feature similarity and hides head selection to avoid mixed semantics.',
+    'Select a bounding box to use it as the similarity query. This mode focuses on bbox-conditioned feature similarity while keeping the selected head context available in the Q3 controls.',
 };
 
 export function ImageDetailModeSwitch({

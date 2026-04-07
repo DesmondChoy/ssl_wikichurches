@@ -2,7 +2,7 @@
  * Image detail page with attention viewer and metrics.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
@@ -18,89 +18,144 @@ import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { PageTabs } from '../components/ui/PageTabs';
 import { AnnotationsCard } from '../components/image-detail/AnnotationsCard';
 import { ImageDetailModeSwitch } from '../components/image-detail/ImageDetailModeSwitch';
-import { parseImageDetailMode } from '../constants/imageDetailModes';
+import { Q3ImageDetailControls } from '../components/image-detail/Q3ImageDetailControls';
 import { parsePageTab } from '../constants/pageTabs';
+import { createImageDetailQ3SearchParams, getQ3ViewerModel, parseImageDetailQ3State } from '../constants/q3Routing';
 import { Q3_DEFAULTS, getQ3ModelScopeStatus } from '../constants/q3Scope';
-import type { ImageDetailMode, PageTab } from '../types';
+import type { CompareVariantId, PageTab } from '../types';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
   const [isPlaying, setIsPlaying] = useState(false);
+  const resolvedFeatureKeyRef = useRef<string | null>(null);
 
   const {
-    model,
-    layer,
-    method,
-    head,
-    imageDetailMode,
-    percentile,
-    showBboxes,
-    selectedBboxIndex,
-    setLayer,
-    setHead,
-    setImageDetailMode,
-    setModelWithPreferredMethod,
-    setPercentile,
-    setSelectedBboxIndex,
+    model: mainModel,
+    layer: mainLayer,
+    method: mainMethod,
+    head: mainHead,
+    percentile: mainPercentile,
+    showBboxes: mainShowBboxes,
+    selectedBboxIndex: mainSelectedBboxIndex,
+    setLayer: setMainLayer,
+    setSelectedBboxIndex: setMainSelectedBboxIndex,
   } = useViewStore();
-  const requestedMode = parseImageDetailMode(searchParams.get('mode'));
+
   const currentTab = parsePageTab(searchParams.get('tab'));
-  const currentMode = requestedMode;
   const isQ3Tab = currentTab === 'q3';
-  const activeViewerMode: ImageDetailMode = isQ3Tab ? currentMode : 'head_attention';
-
-  useEffect(() => {
-    if (imageDetailMode !== requestedMode) {
-      setImageDetailMode(requestedMode);
-    }
-  }, [imageDetailMode, requestedMode, setImageDetailMode]);
-
-  // Get models config for per-model layer counts
+  const searchParamsString = searchParams.toString();
   const { data: modelsData } = useModels();
-  const maxLayers = modelsData?.num_layers_per_model?.[model] ?? modelsData?.num_layers ?? 12;
 
-  const persistSearchParam = useCallback((key: string, value: string) => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set(key, value);
-    setSearchParams(nextParams);
-  }, [searchParams, setSearchParams]);
-  const persistModeToUrl = useCallback((nextMode: ImageDetailMode) => {
-    persistSearchParam('mode', nextMode);
-  }, [persistSearchParam]);
-  const persistTabToUrl = useCallback((nextTab: PageTab) => {
-    persistSearchParam('tab', nextTab);
-  }, [persistSearchParam]);
+  const rawQ3State = parseImageDetailQ3State(searchParams);
+  const q3MaxLayer = modelsData?.num_layers_per_model?.[rawQ3State.model]
+    ? modelsData.num_layers_per_model[rawQ3State.model] - 1
+    : Q3_DEFAULTS.layer;
+  const q3NumHeads = modelsData?.num_heads_per_model?.[rawQ3State.model] ?? 12;
+  const q3State = parseImageDetailQ3State(searchParams, {
+    maxLayer: q3MaxLayer,
+    numHeads: q3NumHeads,
+  });
+  const q3Method = modelsData?.default_methods?.[q3State.model] ?? Q3_DEFAULTS.method;
+  const q3ViewerModel = getQ3ViewerModel(q3State.model, q3State.variant);
+  const q3ViewerPercentile = Q3_DEFAULTS.percentile;
 
-  const handleBboxSelect = useCallback((index: number | null) => {
-    setSelectedBboxIndex(index);
-  }, [setSelectedBboxIndex]);
-  const handleModeChange = useCallback((nextMode: ImageDetailMode) => {
-    setImageDetailMode(nextMode);
-    persistModeToUrl(nextMode);
-  }, [persistModeToUrl, setImageDetailMode]);
+  const persistSearchParams = useCallback((nextParams: URLSearchParams, replace = false) => {
+    setSearchParams(nextParams, { replace });
+  }, [setSearchParams]);
+
+  const updateQ3State = useCallback((patch: Partial<ReturnType<typeof parseImageDetailQ3State>>, replace = false) => {
+    const nextState = {
+      ...q3State,
+      ...patch,
+    };
+    persistSearchParams(createImageDetailQ3SearchParams(nextState, searchParams), replace);
+  }, [persistSearchParams, q3State, searchParams]);
+
+  const handleMainBboxSelect = useCallback((index: number | null) => {
+    setMainSelectedBboxIndex(index);
+  }, [setMainSelectedBboxIndex]);
+
+  const handleQ3BboxSelect = useCallback((index: number | null) => {
+    updateQ3State({ bboxIndex: index });
+  }, [updateQ3State]);
+
   const handleTabChange = useCallback((nextTab: PageTab) => {
-    persistTabToUrl(nextTab);
-  }, [persistTabToUrl]);
+    if (nextTab === 'q3') {
+      persistSearchParams(createImageDetailQ3SearchParams(q3State, searchParams));
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', 'main');
+    persistSearchParams(nextParams);
+  }, [persistSearchParams, q3State, searchParams]);
+
   const handleApplyQ3Defaults = useCallback(() => {
     setIsPlaying(false);
-    setImageDetailMode('head_attention');
-    setModelWithPreferredMethod(Q3_DEFAULTS.model, Q3_DEFAULTS.method);
-    setHead(null);
-    setLayer(Q3_DEFAULTS.layer);
-    setPercentile(Q3_DEFAULTS.percentile);
-    setSelectedBboxIndex(null);
-    persistModeToUrl('head_attention');
-  }, [
-    persistModeToUrl,
-    setHead,
-    setImageDetailMode,
-    setLayer,
-    setModelWithPreferredMethod,
-    setPercentile,
-    setSelectedBboxIndex,
-  ]);
+    updateQ3State(
+      {
+        model: Q3_DEFAULTS.model,
+        variant: Q3_DEFAULTS.variant,
+        layer: Q3_DEFAULTS.layer,
+        head: Q3_DEFAULTS.head,
+        mode: Q3_DEFAULTS.mode,
+        showBboxes: Q3_DEFAULTS.showBboxes,
+        bboxIndex: null,
+        featureLabel: null,
+        featureName: null,
+      },
+    );
+  }, [updateQ3State]);
+
+  const handleQ3ModelChange = useCallback((nextModel: string) => {
+    const nextMaxLayer = modelsData?.num_layers_per_model?.[nextModel]
+      ? modelsData.num_layers_per_model[nextModel] - 1
+      : Q3_DEFAULTS.layer;
+    const nextNumHeads = modelsData?.num_heads_per_model?.[nextModel] ?? 12;
+    updateQ3State({
+      model: nextModel,
+      layer: Math.min(q3State.layer, nextMaxLayer),
+      head: q3State.head === null ? null : Math.min(q3State.head, Math.max(0, nextNumHeads - 1)),
+      bboxIndex: null,
+    });
+  }, [modelsData, q3State.head, q3State.layer, updateQ3State]);
+
+  const handleQ3VariantChange = useCallback((nextVariant: CompareVariantId) => {
+    updateQ3State({
+      variant: nextVariant,
+      bboxIndex: null,
+    });
+  }, [updateQ3State]);
+
+  const handleQ3ModeChange = useCallback((nextMode: 'head_attention' | 'feature_similarity') => {
+    updateQ3State({ mode: nextMode });
+  }, [updateQ3State]);
+
+  const handleQ3HeadChange = useCallback((nextHead: number | null) => {
+    updateQ3State({ head: nextHead });
+  }, [updateQ3State]);
+
+  const handleQ3LayerChange = useCallback((nextLayer: number) => {
+    setIsPlaying(false);
+    updateQ3State({ layer: nextLayer });
+  }, [updateQ3State]);
+
+  const handleQ3ShowBboxesChange = useCallback((show: boolean) => {
+    updateQ3State({ showBboxes: show });
+  }, [updateQ3State]);
+
+  useEffect(() => {
+    if (!isQ3Tab) {
+      return;
+    }
+    const normalizedParams = createImageDetailQ3SearchParams(q3State, searchParams);
+    const normalizedString = normalizedParams.toString();
+    if (normalizedString !== searchParamsString) {
+      persistSearchParams(normalizedParams, true);
+    }
+  }, [isQ3Tab, persistSearchParams, q3State, searchParams, searchParamsString]);
 
   // Fetch image details
   const { data: imageDetail, isLoading: detailLoading, error } = useQuery({
@@ -108,6 +163,34 @@ export function ImageDetailPage() {
     queryFn: () => imagesAPI.getDetail(decodedId),
     enabled: !!decodedId,
   });
+
+  const q3BboxParam = searchParams.get('bbox_index');
+  useEffect(() => {
+    if (!isQ3Tab || !imageDetail || q3State.featureLabel === null || q3BboxParam !== null) {
+      return;
+    }
+
+    const nextResolutionKey = `${decodedId}|${q3State.featureLabel}`;
+    if (resolvedFeatureKeyRef.current === nextResolutionKey) {
+      return;
+    }
+
+    resolvedFeatureKeyRef.current = nextResolutionKey;
+    const matchingIndex = imageDetail.annotation.bboxes.findIndex((bbox) => bbox.label === q3State.featureLabel);
+    if (matchingIndex >= 0) {
+      updateQ3State({ bboxIndex: matchingIndex }, true);
+    }
+  }, [decodedId, imageDetail, isQ3Tab, q3BboxParam, q3State.featureLabel, updateQ3State]);
+
+  const activeMode = isQ3Tab ? q3State.mode : 'head_attention';
+  const activeModel = isQ3Tab ? q3ViewerModel : mainModel;
+  const activeLayer = isQ3Tab ? q3State.layer : mainLayer;
+  const activeMethod = isQ3Tab ? q3Method : mainMethod;
+  const activeHead = isQ3Tab ? q3State.head : mainHead;
+  const activePercentile = isQ3Tab ? q3ViewerPercentile : mainPercentile;
+  const activeShowBboxes = isQ3Tab ? q3State.showBboxes : mainShowBboxes;
+  const activeBboxIndex = isQ3Tab ? q3State.bboxIndex : mainSelectedBboxIndex;
+  const handleActiveBboxSelect = isQ3Tab ? handleQ3BboxSelect : handleMainBboxSelect;
   const canQueryProgression = !!decodedId && !!imageDetail;
 
   if (!decodedId) {
@@ -163,7 +246,6 @@ export function ImageDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
         <Link to="/" className="text-primary-600 hover:underline">
           Gallery
@@ -192,7 +274,6 @@ export function ImageDetailPage() {
         ]}
       />
 
-      {/* Main content */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
         <div
           className="space-y-4 lg:col-span-3 xl:col-span-1"
@@ -200,18 +281,25 @@ export function ImageDetailPage() {
         >
           {!isQ3Tab && (
             <div data-testid="view-settings-panel">
-              <ControlPanel mode={activeViewerMode} />
+              <ControlPanel mode="head_attention" />
             </div>
           )}
           {isQ3Tab && (
             <div data-testid="q3-controls-panel">
-              <ControlPanel
-                mode={activeViewerMode}
-                title="Q3 Controls"
-                showLayerControl={false}
-                showPercentileControl={false}
-                showBoundingBoxesToggle
-                showOverlayAppearanceControls={false}
+              <Q3ImageDetailControls
+                model={q3State.model}
+                variant={q3State.variant}
+                layer={q3State.layer}
+                head={q3State.head}
+                maxLayer={q3MaxLayer}
+                numHeads={q3NumHeads}
+                showBboxes={q3State.showBboxes}
+                featureName={q3State.featureName}
+                onModelChange={handleQ3ModelChange}
+                onVariantChange={handleQ3VariantChange}
+                onLayerChange={handleQ3LayerChange}
+                onHeadChange={handleQ3HeadChange}
+                onShowBboxesChange={handleQ3ShowBboxesChange}
               />
             </div>
           )}
@@ -219,8 +307,8 @@ export function ImageDetailPage() {
             <Q3StudyScopeCallout
               context="imageDetail"
               dataTestId="image-detail-q3-scope-card"
-              currentModelLabel={model}
-              currentModelStatus={getQ3ModelScopeStatus(model)}
+              currentModelLabel={q3State.model}
+              currentModelStatus={getQ3ModelScopeStatus(q3State.model)}
               action={{
                 label: 'Use Q3 defaults',
                 onClick: handleApplyQ3Defaults,
@@ -231,69 +319,69 @@ export function ImageDetailPage() {
           {imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}
-              mode={activeViewerMode}
-              showBboxes={showBboxes}
-              selectedBboxIndex={selectedBboxIndex}
-              onBboxSelect={handleBboxSelect}
+              mode={activeMode}
+              showBboxes={activeShowBboxes}
+              selectedBboxIndex={activeBboxIndex}
+              onBboxSelect={handleActiveBboxSelect}
             />
           )}
         </div>
 
-        {/* Center: Attention viewer */}
         <div
           className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1"
           data-testid="image-detail-center-column"
         >
           {isQ3Tab && (
             <ImageDetailModeSwitch
-              mode={currentMode}
-              onChange={handleModeChange}
+              mode={q3State.mode}
+              onChange={handleQ3ModeChange}
             />
           )}
 
-          <ErrorBoundary resetKeys={[model, layer, method, head, activeViewerMode, percentile]}>
+          <ErrorBoundary resetKeys={[activeModel, activeLayer, activeMethod, activeHead, activeMode, activePercentile]}>
             <AttentionViewer
               imageId={decodedId}
-              model={model}
-              layer={layer}
-              method={method}
-              head={head}
-              mode={activeViewerMode}
-              percentile={percentile}
-              showBboxes={showBboxes}
+              model={activeModel}
+              layer={activeLayer}
+              method={activeMethod}
+              head={activeHead}
+              mode={activeMode}
+              percentile={activePercentile}
+              showBboxes={activeShowBboxes}
               bboxes={imageDetail?.annotation.bboxes}
-              selectedBboxIndex={selectedBboxIndex}
-              onBboxSelect={handleBboxSelect}
+              selectedBboxIndex={activeBboxIndex}
+              onBboxSelect={handleActiveBboxSelect}
               className="aspect-square"
             />
           </ErrorBoundary>
 
-          {/* Layer slider */}
-          <Card>
-            <CardContent>
-              <LayerSlider
-                currentLayer={layer}
-                maxLayers={maxLayers}
-                onChange={setLayer}
-                isPlaying={isPlaying}
-                onPlayingChange={setIsPlaying}
-                playSpeed={400}
-              />
-            </CardContent>
-          </Card>
+          {!isQ3Tab && (
+            <Card>
+              <CardContent>
+                <LayerSlider
+                  currentLayer={mainLayer}
+                  maxLayers={modelsData?.num_layers_per_model?.[mainModel] ?? modelsData?.num_layers ?? 12}
+                  onChange={setMainLayer}
+                  isPlaying={isPlaying}
+                  onPlayingChange={setIsPlaying}
+                  playSpeed={400}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {!isQ3Tab && (
           <div className="min-w-0 lg:col-span-4 xl:col-span-1" data-testid="image-detail-right-column">
-            <ErrorBoundary resetKeys={[model, layer, percentile, method, activeViewerMode, selectedBboxIndex, isPlaying]}>
+            <ErrorBoundary resetKeys={[mainModel, mainLayer, mainPercentile, mainMethod, activeBboxIndex, isPlaying]}>
               <ImageDetailMetricsPanel
                 imageId={decodedId}
-                model={model}
-                percentile={percentile}
-                method={method}
-                mode={activeViewerMode}
-                selectedBboxIndex={selectedBboxIndex}
-                currentLayer={layer}
+                model={mainModel}
+                percentile={mainPercentile}
+                method={mainMethod}
+                mode="head_attention"
+                selectedBboxIndex={mainSelectedBboxIndex}
+                currentLayer={mainLayer}
                 isPlaying={isPlaying}
                 enabled={canQueryProgression}
               />
