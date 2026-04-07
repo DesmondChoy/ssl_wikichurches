@@ -625,6 +625,240 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByText(/Q3 per-head analysis is not supported for model 'resnet50'\./)).toBeVisible();
   });
 
+  test('surfaces scoped Q3 study framing and keeps out-of-scope options selectable', async ({ page }) => {
+    await page.route('**/api/attention/models', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          models: ['dinov2', 'dinov3', 'mae', 'clip', 'siglip', 'siglip2', 'resnet50'],
+          num_layers: 12,
+          num_layers_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 4,
+          },
+          methods: {
+            dinov2: ['cls', 'rollout'],
+            dinov3: ['cls', 'rollout'],
+            mae: ['cls', 'rollout'],
+            clip: ['cls', 'rollout'],
+            siglip: ['mean'],
+            siglip2: ['mean'],
+            resnet50: ['gradcam'],
+          },
+          num_heads_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 0,
+          },
+          per_head_methods: ['cls', 'mean'],
+          default_methods: {
+            dinov2: 'cls',
+            dinov3: 'cls',
+            mae: 'cls',
+            clip: 'cls',
+            siglip: 'mean',
+            siglip2: 'mean',
+            resnet50: 'gradcam',
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/compare/all_models_summary?**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          percentile: 90,
+          metric: 'iou',
+          ranking_mode: 'default_method',
+          method: null,
+          excluded_models: [],
+          leaderboard: [
+            { rank: 1, model: 'dinov2', metric: 'iou', score: 0.58, best_layer: 'layer11', method_used: 'cls' },
+            { rank: 2, model: 'clip', metric: 'iou', score: 0.46, best_layer: 'layer8', method_used: 'cls' },
+          ],
+          models: {
+            dinov2: {
+              rank: 1,
+              best_layer: 'layer11',
+              best_score: 0.58,
+              method_used: 'cls',
+              layer_progression: { layer0: 0.22, layer6: 0.44, layer11: 0.58 },
+            },
+            clip: {
+              rank: 2,
+              best_layer: 'layer8',
+              best_score: 0.46,
+              method_used: 'cls',
+              layer_progression: { layer0: 0.11, layer6: 0.33, layer8: 0.46 },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/metrics/model/*/style_breakdown?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/style_breakdown/);
+      const model = match?.[1] ?? 'dinov2';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          layer: 'layer11',
+          metric: 'iou',
+          direction: 'higher',
+          percentile: 90,
+          method: 'cls',
+          styles: { Gothic: 0.55, Romanesque: 0.48 },
+          style_counts: { Gothic: 20, Romanesque: 15 },
+        }),
+      });
+    });
+
+    await page.route('**/api/metrics/model/*/feature_breakdown?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/feature_breakdown/);
+      const model = match?.[1] ?? 'dinov2';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          layer: 'layer11',
+          metric: 'iou',
+          direction: 'higher',
+          percentile: 90,
+          method: 'cls',
+          total_feature_types: 1,
+          features: [
+            {
+              feature_label: 1,
+              feature_name: 'Window',
+              mean_score: 0.41,
+              std_score: 0.05,
+              bbox_count: 12,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route('**/api/metrics/model/*/head_ranking?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_ranking/);
+      const model = match?.[1] ?? 'dinov2';
+      const variant = url.searchParams.get('variant') ?? 'frozen';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          variant,
+          layer: 'layer11',
+          method: model === 'siglip' || model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+          metric: 'iou',
+          direction: 'higher',
+          percentile: 90,
+          supported: model !== 'resnet50',
+          reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+          heads: model === 'resnet50'
+            ? []
+            : [{ head: 0, mean_score: variant === 'linear_probe' ? 0.39 : 0.44, std_score: 0.04, mean_rank: 1.2, top1_count: 8, top3_count: 11, image_count: 12 }],
+        }),
+      });
+    });
+
+    await page.route('**/api/metrics/model/*/head_feature_matrix?**', async (route) => {
+      const url = new URL(route.request().url());
+      const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_feature_matrix/);
+      const model = match?.[1] ?? 'dinov2';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          model,
+          variant: url.searchParams.get('variant') ?? 'frozen',
+          layer: 'layer11',
+          method: model === 'siglip' || model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
+          metric: 'iou',
+          direction: 'higher',
+          percentile: 90,
+          supported: model !== 'resnet50',
+          reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
+          heads: model === 'resnet50' ? [] : [0, 1, 2],
+          total_feature_types: model === 'resnet50' ? 0 : 1,
+          features: model === 'resnet50'
+            ? []
+            : [{ feature_label: 1, feature_name: 'Window', bbox_count: 12, scores: [0.41, 0.35, 0.28] }],
+        }),
+      });
+    });
+
+    await page.goto('/dashboard');
+
+    const q3Section = page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+
+    await expect(page.getByTestId('q3-scope-callout')).toContainText('Primary Q3 study scope');
+    await expect(page.getByTestId('q3-scope-callout')).toContainText(
+      'Primary claim centers dinov2, dinov3, mae, and clip'
+    );
+
+    const modelSelect = q3Section.locator('select').nth(0);
+    const variantSelect = q3Section.locator('select').nth(1);
+
+    await expect(modelSelect).toHaveValue('dinov2');
+    await expect(variantSelect).toHaveValue('frozen');
+    await expect(q3Section.locator('select').nth(2)).toHaveValue('11');
+    await expect(q3Section.locator('select').nth(3)).toHaveValue('iou');
+
+    await expect(modelSelect.locator('option')).toContainText([
+      'dinov2 (Primary study)',
+      'siglip2 (Outside primary scope)',
+      'resnet50 (Outside primary scope)',
+    ]);
+    await expect(variantSelect.locator('option')).toContainText([
+      'Frozen (Primary study)',
+      'Linear Probe (Control)',
+      'LoRA (Primary study)',
+      'Full Fine-tune (Primary study)',
+    ]);
+
+    await expect(page.getByTestId('q3-model-scope-chip')).toHaveText('Primary study');
+    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Primary study');
+
+    await variantSelect.selectOption('linear_probe');
+    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Control');
+    await expect(page.getByTestId('q3-selection-helper')).toContainText(
+      'Linear Probe remains visible as a control'
+    );
+
+    await modelSelect.selectOption('siglip2');
+    await expect(page.getByTestId('q3-model-scope-chip')).toHaveText('Outside primary scope');
+    await expect(page.getByTestId('q3-selection-helper')).toContainText(
+      'outside the headline Q3 claim'
+    );
+
+    await modelSelect.selectOption('resnet50');
+    await expect(page.getByTestId('q3-model-scope-chip')).toHaveText('Outside primary scope');
+    await expect(page.getByText(/Q3 per-head analysis is not supported for model 'resnet50'\./)).toBeVisible();
+  });
+
   test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {
     await stubDashboardApis(page);
     await page.route('**/api/metrics/q2_summary?**', async (route) => {

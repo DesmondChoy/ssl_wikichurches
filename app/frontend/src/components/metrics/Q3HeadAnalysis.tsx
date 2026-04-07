@@ -4,8 +4,16 @@ import { useModels } from '../../hooks/useAttention';
 import { useHeadFeatureMatrix, useHeadRanking } from '../../hooks/useMetrics';
 import { ANALYSIS_METRIC_METADATA, ANALYSIS_METRIC_OPTIONS, COMPARE_VARIANT_OPTIONS, formatMetricValue } from '../../constants/metricMetadata';
 import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
+import {
+  Q3_DEFAULTS,
+  formatQ3ScopeOptionLabel,
+  getQ3ModelScopeStatus,
+  getQ3SelectionHelperText,
+  getQ3VariantScopeStatus,
+} from '../../constants/q3Scope';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Select } from '../ui/Select';
+import { Q3ScopeChip, Q3StudyScopeCallout } from './Q3ScopeFraming';
 import type { AnalysisMetric, CompareVariantId } from '../../types';
 
 const ITEMS_PER_PAGE = 20;
@@ -29,11 +37,11 @@ function getMetricTone(metric: AnalysisMetric, value: number | null): string {
 
 export function Q3HeadAnalysis() {
   const { data: modelsData } = useModels();
-  const [model, setModel] = useState('dinov2');
-  const [variant, setVariant] = useState<CompareVariantId>('frozen');
-  const [layer, setLayer] = useState(11);
-  const [metric, setMetric] = useState<AnalysisMetric>('iou');
-  const [percentile, setPercentile] = useState(90);
+  const [model, setModel] = useState(Q3_DEFAULTS.model);
+  const [variant, setVariant] = useState<CompareVariantId>(Q3_DEFAULTS.variant);
+  const [layer, setLayer] = useState(Q3_DEFAULTS.layer);
+  const [metric, setMetric] = useState<AnalysisMetric>(Q3_DEFAULTS.metric);
+  const [percentile, setPercentile] = useState(Q3_DEFAULTS.percentile);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCount, setShowCount] = useState(ITEMS_PER_PAGE);
 
@@ -50,6 +58,9 @@ export function Q3HeadAnalysis() {
     ? modelsData.num_layers_per_model[resolvedModel] - 1
     : 11;
   const resolvedLayer = Math.min(layer, maxLayer);
+  const modelScopeStatus = getQ3ModelScopeStatus(resolvedModel);
+  const variantScopeStatus = getQ3VariantScopeStatus(variant);
+  const selectionHelperText = getQ3SelectionHelperText(modelScopeStatus, variantScopeStatus);
 
   const rankingQuery = useHeadRanking(resolvedModel, resolvedLayer, effectivePercentile, metric, variant);
   const matrixQuery = useHeadFeatureMatrix(resolvedModel, resolvedLayer, effectivePercentile, metric, variant);
@@ -65,6 +76,20 @@ export function Q3HeadAnalysis() {
 
   const visibleFeatures = filteredFeatures.slice(0, showCount);
   const hasMore = showCount < filteredFeatures.length;
+  const modelOptions = (modelsData?.models ?? []).map((value) => ({
+    value,
+    label: formatQ3ScopeOptionLabel(value, getQ3ModelScopeStatus(value)),
+  }));
+  const variantOptions = COMPARE_VARIANT_OPTIONS.map((option) => ({
+    ...option,
+    label: formatQ3ScopeOptionLabel(option.label, getQ3VariantScopeStatus(option.value)),
+  }));
+  const unsupportedHelperText = modelScopeStatus === 'outside'
+    ? 'Outside-primary-scope selections remain explorable, but they are not part of the headline Q3 claim.'
+    : selectionHelperText;
+  const emptyStateHelperText = modelScopeStatus === 'outside'
+    ? 'This out-of-scope selection stays available for exploration even when per-head rows are not yet populated.'
+    : selectionHelperText;
 
   return (
     <Card>
@@ -84,17 +109,22 @@ export function Q3HeadAnalysis() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Q3StudyScopeCallout
+          context="dashboard"
+          dataTestId="q3-scope-callout"
+        />
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <Select
             value={resolvedModel}
             onChange={setModel}
-            options={(modelsData?.models ?? []).map((value) => ({ value, label: value }))}
+            options={modelOptions}
             label="Model"
           />
           <Select
             value={variant}
             onChange={(value) => setVariant(value as CompareVariantId)}
-            options={COMPARE_VARIANT_OPTIONS}
+            options={variantOptions}
             label="Variant"
           />
           <Select
@@ -121,6 +151,30 @@ export function Q3HeadAnalysis() {
           />
         </div>
 
+        <div
+          className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+          data-testid="q3-selection-scope"
+        >
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+            Current Q3 framing
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700">
+              <span className="font-medium text-slate-900">Model</span>
+              <span>{resolvedModel}</span>
+              <Q3ScopeChip status={modelScopeStatus} dataTestId="q3-model-scope-chip" />
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm text-slate-700">
+              <span className="font-medium text-slate-900">Variant</span>
+              <span>{COMPARE_VARIANT_OPTIONS.find((option) => option.value === variant)?.label ?? variant}</span>
+              <Q3ScopeChip status={variantScopeStatus} dataTestId="q3-variant-scope-chip" />
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-slate-600" data-testid="q3-selection-helper">
+            {selectionHelperText}
+          </p>
+        </div>
+
         {metricMetadata.thresholdFree && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             {metricMetadata.infoBanner}
@@ -129,11 +183,13 @@ export function Q3HeadAnalysis() {
 
         {!rankingQuery.data?.supported || !matrixQuery.data?.supported ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {rankingQuery.data?.reason || matrixQuery.data?.reason || 'Per-head analysis is not available for this selection.'}
+            {rankingQuery.data?.reason || matrixQuery.data?.reason || 'Per-head analysis is not available for this selection.'}{' '}
+            {unsupportedHelperText}
           </div>
         ) : (rankingQuery.data?.heads.length ?? 0) === 0 && (matrixQuery.data?.features.length ?? 0) === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            No Q3 per-head rows are available for this selection yet. Run the per-head precompute commands first.
+            No Q3 per-head rows are available for this selection yet. Run the per-head precompute commands first.{' '}
+            {emptyStateHelperText}
           </div>
         ) : (
           <>

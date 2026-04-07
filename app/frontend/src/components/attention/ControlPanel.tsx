@@ -11,6 +11,7 @@ import { Toggle } from '../ui/Toggle';
 import { GLOSSARY } from '../../constants/glossary';
 import { getAttentionMethodLabel } from '../../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
+import { formatQ3ScopeOptionLabel, getQ3ModelScopeStatus } from '../../constants/q3Scope';
 import type { HeatmapStyle } from '../../types';
 
 interface ControlPanelProps {
@@ -93,7 +94,10 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
   const modelOptions =
     modelsData?.models.map((m) => ({
       value: m,
-      label: m.charAt(0).toUpperCase() + m.slice(1),
+      label: formatQ3ScopeOptionLabel(
+        m.charAt(0).toUpperCase() + m.slice(1),
+        getQ3ModelScopeStatus(m),
+      ),
     })) || [];
 
   // Get available methods for current model

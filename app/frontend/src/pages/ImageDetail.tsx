@@ -12,16 +12,31 @@ import { AttentionViewer } from '../components/attention/AttentionViewer';
 import { ControlPanel } from '../components/attention/ControlPanel';
 import { LayerSlider } from '../components/attention/LayerSlider';
 import { ImageDetailMetricsPanel } from '../components/metrics/ImageDetailMetricsPanel';
+import { Q3StudyScopeCallout } from '../components/metrics/Q3ScopeFraming';
 import { Card, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { AnnotationsCard } from '../components/image-detail/AnnotationsCard';
+import { Q3_DEFAULTS, getQ3ModelScopeStatus } from '../constants/q3Scope';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const { model, layer, method, head, percentile, showBboxes, selectedBboxIndex, setLayer, setSelectedBboxIndex } = useViewStore();
+  const {
+    model,
+    layer,
+    method,
+    head,
+    percentile,
+    showBboxes,
+    selectedBboxIndex,
+    setLayer,
+    setHead,
+    setModelWithPreferredMethod,
+    setPercentile,
+    setSelectedBboxIndex,
+  } = useViewStore();
 
   // Get models config for per-model layer counts
   const { data: modelsData } = useModels();
@@ -30,6 +45,14 @@ export function ImageDetailPage() {
   const handleBboxSelect = useCallback((index: number | null) => {
     setSelectedBboxIndex(index);
   }, [setSelectedBboxIndex]);
+  const handleApplyQ3Defaults = useCallback(() => {
+    setIsPlaying(false);
+    setModelWithPreferredMethod(Q3_DEFAULTS.model, Q3_DEFAULTS.method);
+    setHead(null);
+    setLayer(Q3_DEFAULTS.layer);
+    setPercentile(Q3_DEFAULTS.percentile);
+    setSelectedBboxIndex(null);
+  }, [setHead, setLayer, setModelWithPreferredMethod, setPercentile, setSelectedBboxIndex]);
 
   // Fetch image details
   const { data: imageDetail, isLoading: detailLoading, error } = useQuery({
@@ -107,6 +130,17 @@ export function ImageDetailPage() {
           <div data-testid="view-settings-panel">
             <ControlPanel />
           </div>
+          <Q3StudyScopeCallout
+            context="imageDetail"
+            dataTestId="image-detail-q3-scope-card"
+            currentModelLabel={model}
+            currentModelStatus={getQ3ModelScopeStatus(model)}
+            action={{
+              label: 'Use Q3 defaults',
+              onClick: handleApplyQ3Defaults,
+              dataTestId: 'image-detail-use-q3-defaults',
+            }}
+          />
           {imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}

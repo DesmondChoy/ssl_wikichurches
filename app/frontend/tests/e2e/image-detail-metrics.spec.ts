@@ -94,7 +94,56 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByText('Showing union metrics')).toBeVisible();
   });
 
-  test('hides the per-head selector when the live cache has no per-head data yet', async ({ page }) => {
+  test('hides the per-head selector when cache-backed support is not advertised', async ({ page }) => {
+    await page.route('**/api/attention/models', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          models: ['dinov2', 'dinov3', 'mae', 'clip', 'siglip', 'siglip2', 'resnet50'],
+          num_layers: 12,
+          num_layers_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 4,
+          },
+          methods: {
+            dinov2: ['cls', 'rollout'],
+            dinov3: ['cls', 'rollout'],
+            mae: ['cls', 'rollout'],
+            clip: ['cls', 'rollout'],
+            siglip: ['mean'],
+            siglip2: ['mean'],
+            resnet50: ['gradcam'],
+          },
+          num_heads_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 0,
+          },
+          per_head_methods: ['cls', 'mean'],
+          per_head_available_models: [],
+          default_methods: {
+            dinov2: 'cls',
+            dinov3: 'cls',
+            mae: 'cls',
+            clip: 'cls',
+            siglip: 'mean',
+            siglip2: 'mean',
+            resnet50: 'gradcam',
+          },
+        }),
+      });
+    });
+
     await openImageDetail(page);
     await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
   });
@@ -192,6 +241,122 @@ test.describe('Image detail metrics chart', () => {
     await modelSelect.selectOption('dinov2');
     await expect(headSelect()).toBeVisible();
     await expect(headSelect()).toHaveValue('-1');
+  });
+
+  test('shows shared Q3 scope framing and resets the inspector to Q3 defaults', async ({ page }) => {
+    await page.route('**/api/attention/models', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          models: ['dinov2', 'dinov3', 'mae', 'clip', 'siglip', 'siglip2', 'resnet50'],
+          num_layers: 12,
+          num_layers_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 4,
+          },
+          methods: {
+            dinov2: ['cls', 'rollout'],
+            dinov3: ['cls', 'rollout'],
+            mae: ['cls', 'rollout'],
+            clip: ['cls', 'rollout'],
+            siglip: ['mean'],
+            siglip2: ['mean'],
+            resnet50: ['gradcam'],
+          },
+          num_heads_per_model: {
+            dinov2: 12,
+            dinov3: 12,
+            mae: 12,
+            clip: 12,
+            siglip: 12,
+            siglip2: 12,
+            resnet50: 0,
+          },
+          per_head_methods: ['cls', 'mean'],
+          per_head_available_models: ['dinov2'],
+          default_methods: {
+            dinov2: 'cls',
+            dinov3: 'cls',
+            mae: 'cls',
+            clip: 'cls',
+            siglip: 'mean',
+            siglip2: 'mean',
+            resnet50: 'gradcam',
+          },
+        }),
+      });
+    });
+
+    await page.route(`**/api/attention/${IMAGE_ID}/raw?**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          attention: Array.from({ length: 16 * 16 }, (_, idx) => (idx % 16) / 15),
+          shape: [16, 16],
+          min_value: 0,
+          max_value: 1,
+        }),
+      });
+    });
+
+    await openImageDetail(page);
+
+    const modelSelect = getSelectByLabel(page, 'Model');
+    const methodSelect = getSelectByLabel(page, 'Attention Method');
+    const headSelect = getSelectByLabel(page, 'Attention Head');
+    const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
+    const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
+
+    await expect(q3ScopeCard).toContainText('Primary Q3 study scope');
+    await expect(q3ScopeCard).toContainText(
+      'Primary claim centers dinov2, dinov3, mae, and clip'
+    );
+    await expect(q3ScopeCard).toContainText(
+      'Use Dashboard Q3 to compare frozen, LoRA, and full'
+    );
+    await expect(modelSelect.locator('option')).toContainText([
+      'Dinov2 (Primary study)',
+      'Siglip2 (Outside primary scope)',
+      'Resnet50 (Outside primary scope)',
+    ]);
+    await expect(currentModelStatus).toHaveText('Primary study');
+
+    await modelSelect.selectOption('resnet50');
+    await expect(currentModelStatus).toHaveText('Outside primary scope');
+
+    await modelSelect.selectOption('dinov2');
+    await methodSelect.selectOption('cls');
+    await headSelect.selectOption('3');
+    await page.getByTestId('layer-last').click();
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
+
+    const firstBbox = page.getByTestId('bbox-list-item-0');
+    await firstBbox.click();
+    await expect(page.getByText('Showing bbox metrics')).toBeVisible();
+
+    await modelSelect.selectOption('siglip2');
+    await expect(currentModelStatus).toHaveText('Outside primary scope');
+    await expect(getSelectByLabel(page, 'Attention Method')).toHaveCount(0);
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
+    await page.getByTestId('layer-first').click();
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 0');
+
+    await page.getByTestId('image-detail-use-q3-defaults').click();
+
+    await expect(modelSelect).toHaveValue('dinov2');
+    await expect(methodSelect).toHaveValue('cls');
+    await expect(getSelectByLabel(page, 'Attention Head')).toBeVisible();
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveValue('-1');
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
+    await expect(page.getByText('Showing union metrics')).toBeVisible();
+    await expect(page.getByTestId('image-detail-q3-current-model-status')).toHaveText('Primary study');
   });
 
   test('keeps the chart synced with layer controls and playback reveal state', async ({ page }) => {
