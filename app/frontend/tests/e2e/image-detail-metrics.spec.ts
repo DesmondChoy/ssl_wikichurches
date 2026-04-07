@@ -131,6 +131,13 @@ async function stubImageDetailModeApis(page: Page) {
             default_enabled: true,
             percentile_dependent: false,
           },
+          {
+            key: 'emd',
+            label: 'EMD',
+            direction: 'lower',
+            default_enabled: true,
+            percentile_dependent: false,
+          },
         ],
         layers: Array.from({ length: 12 }, (_, layer) => ({
           layer,
@@ -139,6 +146,7 @@ async function stubImageDetailModeApis(page: Page) {
             iou: 0.2 + layer * 0.01,
             coverage: 0.35 + layer * 0.005,
             mse: 0.08 - layer * 0.002,
+            emd: 0.14 - layer * 0.003,
           },
         })),
       }),
@@ -147,6 +155,10 @@ async function stubImageDetailModeApis(page: Page) {
 }
 
 test.describe('Image detail metrics chart', () => {
+  test.beforeEach(async ({ page }) => {
+    await stubImageDetailModeApis(page);
+  });
+
   test('uses the new desktop layout and removes the page-local compare CTA', async ({ page }) => {
     await openImageDetail(page);
 
@@ -374,7 +386,7 @@ test.describe('Image detail metrics chart', () => {
     await expect(headSelect()).toHaveValue('-1');
   });
 
-  test('shows shared Q3 scope framing and resets the inspector to Q3 defaults', async ({ page }) => {
+  test('keeps Q3 framing behind the Q3 tab and resets the inspector to Q3 defaults there', async ({ page }) => {
     await page.route('**/api/attention/models', async (route) => {
       await route.fulfill({
         status: 200,
@@ -439,12 +451,30 @@ test.describe('Image detail metrics chart', () => {
 
     await openImageDetail(page);
 
+    const mainTab = page.getByRole('tab', { name: 'Image Detail' });
+    const q3Tab = page.getByRole('tab', { name: 'Q3' });
     const modelSelect = getSelectByLabel(page, 'Model');
     const methodSelect = getSelectByLabel(page, 'Attention Method');
     const headSelect = getSelectByLabel(page, 'Attention Head');
     const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
     const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
 
+    await expect(mainTab).toHaveAttribute('aria-selected', 'true');
+    await expect(q3ScopeCard).toHaveCount(0);
+    await expect(page.getByTestId('image-detail-use-q3-defaults')).toHaveCount(0);
+    await expect(modelSelect.locator('option')).toHaveText([
+      'Dinov2',
+      'Dinov3',
+      'Mae',
+      'Clip',
+      'Siglip',
+      'Siglip2',
+      'Resnet50',
+    ]);
+
+    await q3Tab.click();
+
+    await expect(q3Tab).toHaveAttribute('aria-selected', 'true');
     await expect(q3ScopeCard).toContainText('Primary Q3 study scope');
     await expect(q3ScopeCard).toContainText(
       'Primary claim centers dinov2, dinov3, mae, and clip'
@@ -452,8 +482,12 @@ test.describe('Image detail metrics chart', () => {
     await expect(q3ScopeCard).toContainText(
       'Use Dashboard Q3 to compare frozen, LoRA, and full'
     );
-    await expect(modelSelect.locator('option')).toContainText([
+    await expect(modelSelect.locator('option')).toHaveText([
       'Dinov2 (Primary study)',
+      'Dinov3 (Primary study)',
+      'Mae (Primary study)',
+      'Clip (Primary study)',
+      'Siglip (Outside primary scope)',
       'Siglip2 (Outside primary scope)',
       'Resnet50 (Outside primary scope)',
     ]);
@@ -488,6 +522,21 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
     await expect(page.getByText('Showing union metrics')).toBeVisible();
     await expect(page.getByTestId('image-detail-q3-current-model-status')).toHaveText('Primary study');
+
+    await mainTab.click();
+
+    await expect(mainTab).toHaveAttribute('aria-selected', 'true');
+    await expect(q3ScopeCard).toHaveCount(0);
+    await expect(modelSelect.locator('option')).toHaveText([
+      'Dinov2',
+      'Dinov3',
+      'Mae',
+      'Clip',
+      'Siglip',
+      'Siglip2',
+      'Resnet50',
+    ]);
+    await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
   });
 
   test('keeps the chart synced with layer controls and playback reveal state', async ({ page }) => {
@@ -521,7 +570,6 @@ test.describe('Image detail metrics chart', () => {
   });
 
   test('switches between head attention and feature similarity without mixing overlays or copy', async ({ page }) => {
-    await stubImageDetailModeApis(page);
     await openImageDetail(page);
 
     const headModeButton = page.getByTestId('image-detail-mode-head_attention');
@@ -568,25 +616,29 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
   });
 
-  test('restores feature similarity from the mode query param and falls back to head attention for invalid values', async ({ page }) => {
-    await stubImageDetailModeApis(page);
-
-    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?mode=feature_similarity`);
+  test('restores tab and mode query params together and falls back to the default tab for invalid values', async ({ page }) => {
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=q3&mode=feature_similarity`);
     await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
 
+    await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('image-detail-q3-scope-card')).toBeVisible();
     await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
     await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Feature Similarity');
 
     await page.reload();
 
+    await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page).toHaveURL(/tab=q3/);
     await expect(page).toHaveURL(/mode=feature_similarity/);
     await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
 
-    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?mode=not_a_real_mode`);
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=not_a_real_tab&mode=not_a_real_mode`);
     await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
 
+    await expect(page.getByRole('tab', { name: 'Image Detail' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('image-detail-q3-scope-card')).toHaveCount(0);
     await expect(page.getByTestId('image-detail-mode-head_attention')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
     await expect(getSelectByLabel(page, 'Attention Head')).toBeVisible();

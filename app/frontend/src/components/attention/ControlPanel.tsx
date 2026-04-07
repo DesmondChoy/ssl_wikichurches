@@ -17,9 +17,18 @@ import type { HeatmapStyle, ImageDetailMode } from '../../types';
 interface ControlPanelProps {
   className?: string;
   mode: ImageDetailMode;
+  showQ3ModelScopeLabels?: boolean;
 }
 
-export function ControlPanel({ className = '', mode }: ControlPanelProps) {
+function formatModelOptionLabel(model: string): string {
+  return model.charAt(0).toUpperCase() + model.slice(1);
+}
+
+export function ControlPanel({
+  className = '',
+  mode,
+  showQ3ModelScopeLabels = false,
+}: ControlPanelProps) {
   const {
     model,
     layer,
@@ -95,10 +104,12 @@ export function ControlPanel({ className = '', mode }: ControlPanelProps) {
   const modelOptions =
     modelsData?.models.map((m) => ({
       value: m,
-      label: formatQ3ScopeOptionLabel(
-        m.charAt(0).toUpperCase() + m.slice(1),
-        getQ3ModelScopeStatus(m),
-      ),
+      label: showQ3ModelScopeLabels
+        ? formatQ3ScopeOptionLabel(
+            formatModelOptionLabel(m),
+            getQ3ModelScopeStatus(m),
+          )
+        : formatModelOptionLabel(m),
     })) || [];
 
   // Get available methods for current model

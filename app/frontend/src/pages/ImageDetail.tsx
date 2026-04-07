@@ -15,11 +15,13 @@ import { ImageDetailMetricsPanel } from '../components/metrics/ImageDetailMetric
 import { Q3StudyScopeCallout } from '../components/metrics/Q3ScopeFraming';
 import { Card, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+import { PageTabs } from '../components/ui/PageTabs';
 import { AnnotationsCard } from '../components/image-detail/AnnotationsCard';
 import { ImageDetailModeSwitch } from '../components/image-detail/ImageDetailModeSwitch';
 import { parseImageDetailMode } from '../constants/imageDetailModes';
+import { parsePageTab } from '../constants/pageTabs';
 import { Q3_DEFAULTS, getQ3ModelScopeStatus } from '../constants/q3Scope';
-import type { ImageDetailMode } from '../types';
+import type { ImageDetailMode, PageTab } from '../types';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
@@ -44,7 +46,9 @@ export function ImageDetailPage() {
     setSelectedBboxIndex,
   } = useViewStore();
   const requestedMode = parseImageDetailMode(searchParams.get('mode'));
+  const currentTab = parsePageTab(searchParams.get('tab'));
   const currentMode = requestedMode;
+  const isQ3Tab = currentTab === 'q3';
 
   useEffect(() => {
     if (imageDetailMode !== requestedMode) {
@@ -56,11 +60,17 @@ export function ImageDetailPage() {
   const { data: modelsData } = useModels();
   const maxLayers = modelsData?.num_layers_per_model?.[model] ?? modelsData?.num_layers ?? 12;
 
-  const persistModeToUrl = useCallback((nextMode: ImageDetailMode) => {
+  const persistSearchParam = useCallback((key: string, value: string) => {
     const nextParams = new URLSearchParams(searchParams);
-    nextParams.set('mode', nextMode);
+    nextParams.set(key, value);
     setSearchParams(nextParams);
   }, [searchParams, setSearchParams]);
+  const persistModeToUrl = useCallback((nextMode: ImageDetailMode) => {
+    persistSearchParam('mode', nextMode);
+  }, [persistSearchParam]);
+  const persistTabToUrl = useCallback((nextTab: PageTab) => {
+    persistSearchParam('tab', nextTab);
+  }, [persistSearchParam]);
 
   const handleBboxSelect = useCallback((index: number | null) => {
     setSelectedBboxIndex(index);
@@ -69,6 +79,9 @@ export function ImageDetailPage() {
     setImageDetailMode(nextMode);
     persistModeToUrl(nextMode);
   }, [persistModeToUrl, setImageDetailMode]);
+  const handleTabChange = useCallback((nextTab: PageTab) => {
+    persistTabToUrl(nextTab);
+  }, [persistTabToUrl]);
   const handleApplyQ3Defaults = useCallback(() => {
     setIsPlaying(false);
     setImageDetailMode('head_attention');
@@ -158,23 +171,48 @@ export function ImageDetailPage() {
         <span className="text-gray-600">{decodedId}</span>
       </div>
 
+      <PageTabs
+        label="Image Detail sections"
+        activeTab={currentTab}
+        onChange={handleTabChange}
+        tabs={[
+          {
+            value: 'main',
+            label: 'Image Detail',
+            id: 'image-detail-page-tab-main',
+            dataTestId: 'image-detail-page-tab-main',
+          },
+          {
+            value: 'q3',
+            label: 'Q3',
+            id: 'image-detail-page-tab-q3',
+            dataTestId: 'image-detail-page-tab-q3',
+          },
+        ]}
+      />
+
       {/* Main content */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
         <div className="space-y-4 lg:col-span-3 xl:col-span-1" data-testid="image-detail-left-column">
           <div data-testid="view-settings-panel">
-            <ControlPanel mode={currentMode} />
+            <ControlPanel
+              mode={currentMode}
+              showQ3ModelScopeLabels={isQ3Tab}
+            />
           </div>
-          <Q3StudyScopeCallout
-            context="imageDetail"
-            dataTestId="image-detail-q3-scope-card"
-            currentModelLabel={model}
-            currentModelStatus={getQ3ModelScopeStatus(model)}
-            action={{
-              label: 'Use Q3 defaults',
-              onClick: handleApplyQ3Defaults,
-              dataTestId: 'image-detail-use-q3-defaults',
-            }}
-          />
+          {isQ3Tab && (
+            <Q3StudyScopeCallout
+              context="imageDetail"
+              dataTestId="image-detail-q3-scope-card"
+              currentModelLabel={model}
+              currentModelStatus={getQ3ModelScopeStatus(model)}
+              action={{
+                label: 'Use Q3 defaults',
+                onClick: handleApplyQ3Defaults,
+                dataTestId: 'image-detail-use-q3-defaults',
+              }}
+            />
+          )}
           {imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}

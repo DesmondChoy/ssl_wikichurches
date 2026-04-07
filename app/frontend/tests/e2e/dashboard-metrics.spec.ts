@@ -603,15 +603,28 @@ test.describe('Dashboard metrics', () => {
     );
   });
 
-  test('renders the Q3 panel, supports metric switching, and shows unsupported model states', async ({ page }) => {
+  test('keeps Q3 analysis behind the Q3 tab and supports metric switching there', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/dashboard');
 
+    const overviewTab = page.getByRole('tab', { name: 'Overview' });
+    const q3Tab = page.getByRole('tab', { name: 'Q3' });
+
+    await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('dashboard-main-panel')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
+
+    await q3Tab.click();
+
+    await expect(q3Tab).toHaveAttribute('aria-selected', 'true');
+    const q3Panel = page.getByTestId('dashboard-q3-panel');
+
+    await expect(q3Panel).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
     await expect(page.getByText('Head Ranking')).toBeVisible();
     await expect(page.getByText('Head × Feature Matrix')).toBeVisible();
-    await expect(page.getByText('Door').first()).toBeVisible();
-    await expect(page.getByText('Window').first()).toBeVisible();
+    await expect(q3Panel.getByText('Door').first()).toBeVisible();
+    await expect(q3Panel.getByText('Window').first()).toBeVisible();
 
     const q3Section = page
       .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
@@ -623,6 +636,10 @@ test.describe('Dashboard metrics', () => {
 
     await q3Section.locator('select').nth(0).selectOption('resnet50');
     await expect(page.getByText(/Q3 per-head analysis is not supported for model 'resnet50'\./)).toBeVisible();
+
+    await overviewTab.click();
+    await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
   });
 
   test('surfaces scoped Q3 study framing and keeps out-of-scope options selectable', async ({ page }) => {
@@ -809,6 +826,8 @@ test.describe('Dashboard metrics', () => {
 
     await page.goto('/dashboard');
 
+    await page.getByRole('tab', { name: 'Q3' }).click();
+
     const q3Section = page
       .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
       .locator('xpath=ancestor::div[contains(@class,"rounded")]')
@@ -857,6 +876,27 @@ test.describe('Dashboard metrics', () => {
     await modelSelect.selectOption('resnet50');
     await expect(page.getByTestId('q3-model-scope-chip')).toHaveText('Outside primary scope');
     await expect(page.getByText(/Q3 per-head analysis is not supported for model 'resnet50'\./)).toBeVisible();
+  });
+
+  test('restores the selected dashboard tab from the URL and falls back to Overview for invalid values', async ({ page }) => {
+    await stubDashboardApis(page);
+
+    await page.goto('/dashboard?tab=q3');
+
+    await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
+
+    await page.reload();
+
+    await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(/tab=q3/);
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
+
+    await page.goto('/dashboard?tab=not_a_real_tab');
+
+    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('dashboard-main-panel')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
   });
 
   test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {
