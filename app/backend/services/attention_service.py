@@ -9,7 +9,12 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from app.backend.config import ATTENTION_CACHE_PATH, resolve_model_name, split_model_name
+from app.backend.config import (
+    ATTENTION_CACHE_PATH,
+    VALID_FINETUNE_STRATEGIES,
+    resolve_model_name,
+    split_model_name,
+)
 from ssl_attention.cache import AttentionCache
 
 # Patch grid sizes per model (based on 224x224 input / patch_size)
@@ -25,6 +30,7 @@ MODEL_ATTENTION_GRIDS: dict[str, tuple[int, int]] = {
     "siglip2": (14, 14),  # 196 patches
     "resnet50": (7, 7),  # 49 feature positions
 }
+Q3_COMPARE_VARIANTS = ("frozen", "linear_probe", "lora", "full")
 
 
 class AttentionService:
@@ -33,6 +39,7 @@ class AttentionService:
     _instance: AttentionService | None = None
     _cache: AttentionCache | None = None
     _per_head_available_models_cache: list[str] | None = None
+    _q3_variant_availability_cache: dict[str, dict[str, bool]] | None = None
     _per_head_available_models_signature: tuple[int, int] | None = None
 
     def __new__(cls) -> AttentionService:
@@ -88,31 +95,70 @@ class AttentionService:
 
     def list_models_with_per_head_cache(self) -> list[str]:
         """Return base-model names that currently have any per-head attention cached."""
+        availability = self.list_q3_variant_per_head_availability()
+        available_models = sorted(
+            model for model, variant_map in availability.items() if any(variant_map.values())
+        )
+        return available_models
+
+    def list_q3_variant_per_head_availability(self) -> dict[str, dict[str, bool]]:
+        """Return per-head cache availability for each canonical base model and Q3 variant."""
         if not self.cache.path.exists():
             self._per_head_available_models_cache = []
+            self._q3_variant_availability_cache = {}
             self._per_head_available_models_signature = None
-            return []
+            return {}
 
         stat = self.cache.path.stat()
         signature = (stat.st_mtime_ns, stat.st_size)
         if (
             self._per_head_available_models_cache is not None
+            and self._q3_variant_availability_cache is not None
             and self._per_head_available_models_signature == signature
         ):
-            return list(self._per_head_available_models_cache)
+            return {
+                model: dict(variant_map)
+                for model, variant_map in self._q3_variant_availability_cache.items()
+            }
 
+        availability: dict[str, dict[str, bool]] = {}
         available_models: set[str] = set()
         for key in self.cache.list_cached():
             variant = key.variant
             base_variant, sep, head_suffix = variant.rpartition("_head")
-            if sep and base_variant and head_suffix.isdigit():
-                base_model, _, _ = split_model_name(key.model)
-                available_models.add(base_model)
+            if not (sep and base_variant and head_suffix.isdigit()):
+                continue
+
+            base_model, is_finetuned, strategy = split_model_name(key.model)
+            compare_variant = "frozen"
+            if is_finetuned:
+                if strategy not in VALID_FINETUNE_STRATEGIES:
+                    continue
+                compare_variant = strategy
+
+            variant_map = availability.setdefault(
+                resolve_model_name(base_model),
+                {variant_name: False for variant_name in Q3_COMPARE_VARIANTS},
+            )
+            variant_map[compare_variant] = True
+            available_models.add(resolve_model_name(base_model))
 
         ordered = sorted(available_models)
         self._per_head_available_models_cache = ordered
+        self._q3_variant_availability_cache = {
+            model: dict(
+                availability.get(
+                    model,
+                    {variant_name: False for variant_name in Q3_COMPARE_VARIANTS},
+                )
+            )
+            for model in ordered
+        }
         self._per_head_available_models_signature = signature
-        return list(ordered)
+        return {
+            model: dict(variant_map)
+            for model, variant_map in self._q3_variant_availability_cache.items()
+        }
 
     def get_raw_attention(
         self,

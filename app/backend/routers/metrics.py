@@ -12,6 +12,7 @@ from app.backend.schemas import (
     HeadExemplarResponse,
     HeadFeatureMatrixResponse,
     HeadRankingResponse,
+    ImageHeadRankingResponse,
     ImageLayerProgressionSchema,
     IoUResultSchema,
     LayerProgressionSchema,
@@ -401,6 +402,48 @@ async def get_head_ranking(
         variant=variant,
     )
     return HeadRankingResponse(**data)
+
+
+@router.get("/{image_id}/head_ranking", response_model=ImageHeadRankingResponse)
+async def get_image_head_ranking(
+    image_id: str,
+    model: Annotated[str, Query(description="Model name")] = "dinov2",
+    layer: Annotated[int, Query(ge=0)] = 11,
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    metric: Annotated[Literal["iou", "coverage", "mse", "kl", "emd"], Query()] = "iou",
+    variant: Annotated[Literal["frozen", "linear_probe", "lora", "full"], Query()] = "frozen",
+    bbox_index: Annotated[int | None, Query(ge=0)] = None,
+) -> ImageHeadRankingResponse:
+    """Get the Q3 per-head ranking for one image and optional bbox selection."""
+    validate_model(model)
+    layer_key = validate_layer_for_model(layer, model)
+
+    if not metrics_service.db_exists:
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics database not available.",
+        )
+
+    try:
+        data = metrics_service.get_image_head_ranking(
+            image_id=image_id,
+            model=model,
+            layer=layer_key,
+            percentile=percentile,
+            metric=metric,
+            variant=variant,
+            bbox_index=bbox_index,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    if data is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Image annotation not found for {image_id}.",
+        )
+
+    return ImageHeadRankingResponse(**data)
 
 
 @router.get("/model/{model}/head_feature_matrix", response_model=HeadFeatureMatrixResponse)

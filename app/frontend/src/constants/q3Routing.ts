@@ -1,13 +1,14 @@
-import { isCompareVariantId } from './metricMetadata';
+import { isAnalysisMetric, isCompareVariantId } from './metricMetadata';
 import { parseImageDetailMode } from './imageDetailModes';
 import { Q3_DEFAULTS, Q3_PRIMARY_MODELS } from './q3Scope';
-import type { CompareVariantId, ImageDetailMode } from '../types';
+import type { AnalysisMetric, CompareVariantId, ImageDetailMode } from '../types';
 
 export interface ImageDetailQ3State {
   model: string;
   variant: CompareVariantId;
   layer: number;
   head: number | null;
+  metric: AnalysisMetric;
   mode: ImageDetailMode;
   showBboxes: boolean;
   bboxIndex: number | null;
@@ -32,6 +33,7 @@ export function parseImageDetailQ3State(
     variant,
     layer: clampNumber(parseOptionalNumber(searchParams.get('layer')) ?? Q3_DEFAULTS.layer, 0, maxLayer),
     head: parseHeadParam(searchParams.get('head'), numHeads),
+    metric: parseQ3Metric(searchParams.get('metric')),
     mode: parseImageDetailMode(searchParams.get('mode')),
     showBboxes: parseBooleanParam(searchParams.get('show_bboxes'), Q3_DEFAULTS.showBboxes),
     bboxIndex: parseOptionalNumber(searchParams.get('bbox_index')),
@@ -55,6 +57,7 @@ export function createImageDetailQ3SearchParams(
   next.set('variant', state.variant);
   next.set('layer', String(state.layer));
   next.set('head', state.head === null ? 'all' : String(state.head));
+  next.set('metric', state.metric);
   next.set('show_bboxes', String(state.showBboxes));
 
   setOptionalNumberParam(next, 'bbox_index', state.bboxIndex);
@@ -77,6 +80,10 @@ function parseQ3Model(value: string | null): string {
 
 function parseQ3Variant(value: string | null): CompareVariantId {
   return isCompareVariantId(value) ? value : Q3_DEFAULTS.variant;
+}
+
+function parseQ3Metric(value: string | null): AnalysisMetric {
+  return isAnalysisMetric(value) ? value : Q3_DEFAULTS.metric;
 }
 
 function parseBooleanParam(value: string | null, fallback: boolean): boolean {

@@ -232,6 +232,7 @@ async def list_models() -> dict:
     # Use original model names as keys (e.g., 'siglip2' not 'siglip')
     # so frontend can look up by the name it uses
     per_head_available_models = attention_service.list_models_with_per_head_cache()
+    q3_variant_availability = attention_service.list_q3_variant_per_head_availability()
     return {
         "models": AVAILABLE_MODELS,
         "num_layers": NUM_LAYERS,  # Legacy: global default for backwards compatibility
@@ -252,6 +253,15 @@ async def list_models() -> dict:
             m for m in AVAILABLE_MODELS
             if resolve_model_name(m) in per_head_available_models
         ],
+        "q3_per_head_variant_availability": {
+            m: {
+                "frozen": q3_variant_availability.get(resolve_model_name(m), {}).get("frozen", False),
+                "linear_probe": q3_variant_availability.get(resolve_model_name(m), {}).get("linear_probe", False),
+                "lora": q3_variant_availability.get(resolve_model_name(m), {}).get("lora", False),
+                "full": q3_variant_availability.get(resolve_model_name(m), {}).get("full", False),
+            }
+            for m in AVAILABLE_MODELS
+        },
         "default_methods": {
             m: DEFAULT_METHOD.get(resolve_model_name(m), AttentionMethod.CLS).value
             for m in AVAILABLE_MODELS

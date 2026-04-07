@@ -28,6 +28,14 @@ async function stubImageDetailModeApis(page: Page) {
         num_heads_per_model: { dinov2: 12 },
         per_head_methods: ['cls'],
         per_head_available_models: ['dinov2'],
+        q3_per_head_variant_availability: {
+          dinov2: {
+            frozen: true,
+            linear_probe: true,
+            lora: true,
+            full: false,
+          },
+        },
         default_methods: { dinov2: 'cls' },
       }),
     });
@@ -149,6 +157,82 @@ async function stubImageDetailModeApis(page: Page) {
             emd: 0.14 - layer * 0.003,
           },
         })),
+      }),
+    });
+  });
+
+  await page.route(`**/api/metrics/${IMAGE_ID}/head_ranking?**`, async (route) => {
+    const url = new URL(route.request().url());
+    const variant = url.searchParams.get('variant') ?? 'frozen';
+    const metric = url.searchParams.get('metric') ?? 'iou';
+    const bboxIndexParam = url.searchParams.get('bbox_index');
+    const bboxIndex = bboxIndexParam === null ? null : Number(bboxIndexParam);
+    const selection = bboxIndex === null
+      ? { mode: 'union', bbox_index: null, bbox_label: null }
+      : { mode: 'bbox', bbox_index: bboxIndex, bbox_label: 'Spire' };
+
+    if (variant === 'full') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          image_id: IMAGE_ID,
+          model: 'dinov2',
+          variant,
+          layer: `layer${url.searchParams.get('layer') ?? '11'}`,
+          method: 'cls',
+          metric,
+          direction: metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower',
+          percentile: Number(url.searchParams.get('percentile') ?? '90'),
+          selection,
+          supported: false,
+          reason: 'Per-head Q3 cache is not available for this variant yet.',
+          heads: [],
+        }),
+      });
+      return;
+    }
+
+    const rankedHeads = metric === 'emd'
+      ? [
+          { head: 1, score: bboxIndex === null ? 0.06 : 0.04 },
+          { head: 3, score: bboxIndex === null ? 0.08 : 0.05 },
+          { head: 0, score: bboxIndex === null ? 0.12 : 0.09 },
+          { head: 5, score: bboxIndex === null ? 0.15 : 0.11 },
+          { head: 7, score: bboxIndex === null ? 0.19 : 0.13 },
+        ]
+      : bboxIndex === null
+        ? [
+            { head: 3, score: 0.81 },
+            { head: 1, score: 0.74 },
+            { head: 0, score: 0.68 },
+            { head: 5, score: 0.61 },
+            { head: 7, score: 0.58 },
+          ]
+        : [
+            { head: 5, score: 0.84 },
+            { head: 3, score: 0.79 },
+            { head: 1, score: 0.72 },
+            { head: 0, score: 0.66 },
+            { head: 7, score: 0.55 },
+          ];
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        model: 'dinov2',
+        variant,
+        layer: `layer${url.searchParams.get('layer') ?? '11'}`,
+        method: 'cls',
+        metric,
+        direction: metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower',
+        percentile: Number(url.searchParams.get('percentile') ?? '90'),
+        selection,
+        supported: true,
+        reason: null,
+        heads: rankedHeads,
       }),
     });
   });
@@ -328,6 +412,50 @@ test.describe('Image detail metrics chart', () => {
           },
           per_head_methods: ['cls', 'mean'],
           per_head_available_models: ['dinov2'],
+          q3_per_head_variant_availability: {
+            dinov2: {
+              frozen: true,
+              linear_probe: true,
+              lora: true,
+              full: false,
+            },
+            dinov3: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            mae: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            clip: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            siglip: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            siglip2: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            resnet50: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+          },
           default_methods: {
             dinov2: 'cls',
             dinov3: 'cls',
@@ -430,6 +558,50 @@ test.describe('Image detail metrics chart', () => {
           },
           per_head_methods: ['cls', 'mean'],
           per_head_available_models: ['dinov2'],
+          q3_per_head_variant_availability: {
+            dinov2: {
+              frozen: true,
+              linear_probe: true,
+              lora: true,
+              full: false,
+            },
+            dinov3: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            mae: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            clip: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            siglip: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            siglip2: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+            resnet50: {
+              frozen: false,
+              linear_probe: false,
+              lora: false,
+              full: false,
+            },
+          },
           default_methods: {
             dinov2: 'cls',
             dinov3: 'cls',
@@ -462,7 +634,6 @@ test.describe('Image detail metrics chart', () => {
     const q3Tab = page.getByRole('tab', { name: 'Q3' });
     const modelSelect = getSelectByLabel(page, 'Model');
     const methodSelect = getSelectByLabel(page, 'Attention Method');
-    const headSelect = () => getSelectByLabel(page, 'Attention Head');
     const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
     const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
     const centerColumn = page.getByTestId('image-detail-center-column');
@@ -504,7 +675,10 @@ test.describe('Image detail metrics chart', () => {
     );
     await expect(currentModelStatus).toHaveText('Primary study');
     await expect(page.getByTestId('annotations-card')).toBeVisible();
-    await expect(headSelect()).toBeVisible();
+    await expect(page.getByTestId('q3-head-choice-all')).toBeVisible();
+    await expect(page.getByTestId('q3-top-head-strip')).toBeVisible();
+    await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('iou');
+    await expect(page.getByTestId('q3-ranking-scope-copy')).toContainText('Whole-image union of annotations');
     await expect(getSelectByLabel(page, 'Model').locator('option')).toHaveText([
       'dinov2',
       'dinov3',
@@ -522,6 +696,10 @@ test.describe('Image detail metrics chart', () => {
     expect(q3CenterBox).not.toBeNull();
     expect(Math.abs(q3CenterBox!.width - mainCenterBox!.width)).toBeLessThanOrEqual(16);
 
+    await page.getByTestId('q3-top-head-3').click();
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head 3');
+    await expect(page).toHaveURL(/head=3/);
+
     await getSelectByLabel(page, 'Variant').selectOption('lora');
     await expect(getSelectByLabel(page, 'Variant')).toHaveValue('lora');
     await expect(page).toHaveURL(/variant=lora/);
@@ -530,10 +708,20 @@ test.describe('Image detail metrics chart', () => {
       { timeout: 10000 },
     ).toBe(true);
 
+    await getSelectByLabel(page, 'Rank by').selectOption('emd');
+    await expect(page).toHaveURL(/metric=emd/);
+    await expect(page.getByTestId('q3-top-head-1')).toBeVisible();
+
+    await getSelectByLabel(page, 'Variant').selectOption('full');
+    await expect(page.getByTestId('q3-head-ranking-unavailable')).toContainText('All (Fused)');
+    await expect(page).toHaveURL(/variant=full/);
+    await expect(page).toHaveURL(/head=all/);
+
     await page.getByTestId('image-detail-use-q3-defaults').click();
 
     await expect(page.getByTestId('image-detail-q3-current-model-status')).toHaveText('Primary study');
     await expect(getSelectByLabel(page, 'Variant')).toHaveValue('frozen');
+    await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('iou');
 
     await mainTab.click();
 
@@ -597,24 +785,21 @@ test.describe('Image detail metrics chart', () => {
 
     const headModeButton = page.getByTestId('image-detail-mode-head_attention');
     const featureModeButton = page.getByTestId('image-detail-mode-feature_similarity');
-    const headSelect = () => getSelectByLabel(page, 'Attention Head');
 
     await expect(headModeButton).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
     await expect(page.getByTestId('annotations-helper-copy')).toContainText('context while you inspect attention');
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
-    await expect(headSelect()).toBeVisible();
-    await expect(headSelect()).toHaveValue('all');
+    await expect(page.getByTestId('q3-head-choice-all')).toBeVisible();
     await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
 
-    await headSelect().selectOption('3');
+    await page.getByTestId('q3-top-head-3').click();
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Head 3');
 
     await featureModeButton.click();
 
     await expect(featureModeButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(headSelect()).toBeVisible();
-    await expect(headSelect()).toHaveValue('3');
+    await expect(page.getByTestId('q3-top-head-3')).toBeVisible();
     await expect(page.getByTestId('attention-overlay-image')).toHaveCount(0);
     await expect(page.getByTestId('annotations-helper-copy')).toContainText('feature-similarity query');
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
@@ -640,8 +825,10 @@ test.describe('Image detail metrics chart', () => {
     await page.getByRole('tab', { name: 'Q3' }).click();
 
     await expect(featureModeButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(headSelect()).toBeVisible();
-    await expect(headSelect()).toHaveValue('3');
+    await expect(page.getByTestId('q3-top-head-3')).toBeVisible();
+    await expect(page).toHaveURL(/head=3/);
+    await expect(page.getByTestId('q3-ranking-scope-copy')).toContainText('Selected bbox: Spire');
+    await expect(page.getByTestId('q3-top-head-5')).toBeVisible();
     await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
     await expect(page.getByTestId('similarity-stats')).toBeVisible();
     await expect(page.getByTestId('similarity-legend')).toBeVisible();
@@ -649,8 +836,7 @@ test.describe('Image detail metrics chart', () => {
     await headModeButton.click();
 
     await expect(headModeButton).toHaveAttribute('aria-pressed', 'true');
-    await expect(headSelect()).toBeVisible();
-    await expect(headSelect()).toHaveValue('3');
+    await expect(page.getByTestId('q3-top-head-3')).toBeVisible();
     await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
     await expect(page.getByTestId('similarity-stats')).toHaveCount(0);
     await expect(page.getByTestId('similarity-legend')).toHaveCount(0);
@@ -658,7 +844,7 @@ test.describe('Image detail metrics chart', () => {
   });
 
   test('restores tab and mode query params together and falls back to the default tab for invalid values', async ({ page }) => {
-    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=q3&mode=feature_similarity&model=dinov2&variant=lora&layer=7&head=3&feature_label=1&feature_name=Spire&bbox_index=0`);
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=q3&mode=feature_similarity&model=dinov2&variant=lora&layer=7&metric=emd&head=3&feature_label=1&feature_name=Spire&bbox_index=0`);
     await expect(page.getByTestId('image-detail-q3-scope-card')).toBeVisible({ timeout: 20000 });
 
     await expect(page.getByRole('tab', { name: 'Q3' })).toHaveAttribute('aria-selected', 'true');
@@ -669,7 +855,8 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
     await expect(getSelectByLabel(page, 'Model')).toHaveValue('dinov2');
     await expect(getSelectByLabel(page, 'Variant')).toHaveValue('lora');
-    await expect(getSelectByLabel(page, 'Attention Head')).toHaveValue('3');
+    await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('emd');
+    await expect(page).toHaveURL(/head=3/);
     await expect(page.getByTestId('viewer-info-badge')).toContainText('Feature Similarity');
     await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
 
@@ -681,9 +868,10 @@ test.describe('Image detail metrics chart', () => {
     await expect(page).toHaveURL(/mode=feature_similarity/);
     await expect(page).toHaveURL(/variant=lora/);
     await expect(page).toHaveURL(/layer=7/);
+    await expect(page).toHaveURL(/metric=emd/);
     await expect(page).toHaveURL(/head=3/);
     await expect(page).toHaveURL(/bbox_index=0/);
-    await expect(getSelectByLabel(page, 'Attention Head')).toHaveValue('3');
+    await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('emd');
     await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
 
     await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?tab=not_a_real_tab&mode=not_a_real_mode`);

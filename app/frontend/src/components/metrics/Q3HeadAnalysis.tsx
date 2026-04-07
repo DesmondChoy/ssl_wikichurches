@@ -144,6 +144,7 @@ export function Q3HeadAnalysis() {
         variant: drilldownRequest.variant,
         layer: drilldownRequest.layer,
         head: drilldownRequest.head,
+        metric: drilldownRequest.metric,
         mode: drilldownRequest.origin === 'feature' ? 'feature_similarity' : 'head_attention',
         showBboxes: true,
         bboxIndex: drilldownRequest.origin === 'feature' ? candidate.default_bbox_index : null,

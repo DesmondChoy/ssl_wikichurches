@@ -262,6 +262,30 @@ class HeadRankingResponse(BaseModel):
     heads: list[HeadRankingEntrySchema] = Field(default_factory=list)
 
 
+class ImageHeadRankingEntrySchema(BaseModel):
+    """Image-scoped Q3 score for one attention head."""
+
+    head: int
+    score: float
+
+
+class ImageHeadRankingResponse(BaseModel):
+    """Metric-specific Q3 ranking payload for one image."""
+
+    image_id: str
+    model: str
+    variant: CompareVariant
+    layer: str
+    method: str | None = None
+    metric: AnalysisMetric
+    direction: Literal["higher", "lower"]
+    percentile: int
+    selection: ImageMetricSelectionSchema
+    supported: bool = True
+    reason: str | None = None
+    heads: list[ImageHeadRankingEntrySchema] = Field(default_factory=list)
+
+
 class HeadFeatureMatrixRowSchema(BaseModel):
     """One feature row in the Q3 head-by-feature matrix."""
 

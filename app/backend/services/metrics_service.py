@@ -1098,6 +1098,183 @@ class MetricsService:
             "heads": heads,
         }
 
+    def get_image_head_ranking(
+        self,
+        image_id: str,
+        model: str,
+        layer: str,
+        metric: AnalysisMetricName = "iou",
+        percentile: int = 90,
+        variant: Q3Variant = "frozen",
+        bbox_index: int | None = None,
+    ) -> dict[str, Any] | None:
+        """Get metric-specific Q3 head ranking rows for one image."""
+        method, db_model, unsupported_reason = self._resolve_q3_model_context(model, variant)
+        metric_config = IMAGE_DETAIL_METRICS_BY_KEY[metric]
+        query_percentile = self._metric_query_percentile(metric, percentile)
+        selection: dict[str, str | int | None] = {
+            "mode": "union",
+            "bbox_index": None,
+            "bbox_label": None,
+        }
+        num_heads = MODEL_NUM_HEADS.get(resolve_model_name(model), 0)
+
+        if bbox_index is not None:
+            annotation = self._get_annotation(image_id)
+            if annotation is None:
+                return None
+            selection = {
+                "mode": "bbox",
+                "bbox_index": bbox_index,
+                "bbox_label": self._get_bbox_label(annotation, bbox_index),
+            }
+
+        if unsupported_reason:
+            return {
+                "image_id": image_id,
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "method": method,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "selection": selection,
+                "supported": False,
+                "reason": unsupported_reason,
+                "heads": [],
+            }
+
+        if bbox_index is not None:
+            heads: list[dict[str, Any]] = []
+            for head in range(num_heads):
+                metrics = self._compute_bbox_metrics(
+                    image_id=image_id,
+                    model=db_model,
+                    layer=layer,
+                    bbox_index=bbox_index,
+                    percentile=percentile,
+                    method=method,
+                    annotation=annotation,
+                    head=head,
+                )
+                if metrics is None:
+                    continue
+
+                score = metrics.get(metric)
+                if score is None:
+                    continue
+
+                heads.append(
+                    {
+                        "head": head,
+                        "score": score,
+                    }
+                )
+
+            if not heads:
+                return {
+                    "image_id": image_id,
+                    "model": model,
+                    "variant": variant,
+                    "layer": layer,
+                    "method": method,
+                    "metric": metric,
+                    "direction": metric_config["direction"],
+                    "percentile": percentile,
+                    "selection": selection,
+                    "supported": False,
+                    "reason": "Q3 per-head attention is not cached for this image selection. Run generate_attention_cache.py --per-head first.",
+                    "heads": [],
+                }
+
+            heads.sort(
+                key=lambda entry: (
+                    -entry["score"] if metric_config["direction"] == "higher" else entry["score"],
+                    entry["head"],
+                )
+            )
+
+            return {
+                "image_id": image_id,
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "method": method,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "selection": selection,
+                "supported": True,
+                "reason": None,
+                "heads": heads,
+            }
+
+        with self.get_connection() as conn:
+            if not self._table_exists(conn, "head_image_metrics"):
+                return {
+                    "image_id": image_id,
+                    "model": model,
+                    "variant": variant,
+                    "layer": layer,
+                    "method": method,
+                    "metric": metric,
+                    "direction": metric_config["direction"],
+                    "percentile": percentile,
+                    "selection": selection,
+                    "supported": False,
+                    "reason": "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first.",
+                    "heads": [],
+                }
+
+            cursor = conn.cursor()
+            order_direction = "DESC" if metric_config["direction"] == "higher" else "ASC"
+            cursor.execute(
+                f"""SELECT head, score
+                    FROM head_image_metrics
+                    WHERE image_id = ? AND model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ?
+                    ORDER BY score {order_direction}, head ASC""",
+                (image_id, db_model, layer, method, metric, query_percentile),
+            )
+            rows = cursor.fetchall()
+
+        if not rows:
+            return {
+                "image_id": image_id,
+                "model": model,
+                "variant": variant,
+                "layer": layer,
+                "method": method,
+                "metric": metric,
+                "direction": metric_config["direction"],
+                "percentile": percentile,
+                "selection": selection,
+                "supported": False,
+                "reason": "No Q3 per-head image ranking rows are available for this image yet.",
+                "heads": [],
+            }
+
+        return {
+            "image_id": image_id,
+            "model": model,
+            "variant": variant,
+            "layer": layer,
+            "method": method,
+            "metric": metric,
+            "direction": metric_config["direction"],
+            "percentile": percentile,
+            "selection": selection,
+            "supported": True,
+            "reason": None,
+            "heads": [
+                {
+                    "head": row["head"],
+                    "score": row["score"],
+                }
+                for row in rows
+            ],
+        }
+
     def get_head_feature_matrix(
         self,
         model: str,
@@ -1383,6 +1560,7 @@ class MetricsService:
         percentile: int,
         method: str | None,
         annotation: Any,
+        head: int | None = None,
     ) -> dict[str, Any] | None:
         """Compute bbox metrics from cached attention for a single layer."""
         from ssl_attention.metrics.continuous import (
@@ -1406,6 +1584,7 @@ class MetricsService:
             layer=layer,
             image_id=image_id,
             method=resolved_method,
+            head=head,
         )
         if attention_tensor is None:
             return None
@@ -1471,13 +1650,15 @@ class MetricsService:
         layer: str,
         image_id: str,
         method: str,
+        head: int | None = None,
     ) -> Any | None:
         """Load cached attention and normalize it to a 2D tensor."""
         from app.backend.services.attention_service import attention_service
 
         cache_model = resolve_model_name(model)
+        cache_variant = attention_service.resolve_variant(method, head)
         try:
-            attention = attention_service.cache.load(cache_model, layer, image_id, variant=method)
+            attention = attention_service.cache.load(cache_model, layer, image_id, variant=cache_variant)
         except KeyError:
             return None
 

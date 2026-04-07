@@ -250,6 +250,32 @@ export const metricsAPI = {
     );
   },
 
+  getImageHeadRanking: (
+    imageId: string,
+    model: string,
+    layer: number,
+    percentile = 90,
+    metric: import('../types').AnalysisMetric = 'iou',
+    variant: import('../types').CompareVariantId = 'frozen',
+    options?: {
+      bboxIndex?: number | null;
+    },
+  ) => {
+    const params = new URLSearchParams({
+      model,
+      layer: String(layer),
+      percentile: String(percentile),
+      metric,
+      variant,
+    });
+    if (options?.bboxIndex !== undefined && options?.bboxIndex !== null) {
+      params.set('bbox_index', String(options.bboxIndex));
+    }
+    return fetchJSON<import('../types').ImageHeadRankingResponse>(
+      `/metrics/${imageId}/head_ranking?${params}`
+    );
+  },
+
   getHeadFeatureMatrix: (
     model: string,
     layer: number,

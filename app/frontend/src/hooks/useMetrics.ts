@@ -2,7 +2,7 @@
  * React Query hooks for metrics data.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { metricsAPI, comparisonAPI } from '../api/client';
 import type { AnalysisMetric, CompareVariantId, DashboardMetric, RankingMode } from '../types';
 
@@ -67,6 +67,26 @@ export function useHeadRanking(
   return useQuery({
     queryKey: ['headRanking', model, layer, percentile, metric, variant],
     queryFn: () => metricsAPI.getHeadRanking(model, layer, percentile, metric, variant),
+  });
+}
+
+export function useImageHeadRanking(
+  imageId: string | undefined,
+  model: string,
+  layer: number,
+  percentile: number,
+  metric: AnalysisMetric,
+  variant: CompareVariantId,
+  options?: {
+    bboxIndex?: number | null;
+    enabled?: boolean;
+  },
+) {
+  return useQuery({
+    queryKey: ['imageHeadRanking', imageId, model, layer, percentile, metric, variant, options?.bboxIndex ?? null],
+    queryFn: () => metricsAPI.getImageHeadRanking(imageId!, model, layer, percentile, metric, variant, options),
+    enabled: !!imageId && (options?.enabled ?? true),
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -415,9 +415,15 @@ def _create_head_q3_db(conn: sqlite3.Connection) -> None:
             ("dinov2", "layer11", "cls", 5, "iou", "higher", "img_beta.jpg", 80, 0.66),
             ("dinov2", "layer11", "cls", 5, "iou", "higher", "img_alpha.jpg", 80, 0.73),
             ("dinov2", "layer11", "cls", 5, "iou", "higher", "img_gamma.jpg", 80, 0.51),
+            ("dinov2", "layer11", "cls", 1, "iou", "higher", "img_focus.jpg", 80, 0.77),
+            ("dinov2", "layer11", "cls", 0, "iou", "higher", "img_focus.jpg", 80, 0.77),
+            ("dinov2", "layer11", "cls", 4, "iou", "higher", "img_focus.jpg", 80, 0.53),
             ("dinov2_finetuned_lora", "layer11", "cls", 5, "iou", "higher", "img_lora.jpg", 80, 0.88),
             ("dinov2", "layer11", "cls", 1, "emd", "lower", "img_delta.jpg", 90, 0.18),
             ("dinov2", "layer11", "cls", 1, "emd", "lower", "img_epsilon.jpg", 90, 0.09),
+            ("dinov2", "layer11", "cls", 6, "emd", "lower", "img_focus.jpg", 90, 0.07),
+            ("dinov2", "layer11", "cls", 2, "emd", "lower", "img_focus.jpg", 90, 0.07),
+            ("dinov2", "layer11", "cls", 8, "emd", "lower", "img_focus.jpg", 90, 0.14),
         ],
     )
     conn.executemany(
@@ -1288,6 +1294,118 @@ class TestQ3HeadMetrics:
         assert result["features"][0]["scores"][0] == pytest.approx(0.21)
         assert result["features"][0]["scores"][1] == pytest.approx(0.33)
         assert result["features"][0]["scores"][2] is None
+
+    def test_get_image_head_ranking_uses_image_rows_and_tie_breaks_by_head(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_image_head_ranking(
+                image_id="img_focus.jpg",
+                model="dinov2",
+                layer="layer11",
+                percentile=80,
+                metric="iou",
+                variant="frozen",
+            )
+
+        assert result["supported"] is True
+        assert result["selection"]["mode"] == "union"
+        assert [entry["head"] for entry in result["heads"]] == [0, 1, 4]
+        assert result["heads"][0]["score"] == pytest.approx(0.77)
+
+    def test_get_image_head_ranking_sorts_lower_is_better_metrics_ascending(self, service, mem_db):
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+
+            result = service.get_image_head_ranking(
+                image_id="img_focus.jpg",
+                model="dinov2",
+                layer="layer11",
+                percentile=50,
+                metric="emd",
+                variant="frozen",
+            )
+
+        assert result["supported"] is True
+        assert result["percentile"] == 50
+        assert [entry["head"] for entry in result["heads"]] == [2, 6, 8]
+        assert result["heads"][0]["score"] == pytest.approx(0.07)
+
+    def test_get_image_head_ranking_computes_bbox_local_scores_for_each_head(self, service, mem_db):
+        annotation = ImageAnnotation(
+            image_id="img_focus.jpg",
+            styles=("Q46261",),
+            bboxes=(BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),),
+        )
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+            with patch.object(type(service), "_get_annotation", return_value=annotation), patch.object(
+                type(service), "_get_bbox_label", return_value="Door"
+            ), patch.object(
+                type(service),
+                "_compute_bbox_metrics",
+                side_effect=[
+                    {"iou": 0.31, "coverage": 0.52, "mse": 0.09, "kl": 0.18, "emd": 0.21},
+                    {"iou": 0.68, "coverage": 0.73, "mse": 0.05, "kl": 0.12, "emd": 0.14},
+                    None,
+                    {"iou": 0.68, "coverage": 0.61, "mse": 0.04, "kl": 0.11, "emd": 0.10},
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+            ):
+                result = service.get_image_head_ranking(
+                    image_id="img_focus.jpg",
+                    model="dinov2",
+                    layer="layer11",
+                    percentile=90,
+                    metric="iou",
+                    variant="frozen",
+                    bbox_index=0,
+                )
+
+        assert result["supported"] is True
+        assert result["selection"] == {
+            "mode": "bbox",
+            "bbox_index": 0,
+            "bbox_label": "Door",
+        }
+        assert [entry["head"] for entry in result["heads"]] == [1, 3, 0]
+        assert result["heads"][0]["score"] == pytest.approx(0.68)
+
+    def test_get_image_head_ranking_returns_unsupported_payload_when_bbox_cache_is_missing(self, service, mem_db):
+        annotation = ImageAnnotation(
+            image_id="img_focus.jpg",
+            styles=("Q46261",),
+            bboxes=(BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),),
+        )
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+            with patch.object(type(service), "_get_annotation", return_value=annotation), patch.object(
+                type(service), "_get_bbox_label", return_value="Door"
+            ), patch.object(type(service), "_compute_bbox_metrics", return_value=None):
+                result = service.get_image_head_ranking(
+                    image_id="img_focus.jpg",
+                    model="dinov2",
+                    layer="layer11",
+                    percentile=90,
+                    metric="coverage",
+                    variant="frozen",
+                    bbox_index=0,
+                )
+
+        assert result["supported"] is False
+        assert result["selection"]["mode"] == "bbox"
+        assert "generate_attention_cache.py --per-head" in str(result["reason"])
 
     def test_get_head_ranking_returns_unsupported_payload_for_resnet(self, service):
         result = service.get_head_ranking(

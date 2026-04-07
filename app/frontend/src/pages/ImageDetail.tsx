@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
 import { useViewStore } from '../store/viewStore';
 import { useModels } from '../hooks/useAttention';
+import { useImageHeadRanking } from '../hooks/useMetrics';
 import { AttentionViewer } from '../components/attention/AttentionViewer';
 import { ControlPanel } from '../components/attention/ControlPanel';
 import { LayerSlider } from '../components/attention/LayerSlider';
@@ -22,7 +23,7 @@ import { Q3ImageDetailControls } from '../components/image-detail/Q3ImageDetailC
 import { parsePageTab } from '../constants/pageTabs';
 import { createImageDetailQ3SearchParams, getQ3ViewerModel, parseImageDetailQ3State } from '../constants/q3Routing';
 import { Q3_DEFAULTS, getQ3ModelScopeStatus } from '../constants/q3Scope';
-import type { CompareVariantId, PageTab } from '../types';
+import type { AnalysisMetric, CompareVariantId, PageTab } from '../types';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
@@ -60,6 +61,14 @@ export function ImageDetailPage() {
   const q3Method = modelsData?.default_methods?.[q3State.model] ?? Q3_DEFAULTS.method;
   const q3ViewerModel = getQ3ViewerModel(q3State.model, q3State.variant);
   const q3ViewerPercentile = Q3_DEFAULTS.percentile;
+  const q3VariantPerHeadAvailable = modelsData
+    ? (
+      modelsData.q3_per_head_variant_availability?.[q3State.model]?.[q3State.variant]
+      ?? (q3State.variant === 'frozen'
+        ? (modelsData.per_head_available_models ?? []).includes(q3State.model)
+        : undefined)
+    )
+    : undefined;
 
   const persistSearchParams = useCallback((nextParams: URLSearchParams, replace = false) => {
     setSearchParams(nextParams, { replace });
@@ -100,6 +109,7 @@ export function ImageDetailPage() {
         variant: Q3_DEFAULTS.variant,
         layer: Q3_DEFAULTS.layer,
         head: Q3_DEFAULTS.head,
+        metric: Q3_DEFAULTS.metric,
         mode: Q3_DEFAULTS.mode,
         showBboxes: Q3_DEFAULTS.showBboxes,
         bboxIndex: null,
@@ -137,6 +147,10 @@ export function ImageDetailPage() {
     updateQ3State({ head: nextHead });
   }, [updateQ3State]);
 
+  const handleQ3MetricChange = useCallback((nextMetric: AnalysisMetric) => {
+    updateQ3State({ metric: nextMetric });
+  }, [updateQ3State]);
+
   const handleQ3LayerChange = useCallback((nextLayer: number) => {
     setIsPlaying(false);
     updateQ3State({ layer: nextLayer });
@@ -163,6 +177,24 @@ export function ImageDetailPage() {
     queryFn: () => imagesAPI.getDetail(decodedId),
     enabled: !!decodedId,
   });
+  const q3HeadRankingQuery = useImageHeadRanking(
+    decodedId,
+    q3State.model,
+    q3State.layer,
+    q3ViewerPercentile,
+    q3State.metric,
+    q3State.variant,
+    {
+      bboxIndex: q3State.bboxIndex,
+      enabled: isQ3Tab && !!decodedId,
+    },
+  );
+  const q3HeadRankingError = q3HeadRankingQuery.error instanceof Error ? q3HeadRankingQuery.error.message : null;
+  const q3RankedHeads = q3HeadRankingQuery.data?.heads ?? [];
+  const q3SelectedHeadAvailable = q3State.head === null || (
+    q3HeadRankingQuery.data?.supported === true
+    && q3RankedHeads.some((entry) => entry.head === q3State.head)
+  );
 
   const q3BboxParam = searchParams.get('bbox_index');
   useEffect(() => {
@@ -182,11 +214,30 @@ export function ImageDetailPage() {
     }
   }, [decodedId, imageDetail, isQ3Tab, q3BboxParam, q3State.featureLabel, updateQ3State]);
 
+  useEffect(() => {
+    if (!isQ3Tab || q3State.head === null) {
+      return;
+    }
+    if (q3VariantPerHeadAvailable === false) {
+      updateQ3State({ head: null }, true);
+      return;
+    }
+    if (q3HeadRankingQuery.data?.supported === false) {
+      updateQ3State({ head: null }, true);
+      return;
+    }
+    if (q3HeadRankingQuery.data && !q3SelectedHeadAvailable) {
+      updateQ3State({ head: null }, true);
+    }
+  }, [isQ3Tab, q3HeadRankingQuery.data, q3SelectedHeadAvailable, q3State.head, q3VariantPerHeadAvailable, updateQ3State]);
+
   const activeMode = isQ3Tab ? q3State.mode : 'head_attention';
   const activeModel = isQ3Tab ? q3ViewerModel : mainModel;
   const activeLayer = isQ3Tab ? q3State.layer : mainLayer;
   const activeMethod = isQ3Tab ? q3Method : mainMethod;
-  const activeHead = isQ3Tab ? q3State.head : mainHead;
+  const activeHead = isQ3Tab
+    ? (q3State.head !== null && q3VariantPerHeadAvailable !== false && q3SelectedHeadAvailable ? q3State.head : null)
+    : mainHead;
   const activePercentile = isQ3Tab ? q3ViewerPercentile : mainPercentile;
   const activeShowBboxes = isQ3Tab ? q3State.showBboxes : mainShowBboxes;
   const activeBboxIndex = isQ3Tab ? q3State.bboxIndex : mainSelectedBboxIndex;
@@ -291,14 +342,20 @@ export function ImageDetailPage() {
                 variant={q3State.variant}
                 layer={q3State.layer}
                 head={q3State.head}
+                rankingMetric={q3State.metric}
                 maxLayer={q3MaxLayer}
                 numHeads={q3NumHeads}
                 showBboxes={q3State.showBboxes}
                 featureName={q3State.featureName}
+                rankingData={q3HeadRankingQuery.data}
+                rankingLoading={q3HeadRankingQuery.isLoading}
+                rankingError={q3HeadRankingError}
+                variantSupportsPerHead={q3VariantPerHeadAvailable}
                 onModelChange={handleQ3ModelChange}
                 onVariantChange={handleQ3VariantChange}
                 onLayerChange={handleQ3LayerChange}
                 onHeadChange={handleQ3HeadChange}
+                onMetricChange={handleQ3MetricChange}
                 onShowBboxesChange={handleQ3ShowBboxesChange}
               />
             </div>

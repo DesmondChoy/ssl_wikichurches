@@ -157,6 +157,26 @@ export interface HeadRankingResponse {
   heads: HeadRankingEntry[];
 }
 
+export interface ImageHeadRankingEntry {
+  head: number;
+  score: number;
+}
+
+export interface ImageHeadRankingResponse {
+  image_id: string;
+  model: string;
+  variant: CompareVariantId;
+  layer: string;
+  method: string | null;
+  metric: AnalysisMetric;
+  direction: MetricDirection;
+  percentile: number;
+  selection: ImageMetricSelection;
+  supported: boolean;
+  reason: string | null;
+  heads: ImageHeadRankingEntry[];
+}
+
 export interface HeadFeatureMatrixRow {
   feature_label: number;
   feature_name: string;
@@ -348,6 +368,7 @@ export interface ModelsResponse {
   num_heads_per_model: Record<string, number>;
   per_head_methods: string[];
   per_head_available_models?: string[];
+  q3_per_head_variant_availability?: Record<string, Record<CompareVariantId, boolean>>;
   default_methods: Record<string, string>;
 }
 

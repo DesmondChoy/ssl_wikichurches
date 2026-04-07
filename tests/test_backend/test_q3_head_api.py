@@ -19,12 +19,28 @@ class TestRawAttentionHeadValidation:
     def test_models_endpoint_reports_models_with_per_head_cache(self):
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
             mock_attention_service.list_models_with_per_head_cache.return_value = ["clip", "dinov2"]
+            mock_attention_service.list_q3_variant_per_head_availability.return_value = {
+                "clip": {
+                    "frozen": True,
+                    "linear_probe": False,
+                    "lora": True,
+                    "full": False,
+                },
+                "dinov2": {
+                    "frozen": True,
+                    "linear_probe": True,
+                    "lora": True,
+                    "full": True,
+                },
+            }
 
             response = client.get("/api/attention/models")
 
         assert response.status_code == 200
         body = response.json()
         assert body["per_head_available_models"] == ["dinov2", "clip"]
+        assert body["q3_per_head_variant_availability"]["dinov2"]["linear_probe"] is True
+        assert body["q3_per_head_variant_availability"]["clip"]["full"] is False
 
     def test_rejects_head_for_rollout_method(self):
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
@@ -146,6 +162,68 @@ class TestQ3MetricsApi:
         body = response.json()
         assert body["supported"] is False
         assert body["features"] == []
+
+    def test_image_head_ranking_endpoint_returns_selection_payload(self):
+        payload = {
+            "image_id": IMAGE_ID,
+            "model": "dinov2",
+            "variant": "lora",
+            "layer": "layer11",
+            "method": "cls",
+            "metric": "coverage",
+            "direction": "higher",
+            "percentile": 90,
+            "selection": {
+                "mode": "bbox",
+                "bbox_index": 2,
+                "bbox_label": "Window",
+            },
+            "supported": True,
+            "reason": None,
+            "heads": [
+                {"head": 7, "score": 0.83},
+                {"head": 3, "score": 0.74},
+            ],
+        }
+        with patch("app.backend.routers.metrics.metrics_service") as mock_metrics_service:
+            mock_metrics_service.db_exists = True
+            mock_metrics_service.get_image_head_ranking.return_value = payload
+
+            response = client.get(
+                f"/api/metrics/{IMAGE_ID}/head_ranking",
+                params={
+                    "model": "dinov2",
+                    "layer": 11,
+                    "metric": "coverage",
+                    "percentile": 90,
+                    "variant": "lora",
+                    "bbox_index": 2,
+                },
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["selection"]["mode"] == "bbox"
+        assert body["selection"]["bbox_label"] == "Window"
+        assert body["heads"][0]["head"] == 7
+
+    def test_image_head_ranking_endpoint_returns_400_for_bad_bbox(self):
+        with patch("app.backend.routers.metrics.metrics_service") as mock_metrics_service:
+            mock_metrics_service.db_exists = True
+            mock_metrics_service.get_image_head_ranking.side_effect = ValueError("bbox_index 4 out of range")
+
+            response = client.get(
+                f"/api/metrics/{IMAGE_ID}/head_ranking",
+                params={
+                    "model": "dinov2",
+                    "layer": 11,
+                    "variant": "frozen",
+                    "bbox_index": 4,
+                },
+            )
+
+        assert response.status_code == 400
+        assert "bbox_index 4 out of range" in response.json()["detail"]
 
     def test_head_exemplars_endpoint_returns_service_payload(self):
         payload = {
