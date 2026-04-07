@@ -11,13 +11,16 @@ import { Toggle } from '../ui/Toggle';
 import { GLOSSARY } from '../../constants/glossary';
 import { getAttentionMethodLabel } from '../../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
-import { formatQ3ScopeOptionLabel, getQ3ModelScopeStatus } from '../../constants/q3Scope';
 import type { HeatmapStyle, ImageDetailMode } from '../../types';
 
 interface ControlPanelProps {
   className?: string;
   mode: ImageDetailMode;
-  showQ3ModelScopeLabels?: boolean;
+  title?: string;
+  showLayerControl?: boolean;
+  showPercentileControl?: boolean;
+  showBoundingBoxesToggle?: boolean;
+  showOverlayAppearanceControls?: boolean;
 }
 
 function formatModelOptionLabel(model: string): string {
@@ -27,7 +30,11 @@ function formatModelOptionLabel(model: string): string {
 export function ControlPanel({
   className = '',
   mode,
-  showQ3ModelScopeLabels = false,
+  title = 'View Settings',
+  showLayerControl = true,
+  showPercentileControl = true,
+  showBoundingBoxesToggle = true,
+  showOverlayAppearanceControls = true,
 }: ControlPanelProps) {
   const {
     model,
@@ -104,12 +111,7 @@ export function ControlPanel({
   const modelOptions =
     modelsData?.models.map((m) => ({
       value: m,
-      label: showQ3ModelScopeLabels
-        ? formatQ3ScopeOptionLabel(
-            formatModelOptionLabel(m),
-            getQ3ModelScopeStatus(m),
-          )
-        : formatModelOptionLabel(m),
+      label: formatModelOptionLabel(m),
     })) || [];
 
   // Get available methods for current model
@@ -138,7 +140,7 @@ export function ControlPanel({
 
   return (
     <div className={`p-4 bg-white rounded-lg shadow space-y-4 ${className}`}>
-      <h3 className="font-semibold text-gray-900">View Settings</h3>
+      <h3 className="font-semibold text-gray-900">{title}</h3>
 
       <Select
         value={model}
@@ -169,54 +171,62 @@ export function ControlPanel({
         />
       )}
 
-      <Slider
-        value={layer}
-        onChange={setLayer}
-        min={0}
-        max={maxLayer}
-        label={`Layer ${layer}`}
-        tooltip={GLOSSARY['Layer']}
-      />
-
-      <Select
-        value={percentile}
-        onChange={(v) => setPercentile(Number(v))}
-        options={PERCENTILE_OPTIONS}
-        label="Attention Threshold"
-        tooltip={GLOSSARY['Attention Threshold']}
-      />
-
-      <Toggle
-        checked={showBboxes}
-        onChange={setShowBboxes}
-        label="Show Bounding Boxes"
-      />
-
-      <div className="border-t pt-4 mt-2 space-y-3">
-        <h4 className="text-sm font-medium text-gray-700">Overlay Appearance</h4>
-        <p className="text-xs text-gray-500">
-          These controls style the active overlay for the current interpretation mode.
-        </p>
-
-        <Select
-          value={heatmapStyle}
-          onChange={(v) => setHeatmapStyle(v as HeatmapStyle)}
-          options={heatmapStyleOptions}
-          label="Heatmap Style"
-          tooltip={GLOSSARY['Heatmap Style']}
-        />
-
+      {showLayerControl && (
         <Slider
-          value={heatmapOpacity}
-          onChange={setHeatmapOpacity}
-          min={0.2}
-          max={0.9}
-          step={0.1}
-          label={`Opacity ${Math.round(heatmapOpacity * 100)}%`}
-          tooltip={GLOSSARY['Heatmap Opacity']}
-          showValue={false}
+          value={layer}
+          onChange={setLayer}
+          min={0}
+          max={maxLayer}
+          label={`Layer ${layer}`}
+          tooltip={GLOSSARY['Layer']}
         />
-      </div>
+      )}
+
+      {showPercentileControl && (
+        <Select
+          value={percentile}
+          onChange={(v) => setPercentile(Number(v))}
+          options={PERCENTILE_OPTIONS}
+          label="Attention Threshold"
+          tooltip={GLOSSARY['Attention Threshold']}
+        />
+      )}
+
+      {showBoundingBoxesToggle && (
+        <Toggle
+          checked={showBboxes}
+          onChange={setShowBboxes}
+          label="Show Bounding Boxes"
+        />
+      )}
+
+      {showOverlayAppearanceControls && (
+        <div className="border-t pt-4 mt-2 space-y-3">
+          <h4 className="text-sm font-medium text-gray-700">Overlay Appearance</h4>
+          <p className="text-xs text-gray-500">
+            These controls style the active overlay for the current interpretation mode.
+          </p>
+
+          <Select
+            value={heatmapStyle}
+            onChange={(v) => setHeatmapStyle(v as HeatmapStyle)}
+            options={heatmapStyleOptions}
+            label="Heatmap Style"
+            tooltip={GLOSSARY['Heatmap Style']}
+          />
+
+          <Slider
+            value={heatmapOpacity}
+            onChange={setHeatmapOpacity}
+            min={0.2}
+            max={0.9}
+            step={0.1}
+            label={`Opacity ${Math.round(heatmapOpacity * 100)}%`}
+            tooltip={GLOSSARY['Heatmap Opacity']}
+            showValue={false}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -49,6 +49,7 @@ export function ImageDetailPage() {
   const currentTab = parsePageTab(searchParams.get('tab'));
   const currentMode = requestedMode;
   const isQ3Tab = currentTab === 'q3';
+  const activeViewerMode: ImageDetailMode = isQ3Tab ? currentMode : 'head_attention';
 
   useEffect(() => {
     if (imageDetailMode !== requestedMode) {
@@ -192,14 +193,34 @@ export function ImageDetailPage() {
       />
 
       {/* Main content */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
-        <div className="space-y-4 lg:col-span-3 xl:col-span-1" data-testid="image-detail-left-column">
-          <div data-testid="view-settings-panel">
-            <ControlPanel
-              mode={currentMode}
-              showQ3ModelScopeLabels={isQ3Tab}
-            />
-          </div>
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          isQ3Tab
+            ? 'lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-8'
+            : 'lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8'
+        }`}
+      >
+        <div
+          className={`space-y-4 ${isQ3Tab ? '' : 'lg:col-span-3 xl:col-span-1'}`}
+          data-testid="image-detail-left-column"
+        >
+          {!isQ3Tab && (
+            <div data-testid="view-settings-panel">
+              <ControlPanel mode={activeViewerMode} />
+            </div>
+          )}
+          {isQ3Tab && (
+            <div data-testid="q3-controls-panel">
+              <ControlPanel
+                mode={activeViewerMode}
+                title="Q3 Controls"
+                showLayerControl={false}
+                showPercentileControl={false}
+                showBoundingBoxesToggle
+                showOverlayAppearanceControls={false}
+              />
+            </div>
+          )}
           {isQ3Tab && (
             <Q3StudyScopeCallout
               context="imageDetail"
@@ -216,7 +237,7 @@ export function ImageDetailPage() {
           {imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}
-              mode={currentMode}
+              mode={activeViewerMode}
               showBboxes={showBboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={handleBboxSelect}
@@ -225,20 +246,25 @@ export function ImageDetailPage() {
         </div>
 
         {/* Center: Attention viewer */}
-        <div className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1" data-testid="image-detail-center-column">
-          <ImageDetailModeSwitch
-            mode={currentMode}
-            onChange={handleModeChange}
-          />
+        <div
+          className={`min-w-0 space-y-4 ${isQ3Tab ? '' : 'lg:col-span-5 xl:col-span-1'}`}
+          data-testid="image-detail-center-column"
+        >
+          {isQ3Tab && (
+            <ImageDetailModeSwitch
+              mode={currentMode}
+              onChange={handleModeChange}
+            />
+          )}
 
-          <ErrorBoundary resetKeys={[model, layer, method, head, currentMode, percentile]}>
+          <ErrorBoundary resetKeys={[model, layer, method, head, activeViewerMode, percentile]}>
             <AttentionViewer
               imageId={decodedId}
               model={model}
               layer={layer}
               method={method}
               head={head}
-              mode={currentMode}
+              mode={activeViewerMode}
               percentile={percentile}
               showBboxes={showBboxes}
               bboxes={imageDetail?.annotation.bboxes}
@@ -263,21 +289,23 @@ export function ImageDetailPage() {
           </Card>
         </div>
 
-        <div className="min-w-0 lg:col-span-4 xl:col-span-1" data-testid="image-detail-right-column">
-          <ErrorBoundary resetKeys={[model, layer, percentile, method, currentMode, selectedBboxIndex, isPlaying]}>
-            <ImageDetailMetricsPanel
-              imageId={decodedId}
-              model={model}
-              percentile={percentile}
-              method={method}
-              mode={currentMode}
-              selectedBboxIndex={selectedBboxIndex}
-              currentLayer={layer}
-              isPlaying={isPlaying}
-              enabled={canQueryProgression}
-            />
-          </ErrorBoundary>
-        </div>
+        {!isQ3Tab && (
+          <div className="min-w-0 lg:col-span-4 xl:col-span-1" data-testid="image-detail-right-column">
+            <ErrorBoundary resetKeys={[model, layer, percentile, method, activeViewerMode, selectedBboxIndex, isPlaying]}>
+              <ImageDetailMetricsPanel
+                imageId={decodedId}
+                model={model}
+                percentile={percentile}
+                method={method}
+                mode={activeViewerMode}
+                selectedBboxIndex={selectedBboxIndex}
+                currentLayer={layer}
+                isPlaying={isPlaying}
+                enabled={canQueryProgression}
+              />
+            </ErrorBoundary>
+          </div>
+        )}
       </div>
     </div>
   );
