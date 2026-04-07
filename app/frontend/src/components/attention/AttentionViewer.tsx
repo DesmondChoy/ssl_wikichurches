@@ -1,5 +1,5 @@
 /**
- * Main attention heatmap viewer with overlay controls and bbox similarity.
+ * Main Image Detail viewer that switches between attention and bbox-similarity interpretations.
  * Supports dynamic percentile thresholding via client-side Canvas rendering.
  */
 
@@ -9,7 +9,7 @@ import { attentionAPI, imagesAPI } from '../../api/client';
 import { InteractiveBboxOverlay } from './InteractiveBboxOverlay';
 import { renderHeatmap, renderHeatmapLegend, computeSimilarityStats, renderAttentionHeatmap } from '../../utils/renderHeatmap';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
-import type { BoundingBox } from '../../types';
+import type { BoundingBox, ImageDetailMode } from '../../types';
 
 interface AttentionViewerProps {
   imageId: string;
@@ -17,6 +17,7 @@ interface AttentionViewerProps {
   layer: number;
   method: string;
   head: number | null;
+  mode: ImageDetailMode;
   percentile: number;
   showBboxes: boolean;
   bboxes?: BoundingBox[];
@@ -31,6 +32,7 @@ export function AttentionViewer({
   layer,
   method,
   head,
+  mode,
   percentile,
   showBboxes,
   bboxes = [],
@@ -40,15 +42,22 @@ export function AttentionViewer({
 }: AttentionViewerProps) {
   const [showOverlay, setShowOverlay] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const isHeadAttentionMode = mode === 'head_attention';
+  const isFeatureSimilarityMode = mode === 'feature_similarity';
 
   // Reset error state when model/layer/method changes
   // Uses the "adjust state during render" pattern recommended by React
   // instead of setState-in-effect which causes cascading renders.
-  const errorResetKey = `${imageId}|${model}|${layer}|${method}|${head ?? 'all'}`;
+  const errorResetKey = `${imageId}|${model}|${layer}|${method}|${head ?? 'all'}|${mode}`;
   const [prevResetKey, setPrevResetKey] = useState(errorResetKey);
   if (errorResetKey !== prevResetKey) {
     setPrevResetKey(errorResetKey);
     setImageError(false);
+  }
+  const [previousMode, setPreviousMode] = useState(mode);
+  if (mode !== previousMode) {
+    setPreviousMode(mode);
+    setShowOverlay(true);
   }
 
   // Get heatmap settings from store
@@ -64,6 +73,7 @@ export function AttentionViewer({
   const { data: rawAttentionData, isLoading: attentionLoading, error: attentionError } = useQuery({
     queryKey: ['rawAttention', imageId, model, layer, method, head],
     queryFn: () => attentionAPI.getRawAttention(imageId, model, layer, method, head),
+    enabled: isHeadAttentionMode,
     staleTime: 60000, // Cache for 1 minute
     placeholderData: keepPreviousData,
   });
@@ -102,7 +112,7 @@ export function AttentionViewer({
         layer
       );
     },
-    enabled: !!selectedBbox && head === null,
+    enabled: isFeatureSimilarityMode && !!selectedBbox,
     staleTime: 60000, // Cache for 1 minute
     placeholderData: keepPreviousData,
   });
@@ -152,7 +162,7 @@ export function AttentionViewer({
     }
   };
 
-  if (imageError || attentionError) {
+  if (imageError || (isHeadAttentionMode && attentionError)) {
     return (
       <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`}>
         <div className="text-center text-gray-500">
@@ -163,8 +173,14 @@ export function AttentionViewer({
     );
   }
 
-  // Determine which image to show
-  const showSimilarityHeatmap = head === null && selectedBbox && similarityHeatmapUrl && !similarityLoading;
+  const showAttentionHeatmap = isHeadAttentionMode && showOverlay && attentionHeatmapUrl;
+  const showSimilarityHeatmap = isFeatureSimilarityMode && showOverlay && selectedBbox && similarityHeatmapUrl && !similarityLoading;
+  const showAttentionLoading = isHeadAttentionMode && attentionLoading;
+  const showSimilarityLoading = isFeatureSimilarityMode && similarityLoading && selectedBbox;
+  const overlayButtonLabel = isHeadAttentionMode
+    ? (showOverlay ? 'Hide Attention Overlay' : 'Show Attention Overlay')
+    : (showOverlay ? 'Hide Similarity Overlay' : 'Show Similarity Overlay');
+  const canToggleOverlay = isHeadAttentionMode ? Boolean(attentionHeatmapUrl) : Boolean(selectedBbox && similarityHeatmapUrl);
 
   return (
     <div className={`relative group ${className}`}>
@@ -178,10 +194,11 @@ export function AttentionViewer({
       />
 
       {/* Dynamic attention heatmap overlay */}
-      {showOverlay && attentionHeatmapUrl && !showSimilarityHeatmap && (
+      {showAttentionHeatmap && (
         <img
           src={attentionHeatmapUrl}
           alt="Attention heatmap"
+          data-testid="attention-overlay-image"
           className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
           style={{ mixBlendMode: 'normal' }}
         />
@@ -192,20 +209,21 @@ export function AttentionViewer({
         <img
           src={similarityHeatmapUrl}
           alt="Similarity heatmap"
+          data-testid="similarity-overlay-image"
           className="absolute inset-0 w-full h-full rounded-lg pointer-events-none"
           style={{ mixBlendMode: 'normal' }}
         />
       )}
 
       {/* Loading spinner for attention data */}
-      {attentionLoading && (
+      {showAttentionLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
         </div>
       )}
 
       {/* Loading spinner for similarity computation */}
-      {similarityLoading && selectedBbox && (
+      {showSimilarityLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent" />
         </div>
@@ -220,13 +238,24 @@ export function AttentionViewer({
         />
       )}
 
+      {isFeatureSimilarityMode && !selectedBbox && (
+        <div
+          className="absolute left-2 top-2 max-w-[16rem] rounded bg-black/60 px-3 py-2 text-xs text-white"
+          data-testid="similarity-selection-hint"
+        >
+          Select a bounding box to activate feature similarity.
+        </div>
+      )}
+
       {/* Toggle overlay button */}
-      <button
-        onClick={() => setShowOverlay(!showOverlay)}
-        className="absolute top-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        {showOverlay ? 'Hide Attention' : 'Show Attention'}
-      </button>
+      {canToggleOverlay && (
+        <button
+          onClick={() => setShowOverlay(!showOverlay)}
+          className="absolute top-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          {overlayButtonLabel}
+        </button>
+      )}
 
       {/* Clear selection button (when bbox is selected) */}
       {selectedBbox && (
@@ -239,10 +268,16 @@ export function AttentionViewer({
       )}
 
       {/* Info badge */}
-      <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
-        {model} / {method} / Layer {layer} / Top {100 - percentile}%
-        {head !== null && (
-          <span className="ml-2 text-sky-300">Head {head}</span>
+      <div className="absolute bottom-2 left-2 px-2 py-1 text-xs bg-black/50 text-white rounded" data-testid="viewer-info-badge">
+        {isHeadAttentionMode ? (
+          <>
+            Head Attention · {model} / {method} / Layer {layer} / Top {100 - percentile}%
+            {head !== null && (
+              <span className="ml-2 text-sky-300">Head {head}</span>
+            )}
+          </>
+        ) : (
+          <>Feature Similarity · {model} / Layer {layer}</>
         )}
         {selectedBbox && (
           <span className="ml-2 text-green-300">
@@ -252,15 +287,21 @@ export function AttentionViewer({
       </div>
 
       {/* Similarity stats badge */}
-      {stats && selectedBbox && (
-        <div className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded">
+      {isFeatureSimilarityMode && stats && selectedBbox && (
+        <div
+          className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/50 text-white rounded"
+          data-testid="similarity-stats"
+        >
           Sim: {stats.min.toFixed(2)} - {stats.max.toFixed(2)}
         </div>
       )}
 
       {/* Colormap legend */}
-      {stats && selectedBbox && (
-        <div className="absolute bottom-8 right-2 flex items-center gap-1 px-2 py-1 bg-black/50 rounded text-xs text-white">
+      {isFeatureSimilarityMode && stats && selectedBbox && (
+        <div
+          className="absolute bottom-8 right-2 flex items-center gap-1 px-2 py-1 bg-black/50 rounded text-xs text-white"
+          data-testid="similarity-legend"
+        >
           <span>0</span>
           <img src={legendUrl} alt="Similarity scale" className="h-3 rounded-sm" />
           <span>1</span>

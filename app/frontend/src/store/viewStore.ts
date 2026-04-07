@@ -3,7 +3,8 @@
  */
 
 import { create } from 'zustand';
-import type { ViewSettings, HeatmapStyle } from '../types';
+import { DEFAULT_IMAGE_DETAIL_MODE } from '../constants/imageDetailModes';
+import type { ViewSettings, HeatmapStyle, ImageDetailMode } from '../types';
 
 interface ViewStore extends ViewSettings {
   // Selection state for bbox similarity
@@ -24,6 +25,7 @@ interface ViewStore extends ViewSettings {
   setLayer: (layer: number) => void;
   setMethod: (method: string) => void;
   setHead: (head: number | null) => void;
+  setImageDetailMode: (mode: ImageDetailMode) => void;
   setModelWithPreferredMethod: (model: string, preferredMethod: string) => void;
   setPercentile: (percentile: number) => void;
   setShowBboxes: (show: boolean) => void;
@@ -41,6 +43,7 @@ const DEFAULT_SETTINGS: ViewSettings = {
   layer: 0,  // Safe default for all models (including ResNet-50 which has only 4 layers)
   method: 'cls',
   head: null,
+  imageDetailMode: DEFAULT_IMAGE_DETAIL_MODE,
   percentile: 90,
   showBboxes: true,
   heatmapOpacity: 0.5,
@@ -86,6 +89,7 @@ export const useViewStore = create<ViewStore>((set, get) => ({
     set({ method, head: supportsHead ? get().head : null });
   },
   setHead: (head) => set({ head }),
+  setImageDetailMode: (imageDetailMode) => set({ imageDetailMode }),
   setModelWithPreferredMethod: (model, preferredMethod) => {
     const {
       availableMethods,
@@ -148,6 +152,7 @@ export const useModel = () => useViewStore((state) => state.model);
 export const useLayer = () => useViewStore((state) => state.layer);
 export const useMethod = () => useViewStore((state) => state.method);
 export const useHead = () => useViewStore((state) => state.head);
+export const useImageDetailMode = () => useViewStore((state) => state.imageDetailMode);
 export const usePercentile = () => useViewStore((state) => state.percentile);
 export const useShowBboxes = () => useViewStore((state) => state.showBboxes);
 export const useHeatmapOpacity = () => useViewStore((state) => state.heatmapOpacity);

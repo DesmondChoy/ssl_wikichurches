@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader } from '../ui/Card';
-import type { ImageAnnotation } from '../../types';
+import type { ImageAnnotation, ImageDetailMode } from '../../types';
 
 interface AnnotationsCardProps {
   annotation: ImageAnnotation;
+  mode: ImageDetailMode;
   showBboxes: boolean;
   selectedBboxIndex: number | null;
   onBboxSelect: (index: number | null) => void;
@@ -10,10 +11,14 @@ interface AnnotationsCardProps {
 
 export function AnnotationsCard({
   annotation,
+  mode,
   showBboxes,
   selectedBboxIndex,
   onBboxSelect,
 }: AnnotationsCardProps) {
+  const selectedBbox = selectedBboxIndex !== null ? annotation.bboxes[selectedBboxIndex] : null;
+  const helperCopy = getHelperCopy(mode, showBboxes, selectedBbox?.label_name ?? null);
+
   return (
     <div data-testid="annotations-card">
       <Card>
@@ -40,11 +45,12 @@ export function AnnotationsCard({
             <span className="ml-2 font-medium">{annotation.num_bboxes}</span>
           </div>
 
-          {showBboxes && (
-            <div className="rounded bg-green-50 px-2 py-1 text-xs text-green-700">
-              Click a bounding box to see feature similarity heatmap
-            </div>
-          )}
+          <div
+            className={`rounded px-2 py-1 text-xs ${helperCopy.className}`}
+            data-testid="annotations-helper-copy"
+          >
+            {helperCopy.text}
+          </div>
 
           <div className="max-h-48 space-y-1 overflow-y-auto text-xs text-gray-500">
             {annotation.bboxes.map((bbox, index) => {
@@ -74,4 +80,35 @@ export function AnnotationsCard({
       </Card>
     </div>
   );
+}
+
+function getHelperCopy(mode: ImageDetailMode, showBboxes: boolean, selectedLabel: string | null) {
+  if (!showBboxes) {
+    return {
+      className: 'bg-amber-50 text-amber-800',
+      text: 'Turn on Show Bounding Boxes to interact with annotated features from this card or the image viewer.',
+    };
+  }
+
+  if (mode === 'feature_similarity') {
+    return selectedLabel
+      ? {
+          className: 'bg-green-50 text-green-700',
+          text: `${selectedLabel} is driving the feature-similarity overlay. Click it again to clear or choose a different feature.`,
+        }
+      : {
+          className: 'bg-green-50 text-green-700',
+          text: 'Click a bounding box to use it as the feature-similarity query.',
+        };
+  }
+
+  return selectedLabel
+    ? {
+        className: 'bg-sky-50 text-sky-700',
+        text: `${selectedLabel} stays highlighted as context while you inspect attention. Switch to Feature Similarity for bbox-conditioned similarity overlays.`,
+      }
+    : {
+        className: 'bg-sky-50 text-sky-700',
+        text: 'Click a bounding box to keep that feature highlighted as context while you inspect attention.',
+      };
 }

@@ -15,6 +15,137 @@ async function openImageDetail(page: Page) {
   await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
 }
 
+async function stubImageDetailModeApis(page: Page) {
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2'],
+        num_layers: 12,
+        num_layers_per_model: { dinov2: 12 },
+        methods: { dinov2: ['cls', 'rollout'] },
+        num_heads_per_model: { dinov2: 12 },
+        per_head_methods: ['cls'],
+        per_head_available_models: ['dinov2'],
+        default_methods: { dinov2: 'cls' },
+      }),
+    });
+  });
+
+  await page.route(`**/api/images/${IMAGE_ID}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        image_url: `/api/images/${IMAGE_ID}/file`,
+        thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+        available_models: ['dinov2'],
+        annotation: {
+          image_id: IMAGE_ID,
+          styles: ['gothic'],
+          style_names: ['Gothic'],
+          num_bboxes: 1,
+          bboxes: [
+            {
+              left: 0.1,
+              top: 0.1,
+              width: 0.35,
+              height: 0.4,
+              label: 1,
+              label_name: 'Spire',
+            },
+          ],
+        },
+      }),
+    });
+  });
+
+  await page.route(`**/api/attention/${IMAGE_ID}/raw?**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        attention: Array.from({ length: 16 }, (_, idx) => idx / 15),
+        shape: [4, 4],
+        min_value: 0,
+        max_value: 1,
+      }),
+    });
+  });
+
+  await page.route(`**/api/attention/${IMAGE_ID}/similarity?**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        similarity: Array.from({ length: 16 }, (_, idx) => 0.15 + idx * 0.05),
+        patch_grid: [4, 4],
+        min_similarity: 0.15,
+        max_similarity: 0.9,
+        bbox_patch_indices: [0, 1],
+      }),
+    });
+  });
+
+  await page.route(`**/api/metrics/${IMAGE_ID}/progression?**`, async (route) => {
+    const url = new URL(route.request().url());
+    const bboxIndexParam = url.searchParams.get('bbox_index');
+    const bboxIndex = bboxIndexParam === null ? null : Number(bboxIndexParam);
+    const mode = bboxIndex === null ? 'union' : 'bbox';
+    const bboxLabel = bboxIndex === null ? null : 'Spire';
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        model: 'dinov2',
+        method: url.searchParams.get('method') ?? 'cls',
+        percentile: Number(url.searchParams.get('percentile') ?? '90'),
+        selection: {
+          mode,
+          bbox_index: bboxIndex,
+          bbox_label: bboxLabel,
+        },
+        metrics: [
+          {
+            key: 'iou',
+            label: 'IoU Score',
+            direction: 'higher',
+            default_enabled: true,
+            percentile_dependent: true,
+          },
+          {
+            key: 'coverage',
+            label: 'Coverage',
+            direction: 'higher',
+            default_enabled: true,
+            percentile_dependent: false,
+          },
+          {
+            key: 'mse',
+            label: 'MSE',
+            direction: 'lower',
+            default_enabled: true,
+            percentile_dependent: false,
+          },
+        ],
+        layers: Array.from({ length: 12 }, (_, layer) => ({
+          layer,
+          layer_key: `layer${layer}`,
+          values: {
+            iou: 0.2 + layer * 0.01,
+            coverage: 0.35 + layer * 0.005,
+            mse: 0.08 - layer * 0.002,
+          },
+        })),
+      }),
+    });
+  });
+}
+
 test.describe('Image detail metrics chart', () => {
   test('uses the new desktop layout and removes the page-local compare CTA', async ({ page }) => {
     await openImageDetail(page);
@@ -387,5 +518,77 @@ test.describe('Image detail metrics chart', () => {
     await page.getByTestId('layer-play-toggle').click();
     await expect(activeLayerIndicator).toContainText('Focused: Layer');
     await expect(chart).toBeVisible();
+  });
+
+  test('switches between head attention and feature similarity without mixing overlays or copy', async ({ page }) => {
+    await stubImageDetailModeApis(page);
+    await openImageDetail(page);
+
+    const headModeButton = page.getByTestId('image-detail-mode-head_attention');
+    const featureModeButton = page.getByTestId('image-detail-mode-feature_similarity');
+    const headSelect = () => getSelectByLabel(page, 'Attention Head');
+
+    await expect(headModeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
+    await expect(page.getByTestId('annotations-helper-copy')).toContainText('context while you inspect attention');
+    await expect(page.getByTestId('metrics-mode-note')).toContainText('Head Attention mode is active');
+    await expect(headSelect()).toBeVisible();
+    await expect(headSelect()).toHaveValue('-1');
+    await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
+
+    await headSelect().selectOption('3');
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head 3');
+
+    await featureModeButton.click();
+
+    await expect(featureModeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(headSelect()).toHaveCount(0);
+    await expect(page.getByTestId('attention-overlay-image')).toHaveCount(0);
+    await expect(page.getByTestId('annotations-helper-copy')).toContainText('feature-similarity query');
+    await expect(page.getByTestId('metrics-mode-note')).toContainText('Feature Similarity mode is active');
+    await expect(page.getByTestId('similarity-selection-hint')).toBeVisible();
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Feature Similarity');
+
+    await page.getByTestId('bbox-list-item-0').click();
+
+    await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
+    await expect(page.getByTestId('similarity-stats')).toBeVisible();
+    await expect(page.getByTestId('similarity-legend')).toBeVisible();
+    await expect(page.getByTestId('annotations-helper-copy')).toContainText('Spire is driving the feature-similarity overlay');
+    await expect(page.getByTestId('metrics-mode-note')).toContainText('bbox-conditioned similarity');
+
+    await headModeButton.click();
+
+    await expect(headModeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(headSelect()).toBeVisible();
+    await expect(headSelect()).toHaveValue('3');
+    await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
+    await expect(page.getByTestId('similarity-stats')).toHaveCount(0);
+    await expect(page.getByTestId('similarity-legend')).toHaveCount(0);
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
+  });
+
+  test('restores feature similarity from the mode query param and falls back to head attention for invalid values', async ({ page }) => {
+    await stubImageDetailModeApis(page);
+
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?mode=feature_similarity`);
+    await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
+
+    await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Feature Similarity');
+
+    await page.reload();
+
+    await expect(page.getByTestId('image-detail-mode-feature_similarity')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page).toHaveURL(/mode=feature_similarity/);
+    await expect(getSelectByLabel(page, 'Attention Head')).toHaveCount(0);
+
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}?mode=not_a_real_mode`);
+    await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
+
+    await expect(page.getByTestId('image-detail-mode-head_attention')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
+    await expect(getSelectByLabel(page, 'Attention Head')).toBeVisible();
   });
 });

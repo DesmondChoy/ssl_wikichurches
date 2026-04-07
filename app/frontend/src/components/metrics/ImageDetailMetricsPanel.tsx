@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Tooltip } from '../ui/Tooltip';
 import { useImageLayerProgression } from '../../hooks/useAttention';
-import type { ImageMetricDescriptor } from '../../types';
+import type { ImageDetailMode, ImageMetricDescriptor } from '../../types';
 import { GLOSSARY } from '../../constants/glossary';
 import { LayerMetricsChart } from './LayerMetricsChart';
 import { getMetricDirectionLabel } from './layerChartUtils';
@@ -61,6 +61,7 @@ interface ImageDetailMetricsPanelProps {
   model: string;
   percentile: number;
   method: string;
+  mode: ImageDetailMode;
   selectedBboxIndex: number | null;
   currentLayer: number;
   isPlaying: boolean;
@@ -72,6 +73,7 @@ export function ImageDetailMetricsPanel({
   model,
   percentile,
   method,
+  mode,
   selectedBboxIndex,
   currentLayer,
   isPlaying,
@@ -91,6 +93,7 @@ export function ImageDetailMetricsPanel({
     .filter((metric) => metricVisibilityOverrides[metric.key] ?? metric.default_enabled)
     .map((metric) => metric.key);
   const semanticsCopy = buildSemanticsCopy(metrics);
+  const modeCopy = buildModeCopy(mode, selectedBboxIndex !== null);
 
   return (
     <div data-testid="metrics-panel">
@@ -100,8 +103,9 @@ export function ImageDetailMetricsPanel({
             <div>
               <h3 className="font-semibold">Metrics</h3>
               <p className="mt-1 text-sm text-gray-500">
-                The heatmap shows what the model is attending to, and the metric chart shows
-                how well that attention aligns with the annotation at each layer.
+                The chart tracks annotation-alignment metrics across layers for the current image,
+                model, and method. It complements the active viewer instead of acting as a second
+                image interpretation.
               </p>
             </div>
             <div
@@ -113,6 +117,13 @@ export function ImageDetailMetricsPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div
+            className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+            data-testid="metrics-mode-note"
+          >
+            {modeCopy}
+          </div>
+
           {isLoading && <MetricsPanelSkeleton />}
 
           {!isLoading && error && (
@@ -282,4 +293,16 @@ function getMetricToggleTheme(metricKey: string): MetricToggleTheme {
 function getMetricTooltipContent(metricKey: string): string {
   const glossaryKey = METRIC_GLOSSARY_KEYS[metricKey];
   return glossaryKey ? GLOSSARY[glossaryKey] : 'Metric details are not available.';
+}
+
+function buildModeCopy(mode: ImageDetailMode, hasSelectedBbox: boolean) {
+  if (mode === 'feature_similarity') {
+    return hasSelectedBbox
+      ? 'Feature Similarity mode is active. The viewer is showing bbox-conditioned similarity, while this chart still provides contextual annotation-alignment metrics for the same selection.'
+      : 'Feature Similarity mode is active. Select a bounding box to drive the viewer overlay; this chart remains contextual annotation-alignment data for the current image and method.';
+  }
+
+  return hasSelectedBbox
+    ? 'Head Attention mode is active. The viewer stays focused on attention, while the selected bounding box only scopes contextual chart labels and metrics.'
+    : 'Head Attention mode is active. Use this chart to read layer-by-layer annotation alignment while the viewer stays focused on fused or per-head attention overlays.';
 }

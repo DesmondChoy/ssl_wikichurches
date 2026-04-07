@@ -12,9 +12,10 @@ export const GLOSSARY: Record<string, string> = {
     'Filters to show only top-attended regions. "Top 10%" shows patches in the highest 10% of attention values.',
   'Similarity Heatmap':
     'Shows how similar each region is to the selected bounding box based on learned features.',
-  'Heatmap Opacity': 'Controls transparency of the similarity overlay.',
+  'Heatmap Opacity':
+    'Controls transparency of the active overlay. It affects the attention heatmap in Head Attention mode and the similarity overlay in Feature Similarity mode.',
   'Heatmap Style':
-    'Visual style: Smooth uses interpolation, Squares/Circles show discrete patch values.',
+    'Visual style for the active overlay. Smooth uses interpolation, while Squares and Circles emphasize discrete patch values.',
   Layer:
     'Network depth. Early layers capture edges/textures. Later layers capture semantic concepts. Layer count varies by model.',
   Model: 'Vision model for feature extraction. Each has different architecture and training.',

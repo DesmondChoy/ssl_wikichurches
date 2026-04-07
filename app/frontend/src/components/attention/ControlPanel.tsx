@@ -12,13 +12,14 @@ import { GLOSSARY } from '../../constants/glossary';
 import { getAttentionMethodLabel } from '../../constants/attentionMethods';
 import { PERCENTILE_OPTIONS } from '../../constants/percentiles';
 import { formatQ3ScopeOptionLabel, getQ3ModelScopeStatus } from '../../constants/q3Scope';
-import type { HeatmapStyle } from '../../types';
+import type { HeatmapStyle, ImageDetailMode } from '../../types';
 
 interface ControlPanelProps {
   className?: string;
+  mode: ImageDetailMode;
 }
 
-export function ControlPanel({ className = '' }: ControlPanelProps) {
+export function ControlPanel({ className = '', mode }: ControlPanelProps) {
   const {
     model,
     layer,
@@ -147,7 +148,7 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
         />
       )}
 
-      {supportsHeadSelection && (
+      {supportsHeadSelection && mode === 'head_attention' && (
         <Select
           value={head === null ? '-1' : String(head)}
           onChange={(value) => setHead(value === '-1' ? null : Number(value))}
@@ -181,7 +182,10 @@ export function ControlPanel({ className = '' }: ControlPanelProps) {
       />
 
       <div className="border-t pt-4 mt-2 space-y-3">
-        <h4 className="text-sm font-medium text-gray-700">Similarity Heatmap</h4>
+        <h4 className="text-sm font-medium text-gray-700">Overlay Appearance</h4>
+        <p className="text-xs text-gray-500">
+          These controls style the active overlay for the current interpretation mode.
+        </p>
 
         <Select
           value={heatmapStyle}

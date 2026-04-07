@@ -300,12 +300,14 @@ export interface Q2SummaryResponse {
 // App State Types
 
 export type HeatmapStyle = 'smooth' | 'squares' | 'circles';
+export type ImageDetailMode = 'head_attention' | 'feature_similarity';
 
 export interface ViewSettings {
   model: string;
   layer: number;
   method: string;
   head: number | null;
+  imageDetailMode: ImageDetailMode;
   percentile: number;
   showBboxes: boolean;
   heatmapOpacity: number;

@@ -2,8 +2,8 @@
  * Image detail page with attention viewer and metrics.
  */
 
-import { useCallback, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { imagesAPI } from '../api/client';
 import { useViewStore } from '../store/viewStore';
@@ -16,10 +16,14 @@ import { Q3StudyScopeCallout } from '../components/metrics/Q3ScopeFraming';
 import { Card, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { AnnotationsCard } from '../components/image-detail/AnnotationsCard';
+import { ImageDetailModeSwitch } from '../components/image-detail/ImageDetailModeSwitch';
+import { parseImageDetailMode } from '../constants/imageDetailModes';
 import { Q3_DEFAULTS, getQ3ModelScopeStatus } from '../constants/q3Scope';
+import type { ImageDetailMode } from '../types';
 
 export function ImageDetailPage() {
   const { imageId } = useParams<{ imageId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const decodedId = imageId ? decodeURIComponent(imageId) : '';
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -28,31 +32,61 @@ export function ImageDetailPage() {
     layer,
     method,
     head,
+    imageDetailMode,
     percentile,
     showBboxes,
     selectedBboxIndex,
     setLayer,
     setHead,
+    setImageDetailMode,
     setModelWithPreferredMethod,
     setPercentile,
     setSelectedBboxIndex,
   } = useViewStore();
+  const requestedMode = parseImageDetailMode(searchParams.get('mode'));
+  const currentMode = requestedMode;
+
+  useEffect(() => {
+    if (imageDetailMode !== requestedMode) {
+      setImageDetailMode(requestedMode);
+    }
+  }, [imageDetailMode, requestedMode, setImageDetailMode]);
 
   // Get models config for per-model layer counts
   const { data: modelsData } = useModels();
   const maxLayers = modelsData?.num_layers_per_model?.[model] ?? modelsData?.num_layers ?? 12;
 
+  const persistModeToUrl = useCallback((nextMode: ImageDetailMode) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('mode', nextMode);
+    setSearchParams(nextParams);
+  }, [searchParams, setSearchParams]);
+
   const handleBboxSelect = useCallback((index: number | null) => {
     setSelectedBboxIndex(index);
   }, [setSelectedBboxIndex]);
+  const handleModeChange = useCallback((nextMode: ImageDetailMode) => {
+    setImageDetailMode(nextMode);
+    persistModeToUrl(nextMode);
+  }, [persistModeToUrl, setImageDetailMode]);
   const handleApplyQ3Defaults = useCallback(() => {
     setIsPlaying(false);
+    setImageDetailMode('head_attention');
     setModelWithPreferredMethod(Q3_DEFAULTS.model, Q3_DEFAULTS.method);
     setHead(null);
     setLayer(Q3_DEFAULTS.layer);
     setPercentile(Q3_DEFAULTS.percentile);
     setSelectedBboxIndex(null);
-  }, [setHead, setLayer, setModelWithPreferredMethod, setPercentile, setSelectedBboxIndex]);
+    persistModeToUrl('head_attention');
+  }, [
+    persistModeToUrl,
+    setHead,
+    setImageDetailMode,
+    setLayer,
+    setModelWithPreferredMethod,
+    setPercentile,
+    setSelectedBboxIndex,
+  ]);
 
   // Fetch image details
   const { data: imageDetail, isLoading: detailLoading, error } = useQuery({
@@ -128,7 +162,7 @@ export function ImageDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
         <div className="space-y-4 lg:col-span-3 xl:col-span-1" data-testid="image-detail-left-column">
           <div data-testid="view-settings-panel">
-            <ControlPanel />
+            <ControlPanel mode={currentMode} />
           </div>
           <Q3StudyScopeCallout
             context="imageDetail"
@@ -144,6 +178,7 @@ export function ImageDetailPage() {
           {imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}
+              mode={currentMode}
               showBboxes={showBboxes}
               selectedBboxIndex={selectedBboxIndex}
               onBboxSelect={handleBboxSelect}
@@ -153,13 +188,19 @@ export function ImageDetailPage() {
 
         {/* Center: Attention viewer */}
         <div className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1" data-testid="image-detail-center-column">
-          <ErrorBoundary resetKeys={[model, layer, method, head, percentile]}>
+          <ImageDetailModeSwitch
+            mode={currentMode}
+            onChange={handleModeChange}
+          />
+
+          <ErrorBoundary resetKeys={[model, layer, method, head, currentMode, percentile]}>
             <AttentionViewer
               imageId={decodedId}
               model={model}
               layer={layer}
               method={method}
               head={head}
+              mode={currentMode}
               percentile={percentile}
               showBboxes={showBboxes}
               bboxes={imageDetail?.annotation.bboxes}
@@ -185,12 +226,13 @@ export function ImageDetailPage() {
         </div>
 
         <div className="min-w-0 lg:col-span-4 xl:col-span-1" data-testid="image-detail-right-column">
-          <ErrorBoundary resetKeys={[model, layer, percentile, method, selectedBboxIndex, isPlaying]}>
+          <ErrorBoundary resetKeys={[model, layer, percentile, method, currentMode, selectedBboxIndex, isPlaying]}>
             <ImageDetailMetricsPanel
               imageId={decodedId}
               model={model}
               percentile={percentile}
               method={method}
+              mode={currentMode}
               selectedBboxIndex={selectedBboxIndex}
               currentLayer={layer}
               isPlaying={isPlaying}
