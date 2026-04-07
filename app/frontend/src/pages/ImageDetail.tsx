@@ -193,15 +193,9 @@ export function ImageDetailPage() {
       />
 
       {/* Main content */}
-      <div
-        className={`grid grid-cols-1 gap-6 ${
-          isQ3Tab
-            ? 'lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-8'
-            : 'lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8'
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
         <div
-          className={`space-y-4 ${isQ3Tab ? '' : 'lg:col-span-3 xl:col-span-1'}`}
+          className="space-y-4 lg:col-span-3 xl:col-span-1"
           data-testid="image-detail-left-column"
         >
           {!isQ3Tab && (
@@ -247,7 +241,7 @@ export function ImageDetailPage() {
 
         {/* Center: Attention viewer */}
         <div
-          className={`min-w-0 space-y-4 ${isQ3Tab ? '' : 'lg:col-span-5 xl:col-span-1'}`}
+          className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1"
           data-testid="image-detail-center-column"
         >
           {isQ3Tab && (
@@ -305,6 +299,14 @@ export function ImageDetailPage() {
               />
             </ErrorBoundary>
           </div>
+        )}
+
+        {isQ3Tab && (
+          <div
+            aria-hidden="true"
+            className="hidden min-w-0 lg:block lg:col-span-4 xl:col-span-1"
+            data-testid="image-detail-q3-spacer"
+          />
         )}
       </div>
     </div>

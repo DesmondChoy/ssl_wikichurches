@@ -458,6 +458,7 @@ test.describe('Image detail metrics chart', () => {
     const headSelect = getSelectByLabel(page, 'Attention Head');
     const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
     const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
+    const centerColumn = page.getByTestId('image-detail-center-column');
 
     await expect(mainTab).toHaveAttribute('aria-selected', 'true');
     await expect(q3ScopeCard).toHaveCount(0);
@@ -475,12 +476,16 @@ test.describe('Image detail metrics chart', () => {
       'Resnet50',
     ]);
 
+    const mainCenterBox = await centerColumn.boundingBox();
+    expect(mainCenterBox).not.toBeNull();
+
     await q3Tab.click();
 
     await expect(q3Tab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('view-settings-panel')).toHaveCount(0);
     await expect(page.getByTestId('q3-controls-panel')).toBeVisible();
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
+    await expect(page.getByTestId('image-detail-q3-spacer')).toBeVisible();
     await expect(page.getByTestId('image-detail-mode-switch')).toBeVisible();
     await expect(page.getByTestId('q3-controls-panel').getByText('Show Bounding Boxes')).toBeVisible();
     await expect(q3ScopeCard).toContainText('Primary Q3 study scope');
@@ -493,6 +498,10 @@ test.describe('Image detail metrics chart', () => {
     await expect(currentModelStatus).toHaveText('Primary study');
     await expect(page.getByTestId('annotations-card')).toBeVisible();
     await expect(headSelect).toBeVisible();
+
+    const q3CenterBox = await centerColumn.boundingBox();
+    expect(q3CenterBox).not.toBeNull();
+    expect(Math.abs(q3CenterBox!.width - mainCenterBox!.width)).toBeLessThanOrEqual(16);
 
     await modelSelect.selectOption('siglip2');
     await expect(currentModelStatus).toHaveText('Outside primary scope');
