@@ -101,6 +101,7 @@ On the dashboard Q3 panel:
 
 - Which heads dominate for a given model, metric, and layer?
 - Do different architectural feature types prefer different heads?
+- Which head-feature cells stay dark in the heatmap and still look plausible on exemplar images?
 - Does the dominant head set change when moving from `frozen` to `lora` or `full`?
 - Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns?
 
@@ -156,11 +157,15 @@ The current shipped storage and API layout already supports this direction:
   - `head_image_metrics`
   - `head_summary_metrics`
   - `head_feature_metrics`
+  - `head_feature_image_metrics`
 - relevant APIs:
   - `/api/attention/{image_id}/raw`
   - `/api/attention/models`
   - `/api/metrics/model/{model}/head_ranking`
   - `/api/metrics/model/{model}/head_feature_matrix`
+  - `/api/metrics/model/{model}/head_exemplars`
+
+The dashboard Q3 surface now uses an interactive heatmap plus an inline exemplar panel instead of a numeric feature matrix. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
 
 This means the primary task for the next run is **population and interpretation**, not a first implementation of Q3 itself.
 

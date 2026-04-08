@@ -408,6 +408,23 @@ def _create_head_q3_db(conn: sqlite3.Connection) -> None:
             bbox_count INTEGER
         )"""
     )
+    conn.execute(
+        """CREATE TABLE head_feature_image_metrics (
+            model TEXT,
+            layer TEXT,
+            method TEXT,
+            head INTEGER,
+            metric TEXT,
+            direction TEXT,
+            feature_label INTEGER,
+            feature_name TEXT,
+            image_id TEXT,
+            percentile INTEGER,
+            score REAL,
+            bbox_count INTEGER,
+            default_bbox_index INTEGER
+        )"""
+    )
 
     conn.executemany(
         "INSERT INTO head_image_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -442,6 +459,16 @@ def _create_head_q3_db(conn: sqlite3.Connection) -> None:
             ("dinov2", "layer11", "cls", 1, "coverage", "higher", 7, "door", 90, 0.33, 0.02, 5),
             ("dinov2", "layer11", "cls", 0, "coverage", "higher", 42, "window", 90, 0.48, 0.05, 9),
             ("dinov2", "layer11", "cls", 1, "coverage", "higher", 42, "window", 90, 0.51, 0.04, 9),
+        ],
+    )
+    conn.executemany(
+        "INSERT INTO head_feature_image_metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("dinov2", "layer11", "cls", 5, "iou", "higher", 7, "Door", "img_alpha.jpg", 80, 0.84, 2, 2),
+            ("dinov2", "layer11", "cls", 5, "iou", "higher", 7, "Door", "img_gamma.jpg", 80, 0.59, 1, 0),
+            ("dinov2", "layer11", "cls", 5, "emd", "lower", 7, "Door", "img_epsilon.jpg", 90, 0.07, 1, 0),
+            ("dinov2", "layer11", "cls", 5, "emd", "lower", 7, "Door", "img_alpha.jpg", 90, 0.09, 2, 0),
+            ("dinov2_finetuned_lora", "layer11", "cls", 5, "iou", "higher", 7, "Door", "img_lora.jpg", 80, 0.88, 1, 0),
         ],
     )
     conn.commit()
@@ -1495,18 +1522,81 @@ class TestQ3HeadMetrics:
             "img_gamma.jpg",
         ]
         assert result["candidates"][0]["matching_bbox_indices"] == [0, 2]
+        assert result["candidates"][0]["default_bbox_index"] == 2
+
+    def test_get_head_exemplars_uses_feature_image_rows_for_lower_is_better_metrics(self, service, mem_db):
+        annotations = {
+            "img_alpha.jpg": ImageAnnotation(
+                image_id="img_alpha.jpg",
+                styles=("Q46261",),
+                bboxes=(
+                    BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),
+                    BoundingBox(0.2, 0.2, 0.2, 0.2, 42, 42),
+                    BoundingBox(0.3, 0.3, 0.2, 0.2, 7, 7),
+                ),
+            ),
+            "img_epsilon.jpg": ImageAnnotation(
+                image_id="img_epsilon.jpg",
+                styles=("Q12554",),
+                bboxes=(BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),),
+            ),
+        }
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+            with patch("app.backend.services.metrics_service.image_service") as mock_image_service:
+                mock_image_service.get_feature_name.return_value = "Door"
+                mock_image_service.get_annotation.side_effect = lambda image_id: annotations[image_id]
+                mock_image_service.get_style_names.side_effect = lambda styles: ["Gothic" if "Q46261" in styles else "Romanesque"]
+
+                result = service.get_head_exemplars(
+                    model="dinov2",
+                    layer="layer11",
+                    head=5,
+                    percentile=50,
+                    metric="emd",
+                    variant="frozen",
+                    feature_label=7,
+                )
+
+        assert result["supported"] is True
+        assert [candidate["image_id"] for candidate in result["candidates"]] == [
+            "img_epsilon.jpg",
+            "img_alpha.jpg",
+        ]
         assert result["candidates"][0]["default_bbox_index"] == 0
+
+    def test_get_head_exemplars_returns_unsupported_payload_when_feature_image_cache_is_missing(self, service, mem_db):
+        mem_db.execute("DROP TABLE head_feature_image_metrics")
+        with patch.object(type(service), "get_connection") as mock_ctx:
+            mock_ctx.return_value.__enter__ = lambda _: mem_db
+            mock_ctx.return_value.__exit__ = lambda *_: None
+            with patch("app.backend.services.metrics_service.image_service") as mock_image_service:
+                mock_image_service.get_feature_name.return_value = "Door"
+
+                result = service.get_head_exemplars(
+                    model="dinov2",
+                    layer="layer11",
+                    head=5,
+                    percentile=80,
+                    metric="iou",
+                    variant="frozen",
+                    feature_label=7,
+                )
+
+        assert result["supported"] is False
+        assert "head-feature exemplars" in str(result["reason"]).lower()
 
     def test_get_head_exemplars_uses_variant_specific_storage_key(self, service, mem_db):
         with patch.object(type(service), "get_connection") as mock_ctx:
             mock_ctx.return_value.__enter__ = lambda _: mem_db
             mock_ctx.return_value.__exit__ = lambda *_: None
             with patch("app.backend.services.metrics_service.image_service") as mock_image_service:
-                mock_image_service.get_feature_name.return_value = None
+                mock_image_service.get_feature_name.return_value = "Door"
                 mock_image_service.get_annotation.side_effect = lambda image_id: ImageAnnotation(
                     image_id=image_id,
                     styles=("Q46261",),
-                    bboxes=(),
+                    bboxes=(BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),),
                 )
                 mock_image_service.get_style_names.return_value = ["Gothic"]
 
@@ -1517,6 +1607,7 @@ class TestQ3HeadMetrics:
                     percentile=80,
                     metric="iou",
                     variant="lora",
+                    feature_label=7,
                 )
 
         assert [candidate["image_id"] for candidate in result["candidates"]] == ["img_lora.jpg"]

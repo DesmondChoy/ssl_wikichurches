@@ -153,6 +153,22 @@ HEAD_FEATURE_METRICS_COLUMNS = {
     "std_score": "REAL",
     "bbox_count": "INTEGER",
 }
+HEAD_FEATURE_IMAGE_METRICS_COLUMNS = {
+    "id": "INTEGER",
+    "model": "TEXT",
+    "layer": "TEXT",
+    "method": "TEXT",
+    "head": "INTEGER",
+    "metric": "TEXT",
+    "direction": "TEXT",
+    "feature_label": "INTEGER",
+    "feature_name": "TEXT",
+    "image_id": "TEXT",
+    "percentile": "INTEGER",
+    "score": "REAL",
+    "bbox_count": "INTEGER",
+    "default_bbox_index": "INTEGER",
+}
 
 
 def metric_query_percentiles(metric_name: str, percentiles: list[int]) -> list[int]:
@@ -318,6 +334,26 @@ def create_head_metric_tables(conn: sqlite3.Connection) -> None:
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS head_feature_image_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            method TEXT NOT NULL,
+            head INTEGER NOT NULL,
+            metric TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            feature_label INTEGER NOT NULL,
+            feature_name TEXT NOT NULL,
+            image_id TEXT NOT NULL,
+            percentile INTEGER NOT NULL,
+            score REAL NOT NULL,
+            bbox_count INTEGER NOT NULL,
+            default_bbox_index INTEGER,
+            UNIQUE(model, layer, method, head, metric, feature_label, image_id, percentile)
+        )
+    """)
+
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_head_image_metric_lookup "
         "ON head_image_metrics(model, layer, method, metric, percentile, image_id)"
@@ -330,6 +366,10 @@ def create_head_metric_tables(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_head_feature_metric_lookup "
         "ON head_feature_metrics(model, layer, method, metric, percentile)"
     )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_head_feature_image_metric_lookup "
+        "ON head_feature_image_metrics(model, layer, method, head, metric, feature_label, percentile)"
+    )
 
 
 def ensure_head_metric_schema(conn: sqlite3.Connection) -> None:
@@ -338,6 +378,7 @@ def ensure_head_metric_schema(conn: sqlite3.Connection) -> None:
     ensure_table_columns(conn, "head_image_metrics", HEAD_IMAGE_METRICS_COLUMNS)
     ensure_table_columns(conn, "head_summary_metrics", HEAD_SUMMARY_METRICS_COLUMNS)
     ensure_table_columns(conn, "head_feature_metrics", HEAD_FEATURE_METRICS_COLUMNS)
+    ensure_table_columns(conn, "head_feature_image_metrics", HEAD_FEATURE_IMAGE_METRICS_COLUMNS)
 
 
 def create_database(db_path: Path) -> sqlite3.Connection:
@@ -422,6 +463,35 @@ def aggregate_feature_scores(
             "count": float(tensor.numel()),
             "name": feature_names[label] if feature_names and label < len(feature_names) else f"feature_{label}",
         }
+    return aggregated
+
+
+def aggregate_image_feature_scores(
+    scores_by_label: dict[int, list[tuple[int, float]]],
+    *,
+    direction: str,
+    feature_names: list[str] | None = None,
+) -> dict[int, dict[str, float | str | int]]:
+    """Aggregate one image's per-bbox metric values by feature label."""
+    aggregated: dict[int, dict[str, float | str | int]] = {}
+    reverse = direction == "higher"
+
+    for label, indexed_scores in scores_by_label.items():
+        if not indexed_scores:
+            continue
+
+        tensor = torch.tensor([score for _bbox_index, score in indexed_scores], dtype=torch.float32)
+        default_bbox_index = sorted(
+            indexed_scores,
+            key=lambda item: (-item[1], item[0]) if reverse else (item[1], item[0]),
+        )[0][0]
+        aggregated[label] = {
+            "mean_score": tensor.mean().item(),
+            "count": int(tensor.numel()),
+            "name": feature_names[label] if feature_names and label < len(feature_names) else f"feature_{label}",
+            "default_bbox_index": default_bbox_index,
+        }
+
     return aggregated
 
 
@@ -834,7 +904,13 @@ def compute_per_head_metrics_for_model(
                     (model_key, layer_key, variant),
                 )
                 existing_count = cursor.fetchone()[0]
-                if existing_count >= expected_summary_rows:
+                cursor.execute(
+                    """SELECT COUNT(*) FROM head_feature_image_metrics
+                       WHERE model = ? AND layer = ? AND method = ?""",
+                    (model_key, layer_key, variant),
+                )
+                feature_image_count = cursor.fetchone()[0]
+                if existing_count >= expected_summary_rows and feature_image_count > 0:
                     stats["skipped"] += existing_count
                     continue
 
@@ -888,6 +964,7 @@ def compute_per_head_metrics_for_model(
                         )
                         bbox_targets = [
                             (
+                                bbox_index,
                                 bbox.label,
                                 bbox.to_mask(height, width).to(attention.device),
                                 gaussian_bbox_heatmap(
@@ -897,8 +974,9 @@ def compute_per_head_metrics_for_model(
                                     device=attention.device,
                                 ),
                             )
-                            for bbox in annotation.bboxes
+                            for bbox_index, bbox in enumerate(annotation.bboxes)
                         ]
+                        image_feature_scores: dict[tuple[str, int], dict[int, list[tuple[int, float]]]] = {}
 
                         coverage = compute_coverage(attention, union_mask)
                         mse = compute_mse(attention, union_heatmap)
@@ -922,26 +1000,52 @@ def compute_per_head_metrics_for_model(
                             metric_values[("iou", percentile)] = iou_result.iou
 
                             bbox_ious = compute_per_bbox_iou(attention, annotation, percentile)
-                            for label, score in bbox_ious:
+                            image_feature_scores[("iou", percentile)] = {}
+                            for bbox_index, (label, score) in enumerate(bbox_ious):
                                 feature_scores[("iou", percentile, head_idx)].setdefault(label, []).append(score)
+                                image_feature_scores[("iou", percentile)].setdefault(label, []).append((bbox_index, score))
 
-                        for label, bbox_mask, bbox_heatmap in bbox_targets:
+                        image_feature_scores[("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)] = {}
+                        image_feature_scores[("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)] = {}
+                        image_feature_scores[("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)] = {}
+                        image_feature_scores[("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)] = {}
+                        for bbox_index, label, bbox_mask, bbox_heatmap in bbox_targets:
+                            coverage_score = compute_coverage(attention, bbox_mask)
+                            mse_score = compute_mse(attention, bbox_heatmap)
+                            kl_score = compute_kl_divergence(attention, bbox_heatmap)
+                            emd_score = compute_emd(attention, bbox_heatmap)
                             feature_scores[("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
                                 label,
                                 [],
-                            ).append(compute_coverage(attention, bbox_mask))
+                            ).append(coverage_score)
+                            image_feature_scores[("coverage", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                                label,
+                                [],
+                            ).append((bbox_index, coverage_score))
                             feature_scores[("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
                                 label,
                                 [],
-                            ).append(compute_mse(attention, bbox_heatmap))
+                            ).append(mse_score)
+                            image_feature_scores[("mse", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                                label,
+                                [],
+                            ).append((bbox_index, mse_score))
                             feature_scores[("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
                                 label,
                                 [],
-                            ).append(compute_kl_divergence(attention, bbox_heatmap))
+                            ).append(kl_score)
+                            image_feature_scores[("kl", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                                label,
+                                [],
+                            ).append((bbox_index, kl_score))
                             feature_scores[("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE, head_idx)].setdefault(
                                 label,
                                 [],
-                            ).append(compute_emd(attention, bbox_heatmap))
+                            ).append(emd_score)
+                            image_feature_scores[("emd", BREAKDOWN_THRESHOLD_FREE_REFERENCE_PERCENTILE)].setdefault(
+                                label,
+                                [],
+                            ).append((bbox_index, emd_score))
 
                         for (metric_name, percentile), score in metric_values.items():
                             metric_config = BREAKDOWN_METRICS[metric_name]
@@ -964,6 +1068,37 @@ def compute_per_head_metrics_for_model(
                             score_accumulator[(metric_name, percentile, head_idx)].append(score)
                             image_metric_scores.setdefault((metric_name, percentile), {})[head_idx] = score
                             stats["processed"] += 1
+
+                        for (metric_name, percentile), image_scores_by_label in image_feature_scores.items():
+                            metric_config = BREAKDOWN_METRICS[metric_name]
+                            feature_stats = aggregate_image_feature_scores(
+                                image_scores_by_label,
+                                direction=str(metric_config["direction"]),
+                                feature_names=feature_names,
+                            )
+                            for label, stats_dict in feature_stats.items():
+                                feature_name = str(stats_dict.get("name", f"feature_{label}"))
+                                default_bbox_index = stats_dict.get("default_bbox_index")
+                                cursor.execute(
+                                    """INSERT OR REPLACE INTO head_feature_image_metrics
+                                       (model, layer, method, head, metric, direction, feature_label, feature_name, image_id, percentile, score, bbox_count, default_bbox_index)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    (
+                                        model_key,
+                                        layer_key,
+                                        variant,
+                                        head_idx,
+                                        metric_name,
+                                        metric_config["direction"],
+                                        label,
+                                        feature_name,
+                                        image_id,
+                                        percentile,
+                                        stats_dict["mean_score"],
+                                        int(stats_dict["count"]),
+                                        int(default_bbox_index) if isinstance(default_bbox_index, int) else None,
+                                    ),
+                                )
 
                     except Exception as exc:
                         print(
@@ -1013,11 +1148,11 @@ def compute_per_head_metrics_for_model(
                     ),
                 )
 
-            for (metric_name, percentile, head_idx), scores_by_label in feature_scores.items():
+            for (metric_name, percentile, head_idx), feature_scores_by_label in feature_scores.items():
                 metric_config = BREAKDOWN_METRICS[metric_name]
-                feature_stats = aggregate_feature_scores(scores_by_label, feature_names)
+                feature_stats = aggregate_feature_scores(feature_scores_by_label, feature_names)
                 for label, stats_dict in feature_stats.items():
-                    feature_name = stats_dict.get("name", f"feature_{label}")
+                    feature_name = str(stats_dict.get("name", f"feature_{label}"))
                     cursor.execute(
                         """INSERT OR REPLACE INTO head_feature_metrics
                            (model, layer, method, head, metric, direction, feature_label, feature_name, percentile, mean_score, std_score, bbox_count)

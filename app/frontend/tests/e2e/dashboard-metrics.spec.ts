@@ -669,7 +669,7 @@ test.describe('Dashboard metrics', () => {
     await expect(q3Panel).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
     await expect(page.getByText('Head Ranking')).toBeVisible();
-    await expect(page.getByText('Head × Feature Matrix')).toBeVisible();
+    await expect(page.getByText('Head × Feature Heatmap')).toBeVisible();
     await expect(q3Panel.getByText('Door').first()).toBeVisible();
     await expect(q3Panel.getByText('Window').first()).toBeVisible();
 
@@ -681,15 +681,43 @@ test.describe('Dashboard metrics', () => {
     await q3Section.locator('select').nth(3).selectOption('coverage');
     await expect(page.getByText(/Coverage measures how much attention energy lands inside the annotated regions/)).toBeVisible();
     await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-    await expect(page.getByTestId('q3-exemplar-picker')).toBeVisible();
-    await expect(page.getByText('Pick a representative image')).toBeVisible();
+    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByText('Representative images for Head 0')).toBeVisible();
     await expect(page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`)).toBeVisible();
-    await page.getByRole('button', { name: 'Close' }).click();
-    await expect(page.getByTestId('q3-exemplar-picker')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Clear selection' }).click();
+    await expect(page.getByTestId('q3-exemplar-panel')).toHaveCount(0);
 
     await overviewTab.click();
     await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
+  });
+
+  test('shows exact hover readouts for heatmap cells and loads inline exemplars from a selected cell', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard');
+
+    await page.getByRole('tab', { name: 'Q3' }).click();
+    await page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first()
+      .locator('select')
+      .nth(3)
+      .selectOption('coverage');
+
+    const targetCell = page.getByTestId('q3-heatmap-cell-7-1');
+    await targetCell.hover();
+
+    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('Door');
+    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('H1');
+    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('Coverage: 0.330');
+
+    await targetCell.click();
+
+    await expect(page.getByTestId('q3-heatmap-selection-summary')).toContainText('Selected cell: Door · H1 · Coverage 0.330');
+    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByText('Representative images for the selected heatmap cell')).toBeVisible();
+    await expect(page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`)).toBeVisible();
   });
 
   test('applies strict Q3 filtering and routes exemplar drill-down into Image Detail', async ({ page }) => {
@@ -738,8 +766,8 @@ test.describe('Dashboard metrics', () => {
       'Linear Probe remains visible as a control'
     );
 
-    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-    await expect(page.getByTestId('q3-exemplar-picker')).toBeVisible();
+    await page.getByTestId('q3-heatmap-cell-7-0').click();
+    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
     await page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`).click();
 
     await expect(page).toHaveURL(new RegExp(`/image/${EXEMPLAR_IMAGE_ID.replace('.', '\\.')}`));
@@ -748,6 +776,7 @@ test.describe('Dashboard metrics', () => {
     await expect(page).toHaveURL(/variant=linear_probe/);
     await expect(page).toHaveURL(/layer=11/);
     await expect(page).toHaveURL(/head=0/);
+    await expect(page).toHaveURL(/feature_label=7/);
     await expect(page).toHaveURL(/mode=head_attention/);
   });
 

@@ -7,9 +7,11 @@ import sqlite3
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 import torch
 
 from app.precompute import generate_metrics_cache as gm
+from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
 
 
 class _NoGetItemAnnotatedDataset:
@@ -156,6 +158,12 @@ def test_create_database_creates_q3_head_tables(tmp_path):
     head_feature_columns = {row[1] for row in cursor.fetchall()}
     assert {"feature_label", "feature_name", "mean_score", "std_score", "bbox_count"}.issubset(head_feature_columns)
 
+    cursor.execute("PRAGMA table_info(head_feature_image_metrics)")
+    head_feature_image_columns = {row[1] for row in cursor.fetchall()}
+    assert {"feature_label", "feature_name", "image_id", "score", "bbox_count", "default_bbox_index"}.issubset(
+        head_feature_image_columns
+    )
+
     conn.close()
 
 
@@ -165,6 +173,22 @@ def test_rank_head_scores_respects_metric_direction():
 
     assert higher == {1: 1, 2: 2, 0: 3}
     assert lower == {0: 1, 2: 2, 1: 3}
+
+
+def test_aggregate_image_feature_scores_respects_direction_and_tie_breaks():
+    higher = gm.aggregate_image_feature_scores(
+        {7: [(3, 0.25), (1, 0.8), (2, 0.8)]},
+        direction="higher",
+        feature_names=["placeholder"] * 8,
+    )
+    lower = gm.aggregate_image_feature_scores(
+        {7: [(3, 0.25), (1, 0.1), (2, 0.1)]},
+        direction="lower",
+        feature_names=["placeholder"] * 8,
+    )
+
+    assert higher[7]["default_bbox_index"] == 1
+    assert lower[7]["default_bbox_index"] == 1
 
 
 def test_create_database_recreates_legacy_breakdown_tables(tmp_path):
@@ -337,6 +361,81 @@ def test_compute_metrics_for_full_strategy_falls_back_to_legacy_cache_key(tmp_pa
     assert stats["errors"] == 0
     attention_cache.load.assert_any_call("dinov2_finetuned_full", "layer0", image_id, variant="cls")
     attention_cache.load.assert_any_call("dinov2_finetuned", "layer0", image_id, variant="cls")
+
+    conn.close()
+
+
+def test_compute_per_head_metrics_for_model_writes_feature_image_rows(tmp_path, monkeypatch):
+    db_path = tmp_path / "metrics.db"
+    conn = gm.create_database(db_path)
+
+    image_id = "Q1234_test.jpg"
+    annotation = ImageAnnotation(
+        image_id=image_id,
+        styles=(),
+        bboxes=(
+            BoundingBox(0.1, 0.1, 0.2, 0.2, 7, 7),
+            BoundingBox(0.2, 0.2, 0.2, 0.2, 42, 42),
+            BoundingBox(0.3, 0.3, 0.2, 0.2, 7, 7),
+        ),
+    )
+    dataset = SimpleNamespace(
+        image_ids=[image_id],
+        annotations={image_id: annotation},
+    )
+    attention_cache = MagicMock()
+
+    def _load(_model: str, _layer: str, _image_id: str, variant: str):
+        if variant == "cls_head0":
+            return torch.ones(14, 14)
+        raise KeyError("missing head cache")
+
+    attention_cache.load.side_effect = _load
+
+    feature_types = [SimpleNamespace(name=f"feature_{idx}") for idx in range(43)]
+    feature_types[7].name = "Door"
+    feature_types[42].name = "Window"
+
+    monkeypatch.setattr(
+        gm,
+        "compute_image_iou",
+        lambda **_kwargs: SimpleNamespace(
+            iou=0.5,
+            coverage=0.6,
+            attention_area=0.4,
+            annotation_area=0.3,
+        ),
+    )
+    monkeypatch.setattr(gm, "compute_per_bbox_iou", lambda *_args, **_kwargs: [(7, 0.25), (42, 0.9), (7, 0.8)])
+    monkeypatch.setattr(gm, "load_annotations_with_features", lambda *_args, **_kwargs: (None, feature_types))
+
+    stats = gm.compute_per_head_metrics_for_model(
+        base_model_name="dinov2",
+        dataset=dataset,  # type: ignore[arg-type]
+        attention_cache=attention_cache,
+        conn=conn,
+        percentiles=[90],
+        layers=[0],
+        methods=["cls"],
+        skip_existing=False,
+    )
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT feature_name, image_id, score, bbox_count, default_bbox_index
+           FROM head_feature_image_metrics
+           WHERE model = ? AND layer = ? AND method = ? AND head = ? AND metric = ? AND feature_label = ? AND percentile = ?""",
+        ("dinov2", "layer0", "cls", 0, "iou", 7, 90),
+    )
+    row = cursor.fetchone()
+
+    assert stats["errors"] == 0
+    assert row is not None
+    assert row[0] == "Door"
+    assert row[1] == image_id
+    assert row[2] == pytest.approx(0.525)
+    assert row[3] == 2
+    assert row[4] == 2
 
     conn.close()
 

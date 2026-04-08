@@ -269,3 +269,13 @@ class TestQ3MetricsApi:
         body = response.json()
         assert body["variant"] == "lora"
         assert body["candidates"][0]["default_bbox_index"] == 1
+        mock_metrics_service.get_head_exemplars.assert_called_once_with(
+            model="dinov2",
+            layer="layer11",
+            head=3,
+            percentile=90,
+            metric="iou",
+            variant="lora",
+            feature_label=7,
+            limit=12,
+        )

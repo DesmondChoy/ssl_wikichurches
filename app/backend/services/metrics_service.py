@@ -1402,7 +1402,13 @@ class MetricsService:
 
         order_direction = "DESC" if metric_config["direction"] == "higher" else "ASC"
         with self.get_connection() as conn:
-            if not self._table_exists(conn, "head_image_metrics"):
+            exemplar_table = "head_feature_image_metrics" if feature_label is not None else "head_image_metrics"
+            if not self._table_exists(conn, exemplar_table):
+                unavailable_reason = (
+                    "Q3 head-feature exemplars are not available. Re-run generate_metrics_cache.py --per-head to populate per-image feature rows."
+                    if feature_label is not None
+                    else "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first."
+                )
                 return {
                     "model": model,
                     "variant": variant,
@@ -1414,18 +1420,30 @@ class MetricsService:
                     "feature_label": feature_label,
                     "feature_name": feature_name,
                     "supported": False,
-                    "reason": "Q3 head metrics are not available. Run generate_metrics_cache.py --per-head first.",
+                    "reason": unavailable_reason,
                     "candidates": [],
                 }
             cursor = conn.cursor()
-            cursor.execute(
-                f"""SELECT image_id, score
-                    FROM head_image_metrics
-                    WHERE model = ? AND layer = ? AND method = ? AND head = ? AND metric = ? AND percentile = ?
-                    ORDER BY score {order_direction}, image_id ASC""",
-                (db_model, layer, method, head, metric, query_percentile),
-            )
+            if feature_label is not None:
+                cursor.execute(
+                    f"""SELECT image_id, score, feature_name, default_bbox_index
+                        FROM head_feature_image_metrics
+                        WHERE model = ? AND layer = ? AND method = ? AND head = ? AND metric = ? AND percentile = ? AND feature_label = ?
+                        ORDER BY score {order_direction}, image_id ASC""",
+                    (db_model, layer, method, head, metric, query_percentile, feature_label),
+                )
+            else:
+                cursor.execute(
+                    f"""SELECT image_id, score
+                        FROM head_image_metrics
+                        WHERE model = ? AND layer = ? AND method = ? AND head = ? AND metric = ? AND percentile = ?
+                        ORDER BY score {order_direction}, image_id ASC""",
+                    (db_model, layer, method, head, metric, query_percentile),
+                )
             rows = cursor.fetchall()
+
+        if feature_label is not None and rows and not feature_name:
+            feature_name = rows[0]["feature_name"]
 
         candidates: list[dict[str, Any]] = []
         for row in rows:
@@ -1449,11 +1467,20 @@ class MetricsService:
                     "thumbnail_url": f"/api/images/{image_id}/thumbnail",
                     "style_names": image_service.get_style_names(list(annotation.styles)),
                     "matching_bbox_indices": matching_bbox_indices,
-                    "default_bbox_index": matching_bbox_indices[0] if matching_bbox_indices else None,
+                    "default_bbox_index": (
+                        row["default_bbox_index"]
+                        if feature_label is not None
+                        else (matching_bbox_indices[0] if matching_bbox_indices else None)
+                    ),
                 }
             )
             if len(candidates) >= limit:
                 break
+
+        reason: str | None = None
+        if feature_label is not None and not candidates:
+            feature_descriptor = feature_name or f"feature {feature_label}"
+            reason = f"No Q3 head-feature exemplar rows are available for {feature_descriptor} at this selection yet."
 
         return {
             "model": model,
@@ -1466,7 +1493,7 @@ class MetricsService:
             "feature_label": feature_label,
             "feature_name": feature_name,
             "supported": True,
-            "reason": None,
+            "reason": reason,
             "candidates": candidates,
         }
 

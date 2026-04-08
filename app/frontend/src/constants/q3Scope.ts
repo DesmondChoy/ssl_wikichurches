@@ -18,7 +18,7 @@ export const Q3_SCOPE_COPY = {
   dashboardSummary:
     'Start on Dashboard Q3 to compare candidate heads across dinov2, dinov3, mae, and clip.',
   dashboardDetail:
-    'Use Inspect exemplar to open one concrete image in Image Detail Q3 with the same variant, layer, head, and feature context already loaded.',
+    'Use the heatmap and inline exemplar panel to open one concrete image in Image Detail Q3 with the same variant, layer, head, and feature context already loaded.',
   dashboardSelectionNote:
     'Frozen, LoRA, and Full are the headline comparison set. Linear Probe remains available as a control condition.',
   imageDetailSummary:

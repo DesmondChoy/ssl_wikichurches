@@ -201,13 +201,16 @@ Implementation:
 
 ### Storage layout
 
-The project writes three dedicated Q3 tables:
+The project writes four dedicated Q3 tables:
 
 - `head_image_metrics`
 - `head_summary_metrics`
 - `head_feature_metrics`
+- `head_feature_image_metrics`
 
 This separation is deliberate: per-head Q3 is not folded into the generic Q1/Q2 tables.
+
+The first three tables support head-level ranking and aggregated head-by-feature summaries. The fourth table keeps one per-image row for each `(head, feature)` pair so the dashboard heatmap can drill into exemplar images deterministically. For feature-cell drill-down, the stored `score` is the mean score across matching boxes in that image and `default_bbox_index` points at the best matching box under the metric's directionality with a lowest-index tie-break.
 
 ### Ranking rule
 
