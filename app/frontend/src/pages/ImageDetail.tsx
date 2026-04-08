@@ -243,6 +243,12 @@ export function ImageDetailPage() {
   const activeBboxIndex = isQ3Tab ? q3State.bboxIndex : mainSelectedBboxIndex;
   const handleActiveBboxSelect = isQ3Tab ? handleQ3BboxSelect : handleMainBboxSelect;
   const canQueryProgression = !!decodedId && !!imageDetail;
+  const centerColumnClassName = isQ3Tab
+    ? 'order-3 min-w-0 space-y-4 lg:order-2 lg:col-span-5 xl:col-span-1'
+    : 'min-w-0 space-y-4 lg:col-span-5 xl:col-span-1';
+  const rightColumnClassName = isQ3Tab
+    ? 'order-2 min-w-0 space-y-4 lg:order-3 lg:col-span-4 xl:col-span-1'
+    : 'min-w-0 lg:col-span-4 xl:col-span-1';
 
   if (!decodedId) {
     return <div>Invalid image ID</div>;
@@ -360,20 +366,7 @@ export function ImageDetailPage() {
               />
             </div>
           )}
-          {isQ3Tab && (
-            <Q3StudyScopeCallout
-              context="imageDetail"
-              dataTestId="image-detail-q3-scope-card"
-              currentModelLabel={q3State.model}
-              currentModelStatus={getQ3ModelScopeStatus(q3State.model)}
-              action={{
-                label: 'Use Q3 defaults',
-                onClick: handleApplyQ3Defaults,
-                dataTestId: 'image-detail-use-q3-defaults',
-              }}
-            />
-          )}
-          {imageDetail && (
+          {!isQ3Tab && imageDetail && (
             <AnnotationsCard
               annotation={imageDetail.annotation}
               mode={activeMode}
@@ -385,7 +378,7 @@ export function ImageDetailPage() {
         </div>
 
         <div
-          className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1"
+          className={centerColumnClassName}
           data-testid="image-detail-center-column"
         >
           {isQ3Tab && (
@@ -428,8 +421,32 @@ export function ImageDetailPage() {
           )}
         </div>
 
-        {!isQ3Tab && (
-          <div className="min-w-0 lg:col-span-4 xl:col-span-1" data-testid="image-detail-right-column">
+        <div className={rightColumnClassName} data-testid="image-detail-right-column">
+          {isQ3Tab && (
+            <Q3StudyScopeCallout
+              context="imageDetail"
+              dataTestId="image-detail-q3-scope-card"
+              currentModelLabel={q3State.model}
+              currentModelStatus={getQ3ModelScopeStatus(q3State.model)}
+              action={{
+                label: 'Use Q3 defaults',
+                onClick: handleApplyQ3Defaults,
+                dataTestId: 'image-detail-use-q3-defaults',
+              }}
+            />
+          )}
+
+          {isQ3Tab && imageDetail && (
+            <AnnotationsCard
+              annotation={imageDetail.annotation}
+              mode={activeMode}
+              showBboxes={activeShowBboxes}
+              selectedBboxIndex={activeBboxIndex}
+              onBboxSelect={handleActiveBboxSelect}
+            />
+          )}
+
+          {!isQ3Tab && (
             <ErrorBoundary resetKeys={[mainModel, mainLayer, mainPercentile, mainMethod, activeBboxIndex, isPlaying]}>
               <ImageDetailMetricsPanel
                 imageId={decodedId}
@@ -443,16 +460,8 @@ export function ImageDetailPage() {
                 enabled={canQueryProgression}
               />
             </ErrorBoundary>
-          </div>
-        )}
-
-        {isQ3Tab && (
-          <div
-            aria-hidden="true"
-            className="hidden min-w-0 lg:block lg:col-span-4 xl:col-span-1"
-            data-testid="image-detail-q3-spacer"
-          />
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

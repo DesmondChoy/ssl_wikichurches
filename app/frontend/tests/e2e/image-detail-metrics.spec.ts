@@ -637,6 +637,7 @@ test.describe('Image detail metrics chart', () => {
     const q3ScopeCard = page.getByTestId('image-detail-q3-scope-card');
     const currentModelStatus = page.getByTestId('image-detail-q3-current-model-status');
     const centerColumn = page.getByTestId('image-detail-center-column');
+    const rightColumn = page.getByTestId('image-detail-right-column');
 
     await expect(mainTab).toHaveAttribute('aria-selected', 'true');
     await expect(q3ScopeCard).toHaveCount(0);
@@ -663,18 +664,19 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('view-settings-panel')).toHaveCount(0);
     await expect(page.getByTestId('q3-controls-panel')).toBeVisible();
     await expect(page.getByTestId('metrics-panel')).toHaveCount(0);
-    await expect(page.getByTestId('image-detail-q3-spacer')).toBeVisible();
+    await expect(rightColumn).toBeVisible();
+    await expect(page.getByTestId('image-detail-q3-spacer')).toHaveCount(0);
     await expect(page.getByTestId('image-detail-mode-switch')).toBeVisible();
     await expect(page.getByTestId('q3-controls-panel').getByText('Show Bounding Boxes')).toBeVisible();
-    await expect(q3ScopeCard).toContainText('Primary Q3 workflow');
-    await expect(q3ScopeCard).toContainText(
+    await expect(rightColumn.getByTestId('image-detail-q3-scope-card')).toContainText('Primary Q3 workflow');
+    await expect(rightColumn.getByTestId('image-detail-q3-scope-card')).toContainText(
       'Image Detail Q3 is the qualitative drill-down step'
     );
-    await expect(q3ScopeCard).toContainText(
+    await expect(rightColumn.getByTestId('image-detail-q3-scope-card')).toContainText(
       'Dashboard Q3'
     );
     await expect(currentModelStatus).toHaveText('Primary study');
-    await expect(page.getByTestId('annotations-card')).toBeVisible();
+    await expect(rightColumn.getByTestId('annotations-card')).toBeVisible();
     await expect(page.getByTestId('q3-head-choice-all')).toBeVisible();
     await expect(page.getByTestId('q3-top-head-strip')).toBeVisible();
     await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('iou');
