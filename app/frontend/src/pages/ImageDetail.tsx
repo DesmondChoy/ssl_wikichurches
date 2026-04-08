@@ -410,6 +410,16 @@ export function ImageDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {imageDetail && (
+            <AnnotationsCard
+              annotation={imageDetail.annotation}
+              mode={activeMode}
+              showBboxes={activeShowBboxes}
+              selectedBboxIndex={activeBboxIndex}
+              onBboxSelect={handleActiveBboxSelect}
+            />
+          )}
         </div>
 
         <div className={rightColumnClassName} data-testid="image-detail-right-column">
@@ -427,16 +437,6 @@ export function ImageDetailPage() {
             />
           )}
 
-          {isQ3Tab && imageDetail && (
-            <AnnotationsCard
-              annotation={imageDetail.annotation}
-              mode={activeMode}
-              showBboxes={activeShowBboxes}
-              selectedBboxIndex={activeBboxIndex}
-              onBboxSelect={handleActiveBboxSelect}
-            />
-          )}
-
           {!isQ3Tab && (
             <ErrorBoundary resetKeys={[mainModel, mainLayer, mainPercentile, mainMethod, activeBboxIndex, isPlaying]}>
               <ImageDetailMetricsPanel
@@ -451,16 +451,6 @@ export function ImageDetailPage() {
                 enabled={canQueryProgression}
               />
             </ErrorBoundary>
-          )}
-
-          {!isQ3Tab && imageDetail && (
-            <AnnotationsCard
-              annotation={imageDetail.annotation}
-              mode={activeMode}
-              showBboxes={activeShowBboxes}
-              selectedBboxIndex={activeBboxIndex}
-              onBboxSelect={handleActiveBboxSelect}
-            />
           )}
         </div>
       </div>

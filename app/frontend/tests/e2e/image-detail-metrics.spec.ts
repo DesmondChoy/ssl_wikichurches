@@ -250,12 +250,13 @@ test.describe('Image detail metrics chart', () => {
     const centerColumn = page.getByTestId('image-detail-center-column');
     const rightColumn = page.getByTestId('image-detail-right-column');
     const viewSettings = page.getByTestId('view-settings-panel');
-    const annotations = page.getByTestId('annotations-card');
+    const annotations = centerColumn.getByTestId('annotations-card');
 
     await expect(leftColumn).toBeVisible();
+    await expect(centerColumn.getByTestId('annotations-card')).toBeVisible();
     await expect(rightColumn).toBeVisible();
     await expect(rightColumn.getByTestId('metrics-panel')).toBeVisible();
-    await expect(rightColumn.getByTestId('annotations-card')).toBeVisible();
+    await expect(rightColumn.getByTestId('annotations-card')).toHaveCount(0);
 
     const viewBox = await viewSettings.boundingBox();
     const metricsBox = await rightColumn.getByTestId('metrics-panel').boundingBox();
@@ -265,7 +266,8 @@ test.describe('Image detail metrics chart', () => {
     expect(metricsBox).not.toBeNull();
     expect(annotationsBox).not.toBeNull();
     expect(viewBox!.x).toBeLessThan(metricsBox!.x);
-    expect(metricsBox!.y).toBeLessThan(annotationsBox!.y);
+    expect(annotationsBox!.x).toBeLessThan(metricsBox!.x);
+    expect(annotationsBox!.y).toBeGreaterThan(viewBox!.y);
 
     const centerBox = await centerColumn.boundingBox();
     const rightBox = await rightColumn.boundingBox();
@@ -680,7 +682,8 @@ test.describe('Image detail metrics chart', () => {
       'Dashboard Q3'
     );
     await expect(currentModelStatus).toHaveText('Primary study');
-    await expect(rightColumn.getByTestId('annotations-card')).toBeVisible();
+    await expect(centerColumn.getByTestId('annotations-card')).toBeVisible();
+    await expect(rightColumn.getByTestId('annotations-card')).toHaveCount(0);
     await expect(page.getByTestId('q3-head-choice-all')).toBeVisible();
     await expect(page.getByTestId('q3-top-head-strip')).toBeVisible();
     await expect(getSelectByLabel(page, 'Rank by')).toHaveValue('iou');
