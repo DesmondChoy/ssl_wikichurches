@@ -1,6 +1,6 @@
 # SSL Attention App User Guide
 
-This guide covers how to navigate the React app and use it to investigate research questions, with a focused walkthrough for Q1.
+This guide covers how to navigate the React app and use it to investigate research questions, with focused walkthroughs for Q1, Q2, and Q3.
 
 ## App Structure at a Glance
 
@@ -226,6 +226,192 @@ The script-generated artifacts provide the structured Q1 findings:
 - **`outputs/results/q1_continuous_baseline_comparison.json`**: Machine-readable version with per-model pass/fail against each baseline, surprise tags, and cross-metric synthesis.
 
 These artifacts contain the evidence. The app is where you explore and confirm it visually. The report is where you explain *why*.
+
+---
+
+## Q2 Investigation Walkthrough
+
+**Q2: Does fine-tuning shift attention toward expert features, and which strategy helps most?**
+
+This walkthrough starts from the aggregate Q2 summary, then moves into image-level comparison so you can connect the statistics to what the models actually changed.
+
+### Step 1: Start at the Q2 Summary
+
+Go to `/q2`.
+
+**What to do:**
+1. Start with Metric set to **IoU** if you want the most intuitive first pass.
+2. Leave Model on **All Models** and Strategy on **All Strategies**.
+3. Read the header card before the tables.
+
+**What to look for:**
+- The header tells you which layer the Q2 summary was computed at. That matters because the compare link will open at that same layer.
+- If the page shows an active experiment ID, result scope, or checkpoint rule, note it. Those fields tell you exactly which fine-tuning batch produced the numbers you are reading.
+- If you switch to **MSE**, **KL**, or **EMD**, remember that those are threshold-free metrics. The percentile control stays visible for consistency, but it is not driving those scores.
+
+### Step 2: Read the Model × Strategy Delta Table
+
+Stay on the main Q2 table.
+
+**What to do:**
+1. Scan one model at a time across Linear Probe, LoRA, and Full.
+2. Then switch metrics and see whether the same strategy stays strongest.
+
+**What to look for:**
+- The signed **Delta** is the headline: positive is better for IoU and Coverage, while negative is better for MSE, KL, and EMD.
+- The **95% CI** helps you judge stability. Wide intervals mean the apparent gain may be noisy.
+- **Effect size** and **Significant** tell you whether a change is likely to be meaningful rather than just numerically different.
+- A useful pattern to watch for is divergence by metric: a strategy may improve IoU while barely changing KL or EMD, which suggests sharper overlap without fully fixing the attention distribution.
+
+### Step 3: Compare Strategies Directly
+
+Scroll to **Cross-Strategy Paired Comparisons**.
+
+**What to do:**
+1. Focus on one model.
+2. Compare pairs such as LoRA vs Full or Linear Probe vs LoRA.
+
+**What to look for:**
+- This section answers a different question from the delta table. Instead of asking whether a strategy beats Frozen, it asks whether one fine-tuning strategy beats another.
+- Large pairwise differences with weak significance should be treated cautiously.
+- If LoRA and Full look similar here, that suggests the simpler adaptation may already capture most of the attention shift.
+
+### Step 4: Jump into Variant Compare
+
+Click **Open Variant Compare** from the Q2 table card.
+
+**What to do:**
+1. Keep the pre-loaded model, metric, and layer for your first pass.
+2. Compare Frozen on one side with the strategy you care about on the other.
+3. Switch between **Side by side** and **Slider** view.
+
+**What to look for:**
+- The image-level view shows whether the aggregate delta reflects a visible shift toward the annotated regions.
+- If the page shows an **Experiment summary** card, use it as context rather than the final verdict. The real check is whether the visual change on individual images matches the aggregate story.
+- If Linear Probe is one of the compared variants, expect smaller changes. That is the control case where the backbone itself did not adapt.
+
+### Step 5: Inspect Feature-Local Changes
+
+Still on `/compare`, click a bounding box or use the feature chips below the viewer.
+
+**What to do:**
+1. Select one architectural feature on the image.
+2. Read the local metrics and the feature-local delta.
+3. Try a second feature on the same image.
+
+**What to look for:**
+- Some strategies improve attention on one feature type but not another. That is often more informative than the image-wide average.
+- If the selected metric improves locally but the overlay still looks messy, switch to a second metric before drawing a conclusion.
+- When bbox-conditioned similarity heatmaps appear, ask whether the fine-tuned variant is more tightly centered on the selected feature than Frozen.
+
+### Step 6: Build the Q2 Conclusion
+
+At this point you should be able to answer Q2 at two levels:
+
+- **Aggregate level:** Which strategy moves the metric most, and is that shift stable enough to trust?
+- **Qualitative level:** Do the variant overlays and feature-local comparisons show a clearer focus on expert-annotated regions?
+
+The strongest Q2 conclusions are the ones where the table, the pairwise comparison, and the image-level inspection all point in the same direction.
+
+---
+
+## Q3 Investigation Walkthrough
+
+**Q3: Do individual attention heads specialize for different architectural features?**
+
+This walkthrough begins on Dashboard Q3, where you identify candidate specialized heads, and ends in Image Detail Q3, where you inspect one exemplar image closely.
+
+### Step 1: Start on Dashboard Q3
+
+Go to `/dashboard?tab=q3`.
+
+**What to do:**
+1. Start with one of the primary Q3 models.
+2. Keep Variant on **Frozen** for your first pass.
+3. Pick a metric that matches the kind of specialization you care about.
+
+**What to look for:**
+- The **Current Q3 workflow context** card tells you whether you are looking at a primary Q3 path or a control variant.
+- If you are new to the page, start with **IoU** for a straightforward overlap story, then revisit with **KL** or **EMD** to see whether the same heads still look strong on stricter distribution-based metrics.
+- The selected layer matters. A head that looks unremarkable early in the network may become highly specialized later.
+
+### Step 2: Check the Frozen-to-Adapted Delta Panel
+
+Stay near the top of Dashboard Q3.
+
+**What to do:**
+1. Compare the Frozen baseline against **LoRA** and **Full**.
+2. Look for heads that move sharply up or down in rank.
+
+**What to look for:**
+- This panel tells you whether fine-tuning merely improves the same dominant heads or changes *which* heads matter.
+- A promoted head with a meaningful score delta suggests that adaptation may be creating or strengthening specialization.
+- If the same heads stay near the top across Frozen, LoRA, and Full, the specialization story is more about stable pretrained structure than fine-tuning.
+
+### Step 3: Use the Ranking Table and Heatmap Together
+
+Scroll to the single-variant explorer.
+
+**What to do:**
+1. Read the **Head Ranking** table to find strong heads overall.
+2. Then inspect the **Head × Feature Heatmap** to see whether those heads are broadly good or only good for certain features.
+3. Use the feature search box if you already care about a specific architectural part.
+
+**What to look for:**
+- A head that ranks well overall but lights up only a few feature rows may be genuinely specialized.
+- A head that looks decent everywhere may be more general-purpose than feature-specific.
+- The heatmap is often the clearest evidence for specialization: darker cells concentrated in a small slice of features are more interesting than a uniformly medium-dark column.
+
+### Step 4: Open Representative Images
+
+Click either **Inspect exemplar** in the ranking table or a specific heatmap cell.
+
+**What to do:**
+1. If you click a ranking row, you are asking for a representative image for that head overall.
+2. If you click a heatmap cell, you are asking for a representative image for one head-feature pair.
+3. In the exemplar panel, open one candidate in Image Detail Q3.
+
+**What to look for:**
+- Ranking-based exemplars help you answer, “What does this head usually attend to?”
+- Cell-based exemplars help you answer, “What does this head do on *this feature type*?”
+- If multiple exemplar images tell the same story, your specialization claim is much stronger.
+
+### Step 5: Inspect the Exemplar in Image Detail Q3
+
+After clicking **Open in Image Detail Q3**, stay inside the Q3 tab on the image page.
+
+**What to do:**
+1. Start in **Head Attention** mode.
+2. Use the pre-loaded top-head context from Dashboard Q3.
+3. Move the layer slider and compare **All (Fused)** with the selected head.
+
+**What to look for:**
+- Ask whether the selected head isolates a meaningful architectural part more clearly than the fused view.
+- If the same head remains informative across nearby layers, that is a stronger pattern than a one-layer spike.
+- The **Current drill-down** panel helps you keep track of which model, variant, and feature context you carried over from the dashboard.
+
+### Step 6: Switch to Feature Similarity Mode
+
+Stay on the same image and flip the interpretation toggle.
+
+**What to do:**
+1. Change from **Head Attention** to **Feature Similarity**.
+2. Click the relevant bounding box on the image or in the annotations panel.
+
+**What to look for:**
+- This mode answers a slightly different question: not just where the head attends, but whether the selected feature pulls up semantically similar regions.
+- If the similarity overlay stays tightly aligned with the chosen feature, that supports the idea that the representation around that head-feature context is coherent.
+- If the similarity spills into unrelated regions, the head may be less specialized than the dashboard ranking first suggested.
+
+### Step 7: Build the Q3 Conclusion
+
+You have a strong Q3 result when all three layers line up:
+
+- **Delta panel:** shows whether specialization changes under adaptation.
+- **Ranking table + heatmap:** identifies which heads and features are linked.
+- **Image Detail Q3:** confirms that the selected head-feature story is visible on real exemplar images.
+
+If only one of those layers looks convincing, treat the result as a lead rather than a settled finding.
 
 ---
 
