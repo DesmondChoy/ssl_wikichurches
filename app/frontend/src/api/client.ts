@@ -19,15 +19,30 @@ class APIError extends Error {
   }
 }
 
+function buildHeaders(options?: RequestInit): Headers {
+  const headers = new Headers(options?.headers);
+  const method = options?.method?.toUpperCase() ?? 'GET';
+  const hasBody = options?.body !== undefined && options?.body !== null;
+  const shouldAttachJsonHeader =
+    hasBody
+    && method !== 'GET'
+    && method !== 'HEAD'
+    && !(options?.body instanceof FormData)
+    && !headers.has('Content-Type');
+
+  if (shouldAttachJsonHeader) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return headers;
+}
+
 async function fetchJSON<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
 
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers: buildHeaders(options),
   });
 
   if (!response.ok) {

@@ -15,6 +15,14 @@ async function openImageDetail(page: Page) {
   await expect(page.getByTestId('metrics-panel')).toBeVisible({ timeout: 20000 });
 }
 
+async function waitForManualRelease() {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { pending, release };
+}
+
 async function stubImageDetailModeApis(page: Page) {
   await page.route('**/api/attention/models', async (route) => {
     await route.fulfill({
@@ -241,6 +249,102 @@ async function stubImageDetailModeApis(page: Page) {
 test.describe('Image detail metrics chart', () => {
   test.beforeEach(async ({ page }) => {
     await stubImageDetailModeApis(page);
+  });
+
+  test('renders the image-detail shell while model metadata is still loading', async ({ page }) => {
+    const modelsGate = await waitForManualRelease();
+
+    await page.unroute('**/api/attention/models');
+    await page.route('**/api/attention/models', async (route) => {
+      await modelsGate.pending;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          models: ['dinov2'],
+          num_layers: 12,
+          num_layers_per_model: { dinov2: 12 },
+          methods: { dinov2: ['cls', 'rollout'] },
+          num_heads_per_model: { dinov2: 12 },
+          per_head_methods: ['cls'],
+          per_head_available_models: ['dinov2'],
+          q3_per_head_variant_availability: {
+            dinov2: {
+              frozen: true,
+              linear_probe: true,
+              lora: true,
+              full: false,
+            },
+          },
+          default_methods: { dinov2: 'cls' },
+        }),
+      });
+    });
+
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}`);
+
+    await expect(page.getByTestId('image-detail-left-column')).toBeVisible();
+    await expect(page.getByTestId('image-detail-center-column')).toBeVisible();
+    await expect(page.getByTestId('image-detail-right-column')).toBeVisible();
+    await expect(page.getByTestId('view-settings-panel')).toBeVisible();
+    await expect(page.getByTestId('metrics-panel')).toBeVisible();
+    await expect(page.getByTestId('annotations-card')).toBeVisible();
+    await expect(getSelectByLabel(page, 'Model')).toHaveCount(0);
+
+    modelsGate.release();
+
+    await expect(getSelectByLabel(page, 'Model')).toHaveValue('dinov2');
+    await expect(getSelectByLabel(page, 'Attention Head')).toBeVisible();
+  });
+
+  test('keeps the page shell visible while image detail is still loading', async ({ page }) => {
+    const detailGate = await waitForManualRelease();
+
+    await page.unroute(`**/api/images/${IMAGE_ID}`);
+    await page.route(`**/api/images/${IMAGE_ID}`, async (route) => {
+      await detailGate.pending;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          image_id: IMAGE_ID,
+          image_url: `/api/images/${IMAGE_ID}/file`,
+          thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+          available_models: ['dinov2'],
+          annotation: {
+            image_id: IMAGE_ID,
+            styles: ['gothic'],
+            style_names: ['Gothic'],
+            num_bboxes: 1,
+            bboxes: [
+              {
+                left: 0.1,
+                top: 0.1,
+                width: 0.35,
+                height: 0.4,
+                label: 1,
+                label_name: 'Spire',
+              },
+            ],
+          },
+        }),
+      });
+    });
+
+    await page.goto(`/image/${encodeURIComponent(IMAGE_ID)}`);
+
+    await expect(page.getByTestId('image-detail-left-column')).toBeVisible();
+    await expect(page.getByTestId('image-detail-center-column')).toBeVisible();
+    await expect(page.getByTestId('image-detail-right-column')).toBeVisible();
+    await expect(page.getByTestId('view-settings-panel')).toBeVisible();
+    await expect(page.getByTestId('metrics-panel')).toBeVisible();
+    await expect(page.getByTestId('viewer-info-badge')).toContainText('Head Attention');
+    await expect(page.getByTestId('annotations-card')).toHaveCount(0);
+
+    detailGate.release();
+
+    await expect(page.getByTestId('annotations-card')).toBeVisible();
+    await expect(page.getByTestId('bbox-list-item-0')).toContainText('Spire');
   });
 
   test('uses the new desktop layout and removes the page-local compare CTA', async ({ page }) => {

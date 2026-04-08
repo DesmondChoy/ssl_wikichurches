@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import h5py
+
 # Add SSL attention source to path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
@@ -101,6 +103,17 @@ class AttentionService:
         )
         return available_models
 
+    @staticmethod
+    def _empty_q3_variant_map() -> dict[str, bool]:
+        """Build the default per-variant availability map."""
+        return {variant_name: False for variant_name in Q3_COMPARE_VARIANTS}
+
+    @staticmethod
+    def _is_per_head_variant(variant: str) -> bool:
+        """Return True when a cache variant name refers to a per-head attention map."""
+        base_variant, sep, head_suffix = variant.rpartition("_head")
+        return bool(sep and base_variant and head_suffix.isdigit())
+
     def list_q3_variant_per_head_availability(self) -> dict[str, dict[str, bool]]:
         """Return per-head cache availability for each canonical base model and Q3 variant."""
         if not self.cache.path.exists():
@@ -123,25 +136,37 @@ class AttentionService:
 
         availability: dict[str, dict[str, bool]] = {}
         available_models: set[str] = set()
-        for key in self.cache.list_cached():
-            variant = key.variant
-            base_variant, sep, head_suffix = variant.rpartition("_head")
-            if not (sep and base_variant and head_suffix.isdigit()):
-                continue
-
-            base_model, is_finetuned, strategy = split_model_name(key.model)
-            compare_variant = "frozen"
-            if is_finetuned:
-                if strategy not in VALID_FINETUNE_STRATEGIES:
+        with h5py.File(self.cache.path, "r") as cache_file:
+            for model_name, model_group in cache_file.items():
+                if not isinstance(model_group, h5py.Group):
                     continue
-                compare_variant = strategy
 
-            variant_map = availability.setdefault(
-                resolve_model_name(base_model),
-                {variant_name: False for variant_name in Q3_COMPARE_VARIANTS},
-            )
-            variant_map[compare_variant] = True
-            available_models.add(resolve_model_name(base_model))
+                base_model, is_finetuned, strategy = split_model_name(model_name)
+                compare_variant = "frozen"
+                if is_finetuned:
+                    if strategy not in VALID_FINETUNE_STRATEGIES:
+                        continue
+                    compare_variant = strategy
+
+                resolved_model = resolve_model_name(base_model)
+                variant_map = availability.setdefault(
+                    resolved_model,
+                    self._empty_q3_variant_map(),
+                )
+
+                found_per_head_variant = False
+                for layer_group in model_group.values():
+                    if not isinstance(layer_group, h5py.Group):
+                        continue
+
+                    if any(self._is_per_head_variant(variant_name) for variant_name in layer_group):
+                        variant_map[compare_variant] = True
+                        available_models.add(resolved_model)
+                        found_per_head_variant = True
+                        break
+
+                if found_per_head_variant:
+                    continue
 
         ordered = sorted(available_models)
         self._per_head_available_models_cache = ordered
@@ -149,7 +174,7 @@ class AttentionService:
             model: dict(
                 availability.get(
                     model,
-                    {variant_name: False for variant_name in Q3_COMPARE_VARIANTS},
+                    self._empty_q3_variant_map(),
                 )
             )
             for model in ordered

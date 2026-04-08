@@ -242,7 +242,6 @@ export function ImageDetailPage() {
   const activeShowBboxes = isQ3Tab ? q3State.showBboxes : mainShowBboxes;
   const activeBboxIndex = isQ3Tab ? q3State.bboxIndex : mainSelectedBboxIndex;
   const handleActiveBboxSelect = isQ3Tab ? handleQ3BboxSelect : handleMainBboxSelect;
-  const canQueryProgression = !!decodedId && !!imageDetail;
   const centerColumnClassName = isQ3Tab
     ? 'order-3 min-w-0 space-y-4 lg:order-2 lg:col-span-5 xl:col-span-1'
     : 'min-w-0 space-y-4 lg:col-span-5 xl:col-span-1';
@@ -275,27 +274,6 @@ export function ImageDetailPage() {
         </Link>
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
           Image not found: {decodedId}
-        </div>
-      </div>
-    );
-  }
-
-  if (detailLoading) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-1/4" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 xl:grid-cols-[22rem_minmax(0,1fr)_minmax(0,1fr)] xl:gap-8">
-          <div className="space-y-4 lg:col-span-3 xl:col-span-1">
-            <div className="h-80 rounded-lg bg-gray-200" />
-            <div className="h-64 rounded-lg bg-gray-200" />
-          </div>
-          <div className="min-w-0 space-y-4 lg:col-span-5 xl:col-span-1">
-            <div className="aspect-square rounded-lg bg-gray-200" />
-            <div className="h-24 rounded-lg bg-gray-200" />
-          </div>
-          <div className="min-w-0 lg:col-span-4 xl:col-span-1">
-            <div className="h-[32rem] rounded-lg bg-gray-200" />
-          </div>
         </div>
       </div>
     );
@@ -389,7 +367,7 @@ export function ImageDetailPage() {
               mode={activeMode}
               percentile={activePercentile}
               showBboxes={activeShowBboxes}
-              bboxes={imageDetail?.annotation.bboxes}
+              bboxes={imageDetail?.annotation.bboxes ?? []}
               selectedBboxIndex={activeBboxIndex}
               onBboxSelect={handleActiveBboxSelect}
               className="aspect-square"
@@ -448,7 +426,7 @@ export function ImageDetailPage() {
                 selectedBboxIndex={mainSelectedBboxIndex}
                 currentLayer={mainLayer}
                 isPlaying={isPlaying}
-                enabled={canQueryProgression}
+                enabled={!!decodedId}
               />
             </ErrorBoundary>
           )}

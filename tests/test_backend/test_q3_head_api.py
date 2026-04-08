@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+import torch
 from fastapi.testclient import TestClient
 
 from app.backend.main import app
@@ -16,7 +19,7 @@ IMAGE_ID = "Q1234_test"
 class TestRawAttentionHeadValidation:
     """The raw attention endpoint should validate per-head requests cleanly."""
 
-    def test_models_endpoint_reports_models_with_per_head_cache(self):
+    def test_models_endpoint_reports_models_with_per_head_cache(self) -> None:
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
             mock_attention_service.list_models_with_per_head_cache.return_value = ["clip", "dinov2"]
             mock_attention_service.list_q3_variant_per_head_availability.return_value = {
@@ -42,7 +45,34 @@ class TestRawAttentionHeadValidation:
         assert body["q3_per_head_variant_availability"]["dinov2"]["linear_probe"] is True
         assert body["q3_per_head_variant_availability"]["clip"]["full"] is False
 
-    def test_rejects_head_for_rollout_method(self):
+    def test_models_endpoint_avoids_cache_dataset_enumeration(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        from app.backend.services.attention_service import AttentionCache, attention_service
+
+        cache = AttentionCache(tmp_path / "attention.h5")
+        cache.store("dinov2", "layer0", IMAGE_ID, torch.ones((2, 2)), variant="cls_head0")
+
+        monkeypatch.setattr(attention_service, "_cache", cache)
+        monkeypatch.setattr(attention_service, "_per_head_available_models_cache", None)
+        monkeypatch.setattr(attention_service, "_q3_variant_availability_cache", None)
+        monkeypatch.setattr(attention_service, "_per_head_available_models_signature", None)
+
+        def fail(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("AttentionCache.list_cached() should not be called")
+
+        monkeypatch.setattr(AttentionCache, "list_cached", fail)
+
+        response = client.get("/api/attention/models")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["per_head_available_models"] == ["dinov2"]
+        assert body["q3_per_head_variant_availability"]["dinov2"]["frozen"] is True
+
+    def test_rejects_head_for_rollout_method(self) -> None:
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
             mock_attention_service.exists.return_value = True
 
@@ -54,7 +84,7 @@ class TestRawAttentionHeadValidation:
         assert response.status_code == 400
         assert "head parameter not supported" in response.json()["detail"]
 
-    def test_rejects_head_for_resnet(self):
+    def test_rejects_head_for_resnet(self) -> None:
         with patch("app.backend.routers.attention.attention_service") as mock_attention_service:
             mock_attention_service.exists.return_value = True
 
@@ -66,7 +96,7 @@ class TestRawAttentionHeadValidation:
         assert response.status_code == 400
         assert "head parameter not supported" in response.json()["detail"]
 
-    def test_passes_head_to_attention_service(self):
+    def test_passes_head_to_attention_service(self) -> None:
         payload = {
             "attention": [0.1, 0.2, 0.3, 0.4],
             "shape": [2, 2],
@@ -97,7 +127,7 @@ class TestRawAttentionHeadValidation:
 class TestQ3MetricsApi:
     """Q3 endpoints should expose metric-generic per-head payloads."""
 
-    def test_head_ranking_endpoint_returns_service_payload(self):
+    def test_head_ranking_endpoint_returns_service_payload(self) -> None:
         payload = {
             "model": "dinov2",
             "variant": "frozen",
@@ -134,8 +164,8 @@ class TestQ3MetricsApi:
         assert body["metric"] == "iou"
         assert body["heads"][0]["head"] == 3
 
-    def test_head_feature_matrix_endpoint_returns_unsupported_payload(self):
-        payload = {
+    def test_head_feature_matrix_endpoint_returns_unsupported_payload(self) -> None:
+        payload: dict[str, object] = {
             "model": "resnet50",
             "variant": "frozen",
             "layer": "layer0",
@@ -163,7 +193,7 @@ class TestQ3MetricsApi:
         assert body["supported"] is False
         assert body["features"] == []
 
-    def test_image_head_ranking_endpoint_returns_selection_payload(self):
+    def test_image_head_ranking_endpoint_returns_selection_payload(self) -> None:
         payload = {
             "image_id": IMAGE_ID,
             "model": "dinov2",
@@ -207,7 +237,7 @@ class TestQ3MetricsApi:
         assert body["selection"]["bbox_label"] == "Window"
         assert body["heads"][0]["head"] == 7
 
-    def test_image_head_ranking_endpoint_returns_400_for_bad_bbox(self):
+    def test_image_head_ranking_endpoint_returns_400_for_bad_bbox(self) -> None:
         with patch("app.backend.routers.metrics.metrics_service") as mock_metrics_service:
             mock_metrics_service.db_exists = True
             mock_metrics_service.get_image_head_ranking.side_effect = ValueError("bbox_index 4 out of range")
@@ -225,7 +255,7 @@ class TestQ3MetricsApi:
         assert response.status_code == 400
         assert "bbox_index 4 out of range" in response.json()["detail"]
 
-    def test_head_exemplars_endpoint_returns_service_payload(self):
+    def test_head_exemplars_endpoint_returns_service_payload(self) -> None:
         payload = {
             "model": "dinov2",
             "variant": "lora",
