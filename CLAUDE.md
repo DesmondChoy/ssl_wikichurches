@@ -20,6 +20,14 @@ This project uses **bd** (beads) for issue tracking. Run `bd prime` to get start
 - Do NOT create or switch to a new branch unless the user explicitly tells you to.
 - If branch isolation seems safer, ask first instead of deciding unilaterally.
 
+## Commit Messages
+
+- Write every commit as: `<type>: <summary>`
+- Prefer conventional types such as `feat`, `enhancement`, `fix`, `refactor`, `chore`, `docs`, or `test`
+- Choose the most specific type for the main change
+- Use `chore:` for tracker-only or maintenance-only commits
+- Keep the summary short, specific, and descriptive
+
 ## Development
 
 ```bash
