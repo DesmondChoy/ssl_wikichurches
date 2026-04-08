@@ -115,7 +115,83 @@ const METRIC_SUMMARY_FIXTURES = {
   },
 } as const;
 
-async function stubDashboardApis(page: Page) {
+interface StubQ3HeadRankingEntry {
+  head: number;
+  mean_score: number;
+  std_score: number;
+  mean_rank: number;
+  top1_count: number;
+  top3_count: number;
+  image_count: number;
+}
+
+interface DashboardStubOptions {
+  headRankingOverride?: (params: {
+    model: string;
+    metric: string;
+    variant: string;
+    percentile: number;
+  }) => {
+    supported: boolean;
+    reason: string | null;
+    heads: StubQ3HeadRankingEntry[];
+  } | null;
+}
+
+const Q3_HIGHER_DIRECTION_HEAD_RANKINGS: Record<string, StubQ3HeadRankingEntry[]> = {
+  frozen: [
+    { head: 0, mean_score: 0.44, std_score: 0.04, mean_rank: 1.2, top1_count: 8, top3_count: 11, image_count: 12 },
+    { head: 1, mean_score: 0.38, std_score: 0.05, mean_rank: 1.95, top1_count: 3, top3_count: 9, image_count: 12 },
+    { head: 2, mean_score: 0.32, std_score: 0.05, mean_rank: 2.85, top1_count: 1, top3_count: 6, image_count: 12 },
+  ],
+  lora: [
+    { head: 1, mean_score: 0.47, std_score: 0.04, mean_rank: 1.1, top1_count: 7, top3_count: 11, image_count: 12 },
+    { head: 0, mean_score: 0.39, std_score: 0.05, mean_rank: 2.05, top1_count: 4, top3_count: 10, image_count: 12 },
+    { head: 2, mean_score: 0.31, std_score: 0.05, mean_rank: 2.9, top1_count: 1, top3_count: 5, image_count: 12 },
+  ],
+  full: [
+    { head: 0, mean_score: 0.46, std_score: 0.04, mean_rank: 1.05, top1_count: 8, top3_count: 12, image_count: 12 },
+    { head: 2, mean_score: 0.36, std_score: 0.04, mean_rank: 1.9, top1_count: 3, top3_count: 9, image_count: 12 },
+    { head: 1, mean_score: 0.35, std_score: 0.06, mean_rank: 3.0, top1_count: 1, top3_count: 6, image_count: 12 },
+  ],
+  linear_probe: [
+    { head: 0, mean_score: 0.29, std_score: 0.04, mean_rank: 1.35, top1_count: 5, top3_count: 9, image_count: 12 },
+    { head: 1, mean_score: 0.24, std_score: 0.05, mean_rank: 2.1, top1_count: 2, top3_count: 7, image_count: 12 },
+    { head: 2, mean_score: 0.21, std_score: 0.04, mean_rank: 2.8, top1_count: 1, top3_count: 5, image_count: 12 },
+  ],
+};
+
+const Q3_LOWER_DIRECTION_HEAD_RANKINGS: Record<string, StubQ3HeadRankingEntry[]> = {
+  frozen: [
+    { head: 0, mean_score: 0.022, std_score: 0.003, mean_rank: 1.15, top1_count: 8, top3_count: 11, image_count: 12 },
+    { head: 1, mean_score: 0.03, std_score: 0.004, mean_rank: 1.9, top1_count: 3, top3_count: 9, image_count: 12 },
+    { head: 2, mean_score: 0.041, std_score: 0.005, mean_rank: 2.95, top1_count: 1, top3_count: 6, image_count: 12 },
+  ],
+  lora: [
+    { head: 1, mean_score: 0.018, std_score: 0.003, mean_rank: 1.05, top1_count: 7, top3_count: 11, image_count: 12 },
+    { head: 0, mean_score: 0.027, std_score: 0.004, mean_rank: 2.1, top1_count: 4, top3_count: 10, image_count: 12 },
+    { head: 2, mean_score: 0.043, std_score: 0.005, mean_rank: 2.9, top1_count: 1, top3_count: 5, image_count: 12 },
+  ],
+  full: [
+    { head: 0, mean_score: 0.02, std_score: 0.003, mean_rank: 1.0, top1_count: 8, top3_count: 12, image_count: 12 },
+    { head: 2, mean_score: 0.034, std_score: 0.004, mean_rank: 1.9, top1_count: 3, top3_count: 9, image_count: 12 },
+    { head: 1, mean_score: 0.033, std_score: 0.005, mean_rank: 3.0, top1_count: 1, top3_count: 6, image_count: 12 },
+  ],
+  linear_probe: [
+    { head: 0, mean_score: 0.028, std_score: 0.003, mean_rank: 1.3, top1_count: 5, top3_count: 9, image_count: 12 },
+    { head: 1, mean_score: 0.036, std_score: 0.004, mean_rank: 2.15, top1_count: 2, top3_count: 7, image_count: 12 },
+    { head: 2, mean_score: 0.045, std_score: 0.005, mean_rank: 2.85, top1_count: 1, top3_count: 5, image_count: 12 },
+  ],
+};
+
+function getStubQ3HeadRankingEntries(metric: string, variant: string): StubQ3HeadRankingEntry[] {
+  const fixtures = metric === 'iou' || metric === 'coverage'
+    ? Q3_HIGHER_DIRECTION_HEAD_RANKINGS
+    : Q3_LOWER_DIRECTION_HEAD_RANKINGS;
+  return (fixtures[variant] ?? fixtures.frozen).map((entry) => ({ ...entry }));
+}
+
+async function stubDashboardApis(page: Page, options: DashboardStubOptions = {}) {
   await page.route('**/api/attention/models', async (route) => {
     await route.fulfill({
       status: 200,
@@ -241,26 +317,36 @@ async function stubDashboardApis(page: Page) {
     const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_ranking/);
     const model = match?.[1] ?? 'dinov2';
     const metric = url.searchParams.get('metric') ?? 'iou';
+    const variant = url.searchParams.get('variant') ?? 'frozen';
+    const percentile = Number(url.searchParams.get('percentile') ?? '90');
     const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
+    const override = options.headRankingOverride?.({
+      model,
+      metric,
+      variant,
+      percentile,
+    });
+    const supported = override?.supported ?? model !== 'resnet50';
+    const reason = override?.reason ?? (
+      model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null
+    );
+    const heads = override?.heads ?? (
+      model === 'resnet50' ? [] : getStubQ3HeadRankingEntries(metric, variant)
+    );
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         model,
-        variant: url.searchParams.get('variant') ?? 'frozen',
+        variant,
         layer: 'layer11',
         method: model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
         metric,
         direction,
-        percentile: Number(url.searchParams.get('percentile') ?? '90'),
-        supported: model !== 'resnet50',
-        reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
-        heads: model === 'resnet50'
-          ? []
-          : [
-              { head: 0, mean_score: 0.44, std_score: 0.04, mean_rank: 1.2, top1_count: 8, top3_count: 11, image_count: 12 },
-              { head: 5, mean_score: 0.32, std_score: 0.05, mean_rank: 2.4, top1_count: 2, top3_count: 7, image_count: 12 },
-            ],
+        percentile,
+        supported,
+        reason,
+        heads,
       }),
     });
   });
@@ -690,6 +776,113 @@ test.describe('Dashboard metrics', () => {
     await overviewTab.click();
     await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
+  });
+
+  test('shows frozen-to-adapted delta cards above the single-variant analysis', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    const deltaPanel = page.getByTestId('q3-delta-panel');
+    const loraCard = page.getByTestId('q3-delta-card-lora');
+    const fullCard = page.getByTestId('q3-delta-card-full');
+
+    await expect(deltaPanel).toBeVisible();
+    await expect(deltaPanel).toContainText('Frozen-to-adapted head delta');
+    await expect(loraCard).toContainText('Frozen -> LoRA');
+    await expect(fullCard).toContainText('Frozen -> Full');
+
+    const deltaIsAboveCurrentAnalysis = await page.evaluate(() => {
+      const delta = document.querySelector('[data-testid="q3-delta-panel"]');
+      const currentAnalysis = document.querySelector('[data-testid="q3-single-variant-analysis"]');
+      return Boolean(
+        delta
+        && currentAnalysis
+        && (delta.compareDocumentPosition(currentAnalysis) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      );
+    });
+    expect(deltaIsAboveCurrentAnalysis).toBe(true);
+
+    await expect(page.getByTestId('q3-delta-summary-lora-promoted')).toHaveText('Promoted 1');
+    await expect(page.getByTestId('q3-delta-summary-lora-demoted')).toHaveText('Demoted 1');
+    await expect(page.getByTestId('q3-delta-summary-lora-stable')).toHaveText('Stable 1');
+    await expect(page.getByTestId('q3-delta-summary-full-promoted')).toHaveText('Promoted 1');
+    await expect(page.getByTestId('q3-delta-summary-full-demoted')).toHaveText('Demoted 1');
+    await expect(page.getByTestId('q3-delta-summary-full-stable')).toHaveText('Stable 1');
+
+    await expect(loraCard.locator('tbody tr').first()).toContainText('Head 1');
+    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('+1');
+    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('+0.090');
+    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('Promoted');
+    await expect(page.getByTestId('q3-delta-row-lora-0')).toContainText('Demoted');
+    await expect(page.getByTestId('q3-delta-row-lora-2')).toContainText('Stable');
+
+    await expect(fullCard.locator('tbody tr').first()).toContainText('Head 2');
+    await expect(page.getByTestId('q3-delta-row-full-2')).toContainText('Promoted');
+    await expect(page.getByTestId('q3-delta-row-full-1')).toContainText('Demoted');
+    await expect(page.getByTestId('q3-delta-row-full-0')).toContainText('Stable');
+  });
+
+  test('formats frozen-to-adapted score deltas for lower-is-better metrics', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    const q3Section = page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+
+    await q3Section.locator('select').nth(3).selectOption('mse');
+
+    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('-0.0120');
+    await expect(page.getByTestId('q3-delta-row-lora-0')).toContainText('+0.0050');
+    await expect(page.getByTestId('q3-delta-row-full-0')).toContainText('-0.0020');
+  });
+
+  test('keeps frozen-to-adapted delta comparisons visible when the single-variant selector switches to the control', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    const q3Section = page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+    const variantSelect = q3Section.locator('select').nth(1);
+
+    await variantSelect.selectOption('linear_probe');
+
+    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Control');
+    await expect(page.getByTestId('q3-selection-helper')).toContainText(
+      'Linear Probe remains visible as a control'
+    );
+    await expect(page.getByTestId('q3-delta-card-lora')).toBeVisible();
+    await expect(page.getByTestId('q3-delta-card-full')).toBeVisible();
+    await expect(page.getByTestId('q3-delta-helper')).toContainText(
+      'Linear Probe remains a control in the single-variant analysis below'
+    );
+  });
+
+  test('shows adapted delta unavailability without blocking the single-variant Q3 analysis', async ({ page }) => {
+    await stubDashboardApis(page, {
+      headRankingOverride: ({ variant }) => {
+        if (variant !== 'lora') {
+          return null;
+        }
+        return {
+          supported: false,
+          reason: 'LoRA delta data is not available for this selection.',
+          heads: [],
+        };
+      },
+    });
+    await page.goto('/dashboard?tab=q3');
+
+    await expect(page.getByTestId('q3-delta-card-lora-unavailable')).toContainText(
+      'LoRA delta data is not available for this selection.'
+    );
+    await expect(page.getByTestId('q3-delta-card-full')).toBeVisible();
+    await expect(page.getByTestId('q3-single-variant-analysis')).toBeVisible();
+    await expect(page.getByText('Head Ranking')).toBeVisible();
+    await expect(page.getByTestId('q3-heatmap-cell-7-0')).toBeVisible();
   });
 
   test('shows exact hover readouts for heatmap cells and loads inline exemplars from a selected cell', async ({ page }) => {
