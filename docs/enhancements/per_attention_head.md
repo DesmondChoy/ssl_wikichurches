@@ -103,7 +103,12 @@ On the dashboard Q3 panel:
 - Do different architectural feature types prefer different heads?
 - Which head-feature cells stay dark in the heatmap and still look plausible on exemplar images?
 - Does the dominant head set change when moving from `frozen` to `lora` or `full`?
-- Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns?
+- Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns before opening the advanced comparison workspace?
+
+On the advanced `/q3` workspace:
+
+- How do two primary-study models compare when the variant, layer, metric, and percentile are held constant?
+- Does the same head or head-feature context look meaningfully different across supervision families?
 
 On the image-level attention view:
 
@@ -112,7 +117,7 @@ On the image-level attention view:
 
 ### What this phase does not require
 
-- no new net-new Q3 product surface before the next cache run
+- no attempt to replace the Dashboard-first workflow with `/q3` as the default Q3 home
 - no attempt to make every current model and every variant fully populated
 - no claim that raw per-head attention is a full causal explanation method
 

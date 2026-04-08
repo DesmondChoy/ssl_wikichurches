@@ -1182,6 +1182,83 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
   });
 
+  test('opens the advanced /q3 workspace from Dashboard with the current Q3 context', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    const q3Section = page
+      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+
+    await q3Section.locator('select').nth(0).selectOption('clip');
+    await q3Section.locator('select').nth(1).selectOption('linear_probe');
+    await q3Section.locator('select').nth(3).selectOption('coverage');
+    await page.getByTestId('q3-heatmap-cell-7-1').click();
+
+    await page.getByTestId('dashboard-q3-open-advanced-workspace').click();
+
+    await expect(page).toHaveURL(/\/q3\?/);
+    await expect(page).toHaveURL(/primary_model=clip/);
+    await expect(page).toHaveURL(/secondary_model=dinov2/);
+    await expect(page).toHaveURL(/variant=linear_probe/);
+    await expect(page).toHaveURL(/metric=coverage/);
+    await expect(page).toHaveURL(/layer=11/);
+    await expect(page).toHaveURL(/head=1/);
+    await expect(page).toHaveURL(/feature_label=7/);
+    await expect(page.getByRole('heading', { name: 'Q3 Advanced Workspace' })).toBeVisible();
+    await expect(page.getByTestId('advanced-q3-pane-primary')).toContainText('clip');
+    await expect(page.getByTestId('advanced-q3-pane-secondary')).toContainText('dinov2');
+  });
+
+  test('restores the advanced /q3 workspace from deep links and preserves it across reloads', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/q3?primary_model=clip&secondary_model=mae&variant=linear_probe&layer=9&metric=coverage&percentile=80&head=1&feature_label=7');
+
+    const controls = page.getByTestId('advanced-q3-controls');
+    await expect(controls.locator('select').nth(0)).toHaveValue('clip');
+    await expect(controls.locator('select').nth(1)).toHaveValue('mae');
+    await expect(controls.locator('select').nth(2)).toHaveValue('linear_probe');
+    await expect(controls.locator('select').nth(3)).toHaveValue('9');
+    await expect(controls.locator('select').nth(4)).toHaveValue('coverage');
+    await expect(controls.locator('select').nth(5)).toHaveValue('80');
+
+    await expect(page.getByTestId('advanced-q3-pane-primary').getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByTestId('advanced-q3-pane-secondary').getByTestId('q3-exemplar-panel')).toBeVisible();
+
+    await page.reload();
+
+    await expect(page).toHaveURL(/primary_model=clip/);
+    await expect(page).toHaveURL(/secondary_model=mae/);
+    await expect(page).toHaveURL(/variant=linear_probe/);
+    await expect(page).toHaveURL(/metric=coverage/);
+    await expect(page).toHaveURL(/layer=9/);
+    await expect(page).toHaveURL(/percentile=80/);
+    await expect(page).toHaveURL(/head=1/);
+    await expect(page).toHaveURL(/feature_label=7/);
+    await expect(page.getByTestId('advanced-q3-pane-primary').getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByTestId('advanced-q3-pane-secondary').getByTestId('q3-exemplar-panel')).toBeVisible();
+  });
+
+  test('routes exemplar drill-down from the secondary /q3 pane into Image Detail with that pane model', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/q3?primary_model=dinov2&secondary_model=clip&variant=linear_probe&layer=11&metric=iou&percentile=90');
+
+    const secondaryPane = page.getByTestId('advanced-q3-pane-secondary');
+    await secondaryPane.getByTestId('q3-heatmap-cell-7-1').click();
+    await expect(secondaryPane.getByTestId('q3-exemplar-panel')).toBeVisible();
+
+    await secondaryPane.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`).click();
+
+    await expect(page).toHaveURL(new RegExp(`/image/${EXEMPLAR_IMAGE_ID.replace('.', '\\.')}`));
+    await expect(page).toHaveURL(/tab=q3/);
+    await expect(page).toHaveURL(/model=clip/);
+    await expect(page).toHaveURL(/variant=linear_probe/);
+    await expect(page).toHaveURL(/layer=11/);
+    await expect(page).toHaveURL(/head=1/);
+    await expect(page).toHaveURL(/feature_label=7/);
+  });
+
   test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {
     await stubDashboardApis(page);
     await page.route('**/api/metrics/q2_summary?**', async (route) => {

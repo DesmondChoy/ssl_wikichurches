@@ -26,7 +26,7 @@ export function Q3ScopeChip({
 }
 
 interface Q3StudyScopeCalloutProps {
-  context: 'dashboard' | 'imageDetail';
+  context: 'dashboard' | 'imageDetail' | 'workspace';
   className?: string;
   dataTestId?: string;
   currentModelLabel?: string;
@@ -46,8 +46,16 @@ export function Q3StudyScopeCallout({
   currentModelStatus,
   action,
 }: Q3StudyScopeCalloutProps) {
-  const summary = context === 'dashboard' ? Q3_SCOPE_COPY.dashboardSummary : Q3_SCOPE_COPY.imageDetailSummary;
-  const detail = context === 'dashboard' ? Q3_SCOPE_COPY.dashboardDetail : Q3_SCOPE_COPY.imageDetailDetail;
+  const summary = context === 'dashboard'
+    ? Q3_SCOPE_COPY.dashboardSummary
+    : context === 'workspace'
+      ? Q3_SCOPE_COPY.workspaceSummary
+      : Q3_SCOPE_COPY.imageDetailSummary;
+  const detail = context === 'dashboard'
+    ? Q3_SCOPE_COPY.dashboardDetail
+    : context === 'workspace'
+      ? Q3_SCOPE_COPY.workspaceDetail
+      : Q3_SCOPE_COPY.imageDetailDetail;
 
   return (
     <div

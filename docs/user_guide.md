@@ -10,9 +10,10 @@ This guide covers how to navigate the React app and use it to investigate resear
 | **Image Detail** | `/image/{imageId}` | Inspect one image's attention heatmaps, metrics, and annotations |
 | **Compare** | `/compare` | Side-by-side comparison of models or fine-tuning variants |
 | **Dashboard** | `/dashboard` | System-wide leaderboard, layer progression, and Q3 head analysis |
+| **Q3 Advanced** | `/q3` | Side-by-side Q3 comparison workspace for two primary-study models |
 | **Q2** | `/q2` | Fine-tuning strategy analysis (frozen vs adapted delta tables) |
 
-The nav bar at the top links to **Gallery**, **Compare**, and **Dashboard**. Q2 and Image Detail are reached by clicking into content from other pages.
+The nav bar at the top links to **Gallery**, **Compare**, and **Dashboard**. Q2, Q3 Advanced, and Image Detail are reached by clicking into content from other pages.
 
 ---
 
@@ -108,6 +109,16 @@ Head specialization explorer. This tab now has two layers:
 
 - **Frozen-to-adapted head delta panel**: Compares how head rankings shift from Frozen to LoRA and Full for the current model/layer/metric context.
 - **Single-variant explorer**: Shows the ranked-head table, the head-by-feature heatmap, and inline exemplar images. Clicking through drills down to the Image Detail Q3 tab with full context.
+- **Open advanced workspace**: Launches `/q3` with the current model, variant, layer, metric, percentile, and optional head/feature focus carried into a side-by-side comparison page.
+
+### Q3 Advanced (`/q3`)
+
+Advanced pairwise comparison workspace for hypothesis H2.
+
+- **Shared controls**: Keep the primary model, comparison model, variant, layer, metric, and percentile aligned across both panes.
+- **Primary pane / Comparison pane**: Reuse the ranked-head table, head-by-feature heatmap, and inline exemplar drill-down from Dashboard Q3, but show two models side by side.
+- **Shared focus state**: Selecting a ranking row or heatmap cell syncs the focused head or head-feature context through the URL so the same comparison target can be reopened or shared.
+- **Supporting adaptation panel**: Reuses the frozen-to-adapted delta view for the primary model without replacing Dashboard Q3 as the main summary surface.
 
 ### Q2 (`/q2`)
 
