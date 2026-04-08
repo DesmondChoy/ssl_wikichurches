@@ -43,6 +43,7 @@ Example:
 # Baseline generators
 from ssl_attention.metrics.baselines import (
     center_gaussian_baseline,
+    compute_baseline_continuous_metrics,
     compute_baseline_ious,
     compute_baseline_pointing,
     random_baseline,
@@ -141,6 +142,7 @@ __all__ = [
     "center_gaussian_baseline",
     "sobel_edge_baseline",
     "saliency_prior_baseline",
+    "compute_baseline_continuous_metrics",
     "compute_baseline_ious",
     "compute_baseline_pointing",
     # Statistics

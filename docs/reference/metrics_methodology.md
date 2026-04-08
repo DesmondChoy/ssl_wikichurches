@@ -144,6 +144,26 @@ Where:
 Source: src/ssl_attention/metrics/continuous.py → gaussian_bbox_heatmap(), soft_union_heatmap(), compute_mse(), compute_kl_divergence(), compute_emd()
 ```
 
+#### Empirical Baseline References
+
+Unlike IoU, the Gaussian-target metrics do not have a simple closed-form random baseline or theoretical maximum. In practice, they should be interpreted against naive baseline attention maps scored on the current annotated subset with `compute_baseline_continuous_metrics()`. The table below uses the current 139-image annotated subset, the current baseline definitions, and the helper's default 100 random trials. Lower is better for all three metrics.
+
+| Baseline | MSE (mean ± std) | KL (mean ± std) | EMD (mean ± std) | What it tests |
+|----------|------------------|-----------------|------------------|---------------|
+| **Random** | 0.3192 ± 0.0128 | 3.3627 ± 1.0496 | 0.3468 ± 0.0717 | Chance-like spatial placement |
+| **Center Gaussian** | 0.1770 ± 0.0156 | 2.6317 ± 0.9726 | 0.2836 ± 0.0734 | Photographer / center bias |
+| **Saliency Prior** | 0.0957 ± 0.0092 | 2.6111 ± 0.9596 | 0.2654 ± 0.0746 | Generic center-plus-border saliency prior |
+| **Sobel Edge** | 0.0376 ± 0.0121 | 3.2237 ± 0.9274 | 0.3137 ± 0.0753 | Low-level edge following |
+
+These values are empirical reference points for the current annotated subset and the current baseline definitions. They should be refreshed only if the annotations or baseline maps materially change.
+
+**How to read model scores against these baselines:**
+- **Beating random only** is weak evidence of meaningful alignment. It shows the heatmap is not pure chance, but not yet that it captures architectural semantics.
+- **Matching the center Gaussian or saliency prior** suggests the metric may still be explained by generic spatial priors rather than feature-aware attention.
+- **Beating Sobel** is stronger evidence that the model is doing more than following high-contrast edges.
+- **Compare against the full baseline table, not a single baseline.** Different naive baselines can be strong on different continuous metrics, so one "good" score is not universally informative.
+- **Beating all naive baselines on a given metric** is the strongest support that the model's attention is capturing non-trivial semantic alignment for that metric.
+
 ### Supporting Metrics
 
 | Metric | Definition | Properties |

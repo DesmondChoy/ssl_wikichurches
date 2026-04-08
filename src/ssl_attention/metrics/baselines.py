@@ -1,7 +1,7 @@
 """Baseline attention maps for metric calibration.
 
 This module provides baseline attention generators to calibrate expectations
-for the IoU and pointing game metrics:
+for the IoU, pointing game, and Gaussian-target continuous metrics:
 
 - Random: Lower bound - what's the expected IoU from random attention?
 - Center Gaussian: Tests center bias - do models just attend to image centers?
@@ -11,7 +11,11 @@ If SSL model attention doesn't significantly outperform these baselines,
 the attention isn't meaningfully aligned with architectural semantics.
 
 Example:
-    from ssl_attention.metrics import random_baseline, compute_baseline_ious
+    from ssl_attention.metrics import (
+        compute_baseline_continuous_metrics,
+        compute_baseline_ious,
+        random_baseline,
+    )
 
     # Generate a single random baseline
     attn = random_baseline(224, 224)
@@ -21,6 +25,12 @@ Example:
         annotations, image_ids, images, percentiles=[90, 50]
     )
     print(f"Random IoU@90: {baseline_results['random'][90]:.3f}")
+
+    # Compute threshold-free Gaussian-target baseline references
+    continuous_results = compute_baseline_continuous_metrics(
+        annotations, image_ids, images
+    )
+    print(f"Random MSE: {continuous_results['random']['mse']['mean']:.3f}")
 """
 
 from __future__ import annotations
@@ -34,9 +44,18 @@ from PIL import Image
 from torch import Tensor
 
 from ssl_attention.config import DEFAULT_IMAGE_SIZE
+from ssl_attention.metrics.continuous import (
+    annotation_to_gaussian_heatmap,
+    compute_emd,
+    compute_kl_divergence,
+    compute_mse,
+)
 
 if TYPE_CHECKING:
     from ssl_attention.data.annotations import ImageAnnotation
+
+
+CONTINUOUS_BASELINE_METRICS: tuple[str, ...] = ("mse", "kl", "emd")
 
 
 def _deterministic_hash(s: str) -> int:
@@ -213,6 +232,30 @@ def saliency_prior_baseline(
     return combined
 
 
+def _summarize_population(values: list[float]) -> dict[str, float]:
+    """Return population summary statistics for one metric across images."""
+    if not values:
+        raise ValueError("Cannot summarize an empty baseline metric series")
+
+    values_array = np.asarray(values, dtype=np.float64)
+    return {
+        "mean": float(values_array.mean()),
+        "std": float(values_array.std(ddof=0)),
+    }
+
+
+def _compute_continuous_metric_scores(
+    attention: Tensor,
+    gt_heatmap: Tensor,
+) -> dict[str, float]:
+    """Score one attention map against a Gaussian soft target across metrics."""
+    return {
+        "mse": compute_mse(attention, gt_heatmap),
+        "kl": compute_kl_divergence(attention, gt_heatmap),
+        "emd": compute_emd(attention, gt_heatmap),
+    }
+
+
 def compute_baseline_ious(
     annotations: list[ImageAnnotation],
     image_ids: list[str],
@@ -301,6 +344,92 @@ def compute_baseline_ious(
             results["sobel_edge"][percentile] = sum(sobel_ious) / len(sobel_ious)
 
     return results
+
+
+def compute_baseline_continuous_metrics(
+    annotations: list[ImageAnnotation],
+    image_ids: list[str],
+    images: list[Image.Image] | None = None,
+    n_random_trials: int = 100,
+    include_sobel: bool = True,
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Compute Gaussian-target MSE/KL/EMD summaries for all baselines.
+
+    Returns:
+        Dict mapping baseline name to metric summaries with ``mean`` and ``std``
+        across images. Random baselines are first averaged per image across
+        deterministic trials before the dataset summary is computed.
+    """
+    _ = image_ids
+
+    per_image_scores: dict[str, dict[str, list[float]]] = {
+        "random": {metric_name: [] for metric_name in CONTINUOUS_BASELINE_METRICS},
+        "center_gaussian": {
+            metric_name: [] for metric_name in CONTINUOUS_BASELINE_METRICS
+        },
+        "saliency_prior": {
+            metric_name: [] for metric_name in CONTINUOUS_BASELINE_METRICS
+        },
+    }
+
+    if include_sobel and images is not None:
+        per_image_scores["sobel_edge"] = {
+            metric_name: [] for metric_name in CONTINUOUS_BASELINE_METRICS
+        }
+
+    gt_heatmaps = [
+        annotation_to_gaussian_heatmap(
+            annotation,
+            DEFAULT_IMAGE_SIZE,
+            DEFAULT_IMAGE_SIZE,
+        )
+        for annotation in annotations
+    ]
+
+    center_attn = center_gaussian_baseline()
+    saliency_attn = saliency_prior_baseline()
+
+    for annotation, gt_heatmap in zip(annotations, gt_heatmaps, strict=True):
+        random_trial_scores: dict[str, list[float]] = {
+            metric_name: [] for metric_name in CONTINUOUS_BASELINE_METRICS
+        }
+        for trial in range(n_random_trials):
+            attention = random_baseline(
+                seed=trial * 1000 + _deterministic_hash(annotation.image_id) % 1000
+            )
+            metric_scores = _compute_continuous_metric_scores(attention, gt_heatmap)
+            for metric_name, metric_value in metric_scores.items():
+                random_trial_scores[metric_name].append(metric_value)
+
+        for metric_name, metric_values in random_trial_scores.items():
+            per_image_scores["random"][metric_name].append(
+                float(np.mean(metric_values))
+            )
+
+        center_scores = _compute_continuous_metric_scores(center_attn, gt_heatmap)
+        for metric_name, metric_value in center_scores.items():
+            per_image_scores["center_gaussian"][metric_name].append(metric_value)
+
+        saliency_scores = _compute_continuous_metric_scores(saliency_attn, gt_heatmap)
+        for metric_name, metric_value in saliency_scores.items():
+            per_image_scores["saliency_prior"][metric_name].append(metric_value)
+
+    if include_sobel and images is not None:
+        for image, gt_heatmap in zip(images, gt_heatmaps, strict=True):
+            sobel_scores = _compute_continuous_metric_scores(
+                sobel_edge_baseline(image),
+                gt_heatmap,
+            )
+            for metric_name, metric_value in sobel_scores.items():
+                per_image_scores["sobel_edge"][metric_name].append(metric_value)
+
+    return {
+        baseline_name: {
+            metric_name: _summarize_population(metric_values)
+            for metric_name, metric_values in metric_map.items()
+        }
+        for baseline_name, metric_map in per_image_scores.items()
+    }
 
 
 def compute_baseline_pointing(
