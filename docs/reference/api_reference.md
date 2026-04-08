@@ -32,6 +32,10 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/progression` | Layer-by-layer aggregate metric progression |
 | GET | `/api/metrics/model/{model}/style_breakdown` | Metric breakdown by architectural style |
 | GET | `/api/metrics/model/{model}/feature_breakdown` | Metric breakdown by feature type |
+| GET | `/api/metrics/model/{model}/head_ranking` | Q3 aggregate per-head ranking summary for one model/layer/metric |
+| GET | `/api/metrics/{image_id}/head_ranking` | Q3 per-head ranking for one image and optional bbox selection |
+| GET | `/api/metrics/model/{model}/head_feature_matrix` | Q3 head-by-feature heatmap data for one model/layer/metric |
+| GET | `/api/metrics/model/{model}/head_exemplars` | Q3 representative exemplar images for one selected head or head-feature cell |
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
@@ -54,6 +58,8 @@ These parameters appear across multiple endpoints:
 | `layer` | int | 0–11 (ViTs), 0–3 (ResNet) | varies | Layer index (0-based). Range depends on model. |
 | `percentile` | int | 50–95 | `90` | Attention threshold percentile for IoU computation. |
 | `method` | string | `cls`, `rollout`, `mean`, `gradcam` | per-model | Attention extraction method. Availability depends on model (see table below). |
+| `variant` | string | `frozen`, `linear_probe`, `lora`, `full` | `frozen` | Fine-tuning variant used by the Q2/Q3 comparison and per-head endpoints. |
+| `head` | int | 0–11 (model-dependent) | `null` or `0` | Optional attention head index for per-head raw attention and Q3 drill-down endpoints. |
 
 ### Model / Method / Layer Matrix
 
@@ -254,12 +260,38 @@ List all available models with their configurations, supported attention methods
   },
   "methods": {
     "dinov2": ["cls", "rollout"],
+    "dinov3": ["cls", "rollout"],
+    "mae": ["cls", "rollout"],
+    "clip": ["cls", "rollout"],
     "siglip": ["mean"],
     "siglip2": ["mean"],
     "resnet50": ["gradcam"]
   },
+  "num_heads_per_model": {
+    "dinov2": 12,
+    "dinov3": 12,
+    "mae": 12,
+    "clip": 12,
+    "siglip": 12,
+    "siglip2": 12,
+    "resnet50": 0
+  },
+  "per_head_methods": ["cls", "mean"],
+  "per_head_available_models": ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"],
+  "q3_per_head_variant_availability": {
+    "dinov2": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "dinov3": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "mae": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "clip": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "siglip": { "frozen": false, "linear_probe": false, "lora": false, "full": false },
+    "siglip2": { "frozen": false, "linear_probe": false, "lora": false, "full": false },
+    "resnet50": { "frozen": false, "linear_probe": false, "lora": false, "full": false }
+  },
   "default_methods": {
     "dinov2": "cls",
+    "dinov3": "cls",
+    "mae": "cls",
+    "clip": "cls",
     "siglip": "mean",
     "siglip2": "mean",
     "resnet50": "gradcam"
@@ -345,6 +377,7 @@ Get raw attention values as a flat numeric array for client-side rendering and d
 | `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
 | `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
 | `method` | string | No | model default | Must be valid for model | Attention method |
+| `head` | int | No | `null` | ≥ 0, within model head range | Optional attention head index for per-head-capable methods |
 
 **Response**: `RawAttentionResponse`
 
@@ -362,6 +395,7 @@ Get raw attention values as a flat numeric array for client-side rendering and d
 | Status | Condition |
 |--------|-----------|
 | 400 | Invalid model, layer, or method |
+| 400 | `head` requested for an unsupported model/method or out of range |
 | 404 | Attention not cached (run `generate_attention_cache.py` first) |
 | 500 | Error loading attention data |
 
@@ -989,6 +1023,227 @@ windows, doors, or arches) across all feature categories.
     }
   ],
   "total_feature_types": 106
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/model/{model}/head_ranking`
+
+Get the Q3 aggregate per-head ranking summary for one model, variant, layer, metric, and percentile.
+
+This powers the Dashboard `Q3` tab's single-variant ranking view.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+
+**Response**: `HeadRankingResponse`
+
+```json
+{
+  "model": "dinov2",
+  "layer": "layer11",
+  "metric": "iou",
+  "percentile": 90,
+  "variant": "frozen",
+  "supported": true,
+  "heads": [
+    {
+      "head": 7,
+      "mean_score": 0.241,
+      "std_score": 0.081,
+      "mean_rank": 1.84,
+      "top1_count": 31,
+      "top3_count": 76,
+      "image_count": 139
+    }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/{image_id}/head_ranking`
+
+Get the Q3 per-head ranking for one image. Optionally scope the ranking to one selected bounding box.
+
+This powers the Image Detail `Q3` tab head strip and head gallery.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `image_id` | string | Image filename |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+| `bbox_index` | int | No | `null` | ≥ 0 | Optional bbox-local ranking scope |
+
+**Response**: `ImageHeadRankingResponse`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "layer": "layer11",
+  "metric": "coverage",
+  "percentile": 90,
+  "variant": "frozen",
+  "selection": {
+    "mode": "union",
+    "bbox_index": null,
+    "label": "All annotations"
+  },
+  "supported": true,
+  "heads": [
+    { "head": 3, "score": 0.418 },
+    { "head": 7, "score": 0.401 }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid query parameters or bbox index |
+| 404 | Image annotation not found |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/model/{model}/head_feature_matrix`
+
+Get the Q3 head-by-feature heatmap payload for one model, variant, layer, metric, and percentile.
+
+Each feature row contains one score per head. The Dashboard uses this to render the interactive heatmap and drill-down selection state.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+
+**Response**: `HeadFeatureMatrixResponse`
+
+```json
+{
+  "model": "dinov2",
+  "layer": "layer11",
+  "metric": "emd",
+  "percentile": 90,
+  "variant": "frozen",
+  "supported": true,
+  "heads": [0, 1, 2, 3],
+  "features": [
+    {
+      "feature_label": 42,
+      "feature_name": "window",
+      "bbox_count": 87,
+      "scores": [0.24, 0.18, 0.16, 0.19]
+    }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/model/{model}/head_exemplars`
+
+Get representative image candidates for a selected Q3 head. Optionally restrict the exemplars to one feature label.
+
+This powers Dashboard `Q3` drill-down into the Image Detail `Q3` tab.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `head` | int | No | `0` | ≥ 0, within model head range | Selected head index |
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+| `feature_label` | int | No | `null` | ≥ 0 | Optional feature label to scope exemplar selection |
+| `limit` | int | No | `12` | 1–24 | Maximum exemplar candidates |
+
+**Response**: `HeadExemplarResponse`
+
+```json
+{
+  "model": "dinov2",
+  "layer": "layer11",
+  "head": 7,
+  "metric": "iou",
+  "percentile": 90,
+  "variant": "frozen",
+  "feature_label": 42,
+  "feature_name": "window",
+  "supported": true,
+  "candidates": [
+    {
+      "image_id": "Q2270_0.jpg",
+      "score": 0.318,
+      "thumbnail_url": "/api/images/Q2270_0.jpg/thumbnail",
+      "style_names": ["Romanesque"],
+      "matching_bbox_indices": [2, 3],
+      "default_bbox_index": 2
+    }
+  ]
 }
 ```
 

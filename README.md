@@ -55,6 +55,20 @@ uv run python -m app.precompute.generate_heatmap_images --colormap viridis
 uv run python -m app.precompute.generate_metrics_cache
 ```
 
+To enable the shipped **Q3 per-head workflow** on Dashboard and Image Detail, also populate the per-head attention and metrics caches for the primary Q3 models:
+
+```bash
+# Frozen Q3 scope
+uv run python -m app.precompute.generate_attention_cache --models dinov2 dinov3 mae clip --per-head
+uv run python -m app.precompute.generate_metrics_cache --models dinov2 dinov3 mae clip --per-head
+
+# Fine-tuned Q3 study variants
+uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
+uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
+```
+
+If you want `linear_probe` available as a control in Q3, run the same per-head commands with `--strategies linear_probe`.
+
 To enable **Frozen vs Fine-tuned** on the Compare page (overlays and bbox similarity heatmaps), also run with `--finetuned` (after training checkpoints; see Fine-Tuning below):
 
 ```bash
@@ -75,9 +89,10 @@ Open http://localhost:5173 in your browser.
 
 Key routes after startup:
 
+- `/image/:id` for the main Image Detail workflow and Q3 exemplar drill-down state
 - `/compare` for `Model vs Model`, `Frozen vs Fine-tuned`, and `Variant vs Variant`
 - `/q2` for the strategy-aware multi-metric Q2 attention-shift summary
-- `/dashboard` for the base-model leaderboard and layer progression views
+- `/dashboard` for the overview leaderboard, continuous-metric baseline references, and the Q3 per-head analysis tab
 
 <details>
 <summary>Alternative: Docker</summary>

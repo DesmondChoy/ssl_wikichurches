@@ -15,7 +15,7 @@ This skill provides a systematic checklist for visually testing and inspecting t
 
 1. **Use the Checklist System**: Work through the structured checklists systematically. Do NOT skip items or test ad-hoc.
 
-2. **Track Progress**: Use your task/todo management tools to track which checklist items have been completed. Mark items as you complete them.
+2. **Track Progress**: Track checklist progress in the active `bd` issue notes or your structured test notes. Do not create markdown todo trackers for this.
 
 3. **Sequential Testing**: Work through the phases in order (Phase 1 → Phase 2 → Phase 3 → etc.). Within each phase, complete all checklist items before moving to the next phase.
 
@@ -166,17 +166,17 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Back navigation returns to gallery
 
 #### Layout
-- [ ] Three-column desktop layout: View Settings + Annotations (left), visualization (center), Metrics (right)
-- [ ] Left column shows the View Settings panel above the Annotations panel
-- [ ] Center column displays the main image with attention overlay plus the playback slider card
-- [ ] Right column is dedicated to the Metrics panel only
+- [ ] Page-level tabs render with `Image Detail` and `Q3`
+- [ ] Main tab uses a three-column desktop layout: View Settings (left), visualization + annotations stack (center), Metrics (right)
+- [ ] Q3 tab keeps the left column focused on Q3 controls, the center column on the viewer + annotations stack, and the right column on the Q3 scope card
+- [ ] Main tab center column displays the main image with attention overlay, the playback slider card, and the annotations card beneath the viewer
 
-#### Annotations Panel (Left Column)
+#### Annotations Panel (Below Viewer)
 - [ ] Architectural styles are listed as badges
 - [ ] Number of bounding boxes is shown
 - [ ] Scrollable list of bboxes with dimensions (% width x % height)
 - [ ] Clicking bbox in list selects it (when bboxes are shown)
-- [ ] Hint text "Click a bounding box to see feature similarity heatmap" appears when bboxes are shown
+- [ ] Helper text matches the active mode and explains how bbox interaction works when bounding boxes are shown
 
 #### Attention Viewer (Center Column)
 - [ ] Main image displays with attention heatmap overlay
@@ -203,6 +203,13 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Selecting a specific head updates the viewer badge to show `Head N`
 - [ ] Switching from DINOv2 `CLS` to `Rollout` hides the Attention Head dropdown and resets head state back to fused when returning to `CLS`
 - [ ] Switching to ResNet-50 hides the Attention Head dropdown
+
+#### Q3 Tab Controls
+- [ ] Q3 tab shows the dedicated `Q3 Controls` card instead of the default control panel
+- [ ] Q3 controls expose only the primary Q3 models and the Q3 variant selector
+- [ ] Q3 controls show layer, ranking metric, head, and Show Bounding Boxes controls
+- [ ] Q3 mode switch appears above the viewer and supports `Head Attention` and `Feature Similarity`
+- [ ] Q3 scope or backfill messaging appears when the selected variant lacks per-head cache support
 
 #### Similarity Heatmap Controls (Left Column - below Core Controls)
 - [ ] "Similarity Heatmap" section header is visible
@@ -277,8 +284,9 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] Page is NOT blank - verify actual content renders
 - [ ] "Dashboard" heading is visible
 - [ ] Loading states show while data fetches (not indefinite spinner)
-- [ ] Metric selector shows IoU, MSE, and KL options
-- [ ] Threshold-free info banner appears for MSE and KL modes
+- [ ] Page tabs render with `Overview` and `Q3`
+- [ ] Metric selector shows IoU, Coverage, MSE, KL, and EMD options
+- [ ] Threshold-free info banner appears for Coverage and the continuous metrics when selected
 
 #### Model Leaderboard (Left Sidebar)
 - [ ] Leaderboard card is visible with heading
@@ -290,7 +298,7 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Layer Progression Chart (Main Area)
 - [ ] Line chart is visible (not blank/missing)
 - [ ] X-axis shows layers (L0-L11)
-- [ ] Y-axis matches the selected metric scale (0-1 for IoU/MSE, auto-scaled for KL)
+- [ ] Y-axis updates to match the selected metric scale and directionality
 - [ ] Multiple colored lines render (one per model)
 - [ ] Legend identifies each model
 
@@ -305,8 +313,8 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 - [ ] "Feature Type Breakdown" card is visible
 - [ ] Search box for filtering features is present
 - [ ] Sort controls (IoU, Count, Name) are visible and functional
-- [ ] Feature list shows feature name, IoU score (color-coded), bbox count
-- [ ] IoU scores are color-coded: green >= 0.6, yellow >= 0.4, orange >= 0.2, red < 0.2
+- [ ] Feature list shows feature name, the selected metric score (color-coded), and bbox count
+- [ ] Score color coding follows the selected metric's directionality instead of assuming higher-is-better
 - [ ] "Show more" button appears when more features available
 - [ ] Clicking sort button changes list ordering
 
@@ -324,8 +332,10 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Q3 Per-Head Specialization
 - [ ] "Q3 Per-Head Specialization" section is visible
 - [ ] Q3 local controls show model, variant, layer, metric, and percentile selectors
-- [ ] Head Ranking table renders head rows with score and rank summary columns
-- [ ] Head × Feature Matrix renders feature rows and head columns
+- [ ] Frozen-to-adapted delta panel renders or shows a clear unavailable state
+- [ ] Single-variant Head Ranking table renders head rows with score and rank summary columns
+- [ ] Head × Feature heatmap renders feature rows and head columns with hover and selection readouts
+- [ ] Selecting a ranking row or heatmap cell opens the inline exemplar picker
 - [ ] Switching the Q3 metric updates the explainer text and ranking direction
 - [ ] Unsupported models (for example, ResNet-50) show a clear empty-state explanation instead of a blank panel
 
@@ -336,7 +346,8 @@ await page.waitForResponse(response => response.url().includes('/api/'));
 #### Standard Desktop (1280px width)
 - [ ] Full multi-column layouts display correctly
 - [ ] Gallery shows proper column grid
-- [ ] Image detail shows three-column layout (annotations + visualization + controls)
+- [ ] Image detail main tab shows View Settings + viewer/annotations + Metrics without crowding
+- [ ] Image detail Q3 tab keeps the viewer visually dominant while annotations stay directly beneath it
 - [ ] Dashboard shows leaderboard + charts side-by-side
 - [ ] Maximum content width is respected
 - [ ] Adequate whitespace and spacing
@@ -395,14 +406,14 @@ For rapid testing, verify these critical paths:
 7. [ ] Attention Method dropdown appears for DINOv2 (CLS Attention / Attention Rollout)
 8. [ ] Layer Play button stops at last layer (doesn't loop)
 9. [ ] Heatmap Style dropdown (Smooth/Squares/Circles) visible in Similarity section
-10. [ ] Metrics panel shows IoU, Coverage, MSE, and KL toggles plus bbox/union mode switching
+10. [ ] Metrics panel shows IoU, Coverage, MSE, KL, and EMD toggles plus bbox/union mode switching
 11. [ ] Compare page loads, preserves method context appropriately, and shows IoU/MSE/KL
 12. [ ] **Dashboard page renders content (NOT blank screen!)**
-13. [ ] Dashboard metric selector switches between IoU, MSE, and KL
+13. [ ] Dashboard metric selector switches between IoU, Coverage, MSE, KL, and EMD
 14. [ ] Dashboard shows leaderboard, charts, and Feature Type Breakdown
-15. [ ] Dashboard Q3 section shows the per-head ranking table and head-by-feature matrix
+15. [ ] Dashboard Q3 tab shows the delta panel, ranking table, heatmap, and exemplar drill-down flow
 16. [ ] Image detail page shows the Attention Head selector for supported model/method combinations
-17. [ ] Feature Type Breakdown shows searchable feature list with IoU scores
+17. [ ] Feature Type Breakdown shows searchable feature list with metric-aware scores
 18. [ ] Invalid routes show the custom 404 page instead of a blank screen
 19. [ ] No console errors throughout
 20. [ ] No blank pages anywhere in the app
@@ -451,10 +462,11 @@ When instructed to perform Playwright testing, follow this workflow:
 
    PHASE 3: Image Detail Page
    └── Navigation (3 items)
-   └── Layout (4 items) - three-column layout
-   └── Annotations Panel (5 items) - left column
+   └── Layout (4 items) - tab-aware main/Q3 layouts
+   └── Annotations Panel (5 items) - below the viewer
    └── Attention Viewer (5 items) - center column
-   └── Control Panel (17 items) - left column settings, tooltips, and per-head controls
+   └── Control Panel (17 items) - main-tab settings, tooltips, and per-head controls
+   └── Q3 Tab Controls (5 items) - scoped Q3 controls and mode switch
    └── Similarity Heatmap Controls (5 items) - style dropdown, opacity
    └── Layer Animation Slider (7 items) - includes stop-at-end behavior
    └── Metrics Chart Panel (10 items) - directionality, playback reveal, bbox mode
@@ -467,14 +479,14 @@ When instructed to perform Playwright testing, follow this workflow:
    └── Comparison Features (7 items) - includes method context plus SigLIP/ResNet-50 verification
 
    PHASE 5: Dashboard Page - CRITICAL (check for blank screen!)
-   └── Initial Load (6 items)
+   └── Initial Load (7 items)
    └── Model Leaderboard (5 items)
    └── Layer Progression Chart (5 items)
    └── IoU by Architectural Style (5 items)
    └── Feature Type Breakdown (7 items) - new component
    └── Quick Actions Card (3 items)
    └── Percentile Threshold Control (4 items)
-   └── Q3 Per-Head Specialization (6 items)
+   └── Q3 Per-Head Specialization (8 items)
 
    PHASE 6: Desktop Layout Verification
    └── Standard Desktop 1280px (6 items)
@@ -492,4 +504,4 @@ When instructed to perform Playwright testing, follow this workflow:
 5. Provide final summary report with all results
 ```
 
-**Total checklist items**: ~142 items
+**Total checklist items**: ~148 items
