@@ -16,9 +16,13 @@ from ssl_attention.metrics.continuous import (
     compute_kl_divergence,
     compute_mse,
     gaussian_bbox_heatmap,
+    prepare_bounded_heatmap,
     prepare_emd_distribution,
+    prepare_probability_distribution,
+    sanitize_nonnegative_heatmap,
     soft_union_heatmap,
 )
+from ssl_attention.metrics.iou import compute_coverage
 
 
 def _make_annotation(*bbox_specs: tuple[float, float, float, float, int]) -> ImageAnnotation:
@@ -27,6 +31,34 @@ def _make_annotation(*bbox_specs: tuple[float, float, float, float, int]) -> Ima
         for left, top, width, height, label in bbox_specs
     )
     return ImageAnnotation(image_id="test.jpg", styles=(), bboxes=bboxes)
+
+
+def _make_invalid_attention_heatmap() -> torch.Tensor:
+    return torch.tensor(
+        [
+            [float("nan"), -2.0, float("inf"), 0.25],
+            [float("-inf"), 0.75, 1.5, -0.1],
+            [0.0, 2.0, float("nan"), 3.0],
+            [float("inf"), -5.0, 0.5, 1.0],
+        ],
+        dtype=torch.float32,
+    )
+
+
+def _make_finite_gt_heatmap() -> torch.Tensor:
+    return torch.tensor(
+        [
+            [0.0, 0.2, 0.4, 0.6],
+            [0.1, 0.3, 0.5, 0.7],
+            [0.2, 0.4, 0.6, 0.8],
+            [0.3, 0.5, 0.7, 0.9],
+        ],
+        dtype=torch.float32,
+    )
+
+
+def _make_gt_mask(gt_heatmap: torch.Tensor) -> torch.Tensor:
+    return gt_heatmap > 0.45
 
 
 class TestGaussianGroundTruth:
@@ -225,3 +257,124 @@ class TestComputeEmd:
 
         assert torch.isfinite(torch.tensor(emd))
         assert emd >= 0.0
+
+
+class TestSharedContinuousMetricPreprocessing:
+    """Verify shared preprocessing stays aligned across continuous metrics."""
+
+    def test_sanitize_nonnegative_heatmap_zeroes_invalid_and_negative_values(self):
+        attention = _make_invalid_attention_heatmap()
+
+        sanitized = sanitize_nonnegative_heatmap(attention)
+
+        expected = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.25],
+                [0.0, 0.75, 1.5, 0.0],
+                [0.0, 2.0, 0.0, 3.0],
+                [0.0, 0.0, 0.5, 1.0],
+            ],
+            dtype=torch.float32,
+        )
+        assert torch.equal(sanitized, expected)
+
+    def test_prepare_bounded_heatmap_caps_values_after_shared_sanitization(self):
+        attention = _make_invalid_attention_heatmap()
+
+        bounded = prepare_bounded_heatmap(attention)
+
+        expected = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.25],
+                [0.0, 0.75, 1.0, 0.0],
+                [0.0, 1.0, 0.0, 1.0],
+                [0.0, 0.0, 0.5, 1.0],
+            ],
+            dtype=torch.float32,
+        )
+        assert torch.equal(bounded, expected)
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            torch.tensor(
+                [
+                    [float("nan"), float("inf")],
+                    [float("-inf"), -3.0],
+                ],
+                dtype=torch.float32,
+            ),
+            torch.zeros((2, 2), dtype=torch.float32),
+        ],
+        ids=["all_invalid", "all_zero"],
+    )
+    def test_prepare_probability_distribution_returns_uniform_distribution_for_degenerate_inputs(
+        self, values: torch.Tensor
+    ):
+        distribution = prepare_probability_distribution(values)
+
+        expected = torch.full_like(distribution, 1.0 / distribution.numel())
+        assert torch.isfinite(distribution).all()
+        assert torch.all(distribution >= 0.0)
+        assert distribution.sum().item() == pytest.approx(1.0)
+        assert torch.allclose(distribution, expected)
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            torch.tensor(
+                [
+                    [float("nan"), float("inf")],
+                    [float("-inf"), -3.0],
+                ],
+                dtype=torch.float32,
+            ),
+            torch.zeros((2, 2), dtype=torch.float32),
+        ],
+        ids=["all_invalid", "all_zero"],
+    )
+    def test_prepare_emd_distribution_returns_uniform_distribution_for_degenerate_inputs(
+        self, values: torch.Tensor
+    ):
+        distribution = prepare_emd_distribution(values, size=4)
+
+        expected = torch.full_like(distribution, 1.0 / distribution.numel())
+        assert torch.isfinite(distribution).all()
+        assert torch.all(distribution >= 0.0)
+        assert distribution.sum().item() == pytest.approx(1.0)
+        assert torch.allclose(distribution, expected)
+
+    def test_invalid_attention_preprocessing_contract_stays_aligned_across_metrics(self):
+        attention = _make_invalid_attention_heatmap()
+        gt_heatmap = _make_finite_gt_heatmap()
+        gt_mask = _make_gt_mask(gt_heatmap)
+
+        mse = compute_mse(attention, gt_heatmap)
+        coverage = compute_coverage(attention, gt_mask)
+        kl = compute_kl_divergence(attention, gt_heatmap)
+        emd = compute_emd(attention, gt_heatmap)
+
+        assert torch.isfinite(torch.tensor(mse))
+        assert torch.isfinite(torch.tensor(coverage))
+        assert torch.isfinite(torch.tensor(kl))
+        assert torch.isfinite(torch.tensor(emd))
+
+        expected_mse = compute_mse(
+            prepare_bounded_heatmap(attention),
+            prepare_bounded_heatmap(gt_heatmap),
+        )
+        expected_coverage = compute_coverage(
+            sanitize_nonnegative_heatmap(attention),
+            gt_mask,
+        )
+        attention_distribution = prepare_probability_distribution(attention)
+        gt_distribution = prepare_probability_distribution(gt_heatmap)
+        expected_kl = torch.sum(
+            gt_distribution * (torch.log(gt_distribution) - torch.log(attention_distribution))
+        ).item()
+        expected_emd = compute_emd(sanitize_nonnegative_heatmap(attention), gt_heatmap)
+
+        assert mse == pytest.approx(expected_mse)
+        assert coverage == pytest.approx(expected_coverage)
+        assert kl == pytest.approx(expected_kl, rel=1e-6, abs=1e-8)
+        assert emd == pytest.approx(expected_emd, rel=1e-6, abs=1e-8)
