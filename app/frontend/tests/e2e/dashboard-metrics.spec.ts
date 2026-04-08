@@ -472,6 +472,26 @@ test.describe('Dashboard metrics', () => {
     ).toBeVisible();
   });
 
+  test('shows documented baseline legend only for continuous metrics in the leaderboard card', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard');
+
+    await expect(page.getByTestId('leaderboard-score-chart')).toBeVisible();
+    await expect(page.getByTestId('leaderboard-baseline-legend')).toHaveCount(0);
+
+    const metricSelect = page.getByRole('combobox').first();
+    await metricSelect.selectOption('mse');
+
+    await expect(page.getByTestId('leaderboard-baseline-legend')).toBeVisible();
+    await expect(page.getByTestId('leaderboard-baseline-random')).toContainText('Random');
+    await expect(page.getByTestId('leaderboard-baseline-random')).toContainText('0.3192');
+    await expect(page.getByTestId('leaderboard-baseline-center_gaussian')).toContainText('Center Gaussian');
+    await expect(page.getByTestId('leaderboard-baseline-sobel_edge')).toContainText('Sobel Edge');
+
+    await metricSelect.selectOption('coverage');
+    await expect(page.getByTestId('leaderboard-baseline-legend')).toHaveCount(0);
+  });
+
   test('rescales the layer progression y-axis for every dashboard metric', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/dashboard');
