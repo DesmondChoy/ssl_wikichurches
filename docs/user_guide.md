@@ -55,9 +55,12 @@ Three columns:
 
 Deep per-head inspection. Accessed via `?tab=q3` or from the Dashboard Q3 tab.
 
-- **Model/variant/metric selectors** scope the analysis to Q3 primary models.
-- **Ranked heads**: Shows which heads align best with annotations. Click a head to view its attention.
+- **Current drill-down summary**: Shows which model/variant context you brought in from Dashboard Q3, and whether the selected variant is in the primary Q3 scope or a control.
+- **Model/variant/rank-by selectors** scope the analysis to the Q3-supported models and variants.
+- **Top heads strip**: Shows the best-ranked heads for the current image context, with an option to expand into the full ranked-head gallery.
 - **Interpretation mode toggle**: Switch between Head Attention (view one head's map) and Feature Similarity (click a bbox to query what the model considers similar).
+- **Layer slider and bbox toggle**: Step through layers and choose whether annotation boxes stay visible while you inspect the exemplar image.
+- **Q3 defaults action**: Resets the page back to the canonical Q3 starting state if you have wandered away from the intended drill-down path.
 
 ### Compare (`/compare`)
 
@@ -66,7 +69,9 @@ Requires selecting an image first from the image dropdown.
 **Two modes** (toggled at the top):
 
 - **Model vs Model**: Pick two models. Both show attention on the same image. Click a bounding box to see feature similarity heatmaps side-by-side.
-- **Variant vs Variant**: Pick one model, two fine-tuning variants (frozen, linear probe, LoRA, full). Includes a layer slider to animate through layers and see how attention shifts between variants.
+- **Variant vs Variant**: Pick one model and any two variants (frozen, linear probe, LoRA, full). Includes a layer slider, a side-by-side/slider view toggle, and feature-local inspection by clicking a bounding box.
+
+In Variant vs Variant mode, the page can also show an expandable experiment summary card sourced from the Q2 aggregate analysis so you can connect the image-level comparison to the batch-level result.
 
 ### Dashboard (`/dashboard`)
 
@@ -94,20 +99,25 @@ Two tabs: **Overview** and **Q3**.
 - Table of all 90 feature types, sortable by metric score, count, or name.
 
 **Quick Actions:**
-- Links to Gallery, Compare, Q2, with the current metric/model/layer context passed via URL parameters.
+- **Compare Models** and **Q2 Analysis** pass the current dashboard context through URL parameters.
+- **Browse Images** returns to the Gallery without carrying the dashboard state.
 
 #### Q3 tab
 
-Head specialization explorer. Shows a head-by-feature heatmap, ranked heads, and exemplar images. Clicking through drills down to the Image Detail Q3 tab with full context.
+Head specialization explorer. This tab now has two layers:
+
+- **Frozen-to-adapted head delta panel**: Compares how head rankings shift from Frozen to LoRA and Full for the current model/layer/metric context.
+- **Single-variant explorer**: Shows the ranked-head table, the head-by-feature heatmap, and inline exemplar images. Clicking through drills down to the Image Detail Q3 tab with full context.
 
 ### Q2 (`/q2`)
 
 **Top controls:**
 - Metric, percentile, model (all or specific), and strategy (all, linear probe, LoRA, full).
+- The header card also shows the analyzed layer and, when available, the active experiment ID, result scope, evaluation image count, and checkpoint-selection rule.
 
 **Delta table:**
 - Shows frozen mean, fine-tuned mean, delta, 95% CI, Cohen's d effect size, and statistical significance for each model/strategy pair.
-- Color-coded: green for improvement, red for decline.
+- The table itself is textual rather than color-coded, so read the signed delta together with whether the selected metric treats higher or lower values as better.
 
 **Cross-strategy comparisons:**
 - Pairwise strategy comparisons (e.g., LoRA vs Full) with delta differences and significance.
@@ -223,5 +233,5 @@ These artifacts contain the evidence. The app is where you explore and confirm i
 
 - **Threshold-free metrics (MSE, KL, EMD)** ignore the percentile dropdown. The threshold only affects IoU and coverage.
 - **"Lower is better"** for MSE, KL, and EMD. **"Higher is better"** for IoU and Coverage. The leaderboard card shows which direction applies.
-- **URL parameters are preserved** when navigating between pages via Quick Actions, so your metric/model context carries over.
+- **Quick Actions only partially preserve context**: Compare and Q2 keep the current dashboard parameters, while Browse Images goes back to the plain Gallery route.
 - **The layer progression chart** does not show baseline reference lines (by design). Baselines are dataset-level constants, not layer-varying, so they belong on the leaderboard where models are compared at their best layer.
