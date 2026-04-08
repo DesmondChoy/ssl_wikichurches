@@ -125,6 +125,13 @@ interface StubQ3HeadRankingEntry {
   image_count: number;
 }
 
+interface StubQ3HeadFeatureMatrixFeature {
+  feature_label: number;
+  feature_name: string;
+  bbox_count: number;
+  scores: Array<number | null>;
+}
+
 interface DashboardStubOptions {
   headRankingOverride?: (params: {
     model: string;
@@ -135,6 +142,18 @@ interface DashboardStubOptions {
     supported: boolean;
     reason: string | null;
     heads: StubQ3HeadRankingEntry[];
+  } | null;
+  headFeatureMatrixOverride?: (params: {
+    model: string;
+    metric: string;
+    variant: string;
+    percentile: number;
+  }) => {
+    supported: boolean;
+    reason: string | null;
+    heads: number[];
+    total_feature_types: number;
+    features: StubQ3HeadFeatureMatrixFeature[];
   } | null;
 }
 
@@ -356,28 +375,44 @@ async function stubDashboardApis(page: Page, options: DashboardStubOptions = {})
     const match = url.pathname.match(/\/api\/metrics\/model\/([^/]+)\/head_feature_matrix/);
     const model = match?.[1] ?? 'dinov2';
     const metric = url.searchParams.get('metric') ?? 'iou';
+    const variant = url.searchParams.get('variant') ?? 'frozen';
+    const percentile = Number(url.searchParams.get('percentile') ?? '90');
     const direction = metric === 'iou' || metric === 'coverage' ? 'higher' : 'lower';
+    const override = options.headFeatureMatrixOverride?.({
+      model,
+      metric,
+      variant,
+      percentile,
+    });
+    const supported = override?.supported ?? model !== 'resnet50';
+    const reason = override?.reason ?? (
+      model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null
+    );
+    const heads = override?.heads ?? (model === 'resnet50' ? [] : [0, 1, 2]);
+    const features = override?.features ?? (
+      model === 'resnet50'
+        ? []
+        : [
+            { feature_label: 7, feature_name: 'Door', bbox_count: 5, scores: [0.21, 0.33, 0.27] },
+            { feature_label: 42, feature_name: 'Window', bbox_count: 9, scores: [0.48, 0.51, 0.45] },
+          ]
+    );
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         model,
-        variant: url.searchParams.get('variant') ?? 'frozen',
+        variant,
         layer: 'layer11',
         method: model === 'siglip2' ? 'mean' : model === 'resnet50' ? null : 'cls',
         metric,
         direction,
-        percentile: Number(url.searchParams.get('percentile') ?? '90'),
-        supported: model !== 'resnet50',
-        reason: model === 'resnet50' ? 'Q3 per-head analysis is not supported for model \'resnet50\'.' : null,
-        heads: model === 'resnet50' ? [] : [0, 1, 2],
-        total_feature_types: model === 'resnet50' ? 0 : 2,
-        features: model === 'resnet50'
-          ? []
-          : [
-              { feature_label: 7, feature_name: 'Door', bbox_count: 5, scores: [0.21, 0.33, 0.27] },
-              { feature_label: 42, feature_name: 'Window', bbox_count: 9, scores: [0.48, 0.51, 0.45] },
-            ],
+        percentile,
+        supported,
+        reason,
+        heads,
+        total_feature_types: override?.total_feature_types ?? (model === 'resnet50' ? 0 : 2),
+        features,
       }),
     });
   });
@@ -911,6 +946,139 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
     await expect(page.getByText('Representative images for the selected heatmap cell')).toBeVisible();
     await expect(page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`)).toBeVisible();
+  });
+
+  test('highlights the full heatmap column and explains the linked ranking drilldown', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
+
+    await expect(page.getByTestId('q3-head-ranking-row-0')).toHaveClass(/bg-primary-50\/50/);
+    await expect(page.getByTestId('q3-heatmap-head-0')).toHaveAttribute('data-selected-column', 'true');
+
+    const selectedColumnCell = page.getByTestId('q3-heatmap-cell-wrapper-7-0');
+    await expect(selectedColumnCell).toHaveAttribute('data-selected-column', 'true');
+    await expect.poll(async () => selectedColumnCell.evaluate((node) => {
+      const style = window.getComputedStyle(node);
+      return style.backgroundColor !== 'rgba(0, 0, 0, 0)' && Number.parseFloat(style.borderLeftWidth) >= 1;
+    })).toBe(true);
+
+    await expect(page.getByTestId('q3-heatmap-selection-summary')).toContainText(
+      'Its heatmap column is highlighted and representative images appear below.'
+    );
+  });
+
+  test('keeps the full selected column visible while emphasizing the exact selected heatmap cell', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    const targetCell = page.getByTestId('q3-heatmap-cell-7-1');
+    await targetCell.click();
+
+    await expect(page.getByTestId('q3-heatmap-head-1')).toHaveAttribute('data-selected-column', 'true');
+    await expect(page.getByTestId('q3-heatmap-cell-wrapper-42-1')).toHaveAttribute('data-selected-column', 'true');
+    await expect(targetCell).toHaveAttribute('data-selected-cell', 'true');
+    await expect(targetCell).toHaveClass(/ring-2/);
+    await expect(page.getByTestId('q3-heatmap-cell-42-1')).toHaveAttribute('data-selected-cell', 'false');
+    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
+  });
+
+  test('auto-scrolls the heatmap horizontally to the selected head column', async ({ page }) => {
+    const wideHeads = Array.from({ length: 18 }, (_, index) => index);
+    const wideRankingEntries: StubQ3HeadRankingEntry[] = [
+      { head: 17, mean_score: 0.61, std_score: 0.03, mean_rank: 1.0, top1_count: 7, top3_count: 11, image_count: 12 },
+      ...wideHeads.slice(0, -1).map((head, index) => ({
+        head,
+        mean_score: Number((0.58 - (index * 0.01)).toFixed(3)),
+        std_score: 0.03,
+        mean_rank: index + 2,
+        top1_count: Math.max(1, 6 - index),
+        top3_count: 8,
+        image_count: 12,
+      })),
+    ];
+    const buildScores = (base: number) => wideHeads.map((head) => Number((base - (head * 0.005)).toFixed(3)));
+
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await stubDashboardApis(page, {
+      headRankingOverride: ({ variant }) => {
+        if (variant !== 'frozen') {
+          return null;
+        }
+        return {
+          supported: true,
+          reason: null,
+          heads: wideRankingEntries,
+        };
+      },
+      headFeatureMatrixOverride: ({ variant }) => {
+        if (variant !== 'frozen') {
+          return null;
+        }
+        return {
+          supported: true,
+          reason: null,
+          heads: wideHeads,
+          total_feature_types: 2,
+          features: [
+            { feature_label: 7, feature_name: 'Door', bbox_count: 5, scores: buildScores(0.52) },
+            { feature_label: 42, feature_name: 'Window', bbox_count: 9, scores: buildScores(0.61) },
+          ],
+        };
+      },
+    });
+    await page.goto('/dashboard?tab=q3');
+
+    await expect.poll(async () => page.getByTestId('q3-heatmap-scroll-container').evaluate((node) => node.scrollLeft)).toBe(0);
+
+    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
+
+    await expect.poll(async () => page.evaluate(() => {
+      const container = document.querySelector('[data-testid="q3-heatmap-scroll-container"]');
+      const header = document.querySelector('[data-testid="q3-heatmap-head-17"]');
+      if (!(container instanceof HTMLElement) || !(header instanceof HTMLElement)) {
+        return false;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      return container.scrollLeft > 0 && headerRect.left >= containerRect.left && headerRect.right <= containerRect.right;
+    })).toBe(true);
+  });
+
+  test('scrolls the inline exemplar panel into view for ranking and heatmap drilldowns', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await stubDashboardApis(page);
+    await page.goto('/dashboard?tab=q3');
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
+
+    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => {
+      const panel = document.querySelector('[data-testid="q3-exemplar-panel"]');
+      if (!(panel instanceof HTMLElement)) {
+        return false;
+      }
+      const rect = panel.getBoundingClientRect();
+      return rect.top >= 0 && rect.top < window.innerHeight;
+    })).toBe(true);
+
+    await page.getByRole('button', { name: 'Clear selection' }).click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    await page.getByTestId('q3-heatmap-cell-7-1').click();
+
+    await expect(page.getByText('Representative images for the selected heatmap cell')).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => {
+      const panel = document.querySelector('[data-testid="q3-exemplar-panel"]');
+      if (!(panel instanceof HTMLElement)) {
+        return false;
+      }
+      const rect = panel.getBoundingClientRect();
+      return rect.top >= 0 && rect.top < window.innerHeight;
+    })).toBe(true);
   });
 
   test('applies strict Q3 filtering and routes exemplar drill-down into Image Detail', async ({ page }) => {

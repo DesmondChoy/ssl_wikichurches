@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useModels } from '../../hooks/useAttention';
@@ -292,6 +292,9 @@ export function Q3HeadAnalysis() {
   const [showCount, setShowCount] = useState(ITEMS_PER_PAGE);
   const [drilldownRequest, setDrilldownRequest] = useState<Q3ExemplarPickerRequest | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HeatmapCellPreview | null>(null);
+  const heatmapContainerRef = useRef<HTMLDivElement | null>(null);
+  const exemplarPanelRef = useRef<HTMLDivElement | null>(null);
+  const heatmapHeaderRefs = useRef(new Map<number, HTMLTableCellElement>());
 
   const availableQ3Models = useMemo(() => {
     const visibleModels = (modelsData?.models ?? []).filter((value) =>
@@ -415,6 +418,40 @@ export function Q3HeadAnalysis() {
   const selectedHead = activeDrilldownRequest?.head ?? null;
   const selectedFeatureLabel = activeDrilldownRequest?.origin === 'feature' ? (activeDrilldownRequest.featureLabel ?? null) : null;
 
+  useEffect(() => {
+    if (!activeDrilldownRequest || selectedHead === null) {
+      return undefined;
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      const heatmapContainer = heatmapContainerRef.current;
+      const selectedHeader = heatmapHeaderRefs.current.get(selectedHead);
+
+      if (heatmapContainer && selectedHeader) {
+        const containerRect = heatmapContainer.getBoundingClientRect();
+        const headerRect = selectedHeader.getBoundingClientRect();
+        const maxScrollLeft = Math.max(0, heatmapContainer.scrollWidth - heatmapContainer.clientWidth);
+        const centeredScrollLeft = heatmapContainer.scrollLeft
+          + (headerRect.left - containerRect.left)
+          - (heatmapContainer.clientWidth / 2)
+          + (headerRect.width / 2);
+        const clampedScrollLeft = Math.min(Math.max(centeredScrollLeft, 0), maxScrollLeft);
+
+        heatmapContainer.scrollTo({
+          left: clampedScrollLeft,
+          behavior: 'smooth',
+        });
+      }
+
+      exemplarPanelRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [activeDrilldownRequest, selectedHead]);
+
   const modelOptions = availableQ3Models.map((value) => ({
     value,
     label: value,
@@ -492,8 +529,16 @@ export function Q3HeadAnalysis() {
     const scoreText = activeDrilldownRequest.score === null || activeDrilldownRequest.score === undefined
       ? ''
       : ` · ${metricMetadata.shortLabel} ${formatMetricValue(metric, activeDrilldownRequest.score)}`;
-    return `Selected head: Head ${activeDrilldownRequest.head}${scoreText}.`;
+    return `Selected head: Head ${activeDrilldownRequest.head}${scoreText}. Its heatmap column is highlighted and representative images appear below.`;
   })();
+
+  const registerHeatmapHeaderRef = (head: number) => (node: HTMLTableCellElement | null) => {
+    if (node) {
+      heatmapHeaderRefs.current.set(head, node);
+      return;
+    }
+    heatmapHeaderRefs.current.delete(head);
+  };
 
   return (
     <Card>
@@ -754,7 +799,11 @@ export function Q3HeadAnalysis() {
                       {(rankingQuery.data?.heads ?? []).map((entry) => {
                         const isSelectedRankingHead = activeDrilldownRequest?.origin === 'ranking' && activeDrilldownRequest.head === entry.head;
                         return (
-                          <tr key={entry.head} className={isSelectedRankingHead ? 'bg-primary-50/50' : undefined}>
+                          <tr
+                            key={entry.head}
+                            data-testid={`q3-head-ranking-row-${entry.head}`}
+                            className={isSelectedRankingHead ? 'bg-primary-50/50' : undefined}
+                          >
                             <td className="px-4 py-2 font-medium text-gray-900">Head {entry.head}</td>
                             <td className="px-4 py-2 text-right">
                               <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${getMetricTone(metric, entry.mean_score)}`}>
@@ -829,22 +878,33 @@ export function Q3HeadAnalysis() {
                   </div>
                 </div>
 
-                <div className="overflow-auto">
+                <div
+                  ref={heatmapContainerRef}
+                  className="overflow-auto"
+                  data-testid="q3-heatmap-scroll-container"
+                >
                   <table className="min-w-full border-separate border-spacing-0 text-sm">
                     <thead className="border-b border-gray-200 text-left text-xs text-gray-500">
                       <tr>
                         <th className="sticky left-0 z-20 bg-white px-4 py-3 font-medium">Feature</th>
-                        {(matrixQuery.data?.heads ?? []).map((headIdx) => (
-                          <th
-                            key={headIdx}
-                            data-testid={`q3-heatmap-head-${headIdx}`}
-                            className={`px-2 py-3 text-center font-medium ${
-                              selectedHead === headIdx ? 'bg-slate-100 text-slate-900' : 'text-slate-500'
-                            }`}
-                          >
-                            H{headIdx}
-                          </th>
-                        ))}
+                        {(matrixQuery.data?.heads ?? []).map((headIdx) => {
+                          const isSelectedColumn = selectedHead === headIdx;
+                          return (
+                            <th
+                              key={headIdx}
+                              ref={registerHeatmapHeaderRef(headIdx)}
+                              data-testid={`q3-heatmap-head-${headIdx}`}
+                              data-selected-column={isSelectedColumn ? 'true' : 'false'}
+                              className={`px-2 py-3 text-center font-medium transition-colors ${
+                                isSelectedColumn
+                                  ? 'border-l border-r border-sky-200 bg-sky-100 text-sky-900'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              H{headIdx}
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
@@ -863,12 +923,30 @@ export function Q3HeadAnalysis() {
                             </td>
                             {feature.scores.map((score, index) => {
                               const headIdx = matrixQuery.data?.heads[index] ?? index;
+                              const isSelectedColumn = selectedHead === headIdx;
                               const isSelectedCell = isSelectedRow && selectedHead === headIdx;
 
                               return (
-                                <td key={`${feature.feature_label}-${headIdx}`} className="border-b border-gray-100 px-2 py-2 text-center">
+                                <td
+                                  key={`${feature.feature_label}-${headIdx}`}
+                                  data-testid={`q3-heatmap-cell-wrapper-${feature.feature_label}-${headIdx}`}
+                                  data-selected-column={isSelectedColumn ? 'true' : 'false'}
+                                  className={`border-b border-gray-100 px-2 py-2 text-center transition-colors ${
+                                    isSelectedColumn
+                                      ? isSelectedCell
+                                        ? 'border-l border-r border-sky-300 bg-sky-100/80'
+                                        : 'border-l border-r border-sky-200 bg-sky-50/80'
+                                      : ''
+                                  }`}
+                                >
                                   {score === null ? (
-                                    <div className="flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-[11px] text-slate-400">
+                                    <div
+                                      className={`flex h-11 w-11 items-center justify-center rounded-md border border-dashed text-[11px] ${
+                                        isSelectedColumn
+                                          ? 'border-sky-200 bg-sky-50 text-slate-500'
+                                          : 'border-slate-200 bg-slate-50 text-slate-400'
+                                      }`}
+                                    >
                                       n/a
                                     </div>
                                   ) : (() => {
@@ -883,6 +961,8 @@ export function Q3HeadAnalysis() {
                                       <button
                                         type="button"
                                         data-testid={`q3-heatmap-cell-${feature.feature_label}-${headIdx}`}
+                                        data-selected-cell={isSelectedCell ? 'true' : 'false'}
+                                        data-selected-column={isSelectedColumn ? 'true' : 'false'}
                                         onClick={() => openFeatureDrilldown(headIdx, feature.feature_label, feature.feature_name, score)}
                                         onMouseEnter={() => setHoveredCell(preview)}
                                         onMouseLeave={() => setHoveredCell((current) => (
@@ -895,7 +975,11 @@ export function Q3HeadAnalysis() {
                                         title={formatHoverReadout(metric, preview)}
                                         aria-label={formatHoverReadout(metric, preview)}
                                         className={`relative flex h-11 w-11 items-center justify-center rounded-md border transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
-                                          isSelectedCell ? 'ring-2 ring-slate-900 ring-offset-1' : 'hover:-translate-y-0.5 hover:shadow-sm'
+                                          isSelectedCell
+                                            ? 'ring-2 ring-slate-900 ring-offset-1 shadow-[0_0_0_1px_rgba(14,116,144,0.24)]'
+                                            : isSelectedColumn
+                                              ? 'shadow-[0_0_0_1px_rgba(14,116,144,0.18)] hover:-translate-y-0.5 hover:shadow-sm'
+                                              : 'hover:-translate-y-0.5 hover:shadow-sm'
                                         }`}
                                         style={getHeatmapCellStyle(score, heatmapRange, heatmapDirection)}
                                       >
@@ -928,15 +1012,21 @@ export function Q3HeadAnalysis() {
               </div>
             </div>
 
-            <Q3ExemplarPicker
-              open={activeDrilldownRequest !== null}
-              request={activeDrilldownRequest}
-              data={exemplarQuery.data}
-              isLoading={exemplarQuery.isLoading}
-              error={exemplarError}
-              onClose={() => setDrilldownRequest(null)}
-              onSelectCandidate={handleSelectCandidate}
-            />
+            <div
+              ref={exemplarPanelRef}
+              className="scroll-mt-24"
+              data-testid="q3-exemplar-panel-anchor"
+            >
+              <Q3ExemplarPicker
+                open={activeDrilldownRequest !== null}
+                request={activeDrilldownRequest}
+                data={exemplarQuery.data}
+                isLoading={exemplarQuery.isLoading}
+                error={exemplarError}
+                onClose={() => setDrilldownRequest(null)}
+                onSelectCandidate={handleSelectCandidate}
+              />
+            </div>
           </>
         )}
       </CardContent>
