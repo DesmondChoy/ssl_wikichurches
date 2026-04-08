@@ -255,13 +255,17 @@ test.describe('Image detail metrics chart', () => {
     await expect(leftColumn).toBeVisible();
     await expect(rightColumn).toBeVisible();
     await expect(rightColumn.getByTestId('metrics-panel')).toBeVisible();
+    await expect(rightColumn.getByTestId('annotations-card')).toBeVisible();
 
     const viewBox = await viewSettings.boundingBox();
+    const metricsBox = await rightColumn.getByTestId('metrics-panel').boundingBox();
     const annotationsBox = await annotations.boundingBox();
 
     expect(viewBox).not.toBeNull();
+    expect(metricsBox).not.toBeNull();
     expect(annotationsBox).not.toBeNull();
-    expect(viewBox!.y).toBeLessThan(annotationsBox!.y);
+    expect(viewBox!.x).toBeLessThan(metricsBox!.x);
+    expect(metricsBox!.y).toBeLessThan(annotationsBox!.y);
 
     const centerBox = await centerColumn.boundingBox();
     const rightBox = await rightColumn.boundingBox();

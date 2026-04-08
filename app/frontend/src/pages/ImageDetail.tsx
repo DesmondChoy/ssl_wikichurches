@@ -248,7 +248,7 @@ export function ImageDetailPage() {
     : 'min-w-0 space-y-4 lg:col-span-5 xl:col-span-1';
   const rightColumnClassName = isQ3Tab
     ? 'order-2 min-w-0 space-y-4 lg:order-3 lg:col-span-4 xl:col-span-1'
-    : 'min-w-0 lg:col-span-4 xl:col-span-1';
+    : 'min-w-0 space-y-4 lg:col-span-4 xl:col-span-1';
 
   if (!decodedId) {
     return <div>Invalid image ID</div>;
@@ -366,15 +366,6 @@ export function ImageDetailPage() {
               />
             </div>
           )}
-          {!isQ3Tab && imageDetail && (
-            <AnnotationsCard
-              annotation={imageDetail.annotation}
-              mode={activeMode}
-              showBboxes={activeShowBboxes}
-              selectedBboxIndex={activeBboxIndex}
-              onBboxSelect={handleActiveBboxSelect}
-            />
-          )}
         </div>
 
         <div
@@ -460,6 +451,16 @@ export function ImageDetailPage() {
                 enabled={canQueryProgression}
               />
             </ErrorBoundary>
+          )}
+
+          {!isQ3Tab && imageDetail && (
+            <AnnotationsCard
+              annotation={imageDetail.annotation}
+              mode={activeMode}
+              showBboxes={activeShowBboxes}
+              selectedBboxIndex={activeBboxIndex}
+              onBboxSelect={handleActiveBboxSelect}
+            />
           )}
         </div>
       </div>
