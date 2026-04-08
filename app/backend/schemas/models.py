@@ -431,3 +431,24 @@ class Q2SummaryResponse(BaseModel):
     timestamp: str | None = None
     rows: list[Q2SummaryRowSchema]
     strategy_comparisons: list[Q2StrategyComparisonSchema]
+
+
+class Q2ImageDeltaEntrySchema(BaseModel):
+    """One per-image Q2 IoU delta entry."""
+
+    image_id: str
+    delta_iou: float
+    style_names: list[str] = Field(default_factory=list)
+
+
+class Q2ImageDeltasResponse(BaseModel):
+    """Image-level Q2 deltas for a model/strategy/percentile slice."""
+
+    model_name: str
+    strategy_id: Literal["linear_probe", "lora", "full"]
+    percentile: int
+    method: str | None = None
+    mean_delta_iou: float | None = None
+    num_images: int | None = None
+    top_positive: list[Q2ImageDeltaEntrySchema] = Field(default_factory=list)
+    top_negative: list[Q2ImageDeltaEntrySchema] = Field(default_factory=list)

@@ -17,6 +17,7 @@ from app.backend.schemas import (
     IoUResultSchema,
     LayerProgressionSchema,
     LeaderboardEntry,
+    Q2ImageDeltasResponse,
     Q2SummaryResponse,
     StyleBreakdownSchema,
 )
@@ -59,6 +60,29 @@ async def get_q2_summary(
             ),
         )
     return Q2SummaryResponse(**data)
+
+
+@router.get("/q2_image_deltas", response_model=Q2ImageDeltasResponse)
+async def get_q2_image_deltas(
+    model: Annotated[str, Query()],
+    strategy: Annotated[Literal["linear_probe", "lora", "full"], Query()],
+    percentile: Annotated[int, Query(ge=50, le=95)] = 90,
+    top_k: Annotated[int, Query(ge=3, le=30)] = 12,
+) -> Q2ImageDeltasResponse:
+    """Get image-level IoU deltas for one Q2 model/strategy slice."""
+    validate_model(model)
+    data = metrics_service.get_q2_image_deltas(
+        model=model,
+        strategy=strategy,
+        percentile=percentile,
+        top_k=top_k,
+    )
+    if not data:
+        raise HTTPException(
+            status_code=404,
+            detail="Q2 image deltas not available for this selection.",
+        )
+    return Q2ImageDeltasResponse(**data)
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])

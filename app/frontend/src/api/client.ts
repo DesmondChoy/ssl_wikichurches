@@ -247,6 +247,23 @@ export const metricsAPI = {
     );
   },
 
+  getQ2ImageDeltas: (params: {
+    model: string;
+    strategy: 'linear_probe' | 'lora' | 'full';
+    percentile?: number;
+    topK?: number;
+  }) => {
+    const query = new URLSearchParams({
+      model: params.model,
+      strategy: params.strategy,
+      percentile: String(params.percentile ?? 90),
+      top_k: String(params.topK ?? 12),
+    });
+    return fetchJSON<import('../types').Q2ImageDeltasResponse>(
+      `/metrics/q2_image_deltas?${query.toString()}`
+    );
+  },
+
   getHeadRanking: (
     model: string,
     layer: number,

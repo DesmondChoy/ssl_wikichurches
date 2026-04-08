@@ -341,6 +341,23 @@ export interface Q2SummaryResponse {
   strategy_comparisons: Q2StrategyComparison[];
 }
 
+export interface Q2ImageDeltaEntry {
+  image_id: string;
+  delta_iou: number;
+  style_names: string[];
+}
+
+export interface Q2ImageDeltasResponse {
+  model_name: string;
+  strategy_id: 'linear_probe' | 'lora' | 'full';
+  percentile: number;
+  method: string | null;
+  mean_delta_iou: number | null;
+  num_images: number | null;
+  top_positive: Q2ImageDeltaEntry[];
+  top_negative: Q2ImageDeltaEntry[];
+}
+
 // App State Types
 
 export type HeatmapStyle = 'smooth' | 'squares' | 'circles';

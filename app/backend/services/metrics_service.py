@@ -766,10 +766,11 @@ class MetricsService:
         score_order = "DESC" if metric_config["direction"] == "higher" else "ASC"
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            score_column = "mean_score" if self._table_has_column(conn, "style_metrics", "mean_score") else "mean_iou"
             cursor.execute(
-                f"""SELECT style_name, mean_score, num_images FROM style_metrics
+                f"""SELECT style_name, {score_column} AS mean_score, num_images FROM style_metrics
                    WHERE model = ? AND layer = ? AND method = ? AND metric = ? AND percentile = ?
-                   ORDER BY mean_score {score_order}""",
+                   ORDER BY {score_column} {score_order}""",
                 (db_model, layer, resolved_method, metric, query_percentile),
             )
 
@@ -945,6 +946,67 @@ class MetricsService:
             "timestamp": data.get("timestamp"),
             "rows": display_rows,
             "strategy_comparisons": display_strategy_comparisons,
+        }
+
+    def get_q2_image_deltas(
+        self,
+        model: str,
+        strategy: Literal["linear_probe", "lora", "full"],
+        percentile: int = 90,
+        top_k: int = 12,
+    ) -> dict[str, Any] | None:
+        """Load per-image IoU deltas for one Q2 model/strategy/percentile slice."""
+        q2_results_path = get_current_q2_results_path().with_name("q2_delta_iou_analysis.json")
+        if not q2_results_path.exists():
+            return None
+
+        with open(q2_results_path, encoding="utf-8") as f:
+            data: dict[str, Any] = json.load(f)
+
+        resolved_model = resolve_model_name(model)
+        model_data = cast(dict[str, Any], data.get("models", {}).get(resolved_model))
+        if not model_data:
+            return None
+
+        strategy_data = cast(dict[str, Any], model_data.get(strategy))
+        if not strategy_data:
+            return None
+
+        bucket = cast(dict[str, Any], strategy_data.get(str(percentile)))
+        if not bucket:
+            return None
+
+        per_image_deltas = cast(dict[str, float], bucket.get("per_image_deltas", {}))
+        if not per_image_deltas:
+            return None
+
+        sorted_items = sorted(per_image_deltas.items(), key=lambda item: item[1], reverse=True)
+        top_positive = sorted_items[:top_k]
+        top_negative = sorted(per_image_deltas.items(), key=lambda item: item[1])[:top_k]
+
+        def _to_rows(items: list[tuple[str, float]]) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            for image_id, delta in items:
+                annotation = image_service.get_annotation(image_id)
+                style_names = image_service.get_style_names(annotation.styles) if annotation else []
+                rows.append(
+                    {
+                        "image_id": image_id,
+                        "delta_iou": delta,
+                        "style_names": style_names,
+                    }
+                )
+            return rows
+
+        return {
+            "model_name": display_model_name(resolved_model),
+            "strategy_id": strategy,
+            "percentile": percentile,
+            "method": bucket.get("method"),
+            "mean_delta_iou": bucket.get("mean_delta_iou"),
+            "num_images": bucket.get("num_images"),
+            "top_positive": _to_rows(top_positive),
+            "top_negative": _to_rows(top_negative),
         }
 
     def get_feature_breakdown(

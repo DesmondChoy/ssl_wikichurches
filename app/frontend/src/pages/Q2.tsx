@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useModels } from '../hooks/useAttention';
-import { useQ2Summary } from '../hooks/useMetrics';
+import { useQ2ImageDeltas, useQ2Summary } from '../hooks/useMetrics';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Select } from '../components/ui/Select';
 import {
@@ -80,6 +80,16 @@ export function Q2Page() {
     selectedStrategy === 'linear_probe' || selectedStrategy === 'lora' || selectedStrategy === 'full'
       ? selectedStrategy
       : 'full';
+  const q2ImageDeltaModel = selectedModel === 'all' ? compareModel : selectedModel;
+  const q2ImageDeltaStrategy =
+    selectedStrategy === 'linear_probe' || selectedStrategy === 'lora' || selectedStrategy === 'full'
+      ? selectedStrategy
+      : undefined;
+  const { data: imageDeltaData, isLoading: isImageDeltaLoading } = useQ2ImageDeltas(
+    q2ImageDeltaModel,
+    q2ImageDeltaStrategy,
+    percentile,
+  );
 
   return (
     <div className="space-y-6">
@@ -201,6 +211,85 @@ export function Q2Page() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h3 className="font-semibold">Image-Level Delta Drilldown (IoU)</h3>
+        </CardHeader>
+        <CardContent>
+          {!q2ImageDeltaStrategy && (
+            <p className="text-sm text-gray-500">
+              Select a specific strategy to inspect per-image deltas.
+            </p>
+          )}
+          {q2ImageDeltaStrategy && isImageDeltaLoading && (
+            <p className="text-sm text-gray-500">Loading image-level deltas...</p>
+          )}
+          {q2ImageDeltaStrategy && !isImageDeltaLoading && !imageDeltaData && (
+            <p className="text-sm text-gray-500">No image-level deltas available for this selection.</p>
+          )}
+          {imageDeltaData && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                Mean ΔIoU {formatMetricValue('iou', imageDeltaData.mean_delta_iou ?? 0, { signed: true })} over{' '}
+                {imageDeltaData.num_images ?? 0} images.
+              </p>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-green-700">Top Improved</h4>
+                  <div className="space-y-2 text-sm">
+                    {imageDeltaData.top_positive.map((entry) => (
+                      <div key={`pos-${entry.image_id}`} className="rounded border border-green-100 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs">{entry.image_id}</span>
+                          <span className="font-medium text-green-700">
+                            {formatMetricValue('iou', entry.delta_iou, { signed: true })}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">{entry.style_names.join(', ') || 'Unknown style'}</div>
+                        <div className="mt-1 flex gap-3 text-xs">
+                          <Link to={`/image/${entry.image_id}`} className="text-primary-600 hover:underline">Image Detail</Link>
+                          <Link
+                            to={`/compare?type=variants&image_id=${entry.image_id}&model=${q2ImageDeltaModel}&metric=iou&left_variant=frozen&right_variant=${q2ImageDeltaStrategy}&layer=${analyzedLayer}&percentile=${percentile}`}
+                            className="text-primary-600 hover:underline"
+                          >
+                            Compare
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="mb-2 text-sm font-medium text-rose-700">Most Regressed</h4>
+                  <div className="space-y-2 text-sm">
+                    {imageDeltaData.top_negative.map((entry) => (
+                      <div key={`neg-${entry.image_id}`} className="rounded border border-rose-100 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs">{entry.image_id}</span>
+                          <span className="font-medium text-rose-700">
+                            {formatMetricValue('iou', entry.delta_iou, { signed: true })}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">{entry.style_names.join(', ') || 'Unknown style'}</div>
+                        <div className="mt-1 flex gap-3 text-xs">
+                          <Link to={`/image/${entry.image_id}`} className="text-primary-600 hover:underline">Image Detail</Link>
+                          <Link
+                            to={`/compare?type=variants&image_id=${entry.image_id}&model=${q2ImageDeltaModel}&metric=iou&left_variant=frozen&right_variant=${q2ImageDeltaStrategy}&layer=${analyzedLayer}&percentile=${percentile}`}
+                            className="text-primary-600 hover:underline"
+                          >
+                            Compare
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

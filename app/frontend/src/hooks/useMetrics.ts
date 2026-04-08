@@ -57,6 +57,19 @@ export function useQ2Summary(
   });
 }
 
+export function useQ2ImageDeltas(
+  model: string | undefined,
+  strategy: 'linear_probe' | 'lora' | 'full' | undefined,
+  percentile: number,
+  topK = 12
+) {
+  return useQuery({
+    queryKey: ['q2ImageDeltas', model, strategy, percentile, topK],
+    queryFn: () => metricsAPI.getQ2ImageDeltas({ model: model!, strategy: strategy!, percentile, topK }),
+    enabled: !!model && !!strategy,
+  });
+}
+
 export function useHeadRanking(
   model: string,
   layer: number,
