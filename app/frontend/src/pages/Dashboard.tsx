@@ -14,6 +14,7 @@ import { useModels } from '../hooks/useAttention';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Q3HeadAnalysis } from '../components/metrics/Q3HeadAnalysis';
+import { Q2Page } from './Q2';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { PageTabs } from '../components/ui/PageTabs';
@@ -55,6 +56,8 @@ export function DashboardPage() {
   const [metric, setMetric] = useState<DashboardMetric>('iou');
   const [rankingMode, setRankingMode] = useState<RankingMode>('default_method');
   const currentTab = parsePageTab(searchParams.get('tab'));
+  const isMainTab = currentTab === 'main';
+  const isQ2Tab = currentTab === 'q2';
   const [hasVisitedQ3Tab, setHasVisitedQ3Tab] = useState(currentTab === 'q3');
   const isQ3Tab = currentTab === 'q3';
   const shouldRenderQ3Panel = hasVisitedQ3Tab || isQ3Tab;
@@ -160,7 +163,7 @@ export function DashboardPage() {
           </p>
         </div>
 
-        {!isQ3Tab && (
+        {isMainTab && (
           <div className="flex flex-wrap items-end gap-3">
             <Select
               value={metric}
@@ -220,6 +223,13 @@ export function DashboardPage() {
             panelId: 'dashboard-q3-panel',
             dataTestId: 'dashboard-page-tab-q3',
           },
+          {
+            value: 'q2',
+            label: 'Q2',
+            id: 'dashboard-page-tab-q2',
+            panelId: 'dashboard-q2-panel',
+            dataTestId: 'dashboard-page-tab-q2',
+          },
         ]}
       />
 
@@ -227,8 +237,8 @@ export function DashboardPage() {
         id="dashboard-main-panel"
         role="tabpanel"
         aria-labelledby="dashboard-page-tab-main"
-        hidden={isQ3Tab}
-        className={`space-y-6 ${isQ3Tab ? 'hidden' : ''}`}
+        hidden={!isMainTab}
+        className={`space-y-6 ${isMainTab ? '' : 'hidden'}`}
         data-testid="dashboard-main-panel"
       >
         {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
@@ -432,6 +442,17 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div
+        id="dashboard-q2-panel"
+        role="tabpanel"
+        aria-labelledby="dashboard-page-tab-q2"
+        hidden={!isQ2Tab}
+        className={`space-y-6 ${isQ2Tab ? '' : 'hidden'}`}
+        data-testid="dashboard-q2-panel"
+      >
+        <Q2Page />
       </div>
 
       {shouldRenderQ3Panel && (

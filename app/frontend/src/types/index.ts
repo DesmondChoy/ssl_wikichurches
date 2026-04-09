@@ -362,7 +362,7 @@ export interface Q2ImageDeltasResponse {
 
 export type HeatmapStyle = 'smooth' | 'squares' | 'circles';
 export type ImageDetailMode = 'head_attention' | 'feature_similarity';
-export type PageTab = 'main' | 'q3';
+export type PageTab = 'main' | 'q2' | 'q3';
 
 export interface ViewSettings {
   model: string;

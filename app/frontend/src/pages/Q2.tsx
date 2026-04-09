@@ -67,13 +67,17 @@ export function Q2Page() {
   );
   const analyzedLayer = data?.analyzed_layer ?? 11;
 
-  const buildSearchParams = (overrides?: Record<string, string>) => ({
-    metric,
-    percentile: String(percentile),
-    model: selectedModel,
-    strategy: selectedStrategy,
-    ...overrides,
-  });
+  const buildSearchParams = (overrides?: Record<string, string>) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('metric', metric);
+    next.set('percentile', String(percentile));
+    next.set('model', selectedModel);
+    next.set('strategy', selectedStrategy);
+    if (overrides) {
+      Object.entries(overrides).forEach(([key, value]) => next.set(key, value));
+    }
+    return next;
+  };
 
   const compareModel = selectedModel === 'all' ? 'dinov2' : selectedModel;
   const compareRightVariant: CompareVariantId =

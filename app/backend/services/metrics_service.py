@@ -964,17 +964,35 @@ class MetricsService:
             data: dict[str, Any] = json.load(f)
 
         resolved_model = resolve_model_name(model)
-        model_data = cast(dict[str, Any], data.get("models", {}).get(resolved_model))
-        if not model_data:
-            return None
+        bucket: dict[str, Any] | None = None
+        # Newer artifact shape: flat rows with per_image_deltas.
+        rows = data.get("rows")
+        if isinstance(rows, list):
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                if (
+                    row.get("metric") == "iou"
+                    and row.get("model_name") == resolved_model
+                    and row.get("strategy_id") == strategy
+                    and row.get("percentile") == percentile
+                ):
+                    bucket = cast(dict[str, Any], row)
+                    break
 
-        strategy_data = cast(dict[str, Any], model_data.get(strategy))
-        if not strategy_data:
-            return None
+        # Legacy artifact shape: models -> strategy -> percentile buckets.
+        if bucket is None:
+            model_data = cast(dict[str, Any], data.get("models", {}).get(resolved_model))
+            if not model_data:
+                return None
 
-        bucket = cast(dict[str, Any], strategy_data.get(str(percentile)))
-        if not bucket:
-            return None
+            strategy_data = cast(dict[str, Any], model_data.get(strategy))
+            if not strategy_data:
+                return None
+
+            bucket = cast(dict[str, Any], strategy_data.get(str(percentile)))
+            if not bucket:
+                return None
 
         per_image_deltas = cast(dict[str, float], bucket.get("per_image_deltas", {}))
         if not per_image_deltas:
@@ -1003,7 +1021,7 @@ class MetricsService:
             "strategy_id": strategy,
             "percentile": percentile,
             "method": bucket.get("method"),
-            "mean_delta_iou": bucket.get("mean_delta_iou"),
+            "mean_delta_iou": bucket.get("mean_delta_iou", bucket.get("mean_delta")),
             "num_images": bucket.get("num_images"),
             "top_positive": _to_rows(top_positive),
             "top_negative": _to_rows(top_negative),

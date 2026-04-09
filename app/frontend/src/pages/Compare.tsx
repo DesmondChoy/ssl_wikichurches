@@ -37,7 +37,9 @@ function clampLayer(value: string | null, fallback: number) {
 export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isPlaying, setIsPlaying] = useState(false);
-  const imageId = searchParams.get('image') || '';
+  const imageQueryImageId = searchParams.get('image');
+  const legacyImageId = searchParams.get('image_id');
+  const imageId = imageQueryImageId || legacyImageId || '';
   const comparisonTypeParam = searchParams.get('type');
   const comparisonType: ComparisonType = comparisonTypeParam === 'variants' ? 'variants' : 'models';
   const legacyStrategy = searchParams.get('strategy') || '';
@@ -67,6 +69,16 @@ export function ComparePage() {
   const thresholdFree = metricMetadata.thresholdFree;
   const leftVariant: CompareVariantId = isCompareVariantId(leftVariantParam) ? leftVariantParam : 'frozen';
   const rightVariant: CompareVariantId = isCompareVariantId(rightVariantParam) ? rightVariantParam : 'full';
+
+  useEffect(() => {
+    // Normalize legacy `image_id` links to the canonical `image` param used by this page.
+    if (!imageQueryImageId && legacyImageId) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('image', legacyImageId);
+      nextParams.delete('image_id');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [imageQueryImageId, legacyImageId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (comparisonTypeParam === 'frozen') {
