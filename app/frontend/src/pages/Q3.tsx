@@ -14,6 +14,7 @@ import {
   parseAdvancedQ3WorkspaceState,
 } from '../constants/q3Routing';
 import {
+  Q3_DEFAULTS,
   Q3_PRIMARY_MODELS,
   Q3_VARIANT_OPTIONS,
   formatQ3ScopeOptionLabel,
@@ -26,6 +27,7 @@ export function Q3Page() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: modelsData } = useModels();
+  const searchParamsString = searchParams.toString();
 
   const availableQ3Models = useMemo(() => {
     const visibleModels = (modelsData?.models ?? []).filter((value) =>
@@ -34,23 +36,28 @@ export function Q3Page() {
     return visibleModels.length > 0 ? visibleModels : [...Q3_PRIMARY_MODELS];
   }, [modelsData?.models]);
 
-  const provisionalState = parseAdvancedQ3WorkspaceState(searchParams, {
-    availableModels: availableQ3Models,
-  });
+  const provisionalState = useMemo(
+    () => parseAdvancedQ3WorkspaceState(new URLSearchParams(searchParamsString), {
+      availableModels: availableQ3Models,
+    }),
+    [availableQ3Models, searchParamsString],
+  );
 
   const primaryMaxLayer = modelsData?.num_layers_per_model?.[provisionalState.primaryModel]
     ? modelsData.num_layers_per_model[provisionalState.primaryModel] - 1
-    : 11;
+    : Q3_DEFAULTS.layer;
   const secondaryMaxLayer = modelsData?.num_layers_per_model?.[provisionalState.secondaryModel]
     ? modelsData.num_layers_per_model[provisionalState.secondaryModel] - 1
-    : 11;
+    : Q3_DEFAULTS.layer;
   const sharedMaxLayer = Math.max(0, Math.min(primaryMaxLayer, secondaryMaxLayer));
 
-  const workspaceState = parseAdvancedQ3WorkspaceState(searchParams, {
-    availableModels: availableQ3Models,
-    maxLayer: sharedMaxLayer,
-  });
-  const searchParamsString = searchParams.toString();
+  const workspaceState = useMemo(
+    () => parseAdvancedQ3WorkspaceState(new URLSearchParams(searchParamsString), {
+      availableModels: availableQ3Models,
+      maxLayer: sharedMaxLayer,
+    }),
+    [availableQ3Models, searchParamsString, sharedMaxLayer],
+  );
   const variantScopeStatus = getQ3VariantScopeStatus(workspaceState.variant);
   const selectionHelperText = getQ3SelectionHelperText('primary', variantScopeStatus);
   const variantOptions = Q3_VARIANT_OPTIONS.map((option) => ({

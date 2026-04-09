@@ -1240,6 +1240,24 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByTestId('advanced-q3-pane-secondary').getByTestId('q3-exemplar-panel')).toBeVisible();
   });
 
+  test('swaps the compared models on /q3 and updates the URL and pane headings together', async ({ page }) => {
+    await stubDashboardApis(page);
+    await page.goto('/q3?primary_model=clip&secondary_model=mae&variant=linear_probe&layer=9&metric=coverage&percentile=80');
+
+    const primaryPane = page.getByTestId('advanced-q3-pane-primary');
+    const secondaryPane = page.getByTestId('advanced-q3-pane-secondary');
+
+    await expect(primaryPane.getByRole('heading', { name: 'clip' })).toBeVisible();
+    await expect(secondaryPane.getByRole('heading', { name: 'mae' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Swap models' }).click();
+
+    await expect(page).toHaveURL(/primary_model=mae/);
+    await expect(page).toHaveURL(/secondary_model=clip/);
+    await expect(primaryPane.getByRole('heading', { name: 'mae' })).toBeVisible();
+    await expect(secondaryPane.getByRole('heading', { name: 'clip' })).toBeVisible();
+  });
+
   test('routes exemplar drill-down from the secondary /q3 pane into Image Detail with that pane model', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/q3?primary_model=dinov2&secondary_model=clip&variant=linear_probe&layer=11&metric=iou&percentile=90');
