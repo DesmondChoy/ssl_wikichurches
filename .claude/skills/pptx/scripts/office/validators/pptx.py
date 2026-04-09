@@ -74,13 +74,15 @@ class PPTXSchemaValidator(BaseSchemaValidator):
                 for elem in root.iter():
                     for attr, value in elem.attrib.items():
                         attr_name = attr.split("}")[-1].lower()
-                        if attr_name == "id" or attr_name.endswith("id"):
-                            if self._looks_like_uuid(value):
-                                if not uuid_pattern.match(value):
-                                    errors.append(
-                                        f"  {xml_file.relative_to(self.unpacked_dir)}: "
-                                        f"Line {elem.sourceline}: ID '{value}' appears to be a UUID but contains invalid hex characters"
-                                    )
+                        if (
+                            (attr_name == "id" or attr_name.endswith("id"))
+                            and self._looks_like_uuid(value)
+                            and not uuid_pattern.match(value)
+                        ):
+                            errors.append(
+                                f"  {xml_file.relative_to(self.unpacked_dir)}: "
+                                f"Line {elem.sourceline}: ID '{value}' appears to be a UUID but contains invalid hex characters"
+                            )
 
             except (lxml.etree.XMLSyntaxError, Exception) as e:
                 errors.append(
@@ -254,7 +256,7 @@ class PPTXSchemaValidator(BaseSchemaValidator):
                 errors.append(
                     f"  Notes slide '{target}' is referenced by multiple slides: {', '.join(slide_names)}"
                 )
-                for slide_name, rels_file in references:
+                for _slide_name, rels_file in references:
                     errors.append(f"    - {rels_file.relative_to(self.unpacked_dir)}")
 
         if errors:

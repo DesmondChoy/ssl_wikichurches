@@ -124,13 +124,25 @@ class BaseSchemaValidator:
                 for elem in dom.getElementsByTagName("*"):
                     if elem.tagName.endswith(":t") and elem.firstChild:
                         text = elem.firstChild.nodeValue
-                        if text and (text.startswith((' ', '\t')) or text.endswith((' ', '\t'))):
-                            if elem.getAttribute("xml:space") != "preserve":
-                                elem.setAttribute("xml:space", "preserve")
-                                text_preview = repr(text[:30]) + "..." if len(text) > 30 else repr(text)
-                                print(f"  Repaired: {xml_file.name}: Added xml:space='preserve' to {elem.tagName}: {text_preview}")
-                                repairs += 1
-                                modified = True
+                        if (
+                            text
+                            and (
+                                text.startswith((" ", "\t"))
+                                or text.endswith((" ", "\t"))
+                            )
+                            and elem.getAttribute("xml:space") != "preserve"
+                        ):
+                            elem.setAttribute("xml:space", "preserve")
+                            text_preview = (
+                                repr(text[:30]) + "..."
+                                if len(text) > 30
+                                else repr(text)
+                            )
+                            print(
+                                f"  Repaired: {xml_file.name}: Added xml:space='preserve' to {elem.tagName}: {text_preview}"
+                            )
+                            repairs += 1
+                            modified = True
 
                 if modified:
                     xml_file.write_bytes(dom.toxml(encoding="UTF-8"))
@@ -473,15 +485,12 @@ class BaseSchemaValidator:
             return self.ELEMENT_RELATIONSHIP_TYPES[elem_lower]
 
         if elem_lower.endswith("id") and len(elem_lower) > 2:
-            prefix = elem_lower[:-2]  
-            if prefix.endswith("master"):
+            prefix = elem_lower[:-2]
+            if prefix.endswith("master") or prefix.endswith("layout"):
                 return prefix.lower()
-            elif prefix.endswith("layout"):
-                return prefix.lower()
-            else:
-                if prefix == "sld":
-                    return "slide"
-                return prefix.lower()
+            if prefix == "sld":
+                return "slide"
+            return prefix.lower()
 
         if elem_lower.endswith("reference") and len(elem_lower) > 9:
             prefix = elem_lower[:-9]  
@@ -573,12 +582,11 @@ class BaseSchemaValidator:
                     continue
 
                 extension = file_path.suffix.lstrip(".").lower()
-                if extension and extension not in declared_extensions:
-                    if extension in media_extensions:
-                        relative_path = file_path.relative_to(self.unpacked_dir)
-                        errors.append(
-                            f'  {relative_path}: File with extension \'{extension}\' not declared in [Content_Types].xml - should add: <Default Extension="{extension}" ContentType="{media_extensions[extension]}"/>'
-                        )
+                if extension and extension not in declared_extensions and extension in media_extensions:
+                    relative_path = file_path.relative_to(self.unpacked_dir)
+                    errors.append(
+                        f'  {relative_path}: File with extension \'{extension}\' not declared in [Content_Types].xml - should add: <Default Extension="{extension}" ContentType="{media_extensions[extension]}"/>'
+                    )
 
         except Exception as e:
             errors.append(f"  Error parsing [Content_Types].xml: {e}")
@@ -760,7 +768,7 @@ class BaseSchemaValidator:
                 )
                 schema = lxml.etree.XMLSchema(xsd_doc)
 
-            with open(xml_file, "r") as f:
+            with open(xml_file, encoding="utf-8") as f:
                 xml_doc = lxml.etree.parse(f)
 
             xml_doc, _ = self._remove_template_tags_from_text_nodes(xml_doc)
