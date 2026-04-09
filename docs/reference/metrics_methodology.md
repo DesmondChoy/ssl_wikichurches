@@ -136,6 +136,14 @@ Where:
 - Epsilon smoothing keeps KL finite even when either map is sparse or nearly zero
 - The shared `8×8` support makes EMD scores comparable across models with native `7×7`, `14×14`, and `16×16` attention grids
 
+**Design note on epsilon smoothing:** `prepare_probability_distribution()` adds `EPSILON = 1e-8` to every pixel before renormalization. On the standard `224×224` production grid, this contributes `224 × 224 × 1e-8 = 5.0176e-4` total pre-normalization pseudo-mass. We keep that value because it stays below the repo's `0.001` acceptability threshold for worst-case unit-sum sparse inputs while ensuring `KL(GT || attention)` remains finite for zero-heavy maps.
+
+Targeted regression fixtures in `tests/test_metrics/test_continuous.py` show the tradeoff directly:
+- A **uniform** map is unchanged after renormalization.
+- A broad Gaussian-like map changes only slightly and remains materially closer to unchanged than the sparse fixtures.
+- The largest peak distortion occurs on the intentionally worst-case **single-pixel spike**.
+- A compact `3×3` hotspot still shifts less at the peak than the single-pixel spike, but it remains meaningfully sparser than the broad Gaussian fixture.
+
 **Design note on direction:** The API and UI report **`KL(GT || attention)`**, not the reverse direction. This means the Gaussian target distribution is treated as the reference distribution, and the model attention is measured by how much probability mass it fails to place where the annotations say it should.
 
 **Design note on approximation:** The implementation uses the exact 2D Wasserstein-1 solver on the shared `8×8` support, not the native attention grid. This preserves true 2D transport semantics while keeping full-cache precomputation practical.
