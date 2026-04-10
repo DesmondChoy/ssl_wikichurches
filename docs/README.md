@@ -1,7 +1,16 @@
 # Documentation
 
-SSL attention visualization platform comparing 7 vision models against expert-annotated architectural features (WikiChurches dataset, 139 images, 631 bounding boxes). See the [Project Proposal](core/project_proposal.md) for the full research design.
+This directory complements the root [`README.md`](../README.md) with workflow guides, API and methodology references, and research notes for the SSL WikiChurches analysis app. The project compares 7 vision models against expert-annotated architectural features in the 139-image WikiChurches subset with 631 bounding boxes.
+
 Current model keys: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`.
+
+## Start Here
+
+| Document | Best for |
+|----------|----------|
+| [../README.md](../README.md) | Setup, cache generation, fine-tuning commands, and current app routes |
+| [user_guide.md](user_guide.md) | Gallery, Compare, Dashboard, Q2, Image Detail, and advanced Q3 workflows |
+| [reference/api_reference.md](reference/api_reference.md) | Backend routes, query parameters, payloads, and response contracts |
 
 ## Structure
 
@@ -34,7 +43,7 @@ Technical implementation details and model-specific considerations.
 | [per_head_methodology.md](reference/per_head_methodology.md) | Q3 per-head extraction rules, metric pipeline, alternatives, and limitations |
 
 ### [`enhancements/`](enhancements/) — Ongoing Enhancements
-Future improvements live here, but some documents also track partially or fully shipped work plus the remaining follow-up ideas.
+Current scope notes and follow-up directions for larger feature areas.
 
 | Document | Description | Status |
 |----------|-------------|--------|

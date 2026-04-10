@@ -34,7 +34,7 @@ The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q
 - **Q3 scope**
   The primary Q3 workflow focuses on `dinov2`, `dinov3`, `mae`, and `clip`. `Frozen`, `LoRA`, and `Full Fine-tune` are the headline variants. `Linear Probe` remains available as a control.
 - **Context in the URL**
-  The app now carries a lot of state through URL parameters, especially for Q2 and Q3. That makes it easier to reopen a specific comparison or share a drill-down state.
+  The app keeps a lot of state in URL parameters, especially for Q2 and Q3. That makes it easier to reopen a specific comparison or share a drill-down state.
 
 ## Page Reference
 
@@ -61,9 +61,9 @@ This is the main single-image inspection view.
 - **Right column**
   A metrics chart showing layer-by-layer alignment for the current image, model, and method.
 
-Important current behavior:
+Important behavior:
 
-- The right-hand panel is now a **metrics progression chart**, not a feature-breakdown panel.
+- The right-hand panel is a **metrics progression chart**, not a feature-breakdown panel.
 - Clicking a bounding box on the image or in the annotations list keeps that feature selected as context for the current image.
 - Head selection only appears when the current model and method support per-head attention.
 
@@ -80,10 +80,10 @@ Use this tab after identifying an interesting head or head-feature pattern in **
 - **Reset action**
   Use **Q3 defaults** to return to the canonical starting state for the Q3 drill-down workflow.
 
-Important current behavior:
+Important behavior:
 
-- `Linear Probe` is still available here, but it is treated as a **control**, not a headline Q3 condition.
-- The Q3 tab is a drill-down surface. The main discovery step still happens on **Dashboard Q3**.
+- `Linear Probe` is available here, but it is treated as a **control**, not a headline Q3 condition.
+- The Q3 tab is a drill-down surface. The main discovery step happens on **Dashboard Q3**.
 
 ### Compare (`/compare`)
 
@@ -108,9 +108,9 @@ Use this when you want to compare two versions of the same model.
 - Use the layer controls to inspect how the comparison changes through the network.
 - Click a bounding box to switch from global overlays to bbox-conditioned similarity overlays.
 
-Important current behavior:
+Important behavior:
 
-- The page is no longer just "frozen vs fine-tuned." It supports **any pairwise variant comparison**.
+- The page supports **any pairwise variant comparison**.
 - When Q2 summary data is available for the selected model and metric, the page can show an **experiment summary** card sourced from the active Q2 analysis.
 
 ### Dashboard (`/dashboard`)
@@ -136,10 +136,10 @@ This is the best starting point for **Q1**.
 - **Quick actions**
   Jump to Gallery, Compare, or Q2 with the current context partially preserved.
 
-Important current behavior:
+Important behavior:
 
 - The ranking mode can use either each model's **default method** or its **best available method**.
-- The Dashboard leaderboard still covers the base model set. Strategy-specific fine-tuned variants are surfaced through **Q2** and **Compare**, not as a strategy-aware dashboard leaderboard.
+- The Dashboard leaderboard covers the base model set. Strategy-specific fine-tuned variants are surfaced through **Q2** and **Compare**, not as a strategy-aware dashboard leaderboard.
 
 #### Q3 tab
 
@@ -154,10 +154,10 @@ This is the main discovery surface for **Q3**.
 - **Open advanced workspace**
   Sends the current model, variant, layer, metric, percentile, and optional focus into `/q3`.
 
-Important current behavior:
+Important behavior:
 
 - Start here first for Q3. `/q3` is the advanced comparison workspace, not the main entry point.
-- The inline exemplar flow is now part of Dashboard Q3, so you can validate a head-feature pattern before leaving the page.
+- The inline exemplar flow is part of Dashboard Q3, so you can validate a head-feature pattern before leaving the page.
 
 ### Q3 Advanced (`/q3`)
 
@@ -179,9 +179,9 @@ This is the main summary page for **Q2**.
 - A second section shows pairwise cross-strategy comparisons.
 - **Open Variant Compare** launches `/compare` with the current metric and analyzed layer as the starting point.
 
-Important current behavior:
+Important behavior:
 
-- The Q2 page is now tied to the **active experiment** rather than a single hardcoded result file.
+- The Q2 page reads from the **active experiment** rather than a single hardcoded result file.
 - The compare link opens the same analyzed layer used by the aggregate Q2 summary so the image-level inspection starts from the same context.
 
 ## Recommended Workflows

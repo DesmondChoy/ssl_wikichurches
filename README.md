@@ -55,7 +55,7 @@ uv run python -m app.precompute.generate_heatmap_images --colormap viridis
 uv run python -m app.precompute.generate_metrics_cache
 ```
 
-To enable the shipped **Q3 per-head workflow** on Dashboard and Image Detail, also populate the per-head attention and metrics caches for the primary Q3 models:
+To populate the primary-study **Q3 per-head workflow** on Dashboard, Image Detail, and the advanced `/q3` workspace, also generate the per-head attention and metrics caches for the primary Q3 models:
 
 ```bash
 # Frozen Q3 scope
@@ -67,7 +67,7 @@ uv run python -m app.precompute.generate_attention_cache --finetuned --models di
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
 ```
 
-If you want `linear_probe` available as a control in Q3, run the same per-head commands with `--strategies linear_probe`.
+If you want `linear_probe` available as a Q3 control condition, run the same per-head commands with `--strategies linear_probe`.
 
 To enable **Frozen vs Fine-tuned** on the Compare page (overlays and bbox similarity heatmaps), also run with `--finetuned` (after training checkpoints; see Fine-Tuning below):
 
@@ -79,6 +79,18 @@ uv run python -m app.precompute.generate_heatmap_images --finetuned --models all
 
 > **Tip:** Test with a subset first: `--models dinov2 --layers 11`
 
+Common cache-generation flags:
+
+| Flag | Scripts | Purpose |
+|------|---------|---------|
+| `--models ...` / `--layers ...` | attention, feature, heatmap, metrics | Limit regeneration to a subset of models or layers |
+| `--methods ...` | attention, heatmap, metrics | Restrict work to specific attention methods such as `cls`, `rollout`, `mean`, or `gradcam` |
+| `--per-head` | attention, metrics | Populate Q3 per-head attention variants and per-head metrics tables |
+| `--finetuned` | attention, feature, heatmap, metrics | Switch from frozen artifacts to fine-tuned cache keys |
+| `--strategies auto|all|linear_probe|lora|full` | fine-tuned attention, feature, heatmap, metrics | Choose which fine-tuned variants to discover or build |
+| `--percentiles 90 80 ...` | metrics | Customize the IoU threshold set stored in `metrics.db` |
+| `--no-skip` | all generators | Recompute existing artifacts instead of reusing cached outputs |
+
 ### 4. Run the App
 
 ```bash
@@ -89,10 +101,12 @@ Open http://localhost:5173 in your browser.
 
 Key routes after startup:
 
+- `/` for the Gallery image browser
 - `/image/:id` for the main Image Detail workflow and Q3 exemplar drill-down state
 - `/compare` for `Model vs Model`, `Frozen vs Fine-tuned`, and `Variant vs Variant`
 - `/q2` for the strategy-aware multi-metric Q2 attention-shift summary
-- `/dashboard` for the overview leaderboard, continuous-metric baseline references, and the Q3 per-head analysis tab
+- `/dashboard` for the overview leaderboard, continuous-metric baseline references, and the primary Q3 discovery surface
+- `/q3` for the advanced side-by-side Q3 workspace that keeps two primary-study models aligned on shared context
 
 <details>
 <summary>Alternative: Docker</summary>
@@ -104,7 +118,7 @@ docker compose up
 
 ## Models
 
-All models use **ViT-Base** architecture (12 layers, 768 hidden dim, 12 attention heads).
+All transformer models use **ViT-Base** backbones (12 layers, 768 hidden dim, 12 attention heads). `resnet50` serves as the CNN baseline.
 
 | Model | HuggingFace ID | Architecture | Attention Methods | Training |
 |-------|----------------|--------------|-------------------|----------|
@@ -134,7 +148,7 @@ Fine-tune SSL backbones on architectural style classification (all ViT models; `
 
 **Fine-tunable model keys**: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`.
 
-**Artifact naming**: the primary fine-tuning pipeline now writes experiment-scoped checkpoints to `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`. Fine-tuned cache keys still use `{model}_finetuned_{strategy}`. A legacy `{model}_finetuned.pt` fallback is still accepted for older full-fine-tuning runs.
+**Artifact naming**: Experiment-scoped checkpoints live at `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`. Fine-tuned cache keys use `{model}_finetuned_{strategy}`. The loader also accepts `{model}_finetuned.pt` for older full-fine-tuning runs.
 
 ```python
 from ssl_attention.evaluation import FineTuningConfig, FineTuner, FineTunableModel
@@ -149,7 +163,7 @@ config = FineTuningConfig(model_name="dinov2", use_lora=True, lora_rank=8)
 result = tuner.train(FineTunableModel("dinov2"), dataset)
 ```
 
-See `src/ssl_attention/evaluation/` for full API. The canonical experiment ledger now lives under `outputs/results/experiments/<experiment_id>/`, with `outputs/results/active_experiment.json` pointing the app, figure scripts, and docs refresh tools to the currently selected batch. LoRA support requires the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
+See `src/ssl_attention/evaluation/` for the full API. The canonical experiment ledger lives under `outputs/results/experiments/<experiment_id>/`, and `outputs/results/active_experiment.json` selects the batch that the app, figure scripts, and docs refresh tools read by default. LoRA support uses the [PEFT](https://github.com/huggingface/peft) library (included in dependencies).
 
 ### Fine-tuning Workflow
 
@@ -186,7 +200,7 @@ uv run python experiments/scripts/fine_tune_models.py --all --epochs 3 --experim
 - `outputs/results/experiments/<experiment_id>/fine_tuning_results.json`
 - `outputs/checkpoints/<experiment_id>/{model}_{strategy}_finetuned.pt`
 
-   `--val-on-annotated-eval` still exists, but it is explicitly marked as `exploratory` in manifests and downstream results. It should not be used for the main experiment. Use `--include-annotated-eval` only if your local dataset contains only the 139 annotated images and you are intentionally running an annotated-only fallback.
+   Use `--val-on-annotated-eval` only for explicit exploratory runs. Those runs are marked as `exploratory` in manifests and downstream results, and they are separate from the primary methodology. Use `--include-annotated-eval` only if your local dataset contains only the 139 annotated images and you want an annotated-only fallback.
 
 2. **Run the fine-tuning attention analysis** (canonical output: `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`, consumed by `/api/metrics/q2_summary` and the `/q2` page through `active_experiment.json`):
 
@@ -197,7 +211,7 @@ uv run python experiments/scripts/analyze_q2_metrics.py \
   --strategies linear_probe lora full
 ```
 
-   The generated artifact includes IoU, coverage, Gaussian MSE, KL, and EMD summaries plus experiment provenance such as `experiment_id`, `split_id`, evaluation image count, git commit SHA, and checkpoint-selection rule. The legacy wrapper `experiments/scripts/analyze_delta_iou.py` still exists for compatibility, but the canonical app-facing artifact is `q2_metrics_analysis.json`.
+   The generated artifact includes IoU, coverage, Gaussian MSE, KL, and EMD summaries plus experiment provenance such as `experiment_id`, `split_id`, evaluation image count, git commit SHA, and checkpoint-selection rule. The app-facing artifact is `q2_metrics_analysis.json`, and `experiments/scripts/analyze_delta_iou.py` remains available only for older delta-IoU-only consumers.
 
 3. **Precompute for the Compare page** (attention + feature cache + heatmaps for frozen and fine-tuned). Required for overlays and bbox similarity (“Similarity heatmaps are unavailable” appears without feature cache). Run **frozen** first, then **fine-tuned** (same `--strategies` as your checkpoints). Fine-tuned artifacts are written under strategy-aware cache keys such as `{model}_finetuned_lora` and `{model}_finetuned_full`.
 
@@ -225,7 +239,36 @@ uv run python -m app.precompute.generate_metrics_cache
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
 ```
 
-The dashboard leaderboard and `/api/compare/all_models_summary` still operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on the active experiment's `q2_metrics_analysis.json` plus the fine-tuned attention, feature, heatmap, and strategy-aware metrics caches above, not on a strategy-aware leaderboard surface in the dashboard.
+The dashboard leaderboard and `/api/compare/all_models_summary` operate on the base `AVAILABLE_MODELS` set. The fine-tuned compare flows and the `/q2` analysis rely on the active experiment's `q2_metrics_analysis.json` plus the fine-tuned attention, feature, heatmap, and strategy-aware metrics caches above, not on a strategy-aware leaderboard surface in the dashboard.
+
+### Useful Fine-Tuning And Analysis Flags
+
+| Flag | Script | Purpose |
+|------|--------|---------|
+| `--experiment-id <id>` | `fine_tune_models.py`, `analyze_q2_metrics.py` | Reuse one named experiment batch across training and analysis |
+| `--freeze-backbone` | `fine_tune_models.py` | Run the `linear_probe` control condition |
+| `--lora` | `fine_tune_models.py` | Run the LoRA strategy |
+| `--include-annotated-eval` | `fine_tune_models.py` | Use the 139 annotated images as the training/validation pool when that is the only local dataset available |
+| `--val-on-annotated-eval` | `fine_tune_models.py` | Produce an explicit exploratory batch selected on the annotated pool |
+| `--include-exploratory` | `analyze_q2_metrics.py` | Include exploratory runs in the Q2 summary export |
+| `--output <path>` | `analyze_q2_metrics.py` | Write `q2_metrics_analysis.json` to a custom location |
+
+### Q1 Baseline Reports
+
+Refresh the frozen-model continuous-metric comparison artifacts used by the Dashboard baseline references and write them under `outputs/results/`:
+
+```bash
+uv run python experiments/scripts/analyze_q1_continuous_baselines.py
+```
+
+Optional output controls:
+
+```bash
+uv run python experiments/scripts/analyze_q1_continuous_baselines.py \
+  --output-dir outputs/results \
+  --json-name q1_continuous_baseline_comparison.json \
+  --markdown-name q1_continuous_baseline_summary.md
+```
 
 ## Data Exploration
 

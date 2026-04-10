@@ -165,6 +165,8 @@ Unlike IoU, the Gaussian-target metrics do not have a simple closed-form random 
 
 These values are empirical reference points for the current annotated subset and the current baseline definitions. They should be refreshed only if the annotations or baseline maps materially change.
 
+`experiments/scripts/analyze_q1_continuous_baselines.py` reads these baseline references alongside the frozen-model leaderboard and writes the matching JSON and Markdown comparison artifacts to `outputs/results/`.
+
 **How to read model scores against these baselines:**
 - **Beating random only** is weak evidence of meaningful alignment. It shows the heatmap is not pure chance, but not yet that it captures architectural semantics.
 - **Matching the center Gaussian or saliency prior** suggests the metric may still be explained by generic spatial priors rather than feature-aware attention.

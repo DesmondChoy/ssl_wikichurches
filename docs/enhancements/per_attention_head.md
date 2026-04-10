@@ -1,8 +1,6 @@
 # Per-Head Attention Visualization
 
-> **Enhancement proposed:** January 2026
-> **Current status:** Core Q3 per-head product surface shipped in commit `28c32ea`; next phase is a scoped research and backfill enhancement
-> **Document type:** PRD-style product and research direction note
+This note describes the current Q3 product surface and the recommended study framing for per-head analysis.
 
 > **Related documents:**
 > - [Project Proposal — Q3: Head Specialization](../core/project_proposal.md#research-questions-and-approaches)
@@ -12,29 +10,28 @@
 
 ## 1. Product Context
 
-The core per-head feature is already implemented.
+The Q3 surface combines three connected views:
 
-Commit `28c32ea` added the baseline Q3 product surface:
+- **Dashboard Q3** for dataset-level discovery through head rankings, head-by-feature heatmaps, inline exemplars, and frozen-to-adapted deltas
+- **Image Detail Q3** for single-image drill-down with variant-aware top-head ranking, expandable head gallery, and `Head Attention` vs `Feature Similarity` modes
+- **Advanced `/q3`** for side-by-side comparison of two primary-study models under shared Q3 context
+
+The supporting backend and cache surface includes:
 
 - raw per-head attention requests in the attention API and image viewer
-- head-aware UI controls in the React app
-- Q3 head-ranking and head-by-feature matrix endpoints
+- Q3 head-ranking, image-level head-ranking, head-by-feature matrix, and exemplar endpoints
 - per-head cache generation and per-head metrics precompute paths
-- multi-metric Q3 backend and frontend support
+- variant-aware per-head availability metadata for strict Q3 selectors
 
-Because of that, the next phase is **not** "build per-head Q3 from scratch." The next phase is to tighten the research scope, backfill the right cache/database artifacts, and align the product framing with a more focused investigation.
+## 2. Research Focus
 
-## 2. Problem Statement
-
-The current Q3 capability is technically broad, but the research story is still too open-ended. It spans multiple architectures, proxy-based and architecture-native extraction paths, and all variant options without a clear first-pass hypothesis.
-
-That makes the feature harder to interpret and more expensive to populate than it needs to be.
-
-The next phase should answer a narrower question:
+The Q3 capability is broad enough to explore multiple architectures and variant states, but the most defensible headline study stays narrower:
 
 **How do different pretraining supervision families shape head specialization, and how does adaptation change the dominant head set within those families?**
 
-## 3. Proposed Direction
+That framing keeps the main claim focused on architecture-native CLS-token models and makes the cache-population requirements tractable.
+
+## 3. Recommended Scope
 
 ### Research framing
 
@@ -53,7 +50,7 @@ This is a stronger academic framing than "all models with any per-head path" bec
 - Control: `linear_probe` is optional and should be treated as a sanity-check control rather than a primary research condition, because the backbone stays frozen in that strategy
 - Q3 method: `cls`
 
-### Explicit exclusions for this phase
+### Explicit exclusions for this scope
 
 - `siglip` and `siglip2` are out of primary scope because their Q3 per-head analysis uses a mean-attention proxy rather than the model's learned pooling head
 - `rollout` remains out of scope because it is a multi-layer aggregate rather than the unit of analysis for head specialization
@@ -121,9 +118,9 @@ On the image-level attention view:
 - no attempt to make every current model and every variant fully populated
 - no claim that raw per-head attention is a full causal explanation method
 
-## 7. Operational Plan For The Next Backfill
+## 7. Recommended Cache Population Scope
 
-The next Q3 execution session should prioritize the scoped study conditions instead of all possible per-head-capable models.
+Populate the scoped study conditions first instead of trying to fill every per-head-capable model and variant combination.
 
 ### Frozen scope
 
@@ -150,11 +147,11 @@ uv run python -m app.precompute.generate_metrics_cache --finetuned --models dino
 
 ### Validation target
 
-For this phase, success means the Q3 panel stops showing the missing-data warning for the scoped study conditions above. It is acceptable for out-of-scope selections to remain unpopulated until a later phase.
+Success means the Q3 surfaces stop showing missing-data warnings for the scoped study conditions above. Out-of-scope selections can remain unpopulated.
 
-## 8. Current Implementation Baseline
+## 8. Storage And API Surfaces
 
-The current shipped storage and API layout already supports this direction:
+The storage and API layout that supports this direction includes:
 
 - per-head attention variants live in `outputs/cache/attention_viz.h5`
 - per-head metrics live in `outputs/cache/metrics.db`
@@ -170,9 +167,9 @@ The current shipped storage and API layout already supports this direction:
   - `/api/metrics/model/{model}/head_feature_matrix`
   - `/api/metrics/model/{model}/head_exemplars`
 
-The dashboard Q3 surface now uses an interactive heatmap plus an inline exemplar panel instead of a numeric feature matrix. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
+Dashboard Q3 uses an interactive heatmap plus an inline exemplar panel instead of a numeric feature matrix. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
 
-This means the primary task for the next run is **population and interpretation**, not a first implementation of Q3 itself.
+This keeps the main operational task focused on **population and interpretation**.
 
 ## 9. Interpretation Guardrails
 
@@ -184,6 +181,11 @@ This means the primary task for the next run is **population and interpretation*
 
 For the full technical caveats, use [Q3 Per-Head Attention Methodology](../reference/per_head_methodology.md).
 
-## 10. Historical Note
+## 10. Follow-up Directions
 
-This file previously described the per-head feature more generally as a shipped capability overview. That remains true, but the next useful step is not to broaden coverage further. The next useful step is to use the already-shipped Q3 surface in a tighter and more defensible way.
+The most useful next steps stay inside the current Q3 framing:
+
+- keep the primary-study cache set populated for `dinov2`, `dinov3`, `mae`, and `clip`
+- treat `linear_probe` as an explicit control rather than a headline condition
+- keep headline conclusions scoped to descriptive head-specialization analysis rather than causal attribution
+- use the advanced `/q3` workspace for pairwise supervision-family comparisons after Dashboard Q3 has already narrowed the question

@@ -72,7 +72,7 @@ Q2 encompasses both the general question of whether fine-tuning shifts attention
 
 Rather than fusing all 12 attention heads via averaging, Q3 examines each head individually to understand **which heads develop alignment with expert annotations**.
 
-The shipped app now exposes this as a two-step workflow:
+The app exposes Q3 as a two-step workflow:
 
 1. Use the Dashboard `Q3` tab to inspect the head-ranking summary, the head-by-feature heatmap, and the frozen-to-adapted delta view.
 2. Drill into representative exemplar images on the Image Detail `Q3` tab with the selected model, variant, layer, head, and feature context already loaded.
@@ -100,7 +100,7 @@ Most ViT models include a special **CLS (class) token** that aggregates informat
 
 ### Attention Heads
 
-Transformers have multiple **attention heads** operating in parallel, each potentially focusing on different aspects of the image. Most overview views in the app still fuse these heads together (typically by averaging), but the shipped Q3 workflow can inspect one head at a time on both Dashboard and Image Detail.
+Transformers have multiple **attention heads** operating in parallel, each potentially focusing on different aspects of the image. Most overview views in the app fuse these heads together (typically by averaging), while the Q3 workflow can inspect one head at a time on both Dashboard and Image Detail.
 
 ---
 
@@ -255,6 +255,8 @@ To know if models perform well, we compare against [naive baselines](../core/pro
 | **Saliency** | Sobel edge detection | Low-level features |
 
 **Key question:** Do SSL models significantly outperform these baselines? A [negative result](../core/project_proposal.md#8-risks-and-mitigations) (low IoU across all models) is still informative—it tells us what models actually attend to.
+
+For the threshold-free Q1 metrics (`mse`, `kl`, and `emd`), the project uses documented dataset-level baseline references rather than IoU-style expected-overlap heuristics. Dashboard Overview surfaces those reference lines directly, and `experiments/scripts/analyze_q1_continuous_baselines.py` writes matching JSON and Markdown artifacts under `outputs/results/`. The calibration details live in [Metrics Methodology](../reference/metrics_methodology.md).
 
 ### The App Interface
 

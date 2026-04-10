@@ -1,10 +1,6 @@
 # Fine-Tuning Run Matrix
 
-This page describes the canonical artifact layout for the fine-tuning experiment.
-It no longer hardcodes a snapshot table of one historical batch. The source of
-truth is the generated experiment batch under `outputs/results/experiments/`,
-with `outputs/results/active_experiment.json` selecting which batch the app,
-figure scripts, and docs-refresh tooling should read.
+This page defines the canonical artifact layout for fine-tuning experiment batches. The generated experiment batch under `outputs/results/experiments/` is the source of truth, and `outputs/results/active_experiment.json` selects which batch the app, figure scripts, and docs-refresh tooling read by default.
 
 ## Primary methodology
 
@@ -20,9 +16,7 @@ The primary fine-tuning experiment uses one clean rule:
 This keeps checkpoint selection separate from the final attention-alignment
 reporting set.
 
-`--val-on-annotated-eval` still exists for explicit exploratory runs, but those
-runs are marked `exploratory` in manifests and downstream results. They are not
-the default source for docs, figures, or `/q2`.
+Use `--val-on-annotated-eval` only for explicit exploratory runs. Those runs are marked `exploratory` in manifests and downstream results, and they are separate from the primary source used for docs, figures, and `/q2`.
 
 ## Canonical artifact layout
 
@@ -156,8 +150,7 @@ significance call:
 | `correction_family_id` | Stable identifier for the shared `metric + percentile` correction bucket |
 | `correction_family_size` | Number of discovered model-strategy rows corrected together in that bucket |
 
-`q2_delta_iou_analysis.json` is retained only as a compatibility export for
-older consumers.
+Compatibility consumers can read `q2_delta_iou_analysis.json`, while the app and current docs read `q2_metrics_analysis.json`.
 
 ## Active experiment pointer
 
@@ -204,6 +197,18 @@ uv run python -m app.precompute.generate_metrics_cache --finetuned --models dino
 uv run python experiments/scripts/generate_run_matrix_figures.py
 uv run python experiments/scripts/generate_slide_images.py
 ```
+
+## Helpful CLI Flags
+
+| Flag | Script | Purpose |
+|---|---|---|
+| `--experiment-id <id>` | `fine_tune_models.py`, `analyze_q2_metrics.py` | Reuse one named experiment batch across training and analysis |
+| `--freeze-backbone` | `fine_tune_models.py` | Run the `linear_probe` control condition |
+| `--lora` | `fine_tune_models.py` | Run the LoRA strategy |
+| `--include-annotated-eval` | `fine_tune_models.py` | Use the 139 annotated images as the local training/validation pool when they are the only available dataset |
+| `--val-on-annotated-eval` | `fine_tune_models.py` | Produce an explicit exploratory batch selected on the annotated pool |
+| `--include-exploratory` | `analyze_q2_metrics.py` | Include exploratory runs in the exported Q2 summary |
+| `--output <path>` | `analyze_q2_metrics.py` | Write the analysis JSON to a custom location |
 
 ## Result storage map
 
