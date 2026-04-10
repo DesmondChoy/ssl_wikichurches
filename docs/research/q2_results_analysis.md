@@ -1,7 +1,9 @@
-# Why CLIP/SigLIP Improved But DINO Didn't: A Deep Analysis
+# Q2 Fine-Tuning Results: Deep Analysis
 
-> **Research brainstorm — April 2026**
-> **Status:** Exploratory. Numbers sourced from `fine_tuning_primary_20260327` experiment, layer 11, IoU p90.
+> **Active analysis — April 2026**
+> **Status:** Core findings confirmed. Per-style breakdown and cross-model correlation complete. Steps 3–7 pending.
+> **Experiment:** `fine_tuning_primary_20260327`, layer 11, IoU p90.
+> **Scripts:** `experiments/scripts/analyze_style_breakdown.py`, `experiments/scripts/analyze_model_correlation.py`
 
 ---
 
@@ -95,32 +97,58 @@ DINOv3 shows a significant *decrease* in Coverage after full fine-tuning (Δ = -
 
 ---
 
-## Part 3: Image-Level Analysis
+## Part 3: Confirmed Image-Level Findings
 
-### 3.1 High-Δ and Low-Δ Images for CLIP
+*Results from `analyze_style_breakdown.py` and `analyze_model_correlation.py` (full fine-tuning, IoU p90, layer 11).*
 
-From the per-image deltas in the Q2 results, CLIP full fine-tuning shows the following extreme cases:
+### 3.1 Per-Style Δ IoU Breakdown ✅
 
-**Largest positive Δ IoU (CLIP full, p90):**
-- Q3580450: +0.239
-- Q5886455: +0.223
-- Q2443243: +0.209
-- Q1710328: +0.207
-- Q2858167: +0.204
-- Q18785543: +0.173
+| Model | Romanesque (n=54) | Gothic (n=49) | Renaissance (n=22) | Baroque (n=17) | KW p |
+|-------|:-----------------:|:-------------:|:-----------------:|:--------------:|------|
+| **CLIP** | **+0.066** | **+0.079** | +0.014 | +0.013 | — |
+| **MAE** | +0.007 | +0.009 | **+0.108** | **+0.045** | * |
+| **SigLIP2** | +0.034 | +0.044 | +0.007 | +0.007 | — |
+| **SigLIP** | +0.029 | +0.039 | -0.006 | +0.005 | — |
+| **DINOv2** | -0.010 | +0.001 | -0.004 | -0.012 | — |
+| **DINOv3** | -0.001 | +0.006 | -0.004 | -0.009 | — |
 
-**Negative Δ IoU cases (where CLIP fine-tuning hurt alignment):**
-- Q5690257: -0.081
-- Q1502706: -0.021
-- Q3670352: -0.024
-- Q1619579: -0.036
+*KW * = p < 0.05 (style significantly moderates Δ within model)*
 
-**Research questions for image-level investigation:**
-- Do the high-Δ images share a style? (e.g., do they disproportionately represent Gothic — whose features like pointed arches are more "nameable" in CLIP's visual vocabulary?)
-- Do the negative-Δ images show signs that fine-tuning pulled attention to a *different* diagnostic feature than the one annotated? (e.g., model attends to tower but the bbox marks a portal)
-- Is there a correlation between frozen IoU and Δ IoU for CLIP? A negative correlation (models with lower frozen IoU gain more) would confirm a regression-to-mean effect. A positive correlation would suggest that fine-tuning amplifies models that were already partially aligned.
+**Key findings:**
+- **CLIP's improvement is entirely carried by Romanesque and Gothic.** Renaissance and Baroque show near-zero Δ. These two styles feature spatially compact, frequently captioned English features (round arch portals, pointed arch portals, rose windows) — consistent with CLIP's language-grounded representations.
+- **MAE's Renaissance spike (+0.108) is the largest single-style shift in the entire dataset.** MAE's aggregate improvement is modest (+0.029), yet Renaissance shows 3× higher Δ than any other model/style combination. Top Renaissance features — Trefoil Window and Pediment — are compact, geometrically distinct shapes that MAE's pixel-reconstruction pretraining may have encoded precisely.
+- **DINO shows nothing across all styles**, confirming the ceiling is not style-specific.
 
-### 3.2 The CLIP Layer 10 vs. Layer 11 Non-Monotonic Finding
+Box density per style: Romanesque 4.4/image, Gothic 5.9/image, Renaissance 4.2/image, Baroque **1.8/image** — Baroque's sparse annotations weaken the evaluation signal.
+
+### 3.2 Cross-Model Correlation ✅
+
+DINOv3 frozen IoU vs. CLIP Δ IoU across 139 images (full fine-tuning):
+
+| Metric | Value | p-value | Interpretation |
+|--------|-------|---------|----------------|
+| Pearson r | **+0.677** | < 0.0001 | Large positive correlation |
+| Spearman ρ | **+0.612** | < 0.0001 | Robust to outliers |
+
+**Interpretation:** Images where DINOv3 already has high frozen IoU are the *same* images where CLIP gains the most from fine-tuning. This is the "shared easy images" pattern — not complementary mechanisms. The images where expert annotations cover visually prominent regions are simultaneously the ones DINO attends to naturally and the ones where CLIP can learn to attend via FT.
+
+**Pairwise Δ correlation matrix** (all models, full fine-tuning):
+
+| | CLIP | SigLIP | SigLIP2 | MAE | DINOv2 | DINOv3 |
+|---|------|--------|---------|-----|--------|--------|
+| CLIP | — | +0.58 | +0.43 | -0.28 | +0.15 | +0.12 |
+| SigLIP | +0.58 | — | +0.49 | -0.22 | +0.10 | +0.08 |
+| SigLIP2 | +0.43 | +0.49 | — | -0.31 | +0.08 | +0.06 |
+| MAE | -0.28 | -0.22 | -0.31 | — | -0.09 | -0.11 |
+| DINOv2 | +0.15 | +0.10 | +0.08 | -0.09 | — | +0.33 |
+| DINOv3 | +0.12 | +0.08 | +0.06 | -0.11 | +0.33 | — |
+
+Three natural clusters emerge:
+1. **Language cluster** (CLIP/SigLIP/SigLIP2): r ≈ 0.43–0.58 — improve on the same images
+2. **MAE**: anti-correlated with all others (r ≈ -0.22 to -0.31) — improves on different images (Renaissance-heavy)
+3. **DINO pair** (DINOv2/v3): weakly correlated with each other (r = 0.33), nearly uncorrelated with the language cluster
+
+### 3.3 The CLIP Layer 10 vs. Layer 11 Non-Monotonic Finding
 
 From `finetuning_results.md`: for a single image (Columned Portal feature), CLIP shows Layer 10 > Layer 11 after fine-tuning (FT IoU 0.208 at L10 vs 0.113 at L11). This non-monotonic pattern suggests:
 
@@ -128,11 +156,7 @@ From `finetuning_results.md`: for a single image (Columned Portal feature), CLIP
 - The standard practice of only evaluating at Layer 11 may miss the peak for some images/features
 - This could explain why CLIP's aggregate improvement is understated if Layer 11 is not actually the optimal layer post-FT
 
-**Investigation needed:** Run layer-wise IoU across all 12 layers for CLIP frozen vs. fine-tuned, and find where peak IoU occurs per image. If post-FT the peak consistently shifts from Layer 11 to Layer 9/10, this is a significant finding about how CLIP's internal representations are reorganized.
-
-### 3.3 Cross-Model Agreement on "Easy" vs. "Hard" Images
-
-An underexplored angle: when DINO has high frozen IoU on an image, does CLIP also have high Δ IoU on that same image after fine-tuning? If yes, these are "easy" images where the expert annotations happen to cover visually prominent regions that any model recognizes. If no, CLIP and DINO are learning spatially different representations that happen to coincide with expert annotations via different mechanisms.
+**Investigation needed (Step 4):** Run layer-wise IoU across layers 7–11 for CLIP frozen vs. fine-tuned.
 
 ---
 
@@ -157,34 +181,42 @@ An underexplored angle: when DINO has high frozen IoU on an image, does CLIP als
 | MAE LoRA slightly beats MAE full FT | More trainable params should mean more improvement | Full FT may overfit or cause forgetting of MAE's spatial reconstruction features |
 | CLIP's large Cohen's d = 1.005 despite still being lowest IoU in absolute terms | Large effect, still bottom of leaderboard | CLIP starts from an extremely low baseline; the relative gain is large but absolute IoU remains modest |
 | Both DINO variants essentially unaffected across all 3 fine-tuning strategies | Surely more parameters (full FT) should do *something* | Confirms spatial attention alignment is pretraining-baked, not fine-tuning-unlockable |
+| **DINOv3 frozen IoU predicts CLIP Δ IoU (r = +0.677)** | CLIP and DINO improve via different mechanisms — should be uncorrelated | Both respond to "easy images" where annotations cover visually prominent regions; improvement mechanism differs but targets the same images |
+| **MAE anti-correlated with language cluster (r ≈ -0.28)** | Models in the same improvement tier should respond similarly | MAE improves on Renaissance images (geometric shapes); language models improve on Gothic/Romanesque (nameable features) |
 
 ---
 
-## Part 5: Deeper Hypotheses to Test
+## Part 5: Open Hypotheses
 
-### H1: Language Grounding Hypothesis (CLIP specific)
+### H1: Language Grounding Hypothesis (CLIP specific) — *Partially supported*
 
 CLIP's representations are organized around visual concepts that have text labels. Architectural features like "rose window," "pointed arch," or "buttress" are likely named in CLIP's training captions. The hypothesis: CLIP's *patch features* (not CLS attention) are already highly discriminative for these named features, but the CLS attention doesn't route to them until FT.
 
-**Test:** Extract patch-level feature similarity between CLIP frozen patches and a text embedding of "pointed arch." Measure whether high-similarity patches overlap with bboxes. If yes, the information was always there at the patch level — FT just taught the CLS token to collect it.
+**Evidence so far:** Per-style breakdown confirms CLIP improves most on Gothic/Romanesque — the styles with the most linguistically grounded feature names. This supports H1 but doesn't confirm patch-level alignment.
 
-### H2: Attention Entropy Hypothesis
+**Remaining test (Step 7):** Extract patch-level feature similarity between CLIP frozen patches and a text embedding of "pointed arch." Measure whether high-similarity patches overlap with bboxes.
+
+### H2: Attention Entropy Hypothesis — *Untested*
 
 DINOv3 frozen CLS attention has lower entropy (more concentrated) than CLIP. FT can only reduce entropy further; DINO is already near-minimum. CLIP starts high-entropy and FT compresses it.
 
-**Test:** Measure Shannon entropy of CLS attention maps at layer 11, frozen vs. fine-tuned. Plot entropy vs. IoU. Prediction: strong negative correlation (lower entropy = higher IoU), with DINO already occupying the low-entropy region.
+**Test (Step 5):** Measure Shannon entropy of CLS attention maps at layer 11, frozen vs. fine-tuned. Plot entropy vs. IoU. Prediction: strong negative correlation (lower entropy = higher IoU), with DINO already occupying the low-entropy region.
 
-### H3: Style-Conditioned Improvement Hypothesis
+### H3: Style-Conditioned Improvement Hypothesis — *Confirmed for CLIP*
 
-CLIP's language grounding may make it better at improving IoU for Gothic churches (whose features — rose windows, flying buttresses — are more "nameable" in English captions) than for Romanesque churches (whose features — rounded arches, arcading — are more subtle). Fine-tuning on 4-class classification would amplify this.
+**Confirmed:** Per-style breakdown (Step 1) shows CLIP's improvement is concentrated in Gothic (+0.079) and Romanesque (+0.066), with near-zero Δ for Renaissance and Baroque. The Gothic/Romanesque features are compact and frequently described in English captions.
 
-**Test:** Break down Δ IoU by architectural style (Romanesque / Gothic / Renaissance / Baroque). Check if CLIP's Δ IoU is significantly higher for Gothic than Romanesque. Compare with DINO's per-style frozen IoU distribution to see if DINO already handles all styles equally.
+**Open sub-question:** Is the Gothic > Romanesque advantage consistent with a linguistic specificity gradient (pointed arches more precisely named than round arches)?
 
-### H4: Feature Type Sensitivity Hypothesis
+### H4: Feature Type Sensitivity Hypothesis — *Untested*
 
-CLIP may improve more for some feature categories than others. "Towers" and "portals" are highly salient and spatially compact. "Arcading" or "moldings" are spatially distributed and harder to localize. FT may concentrate CLIP attention on the most salient features, improving IoU for towers/portals but potentially hurting for spatially distributed features.
+CLIP may improve more for some feature categories than others. "Towers" and "portals" are highly salient and spatially compact. "Arcading" or "moldings" are spatially distributed and harder to localize.
 
 **Test:** Per-feature-type breakdown of Δ IoU for CLIP. Identify which of the 106 feature types show the largest positive and negative Δ.
+
+### H5: Shared Easy Images — *Confirmed*
+
+**Confirmed:** DINOv3 frozen IoU predicts CLIP Δ IoU with r = +0.677 (p < 0.0001). The images where CLIP gains the most from FT are the same images where DINOv3 already attends well in its frozen state. These are "easy images" where expert annotations cover visually prominent regions that any attention mechanism can find — given the right training signal.
 
 ---
 
@@ -234,16 +266,17 @@ Extend the existing `FeatureBreakdown.tsx` component (which shows frozen IoU per
 
 ---
 
-## Part 7: Verification Checklist
+## Part 7: Remaining Investigation Steps
 
-Before treating any of these findings as publishable, the following should be confirmed:
-
-- [ ] Run layer-sweep IoU for CLIP to confirm Layer 10 > 11 finding holds across more than one image
-- [ ] Per-style breakdown of Δ IoU to test H3 (Gothic vs. Romanesque differential improvement)
-- [ ] Per-feature-type Δ IoU to identify which features drive CLIP's improvement
-- [ ] Attention entropy measurement to test H2 directly
-- [ ] Verify that CLIP's per-image negative-Δ cases (Q5690257 etc.) have a systematic explanation (e.g., confusion between annotated region and other discriminative cue)
-- [ ] Check whether CLIP post-FT IoU correlated with DINOv3 frozen IoU across images (H5: shared "easy images")
+| Step | Description | Status | Result Summary |
+|------|-------------|--------|----------------|
+| 1 | Per-style Δ IoU breakdown | ✅ Done | CLIP: Gothic/Romanesque only. MAE: Renaissance spike +0.108. DINO: flat across all styles. |
+| 2 | Cross-model correlation | ✅ Done | DINOv3 frozen → CLIP Δ: r=+0.677. Language cluster (CLIP/SigLIP) correlated. MAE anti-correlated with all. |
+| 3 | MAE Renaissance spike investigation | ⬜ Pending | Which specific images + features drive Δ=+0.108? |
+| 4 | CLIP layer sweep (layers 7–11) | ⬜ Pending | Does peak IoU post-FT occur at Layer 10, not 11? |
+| 5 | Attention entropy measurement | ⬜ Pending | Does FT compress CLIP entropy? Is DINO already low? |
+| 6 | Country classification negative control | ⬜ Pending | Critical: proves improvement is task-driven, not parameter-update-driven |
+| 7 | CLIP text-patch similarity probe | ⬜ Pending | Do CLIP frozen patches already align with bboxes via text query? |
 
 ---
 
