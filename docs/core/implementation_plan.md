@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-03-28 (Archived obsolete onboarding, synced Q2 docs to the multi-metric active-experiment flow, and updated compare/dashboard wording)
+**Last Updated:** 2026-04-10 (Added fine-tuning results analysis; Q2 primary experiment `fine_tuning_primary_20260327` complete; see `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for findings brainstorm)
 
 ---
 
@@ -301,7 +301,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
+5. **Q2 Primary Results** (`fine_tuning_primary_20260327`) ✅
+   - Full experiment completed 2026-03-27; analysis committed 2026-03-28
+   - Key finding: CLIP (d=1.005) and SigLIP family (d=0.6–0.8) show significant positive Δ IoU; DINOv2/v3 show Δ ≈ 0
+   - DINOv3 frozen IoU (0.133 at p90) is the highest of all models — beats CLIP post-FT (0.075)
+   - See `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for deep analysis and hypotheses
+
+> **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support, (b) attention shift visualization (issue #474), (c) layer-sweep IoU post-FT, and (d) per-feature-type / per-style Δ IoU breakdowns. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
