@@ -1,7 +1,7 @@
 # Investigation Roadmap: Affirming the CLIP/SigLIP vs. DINO Fine-Tuning Findings
 
 > **Written:** April 2026
-> **Context:** Follows the Q2 primary experiment `fine_tuning_primary_20260327` and the analysis in `docs/research/q2_results_analysis.md`.
+> **Context:** Follows the Q2 primary experiment `fine_tuning_primary_20260327` and the analysis in `docs/research/q2_results_analysis.md`. Model mechanisms are cross-checked against the whitepapers in [`docs/whitepapers/`](../whitepapers/) (see **Part 8** in the analysis doc).
 > **Purpose:** Concrete, prioritized steps to affirm and deepen the current findings — organized by effort level.
 
 ---
@@ -106,6 +106,8 @@ MAE's Renaissance Δ = +0.108 stands out as the largest single-style shift and i
 2. Which feature labels appear in those high-Δ images? Cross-reference against `building_parts.json`. If Trefoil Window / Pediment appear disproportionately, the hypothesis (compact geometric shapes = MAE sweet spot) is confirmed.
 3. Compare: does MAE's frozen IoU also show a Renaissance advantage over other styles, or does the frozen IoU show no style preference? If frozen IoU is already slightly higher for Renaissance, fine-tuning is amplifying a pre-existing tendency.
 
+**Whitepaper-informed check (He et al., MAE):** MAE is trained to reconstruct **pixels** under heavy masking (~75%), which rewards **local geometry** and holistic completion. Add **4.** For Trefoil/Pediment (or other high-Δ) crops, compare **frozen** patch embedding geometry (e.g., edge/gradient energy or a simple shape saliency proxy) vs. low-Δ Renaissance images — does the spike correlate with **pre-FT** patch features already emphasizing compact shapes? This tests whether FT *amplifies* an MAE prior vs. *creates* alignment from scratch.
+
 ---
 
 ### Tier 2 — Re-Run Existing Scripts
@@ -131,24 +133,26 @@ done
 
 ---
 
-#### Step 5: Attention Entropy Measurement
+#### Step 5: Attention Entropy + CLS–Patch Similarity
 
-Shannon entropy of the CLS attention weight distribution is a direct measure of attention diffuseness. This tests H2 (entropy hypothesis) from the main brainstorm doc.
+Shannon entropy of the CLS attention weight distribution is a direct measure of attention diffuseness. This tests H2 (entropy hypothesis) from the main analysis doc.
 
-**Metric:**
+**Metric A — entropy:**
 ```
 H = -sum(p_i * log(p_i))   over the 196 patch attention weights at layer 11
 ```
 
-**What to add to `analyze_q2_metrics.py`:** During attention extraction, compute entropy alongside IoU. Store as a new metric row in the output JSON.
+**Metric B — CLS–patch cosine (DINOv3 paper, Fig. 5a):** For each image, compute the mean cosine similarity between the **CLS token output** and **each patch token** at layer 11 (after the same normalization used for attention rollout if applicable). Siméoni et al. (DINOv3) show this quantity **rises** during long SSL training and tracks **tradeoffs** between global classification metrics and dense (segmentation) behavior. It complements entropy: high entropy ≈ diffuse weights; high CLS–patch similarity ≈ global token collapsing toward a mixed patch summary.
+
+**What to add to `analyze_q2_metrics.py`:** During attention / token extraction, compute **H** and **mean CLS–patch cosine** alongside IoU. Store as new metric rows in the output JSON.
 
 **Predictions:**
-- DINOv3 frozen: lowest entropy (most concentrated)
+- DINOv3 frozen: lowest entropy (most concentrated); CLS–patch similarity in a mid/high regime per architecture
 - CLIP frozen: highest entropy (most diffuse)
-- CLIP fine-tuned: entropy decreases substantially
-- DINOv3 fine-tuned: entropy essentially unchanged
+- CLIP fine-tuned: entropy decreases substantially; CLS–patch similarity may shift as CLS routes to discriminative patches
+- DINOv3 fine-tuned: entropy essentially unchanged; CLS–patch similarity may **increase** slightly (more global–local mixing), plausibly linking to **Coverage** drop (Part 2.4 / Part 8)
 
-If these predictions hold, entropy change is a proxy for "how much spatial reorganization fine-tuning caused" — a clean narrative to accompany the Δ IoU results.
+If these predictions hold, entropy and CLS–patch similarity together describe **how much spatial reorganization** fine-tuning caused — a stronger narrative next to Δ IoU.
 
 ---
 
@@ -173,9 +177,15 @@ The enhancement doc `fine_tuning_methods.md` (Section 10.1) already outlines the
 
 #### Step 7: CLIP Text-Patch Similarity Probe
 
-Load CLIP's text encoder and compute cosine similarity between text embeddings of feature names and frozen patch features across the 139 annotated images.
+Load CLIP's text encoder and compute cosine similarity between text embeddings and frozen patch features across the 139 annotated images.
 
-**Key question:** Do CLIP's *frozen patch features* already align with bbox regions when queried by the feature name, even though CLS attention is diffuse? If yes, fine-tuning's role is to teach the CLS token to aggregate these already-aligned patches — not to create new spatial knowledge.
+**Key question:** Do CLIP's *frozen patch features* already align with bbox regions when queried by text, even though CLS attention is diffuse? If yes, fine-tuning's role is to teach the CLS token to aggregate these already-aligned patches — not to create new spatial knowledge.
+
+**Queries (whitepaper-informed):** Radford et al. trained on web-scale **full captions**, not just object words. Run probes with:
+- **Short** labels matching `building_parts` feature names (e.g. `"rose window"`, `"pointed arch portal"`).
+- **Longer** caption-style phrases (e.g. `"a photo of a gothic church facade with pointed arches and stained glass"`, `"a roman church with round arches and a large portal"`).
+
+Compare IoU of thresholded similarity maps to bbox masks for short vs. long queries. If long queries align better, H1 is supported in the **distribution** CLIP actually saw at pretraining.
 
 **Implementation:** ~50 lines using HuggingFace `CLIPModel`:
 ```python
@@ -191,17 +201,48 @@ Compute IoU between thresholded patch similarity heatmap and the corresponding b
 
 ---
 
+#### Step 8: Gram Matrix Analysis (DINOv3 Frozen vs. Fine-Tuned)
+
+**Motivation (Siméoni et al., DINOv3):** **Gram anchoring** trains the student to match the **Gram matrix** of L2-normalized **patch features** (pairwise patch–patch inner products) to an early teacher, preserving **second-order** spatial structure. That mechanism plausibly explains **high frozen IoU** and **near-zero Δ IoU** for DINOv3, and why **Coverage** may drop after FT if fine-tuning disrupts broad patch–patch coherence while sharpening style-discriminative regions.
+
+**Concrete task:**
+1. For each annotated image, build matrices \(X \in \mathbb{R}^{P \times d}\) of L2-normalized patch embeddings (frozen and fine-tuned checkpoints) at a fixed layer.
+2. Compute Gram matrices \(G = X X^\top\) (or a manageable subset / downsampled patches if \(P\) is large).
+3. Report **Frobenius norm** \(\|G_{\text{FT}} - G_{\text{frozen}}\|_F\) aggregated over images, and correlate with per-image Δ IoU / Coverage change.
+
+**Prediction:** Fine-tuned DINOv3 shows **non-trivial Gram drift** vs. frozen even when scalar IoU is flat — supporting the "structural encoding" story in Part 8 of the analysis doc.
+
+**Effort:** Medium (new tensor plumbing; no new FT run).
+
+---
+
+#### Step 9: SigLIP 2 "Partial DINO" Spatial Coherence
+
+**Motivation (Tschannen et al., SigLIP 2):** SigLIP 2 adds **self-distillation + masked prediction** (DINO/SILC/TIPS-style) only in the **last 20%** of training. Frozen IoU is still very low (0.0220), but Cohen's *d* is higher than SigLIP's — **H6** in `q2_results_analysis.md` asks whether this stage yields **intermediate** patch-level structure vs. full DINO.
+
+**Concrete task:**
+1. On a subset of WikiChurches images (or all 139), compute a simple **spatial coherence** statistic from patch embeddings — e.g. mean local cosine similarity of each patch to its 8 neighbors on the grid, or smoothness of the first PCA component of patch features.
+2. Compare **SigLIP vs. SigLIP2 vs. DINOv2/v3** frozen backbones at the same resolution/layer.
+
+**Prediction:** SigLIP2 sits **between** SigLIP and DINO on neighbor coherence; none match DINOv3's expert IoU without full SSL geometry.
+
+**Effort:** Low–medium (feature cache reads only).
+
+---
+
 ## Summary Table
 
 | Step | Data Needed | Compute Cost | Confidence Value | Status |
 |------|-------------|-------------|-----------------|--------|
 | 1. Style breakdown script | existing JSON | none | high — formalizes new finding | ✅ Done |
 | 2. Cross-model correlation | existing JSON | none | moderate — characterizes mechanism | ✅ Done |
-| 3. MAE Renaissance investigation | existing JSON | none | high — explains biggest surprise | ⬜ Pending |
+| 3. MAE Renaissance investigation | existing JSON | none | high — explains biggest surprise (+ MAE paper geometry check) | ⬜ Pending |
 | 4. CLIP layer sweep | re-run script | ~30 min | moderate — may reframe CLIP numbers | ⬜ Pending |
-| 5. Attention entropy | modify script | ~10 min | high — direct test of H2 | ⬜ Pending |
+| 5. Attention entropy + CLS–patch cosine | modify script | ~15–20 min | high — direct test of H2 + DINOv3-style diagnostic | ⬜ Pending |
 | 6. Country classification | new FT run | ~2–3 hrs | **critical** — strongest control | ⬜ Pending |
-| 7. CLIP text-patch probe | new code | ~1 hr | high — tests H1 directly | ⬜ Pending |
+| 7. CLIP text-patch probe (short + long queries) | new code | ~1–2 hr | high — tests H1 directly | ⬜ Pending |
+| 8. Gram matrix analysis (DINOv3) | frozen + FT caches | medium impl. | high — explains IoU ceiling / Coverage (Part 8) | ⬜ Pending |
+| 9. SigLIP2 vs SigLIP vs DINO coherence | feature cache | low–medium | moderate — tests H6 (partial DINO dosage) | ⬜ Pending |
 
 ---
 
@@ -211,16 +252,19 @@ Compute IoU between thresholded patch similarity heatmap and the corresponding b
 |----------|-----------|--------|
 | Is CLIP's improvement driven by Gothic/Romanesque-specific language grounding? | Step 1 ✅ | Yes — Gothic +0.079, Romanesque +0.066; Renaissance/Baroque near-zero |
 | Do CLIP and DINO respond to the same "easy" images? | Step 2 ✅ | Yes — r=+0.677; shared easy images, not complementary mechanisms |
-| Why does MAE show a Renaissance spike? | Step 3 ⬜ | Open — hypothesized: compact geometric shapes (Trefoil Window, Pediment) |
+| Why does MAE show a Renaissance spike? | Step 3 ⬜ | Open — hypothesized: compact geometric shapes (Trefoil Window, Pediment); **+ frozen geometry check** |
 | Is CLIP's layer 11 measurement understating the true improvement? | Step 4 ⬜ | Open |
-| Does fine-tuning compress CLIP's diffuse attention? | Step 5 ⬜ | Open |
+| Does fine-tuning compress CLIP's diffuse attention? Does CLS–patch mixing track DINOv3-style tradeoffs? | Step 5 ⬜ | Open |
 | Is the improvement task-driven or just parameter-update-driven? | Step 6 ⬜ | Open — country classification control not yet run |
-| Did CLIP's patch features already encode spatial knowledge pre-FT? | Step 7 ⬜ | Open |
+| Did CLIP's patch features already encode spatial knowledge pre-FT (short vs. caption-like text)? | Step 7 ⬜ | Open |
+| Does DINOv3 fine-tuning alter **pairwise patch–patch** structure (Gram) even when scalar IoU is flat? | Step 8 ⬜ | Open — links Coverage drop to Gram / selectivity story |
+| Does SigLIP2 sit between SigLIP and DINO on patch spatial coherence (H6)? | Step 9 ⬜ | Open |
 
 ---
 
 ## Related Documents
 
-- [q2_results_analysis.md](../research/q2_results_analysis.md) — deep analysis and hypothesis set this roadmap draws from
+- [q2_results_analysis.md](../research/q2_results_analysis.md) — deep analysis, **Part 8 whitepaper evidence**, and hypothesis set this roadmap draws from
+- [docs/whitepapers/](../whitepapers/) — local PDFs (CLIP, SigLIP, SigLIP 2, MAE, DINOv2, DINOv3)
 - [fine_tuning_methods.md](fine_tuning_methods.md) — country classification implementation details (Section 10.1)
 - [docs/research/finetuning_results.md](../research/finetuning_results.md) — original Q2 interpretation notes including the Layer 10 observation

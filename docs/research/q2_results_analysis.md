@@ -1,7 +1,7 @@
 # Q2 Fine-Tuning Results: Deep Analysis
 
 > **Active analysis — April 2026**
-> **Status:** Core findings confirmed. Per-style breakdown and cross-model correlation complete. Steps 3–7 pending.
+> **Status:** Core findings confirmed. Per-style breakdown and cross-model correlation complete. Whitepaper evidence consolidated (Part 8). Steps 3–9 pending.
 > **Experiment:** `fine_tuning_primary_20260327`, layer 11, IoU p90.
 > **Scripts:** `experiments/scripts/analyze_style_breakdown.py`, `experiments/scripts/analyze_model_correlation.py`
 
@@ -188,19 +188,25 @@ From `finetuning_results.md`: for a single image (Columned Portal feature), CLIP
 
 ## Part 5: Open Hypotheses
 
-### H1: Language Grounding Hypothesis (CLIP specific) — *Partially supported*
+### H1: Language Grounding Hypothesis (CLIP specific) — *Strongly supported (indirect); patch-level test still open*
 
 CLIP's representations are organized around visual concepts that have text labels. Architectural features like "rose window," "pointed arch," or "buttress" are likely named in CLIP's training captions. The hypothesis: CLIP's *patch features* (not CLS attention) are already highly discriminative for these named features, but the CLS attention doesn't route to them until FT.
 
-**Evidence so far:** Per-style breakdown confirms CLIP improves most on Gothic/Romanesque — the styles with the most linguistically grounded feature names. This supports H1 but doesn't confirm patch-level alignment.
+**Whitepaper support:** Radford et al. (2021) train on **400 million** (image, text) pairs from the web; the objective is global contrastive matching, but the *data* plausibly contains rich architectural and descriptive language. That strengthens the prior that patch–text alignment exists at the representation level even when CLS attention is diffuse.
 
-**Remaining test (Step 7):** Extract patch-level feature similarity between CLIP frozen patches and a text embedding of "pointed arch." Measure whether high-similarity patches overlap with bboxes.
+**Evidence so far:** Per-style breakdown confirms CLIP improves most on Gothic/Romanesque — the styles with the most linguistically grounded feature names. This strongly supports H1 at the level of *which styles* respond to FT; patch–bbox overlap via text queries remains to be measured.
+
+**Remaining test (Step 7):** Extract patch-level feature similarity between CLIP frozen patches and text embeddings (short feature names *and* longer caption-like queries). Measure whether high-similarity patches overlap with bboxes.
+
+### H1b: CLS vs. pooled image embedding (Part 1.2 Hypothesis B) — *Confirmed by architecture (SigLIP 2)*
+
+SigLIP 2 (Tschannen et al., 2025) documents **MAP (multi-head attention) pooling** over patch tokens for the image tower, not a single CLS readout as in standard CLIP ViT. That gives the style-classification gradient a different interface than CLIP's CLS attention map, consistent with smaller Cohen's *d* for SigLIP/SigLIP2 than for CLIP even when all improve with FT.
 
 ### H2: Attention Entropy Hypothesis — *Untested*
 
 DINOv3 frozen CLS attention has lower entropy (more concentrated) than CLIP. FT can only reduce entropy further; DINO is already near-minimum. CLIP starts high-entropy and FT compresses it.
 
-**Test (Step 5):** Measure Shannon entropy of CLS attention maps at layer 11, frozen vs. fine-tuned. Plot entropy vs. IoU. Prediction: strong negative correlation (lower entropy = higher IoU), with DINO already occupying the low-entropy region.
+**Test (Step 5):** Measure Shannon entropy of CLS attention maps at layer 11, frozen vs. fine-tuned. **Also** measure **mean cosine similarity between CLS and patch tokens** (as in DINOv3 Fig. 5a): DINOv3 reports this similarity rises during long SSL training and correlates with dense-task behavior. Plot entropy and CLS–patch similarity vs. IoU. Prediction: strong negative correlation for entropy (lower entropy = higher IoU), with DINO already occupying the low-entropy region; CLS–patch similarity may show complementary structure.
 
 ### H3: Style-Conditioned Improvement Hypothesis — *Confirmed for CLIP*
 
@@ -217,6 +223,12 @@ CLIP may improve more for some feature categories than others. "Towers" and "por
 ### H5: Shared Easy Images — *Confirmed*
 
 **Confirmed:** DINOv3 frozen IoU predicts CLIP Δ IoU with r = +0.677 (p < 0.0001). The images where CLIP gains the most from FT are the same images where DINOv3 already attends well in its frozen state. These are "easy images" where expert annotations cover visually prominent regions that any attention mechanism can find — given the right training signal.
+
+### H6: DINO-Style Self-Distillation "Dosage" (SigLIP 2 vs. DINO) — *Plausible; untested*
+
+SigLIP 2 adds **self-distillation and masked prediction** (in the DINO / SILC / TIPS line) but only for the **last 20%** of pretraining, alongside LocCa and the sigmoid image–text loss. Despite that, frozen IoU for SigLIP2 remains very low (0.0220), and Δ IoU is intermediate between SigLIP and CLIP. **Hypothesis:** partial DINO-like losses for a short stage are **insufficient** to produce DINO-class spatial attention structure; they may still help dense/semantic quality (as in the SigLIP 2 paper) without matching expert-bbox alignment in our metric.
+
+**Test (Step 9):** Compare patch-level spatial coherence metrics (e.g., similarity-map sharpness, or correlation with DINO patch features) for SigLIP, SigLIP2, and DINO frozen backbones on the same images.
 
 ---
 
@@ -277,12 +289,80 @@ Extend the existing `FeatureBreakdown.tsx` component (which shows frozen IoU per
 | 5 | Attention entropy measurement | ⬜ Pending | Does FT compress CLIP entropy? Is DINO already low? |
 | 6 | Country classification negative control | ⬜ Pending | Critical: proves improvement is task-driven, not parameter-update-driven |
 | 7 | CLIP text-patch similarity probe | ⬜ Pending | Do CLIP frozen patches already align with bboxes via text query? |
+| 8 | Gram matrix analysis (DINOv3) | ⬜ Pending | Does FT disrupt pairwise patch–patch structure vs. frozen? |
+| 9 | SigLIP2 vs SigLIP vs DINO spatial coherence | ⬜ Pending | Is partial DINO-stage training enough for bbox-aligned attention? |
+
+---
+
+## Part 8: Whitepaper Evidence (Mechanism ↔ Q2)
+
+Local copies: [`docs/whitepapers/`](../whitepapers/). This section ties each model family's **stated pretraining objective** to the **observed** frozen IoU, Δ IoU, and side effects (e.g., Coverage).
+
+### CLIP (Radford et al., 2021)
+
+- **Objective:** Contrastive **image–text** pretraining (InfoNCE-style softmax over a batch); one global image vector vs. one global text vector per pair.
+- **Spatial pressure:** None at patch level — success only requires a single good whole-image embedding. Matches **frozen IoU ≈ 0.0181** (diffuse CLS attention is not penalized).
+- **Language:** ~400M web (image, text) pairs make it plausible that architectural nouns and phrases appear often; supports **H1** for *why* Gothic/Romanesque (caption-friendly features) gain more than Baroque/Renaissance in Δ IoU, before any patch–text probe.
+
+### SigLIP (Zhai et al., 2023)
+
+- **Objective:** **Sigmoid** (pairwise) loss on image–text pairs — no batch-wide softmax normalization; efficient at many batch sizes.
+- **Geometry:** Decouples negatives from a single global partition; can **preserve** different training dynamics than CLIP's softmax (related to Part 1.2 Hypothesis C).
+- **Pooling:** Original SigLIP uses ViT image tower + text tower; **SigLIP 2** explicitly documents **MAP pooling** and no CLS-centric pooling for the same role as CLIP's CLS attention map — aligns with **H1b** and smaller effect sizes than CLIP when our visualization uses patch–pooled routes.
+
+### SigLIP 2 (Tschannen et al., 2025)
+
+- **Recipe:** Sigmoid image–text loss + **LocCa** (captioning / referring / grounded losses) + **self-distillation + masked prediction** in the **last 20%** of training (DINO / SILC / TIPS line).
+- **Q2 link:** Still **very low frozen IoU** (0.0220) but **higher Cohen's *d*** than SigLIP (0.781 vs. 0.604). Interpretation: extra dense/local losses help **transfer** and maybe partial spatial structure, but **do not** substitute for full DINO-style training — supports **H6** and motivates **Step 9**.
+
+### MAE (He et al., 2022)
+
+- **Objective:** Mask ~**75%** of patches; encoder on visible patches only; **decode pixels** (MSE on masked patches). Forces holistic, non-trivial reconstruction — not class labels.
+- **Linear vs. fine-tune:** Paper shows **linear probing and fine-tuning accuracy are poorly correlated**; partial fine-tuning of few blocks can match much of full FT — consistent with **LoRA ≥ full FT** for Δ IoU in our table.
+- **Renaissance spike:** Pixel reconstruction favors **sharp local geometry** (edges, shapes). Trefoil Window / Pediment–style boxes are compact and shape-defined — plausible that **style FT** redirects a backbone already strong on *form* toward discriminative regions for Renaissance vs. other styles (**Step 3** checks frozen vs. FT per-image drivers).
+
+### DINOv2 (Oquab et al., 2024)
+
+- **Objective:** **DINO** (student–teacher, CLS, multi-crop) + **iBOT** (masked patch prediction with teacher targets) + **KoLeo** + curated **LVD-142M** data.
+- **Q2 link:** Dual pressure on **global** (CLS) and **local** (patch) consistency produces **high frozen IoU** without style labels — Δ IoU ≈ 0 is expected ("ceiling").
+
+### DINOv3 (Siméoni et al., 2025)
+
+- **Objective:** Same family as DINOv2 at scale, plus **Gram anchoring** in a refinement phase: match the **Gram matrix** of **L2-normalized patch features** (pairwise patch–patch inner products) to an **early-iteration teacher**, repairing **dense feature drift** during long training.
+- **Why frozen IoU is highest (0.1327):** Second-order **structure of patch similarities** is explicitly preserved — aligns with **expert bboxes** as regions of coherent patch neighborhoods.
+- **Why FT barely moves IoU:** Style classification mostly adjusts **global** routing / head; **Gram-shaped** patch geometry is already optimized for dense consistency — little room for Δ IoU.
+- **Coverage drop after FT:** Plausible that FT increases **CLS–patch alignment** and **selectivity** (paper notes CLS–patch cosine rises over training and trades off dense metrics) — fewer bbox patches above threshold → **lower Coverage**; **Step 8** tests Gram-matrix drift frozen vs. FT.
+
+```mermaid
+flowchart LR
+  subgraph clipFam [CLIP_and_SigLIP]
+    globalIT[Global_image_text_loss]
+    lowFrozen[Low_frozen_IoU]
+    highDelta[Positive_delta_IoU]
+  end
+  subgraph dinoMae [DINO_and_MAE]
+    sslObj[SSL_or_reconstruction]
+    hiFrozen[Higher_frozen_IoU]
+    flatDelta[Near_zero_delta_IoU]
+  end
+  globalIT --> lowFrozen --> highDelta
+  sslObj --> hiFrozen --> flatDelta
+```
 
 ---
 
 ## References
 
-All citations reference papers already cited in the project literature.
+Project literature and Q2-relevant **whitepapers** (PDFs under `docs/whitepapers/`):
+
+- Radford et al. (2021). Learning Transferable Visual Models From Natural Language Supervision. arXiv:2103.00020. [`wp_clip__2103.00020v1.pdf`](../whitepapers/wp_clip__2103.00020v1.pdf)
+- Zhai et al. (2023). Sigmoid Loss for Language Image Pre-Training. ICCV 2023. [`wp_siglip__2303.15343v4.pdf`](../whitepapers/wp_siglip__2303.15343v4.pdf)
+- Tschannen et al. (2025). SigLIP 2: Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features. arXiv:2502.14786. [`wp_siglip2__2502.14786v1.pdf`](../whitepapers/wp_siglip2__2502.14786v1.pdf)
+- He et al. (2022). Masked Autoencoders Are Scalable Vision Learners. arXiv:2111.06377. [`wp_mae__2111.06377v3.pdf`](../whitepapers/wp_mae__2111.06377v3.pdf)
+- Oquab et al. (2024). DINOv2: Learning Robust Visual Features without Supervision. TMLR. [`wp_dinov2__2304.07193v2.pdf`](../whitepapers/wp_dinov2__2304.07193v2.pdf)
+- Siméoni et al. (2025). DINOv3. arXiv:2508.10104. [`wp_dinov3__2508.10104v1.pdf`](../whitepapers/wp_dinov3__2508.10104v1.pdf)
+
+Other citations already used in this doc:
 
 - Caron et al. (2021). Emerging Properties in Self-Supervised Vision Transformers. ICCV 2021.
 - Park, N., et al. (2023). What Do Self-Supervised Vision Transformers Learn? ICLR 2023.
