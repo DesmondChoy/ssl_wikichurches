@@ -127,6 +127,8 @@ Important behavior:
 - The page supports **any pairwise variant comparison**, and Frozen vs Fine-tuned is one focused case of that broader flow.
 - When Q2 summary data is available for the selected model and metric, the page can show an **experiment summary** card sourced from the active Q2 analysis.
 - The shift-map view is always computed from cached numeric heatmaps, so the selected metric and percentile do not change its colors. They still affect the summary tables and feature-local metrics below the main image.
+- A sparse or faint shift map is still a real result. It usually means the adapted model stayed close to the frozen baseline for that image and layer, not that the viewer failed.
+- Use **Side by side** or **Slider** when you want to compare the two full overlays. Use **Shift map** when you want the signed change directly.
 
 ### Dashboard (`/dashboard`)
 
@@ -226,6 +228,39 @@ Use this path when the question is about fine-tuning.
 4. Check the cross-strategy comparison section for direct strategy-vs-strategy differences.
 5. Open **Variant Compare** to test whether the aggregate shift is visible on one concrete image.
 6. Click one or more bounding boxes in Compare when you want a feature-local explanation instead of a whole-image overlay.
+
+#### Q2 Image-Level Shift Check
+
+Use this sub-workflow when the Q2 summary suggests an interesting strategy and you want to inspect one concrete image.
+
+1. From **`/q2`**, click **Open Variant Compare**.
+2. On **Compare**, keep `Comparison Type = Variant vs Variant`.
+3. Choose one base model.
+4. Set one side to `Frozen`.
+5. Set the other side to `Linear Probe`, `LoRA`, or `Full Fine-tune`.
+6. Click **Shift map**.
+7. Use the layer slider to see whether the shift is strongest earlier or later in the network.
+8. Click a bounding box when you want to connect the global shift map to the feature-local delta cards below it.
+
+How to read the shift map:
+
+- `Red` means the adapted model puts more attention there than the frozen model.
+- `Blue` means the adapted model puts less attention there than the frozen model.
+- The base photo is intentionally grayscale and dimmed in this view so the signed shift colors are easier to see.
+- The selected metric and percentile stay visible for context, but they do not recolor the shift map itself.
+
+How to interpret weak versus strong maps:
+
+- A **large, structured red/blue pattern** means fine-tuning noticeably redistributed attention on that image at that layer.
+- A **small or sparse patch** means the adapted model changed little relative to Frozen, or changed only in one local region.
+- If the shift map looks weak but the lower feature-local delta is strong, the change may be specific to the selected feature rather than obvious at whole-image scale.
+- If the shift map looks strong but the feature-local delta is weak or negative, attention may have moved, but not toward the selected expert-marked feature.
+
+Recommended comparison order:
+
+1. Start with **Shift map** to ask, "Did attention move at all, and where?"
+2. Use the **feature-local delta** card to ask, "Did that movement help on the selected architectural feature?"
+3. Switch to **Side by side** or **Slider** when you need the original two overlays for sanity-checking.
 
 Useful provenance files for this flow are:
 
