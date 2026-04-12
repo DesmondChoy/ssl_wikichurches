@@ -8,10 +8,10 @@
 | Phase 2 | Data Pipeline | ✅ Complete |
 | Phase 3 | Metrics & Evaluation | ✅ Complete |
 | Phase 4 | Visualization & Analysis | ✅ Complete |
-| Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
+| Phase 5 | Fine-Tuning Analysis | 🟡 Core complete, polish pending |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-03-28 (Archived obsolete onboarding, synced Q2 docs to the multi-metric active-experiment flow, and updated compare/dashboard wording)
+**Last Updated:** 2026-04-12 (Refreshed current-state details for the active experiment Q2 flow, clarified tracked vs ignored outputs, and synced the Image Detail layout notes to the current app)
 
 ---
 
@@ -78,7 +78,7 @@ ssl_wikichurches/
 │   ├── evaluation/
 │   │   ├── __init__.py
 │   │   ├── linear_probe.py      # Linear classifier training
-│   │   └── fine_tuning.py       # Full backbone fine-tuning
+│   │   └── fine_tuning.py       # Fine-tuning strategies and training loop
 │   │
 │   ├── visualization/
 │   │   ├── __init__.py
@@ -100,7 +100,7 @@ ssl_wikichurches/
 │       ├── analyze_q2_metrics.py # Canonical multi-metric Q2 analysis
 │       └── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
 │
-├── outputs/                     # Git-ignored
+├── outputs/                     # Tracked results plus git-ignored caches/checkpoints
 │   ├── cache/
 │   ├── checkpoints/
 │   └── results/
@@ -257,7 +257,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Style breakdown charts
    - Scatter plots for coverage vs IoU
 
-### Phase 5: Fine-Tuning Analysis 🔄 IN PROGRESS
+### Phase 5: Fine-Tuning Analysis 🟡 CORE COMPLETE, POLISH PENDING
 
 1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`) ✅
    - `FineTuningConfig` dataclass for hyperparameters
@@ -293,15 +293,15 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Compute Δ metrics per model with per-image breakdown
    - Bootstrap 95% CIs, Cohen's d effect sizes
    - Paired t-test / Wilcoxon (auto-selected based on normality)
-   - Holm correction for multiple comparisons across models
-   - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page
+   - Holm correction for multiple comparisons across models, with explicit correction-family metadata in the saved artifact
+   - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page via `outputs/results/active_experiment.json`
 
 4. **Visualization** 🔄
    - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Variant vs Variant`
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
+> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is now limited to (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -365,7 +365,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
     - Color-coded: green ≥75%, yellow ≥50%, orange ≥25%, red <25%
 
 11. **UI Polish** ✅
-    - Annotations panel moved to left sidebar (3-column layout: annotations | viewer | controls)
+    - Main Image Detail tab uses a current 3-column layout: controls on the left, viewer plus annotations in the center, and the metrics progression panel on the right
     - Bounding boxes shown by default
     - Portal-rendered tooltips (escape overflow-hidden containers)
     - `keepPreviousData` on React Query hooks prevents UI flash during layer animation
