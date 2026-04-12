@@ -1,6 +1,6 @@
 # Fine-Tuning Run Matrix
 
-This page defines the canonical artifact layout for fine-tuning experiment batches. The generated experiment batch under `outputs/results/experiments/` is the source of truth, and `outputs/results/active_experiment.json` selects which batch the app, figure scripts, and docs-refresh tooling read by default.
+This page defines the canonical artifact layout for fine-tuning experiment batches. The generated experiment batch under `outputs/results/experiments/` is the source of truth, and `outputs/results/active_experiment.json` selects which batch the app, figure scripts, and reporting workflows read by default.
 
 ## Primary methodology
 
@@ -16,7 +16,7 @@ The primary fine-tuning experiment uses one clean rule:
 This keeps checkpoint selection separate from the final attention-alignment
 reporting set.
 
-Use `--val-on-annotated-eval` only for explicit exploratory runs. Those runs are marked `exploratory` in manifests and downstream results, and they are separate from the primary source used for docs, figures, and `/q2`.
+Use `--val-on-annotated-eval` only for explicit exploratory runs. Those runs are marked `exploratory` in manifests and downstream results, and they are separate from the primary source used for the app, figures, slides, and `/q2`.
 
 ## Canonical artifact layout
 
@@ -93,7 +93,8 @@ reproducibility and downstream analysis:
 
 ## Run matrix
 
-`run_matrix.json` is the single source of truth for figures and docs refreshes.
+`run_matrix.json` is the single source of truth for figure generation and
+documentation-facing reporting.
 It contains one entry per run keyed by `run_id`.
 
 Each run entry stores:
@@ -155,7 +156,7 @@ Compatibility consumers can read `q2_delta_iou_analysis.json`, while the app and
 ## Active experiment pointer
 
 `outputs/results/active_experiment.json` is the app-facing selector. It tells the
-backend and figure scripts which experiment batch to read by default.
+backend and reporting scripts which experiment batch to read by default.
 
 Expected fields:
 
@@ -168,6 +169,10 @@ Expected fields:
 | `q2_metrics_path` | Repo-relative path to the canonical Q2 artifact |
 | `q2_delta_iou_path` | Repo-relative path to the compatibility export |
 | `updated_at` | UTC timestamp |
+
+The backend and reporting helpers resolve these paths through the active pointer
+first and fall back to the legacy repository-level paths when the pointer or a
+specific keyed path is absent.
 
 ## Refresh workflow
 
@@ -186,7 +191,7 @@ uv run python experiments/scripts/analyze_q2_metrics.py \
   --strategies linear_probe lora full
 ```
 
-Then regenerate the app-facing caches and figures:
+Then regenerate the app-facing caches and reporting assets:
 
 ```bash
 uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
@@ -196,6 +201,7 @@ uv run python -m app.precompute.generate_metrics_cache --finetuned --models dino
 
 uv run python experiments/scripts/generate_run_matrix_figures.py
 uv run python experiments/scripts/generate_slide_images.py
+cd experiments/scripts && npm install && node create_presentation.js
 ```
 
 ## Helpful CLI Flags
@@ -210,11 +216,26 @@ uv run python experiments/scripts/generate_slide_images.py
 | `--include-exploratory` | `analyze_q2_metrics.py` | Include exploratory runs in the exported Q2 summary |
 | `--output <path>` | `analyze_q2_metrics.py` | Write the analysis JSON to a custom location |
 
+## Reporting outputs
+
+The reporting scripts consume the active experiment plus the cache outputs above
+to build the figure and slide assets used in presentations and narrative
+summaries.
+
+Primary generated locations:
+
+| Output family | Location | Source |
+|---|---|---|
+| Run-matrix figures | `outputs/figures/` | `generate_run_matrix_figures.py` |
+| Figure commentary | `outputs/figures/commentary.txt` | `generate_run_matrix_figures.py` |
+| Slide PNG assets | `outputs/slides/` | `generate_slide_images.py` |
+| Presentation deck | `outputs/slides/presentation.pptx` | `create_presentation.js` |
+
 ## Result storage map
 
 | Result family | Primary storage | Git-tracked? | Notes |
 |---|---|---|---|
-| Batch selector | `outputs/results/active_experiment.json` | No | Tells the app and figure scripts which batch is active |
+| Batch selector | `outputs/results/active_experiment.json` | No | Tells the app and reporting scripts which batch is active |
 | Split artifact | `outputs/results/experiments/<experiment_id>/splits/<split_id>.json` | No | Shared canonical split for the batch |
 | Run manifests | `outputs/results/experiments/<experiment_id>/manifests/` | No | One manifest per `model × strategy` run |
 | Run matrix | `outputs/results/experiments/<experiment_id>/run_matrix.json` | No | Single source of truth for figures/docs |
@@ -222,4 +243,9 @@ uv run python experiments/scripts/generate_slide_images.py
 | Checkpoints | `outputs/checkpoints/<experiment_id>/` | No | Trained weights |
 | Q2 analysis | `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json` | No | Consumed by `/api/metrics/q2_summary` and `/q2` |
 | Compatibility export | `outputs/results/experiments/<experiment_id>/q2_delta_iou_analysis.json` | No | Legacy consumer support only |
+| Legacy fallback summary | `outputs/results/q2_metrics_analysis.json` | No | Repository-level fallback path when the active pointer is absent |
+| Legacy fallback compatibility export | `outputs/results/q2_delta_iou_analysis.json` | No | Repository-level fallback compatibility path |
+| Run-matrix figures | `outputs/figures/` | No | Figure-generation outputs driven by the active experiment |
+| Slide assets | `outputs/slides/` | No | Slide-image outputs driven by the active experiment plus cached heatmaps |
+| Presentation deck | `outputs/slides/presentation.pptx` | No | PPTX assembled from generated figures and slide images |
 | Human-readable reference | `docs/reference/fine_tuning_run_matrix.md` | Yes | This page explains the artifact contract rather than duplicating volatile numbers |

@@ -14,7 +14,7 @@ It is written as an app guide, not a results report. For setup, cache generation
 | --- | --- | --- | --- |
 | Gallery | `/` | Browse annotated images and open one example | Top navigation |
 | Image Detail | `/image/:imageId` | Inspect one image, its overlays, annotations, and per-image metrics | Click an image or exemplar |
-| Compare | `/compare` | Compare two models or two variants on one image | Top navigation or quick links |
+| Compare | `/compare` | Compare frozen models or model variants on one image | Top navigation or quick links |
 | Dashboard | `/dashboard` | Overview analysis for Q1 and the main discovery surface for Q3 | Top navigation |
 | Q2 | `/q2` | Strategy-aware fine-tuning summary | Dashboard quick action or direct URL |
 | Q3 Advanced | `/q3` | Side-by-side comparison of two primary-study Q3 models | Dashboard Q3 action or direct URL |
@@ -33,6 +33,8 @@ The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q
   - In **Image Detail Q3** feature-similarity mode and on **Compare**, it becomes the similarity query.
 - **Q3 scope**
   The primary Q3 workflow focuses on `dinov2`, `dinov3`, `mae`, and `clip`. `Frozen`, `LoRA`, and `Full Fine-tune` are the headline variants. `Linear Probe` remains available as a control.
+- **Active experiment**
+  Q2 summary views and any compare-page experiment context read from `outputs/results/active_experiment.json`, not from a hardcoded top-level result file.
 - **Context in the URL**
   The app keeps a lot of state in URL parameters, especially for Q2 and Q3. That makes it easier to reopen a specific comparison or share a drill-down state.
 
@@ -87,7 +89,7 @@ Important behavior:
 
 ### Compare (`/compare`)
 
-Pick an image first. After that, the page supports two comparison modes.
+Pick an image first. After that, the page supports a frozen-model comparison flow and a generalized variant-comparison flow.
 
 #### Model vs Model
 
@@ -100,7 +102,7 @@ Use this when you want to compare two frozen models on the same image.
 
 #### Variant vs Variant
 
-Use this when you want to compare two versions of the same model.
+Use this when you want to compare any two states of the same base model.
 
 - Choose one model.
 - Choose any two variants from `Frozen`, `Linear Probe`, `LoRA`, and `Full Fine-tune`.
@@ -108,9 +110,18 @@ Use this when you want to compare two versions of the same model.
 - Use the layer controls to inspect how the comparison changes through the network.
 - Click a bounding box to switch from global overlays to bbox-conditioned similarity overlays.
 
+#### Frozen vs Fine-tuned
+
+This is the most common variant comparison preset.
+
+- Choose one model.
+- Hold one side on `Frozen`.
+- Compare it against `Linear Probe`, `LoRA`, or `Full Fine-tune`.
+- Use the same layer and bbox-conditioned similarity tools as the broader variant workflow.
+
 Important behavior:
 
-- The page supports **any pairwise variant comparison**.
+- The page supports **any pairwise variant comparison**, and Frozen vs Fine-tuned is one focused case of that broader flow.
 - When Q2 summary data is available for the selected model and metric, the page can show an **experiment summary** card sourced from the active Q2 analysis.
 
 ### Dashboard (`/dashboard`)
@@ -126,7 +137,7 @@ This is the best starting point for **Q1**.
 - **Model leaderboard**
   Ranks the frozen models for the selected metric.
 - **Baseline references**
-  For MSE, KL, and EMD, the leaderboard includes the documented baseline lines and legend.
+  For MSE, KL, and EMD, the leaderboard includes the documented baseline lines and legend from the current Q1 continuous-baseline reports.
 - **Layer progression**
   Shows how each model's score changes across layers.
 - **Style breakdown**

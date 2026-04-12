@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | 🟡 Core complete, polish pending |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-04-12 (Refreshed current-state details for the active experiment Q2 flow, clarified tracked vs ignored outputs, and synced the Image Detail layout notes to the current app)
+**Last Updated:** 2026-04-12
 
 ---
 
@@ -301,7 +301,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Attention shift maps (where did attention move?) — tracked in issue #474
 
-> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is now limited to (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
+> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is limited to (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -333,7 +333,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Click on bounding box to compute cosine similarity with all image patches
    - Visualize which regions share similar learned representations
    - Compare feature similarity across models and layers
-   - **Files added:**
+   - **Key files:**
      - `app/precompute/generate_feature_cache.py` - Cache patch tokens to HDF5
      - `app/backend/services/similarity_service.py` - Bbox-to-patch similarity computation
      - `POST /api/attention/{image_id}/similarity` - Similarity API endpoint
@@ -374,7 +374,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
    - Clicking a bbox shows similarity heatmaps for both models simultaneously
    - Synchronized selection across both panels for direct comparison
-   - **Files added:**
+   - **Key files:**
      - `app/frontend/src/components/comparison/SimilarityViewer.tsx` - Bbox overlay + similarity heatmap viewer
      - `app/frontend/src/components/comparison/ModelCompare.tsx` - Updated with synchronized selection
      - Selection info bar, clear button, and colormap legend

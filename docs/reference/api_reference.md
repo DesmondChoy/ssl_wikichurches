@@ -299,6 +299,12 @@ List all available models with their configurations, supported attention methods
 }
 ```
 
+`per_head_methods` describes which attention methods accept the optional `head`
+parameter on `/api/attention/{image_id}/raw`. `per_head_available_models` and
+`q3_per_head_variant_availability` are runtime availability fields driven by the
+currently populated per-head caches, so their values can change after running
+the Q3 precompute commands.
+
 ---
 
 ### `GET /api/attention/{image_id}/heatmap`
@@ -389,6 +395,12 @@ Get raw attention values as a flat numeric array for client-side rendering and d
   "max_value": 0.312
 }
 ```
+
+`head` is valid only when:
+
+- the selected method is listed in `/api/attention/models -> per_head_methods`
+- the selected model exposes attention heads
+- the requested head index is within that model's head range
 
 **Errors**
 
@@ -507,8 +519,9 @@ Compute cosine similarity between a bounding box region and all image patches. E
 
 Most metrics endpoints require the pre-computed metrics database (`metrics.db`).
 Two exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
-and `/api/metrics/q2_summary`, which reads the active experiment's
-`q2_metrics_analysis.json`.
+and `/api/metrics/q2_summary`, which resolves the active experiment's
+`q2_metrics_analysis.json` and falls back to the legacy top-level path when
+needed.
 
 ### `GET /api/metrics/leaderboard`
 
@@ -572,9 +585,10 @@ This is a static snapshot exported with `ranking_mode = "default_method"`, not a
 Get the strategy-aware fine-tuning attention-analysis summary exported by
 `experiments/scripts/analyze_q2_metrics.py`.
 
-> **Data source**: This endpoint reads the active experiment's
-> `q2_metrics_analysis.json` through `outputs/results/active_experiment.json`.
-> It does not depend on `metrics.db`.
+> **Data source**: This endpoint resolves `q2_metrics_analysis.json` through
+> `outputs/results/active_experiment.json` when that pointer is present, and
+> falls back to the legacy top-level results path when it is not. It does not
+> depend on `metrics.db`.
 
 **Query Parameters**
 
@@ -589,52 +603,58 @@ Get the strategy-aware fine-tuning attention-analysis summary exported by
 
 ```json
 {
+  "metric": "iou",
+  "label": "IoU",
+  "direction": "higher",
+  "percentile_dependent": true,
+  "selected_percentile": 90,
   "experiment_id": "fine_tuning_primary_20260327",
   "split_id": "fine_tuning_primary_20260327__primary__seed42",
   "analysis_git_commit_sha": "abcdef1234567890",
+  "analyzed_layer": 11,
   "evaluation_image_count": 139,
   "checkpoint_selection_rule": "best classification validation accuracy on shared non-annotated validation split",
   "result_set_scope": "primary",
-  "percentiles": [90, 80, 70, 60, 50],
   "timestamp": "2026-03-16T21:23:57+08:00",
-  "models": {
-    "clip": {
-      "lora": {
-        "90": {
-          "model_name": "clip",
-          "strategy_id": "lora",
-          "metric": "iou",
-          "percentile": 90,
-          "method": "cls",
-          "frozen_mean": 0.018,
-          "finetuned_mean": 0.082,
-          "mean_delta": 0.063,
-          "delta_ci_lower": 0.046,
-          "delta_ci_upper": 0.079,
-          "cohens_d": 0.91,
-          "corrected_p_value": 0.004,
-          "significant": true,
-          "num_images": 139
-        }
-      }
+  "rows": [
+    {
+      "model_name": "clip",
+      "strategy_id": "lora",
+      "metric": "iou",
+      "label": "IoU",
+      "direction": "higher",
+      "percentile_dependent": true,
+      "percentile": 90,
+      "method": "cls",
+      "frozen_mean": 0.018,
+      "finetuned_mean": 0.082,
+      "mean_delta": 0.063,
+      "std_delta": 0.081,
+      "delta_ci_lower": 0.046,
+      "delta_ci_upper": 0.079,
+      "cohens_d": 0.91,
+      "p_value": 0.001,
+      "corrected_p_value": 0.004,
+      "significant": true,
+      "test_name": "Wilcoxon signed-rank",
+      "num_images": 139
     }
-  },
-  "strategy_comparisons": {
-    "clip": {
-      "90": [
-        {
-          "model_name": "clip",
-          "percentile": 90,
-          "strategy_a": "lora",
-          "strategy_b": "full",
-          "mean_delta_difference": -0.006,
-          "cohens_d": -0.08,
-          "corrected_p_value": 0.71,
-          "significant": false
-        }
-      ]
+  ],
+  "strategy_comparisons": [
+    {
+      "model_name": "clip",
+      "metric": "iou",
+      "percentile": 90,
+      "strategy_a": "lora",
+      "strategy_b": "full",
+      "mean_delta_difference": -0.006,
+      "cohens_d": -0.08,
+      "p_value": 0.71,
+      "corrected_p_value": 0.71,
+      "significant": false,
+      "test_name": "Wilcoxon signed-rank"
     }
-  }
+  ]
 }
 ```
 
@@ -1061,10 +1081,12 @@ This powers the Dashboard `Q3` tab's single-variant ranking view.
 ```json
 {
   "model": "dinov2",
-  "layer": "layer11",
-  "metric": "iou",
-  "percentile": 90,
   "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "iou",
+  "direction": "higher",
+  "percentile": 90,
   "supported": true,
   "heads": [
     {
@@ -1079,6 +1101,10 @@ This powers the Dashboard `Q3` tab's single-variant ranking view.
   ]
 }
 ```
+
+When Q3 is unsupported or the required per-head caches are missing, this
+endpoint still returns a schema-valid payload with `supported: false` and a
+human-readable `reason`.
 
 **Errors**
 
@@ -1118,14 +1144,16 @@ This powers the Image Detail `Q3` tab head strip and head gallery.
 {
   "image_id": "Q2270_0.jpg",
   "model": "dinov2",
-  "layer": "layer11",
-  "metric": "coverage",
-  "percentile": 90,
   "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "coverage",
+  "direction": "higher",
+  "percentile": 90,
   "selection": {
     "mode": "union",
     "bbox_index": null,
-    "label": "All annotations"
+    "bbox_label": null
   },
   "supported": true,
   "heads": [
@@ -1134,6 +1162,9 @@ This powers the Image Detail `Q3` tab head strip and head gallery.
   ]
 }
 ```
+
+This endpoint uses the same `supported` / `reason` pattern as the aggregate
+head-ranking endpoint when the selected Q3 context is unavailable.
 
 **Errors**
 
@@ -1171,10 +1202,12 @@ Each feature row contains one score per head. The Dashboard uses this to render 
 ```json
 {
   "model": "dinov2",
-  "layer": "layer11",
-  "metric": "emd",
-  "percentile": 90,
   "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "emd",
+  "direction": "lower",
+  "percentile": 90,
   "supported": true,
   "heads": [0, 1, 2, 3],
   "features": [
@@ -1187,6 +1220,10 @@ Each feature row contains one score per head. The Dashboard uses this to render 
   ]
 }
 ```
+
+Each row in `features` contains one score slot per head. Individual score
+entries may be `null` when a specific head-feature combination has no cached
+row for the current selection.
 
 **Errors**
 
@@ -1226,11 +1263,12 @@ This powers Dashboard `Q3` drill-down into the Image Detail `Q3` tab.
 ```json
 {
   "model": "dinov2",
+  "variant": "frozen",
   "layer": "layer11",
+  "direction": "higher",
   "head": 7,
   "metric": "iou",
   "percentile": 90,
-  "variant": "frozen",
   "feature_label": 42,
   "feature_name": "window",
   "supported": true,
@@ -1246,6 +1284,9 @@ This powers Dashboard `Q3` drill-down into the Image Detail `Q3` tab.
   ]
 }
 ```
+
+This endpoint also returns `supported: false` plus `reason` when exemplar
+selection is unavailable for the requested Q3 context.
 
 **Errors**
 
@@ -1471,6 +1512,10 @@ Use this endpoint when the compared pair could be:
 ### `GET /api/compare/frozen_vs_finetuned`
 
 Compare frozen (pretrained) vs fine-tuned model attention on a single image.
+
+The current Compare page uses `GET /api/compare/variants` as the primary
+generalized variant surface. This endpoint remains useful for the explicit
+Frozen vs Fine-tuned helper flow and for compatibility consumers.
 
 > **Note**: This endpoint performs real cache availability checks. Returned URLs
 > include explicit `model` and `method` query parameters. For fine-tuned overlays,
