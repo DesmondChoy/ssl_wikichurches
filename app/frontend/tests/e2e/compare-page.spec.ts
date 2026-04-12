@@ -21,6 +21,12 @@ function getSelectByLabel(page: Page, label: string) {
     .first();
 }
 
+async function clickBbox(page: Page, index: number) {
+  await page.getByTestId(`bbox-hitbox-${index}`).first().evaluate((element) => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+}
+
 async function stubVariantCompareApis(page: import('@playwright/test').Page) {
   await page.route('**/api/images?**', async (route) => {
     await route.fulfill({
@@ -409,7 +415,7 @@ test.describe('Compare page', () => {
         && response.status() === 200
     );
 
-    await page.getByTestId('bbox-hitbox-0').first().click({ force: true });
+    await clickBbox(page, 0);
     const bboxPayload = await (await bboxCompareResponse).json();
     const bboxLeft = getModelResult(bboxPayload, leftModel);
 
@@ -478,7 +484,7 @@ test.describe('Compare page', () => {
       });
     });
 
-    await page.getByTestId('bbox-hitbox-0').first().click({ force: true });
+    await clickBbox(page, 0);
 
     await expect(page.getByTestId('comparison-metrics-right-unavailable')).toContainText(
       'Feature-level metrics unavailable because cached attention is missing'
@@ -521,6 +527,9 @@ test.describe('Compare page', () => {
 
     await expect(page.getByText(/This map always shows LoRA minus Frozen/)).toBeVisible();
     await expect(page.getByText(/Red means more attention after fine-tuning, blue means less/)).toBeVisible();
+    await expect(page.getByText(/photo background is shown in grayscale and dimmed/)).toBeVisible();
+    await expect(page.getByAltText(/shift map/i)).toHaveClass(/grayscale/);
+    await expect(page.getByAltText(/shift map/i)).toHaveClass(/brightness-50/);
 
     await getSelectByLabel(page, 'Left Variant').selectOption('linear_probe');
     await getSelectByLabel(page, 'Right Variant').selectOption('full');

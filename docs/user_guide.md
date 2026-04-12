@@ -119,6 +119,7 @@ This is the most common variant comparison preset.
 - Hold one side on `Frozen`.
 - Compare it against `Linear Probe`, `LoRA`, or `Full Fine-tune`.
 - Use **Shift map** when you want a single diverging view of where attention increased or decreased after fine-tuning.
+- In **Shift map**, the underlying photo is shown in grayscale and dimmed so the red/blue shift colors are easier to read.
 - Use the same layer and bbox-conditioned similarity tools as the broader variant workflow.
 
 Important behavior:

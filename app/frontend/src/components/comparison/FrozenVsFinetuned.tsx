@@ -57,6 +57,8 @@ interface CompareCanvasProps {
   imageAlt: string;
   overlaySrc?: string | null;
   overlayAlt?: string;
+  imageClassName?: string;
+  overlayClassName?: string;
 }
 
 interface NormalizedVariantComparison {
@@ -66,19 +68,36 @@ interface NormalizedVariantComparison {
   linearProbeInvolved: boolean;
 }
 
-function CompareCanvas({ imageSrc, imageAlt, overlaySrc, overlayAlt }: CompareCanvasProps) {
+function CompareCanvas({
+  imageSrc,
+  imageAlt,
+  overlaySrc,
+  overlayAlt,
+  imageClassName,
+  overlayClassName,
+}: CompareCanvasProps) {
+  const baseImageClasses = ['absolute inset-0 h-full w-full object-cover', imageClassName]
+    .filter(Boolean)
+    .join(' ');
+  const overlayClasses = [
+    'pointer-events-none absolute inset-0 h-full w-full object-cover',
+    overlayClassName,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg bg-gray-950">
       <img
         src={imageSrc}
         alt={imageAlt}
-        className="absolute inset-0 h-full w-full object-cover"
+        className={baseImageClasses}
       />
       {overlaySrc && (
         <img
           src={overlaySrc}
           alt={overlayAlt || imageAlt}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          className={overlayClasses}
         />
       )}
     </div>
@@ -867,14 +886,15 @@ export function VariantCompare({
             {frozenVariant?.label ?? 'Frozen'} using cached numeric heatmaps. Red means more attention
             after fine-tuning, blue means less. The selected metric ({metricMetadata.optionLabel}) and
             percentile stay visible for the Q2 summary and feature-local delta cards below, but they do
-            not change this shift map.
+            not change this shift map. The photo background is shown in grayscale and dimmed so the
+            signed shift colors stand out.
           </div>
           <Card>
             <CardContent className="p-0">
               <div className="border-b border-gray-200 px-3 py-2">
                 <p className="text-sm font-medium text-gray-900">Attention shift map</p>
                 <p className="text-xs text-gray-500">
-                  {comparedVariantDetails?.label ?? 'Adapted variant'} minus {frozenVariant?.label ?? 'Frozen'} · raw cached heatmaps
+                  {comparedVariantDetails?.label ?? 'Adapted variant'} minus {frozenVariant?.label ?? 'Frozen'} · raw cached heatmaps on a dimmed grayscale photo
                 </p>
               </div>
               {shiftLoading ? (
@@ -894,6 +914,7 @@ export function VariantCompare({
                     <CompareCanvas
                       imageSrc={originalUrl}
                       imageAlt={`${comparedVariantDetails?.label ?? 'Adapted variant'} minus ${frozenVariant?.label ?? 'Frozen'} shift map`}
+                      imageClassName="grayscale brightness-50 contrast-75"
                       overlaySrc={shiftHeatmapUrl}
                       overlayAlt="Attention shift heatmap"
                     />
