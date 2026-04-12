@@ -579,6 +579,104 @@ class TestFrozenVsFinetunedEndpoint:
         assert finetuned_resp.content
 
 
+class TestVariantShiftEndpoint:
+    """variants/shift should return numeric frozen-vs-variant attention deltas."""
+
+    def test_returns_shift_payload_for_strategy_specific_variant(self) -> None:
+        with patch("app.backend.routers.comparison.attention_service") as mock_attention_service:
+            mock_attention_service.exists.side_effect = lambda model, *_args, **kwargs: (
+                kwargs.get("method") == "cls"
+                and model in {"dinov2", "dinov2_finetuned_lora"}
+            )
+            mock_attention_service.get_attention_shift.return_value = {
+                "shape": [2, 2],
+                "shift": [0.2, -0.2, 0.0, 0.6],
+                "min_value": -0.2,
+                "max_value": 0.6,
+                "max_abs_value": 0.6,
+            }
+
+            resp = client.get(
+                "/api/compare/variants/shift",
+                params={
+                    "image_id": IMAGE_ID,
+                    "model": "dinov2",
+                    "layer": 0,
+                    "compared_variant": "lora",
+                },
+            )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["available"] is True
+        assert payload["baseline_variant"] == "frozen"
+        assert payload["compared_variant"] == "lora"
+        assert payload["baseline_model_key"] == "dinov2"
+        assert payload["compared_model_key"] == "dinov2_finetuned_lora"
+        assert payload["shift"] == pytest.approx([0.2, -0.2, 0.0, 0.6])
+        mock_attention_service.get_attention_shift.assert_called_once_with(
+            image_id=IMAGE_ID,
+            baseline_model="dinov2",
+            compared_model="dinov2_finetuned_lora",
+            layer=0,
+            method="cls",
+        )
+
+    def test_falls_back_to_legacy_full_variant_cache_key(self) -> None:
+        with patch("app.backend.routers.comparison.attention_service") as mock_attention_service:
+            mock_attention_service.exists.side_effect = lambda model, *_args, **kwargs: (
+                kwargs.get("method") == "cls"
+                and model in {"dinov2", "dinov2_finetuned"}
+            )
+            mock_attention_service.get_attention_shift.return_value = {
+                "shape": [2, 2],
+                "shift": [0.1, 0.0, -0.1, 0.2],
+                "min_value": -0.1,
+                "max_value": 0.2,
+                "max_abs_value": 0.2,
+            }
+
+            resp = client.get(
+                "/api/compare/variants/shift",
+                params={
+                    "image_id": IMAGE_ID,
+                    "model": "dinov2",
+                    "layer": 0,
+                    "compared_variant": "full",
+                },
+            )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["available"] is True
+        assert payload["compared_variant"] == "full"
+        assert payload["compared_model_key"] == "dinov2_finetuned"
+
+    def test_reports_unavailable_shift_when_variant_cache_is_missing(self) -> None:
+        with patch("app.backend.routers.comparison.attention_service") as mock_attention_service:
+            mock_attention_service.exists.side_effect = lambda model, *_args, **kwargs: (
+                kwargs.get("method") == "cls" and model == "dinov2"
+            )
+
+            resp = client.get(
+                "/api/compare/variants/shift",
+                params={
+                    "image_id": IMAGE_ID,
+                    "model": "dinov2",
+                    "layer": 0,
+                    "compared_variant": "linear_probe",
+                },
+            )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["available"] is False
+        assert payload["compared_variant"] == "linear_probe"
+        assert payload["shift"] == []
+        assert "Compared variant attention is not cached" in payload["reason"]
+        mock_attention_service.get_attention_shift.assert_not_called()
+
+
 class TestCompareModelsBboxMetrics:
     """compare_models should support bbox-scoped metrics without DB dependence."""
 

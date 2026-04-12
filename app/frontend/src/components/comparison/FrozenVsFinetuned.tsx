@@ -12,7 +12,13 @@ import { InteractiveBboxOverlay } from '../attention/InteractiveBboxOverlay';
 import { LayerSlider } from '../attention/LayerSlider';
 import { useModels } from '../../hooks/useAttention';
 import { useHeatmapOpacity, useHeatmapStyle } from '../../store/viewStore';
-import { computeSimilarityStats, renderHeatmap, renderHeatmapLegend } from '../../utils/renderHeatmap';
+import {
+  computeSimilarityStats,
+  renderDivergingHeatmap,
+  renderDivergingHeatmapLegend,
+  renderHeatmap,
+  renderHeatmapLegend,
+} from '../../utils/renderHeatmap';
 import {
   ANALYSIS_METRIC_METADATA,
   formatMetricValue,
@@ -26,9 +32,10 @@ import type {
   IoUResult,
   Q2StrategyComparison,
   Q2SummaryRow,
+  ShiftComparedVariantId,
 } from '../../types';
 
-type ViewMode = 'side-by-side' | 'slider';
+type ViewMode = 'side-by-side' | 'slider' | 'shift-map';
 
 interface VariantCompareProps {
   imageId: string;
@@ -86,6 +93,25 @@ function getVariantId(variant: ComparisonVariant): CompareVariantId {
     return variant.strategy;
   }
   return 'full';
+}
+
+function isShiftComparedVariantId(
+  variant: CompareVariantId | null | undefined
+): variant is ShiftComparedVariantId {
+  return variant === 'linear_probe' || variant === 'lora' || variant === 'full';
+}
+
+function getShiftComparedVariantId(
+  leftVariant: CompareVariantId | null,
+  rightVariant: CompareVariantId | null
+): ShiftComparedVariantId | null {
+  if (leftVariant === 'frozen' && isShiftComparedVariantId(rightVariant)) {
+    return rightVariant;
+  }
+  if (rightVariant === 'frozen' && isShiftComparedVariantId(leftVariant)) {
+    return leftVariant;
+  }
+  return null;
 }
 
 function findStrategyPair(
@@ -326,6 +352,18 @@ export function VariantCompare({
   });
 
   const { data: q2Summary, isLoading: q2SummaryLoading } = useQ2Summary(metric, percentile, model);
+  const leftComparedVariant = data ? getVariantId(data.left) : null;
+  const rightComparedVariant = data ? getVariantId(data.right) : null;
+  const shiftComparedVariant = getShiftComparedVariantId(leftComparedVariant, rightComparedVariant);
+  const shiftSupported = shiftComparedVariant !== null;
+  const shiftResetKey = `${leftComparedVariant ?? 'none'}|${rightComparedVariant ?? 'none'}`;
+  const [previousShiftResetKey, setPreviousShiftResetKey] = useState(shiftResetKey);
+  if (shiftResetKey !== previousShiftResetKey) {
+    setPreviousShiftResetKey(shiftResetKey);
+    if (viewMode === 'shift-map' && !shiftSupported) {
+      setViewMode('side-by-side');
+    }
+  }
 
   const leftUrl = data?.left.url ?? null;
   const rightUrl = data?.right.url ?? null;
@@ -373,7 +411,7 @@ export function VariantCompare({
 
       return { left, right };
     },
-    enabled: sliderAvailable && selectedBboxIndex !== null && Boolean(data),
+    enabled: selectedBboxIndex !== null && Boolean(data),
   });
 
   const {
@@ -409,7 +447,35 @@ export function VariantCompare({
 
       return { left, right };
     },
-    enabled: sliderAvailable && Boolean(selectedBbox) && Boolean(data),
+    enabled: Boolean(selectedBbox) && Boolean(data),
+    retry: false,
+  });
+
+  const {
+    data: shiftData,
+    isLoading: shiftLoading,
+    error: shiftError,
+  } = useQuery({
+    queryKey: [
+      'variant-compare-shift',
+      imageId,
+      model,
+      effectiveLayer,
+      shiftComparedVariant,
+    ],
+    queryFn: async () => {
+      if (!shiftComparedVariant) {
+        return null;
+      }
+
+      return comparisonAPI.compareVariantShift(
+        imageId,
+        model,
+        effectiveLayer,
+        shiftComparedVariant
+      );
+    },
+    enabled: Boolean(imageId && model && shiftComparedVariant && viewMode === 'shift-map'),
     retry: false,
   });
 
@@ -450,6 +516,25 @@ export function VariantCompare({
     }
   }, [heatmapOpacity, heatmapStyle, rightPatchGrid, rightSimilarity]);
 
+  const shiftLegendUrl = useMemo(() => renderDivergingHeatmapLegend(200, 16), []);
+  const shiftHeatmapUrl = useMemo(() => {
+    if (!shiftData?.available || !shiftData.shape.length || shiftData.max_abs_value === null) {
+      return null;
+    }
+
+    try {
+      return renderDivergingHeatmap({
+        values: shiftData.shift,
+        patchGrid: shiftData.shape as [number, number],
+        opacity: heatmapOpacity,
+        maxAbsValue: shiftData.max_abs_value,
+        style: heatmapStyle,
+      });
+    } catch {
+      return null;
+    }
+  }, [heatmapOpacity, heatmapStyle, shiftData]);
+
   const leftSimilarityStats = useMemo(() => {
     if (!leftSimilarity) {
       return null;
@@ -476,12 +561,13 @@ export function VariantCompare({
   const q2AnalyzedLayer = q2Summary?.analyzed_layer ?? null;
   const leftSummary = findStrategySummary(q2Rows, data?.left.strategy);
   const rightSummary = findStrategySummary(q2Rows, data?.right.strategy);
-  const leftComparedVariant = data ? getVariantId(data.left) : null;
-  const rightComparedVariant = data ? getVariantId(data.right) : null;
   const methodPairSummary =
     data?.left.strategy && data?.right.strategy
       ? findStrategyPair(q2StrategyComparisons, data.left.strategy, data.right.strategy)
       : null;
+
+  const frozenVariant = leftComparedVariant === 'frozen' ? data?.left : rightComparedVariant === 'frozen' ? data?.right : null;
+  const comparedVariantDetails = leftComparedVariant === 'frozen' ? data?.right : rightComparedVariant === 'frozen' ? data?.left : null;
 
   const hasQ2Content =
     !q2SummaryLoading &&
@@ -594,46 +680,6 @@ export function VariantCompare({
     return null;
   }
 
-  if (!sliderAvailable) {
-    return (
-      <div className="space-y-4">
-        {experimentSummary}
-        <Card>
-          <CardContent>
-            <LayerSlider
-              currentLayer={effectiveLayer}
-              maxLayers={maxLayers}
-              onChange={(nextLayer) => onLayerChange(nextLayer, { replace: isPlaying })}
-              isPlaying={isPlaying}
-              onPlayingChange={onPlayingChange}
-              playSpeed={400}
-            />
-          </CardContent>
-        </Card>
-        {leftUrl && (
-          <div className="relative">
-            <img
-              src={leftUrl}
-              alt={`${data.left.label} attention`}
-              className="h-auto w-full rounded-lg"
-            />
-            <div className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
-              {data.left.label}
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-          <h4 className="font-medium text-yellow-800">Comparison Overlay Unavailable</h4>
-          <p className="mt-1 text-sm text-yellow-700">{data.note}</p>
-          <p className="mt-1 text-sm text-yellow-700">
-            Side-by-side and slider comparison both require cached overlays for the compared variants.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <Card>
@@ -674,6 +720,19 @@ export function VariantCompare({
           >
             Slider
           </button>
+          {shiftSupported && (
+            <button
+              type="button"
+              onClick={() => setViewMode('shift-map')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                viewMode === 'shift-map'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Shift map
+            </button>
+          )}
         </div>
       </div>
 
@@ -681,95 +740,196 @@ export function VariantCompare({
 
       {viewMode === 'side-by-side' && (
         <>
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardContent className="p-0">
-                <div className="border-b border-gray-200 px-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">{data.left.label}</p>
-                  <p className="text-xs text-gray-500">
-                    {showSimilarityHeatmaps ? 'Feature-local similarity' : 'Global overlay'} · {percentileCopy}
-                  </p>
-                </div>
-                <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
-                  <CompareCanvas
-                    imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
-                    imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
-                    overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
-                    overlayAlt={`${data.left.label} similarity overlay`}
+          {!sliderAvailable ? (
+            <>
+              {leftUrl && (
+                <div className="relative">
+                  <img
+                    src={leftUrl}
+                    alt={`${data.left.label} attention`}
+                    className="h-auto w-full rounded-lg"
                   />
-                  {similarityLoading && selectedBbox && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <div className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-1 text-xs text-white">
+                    {data.left.label}
+                  </div>
+                </div>
+              )}
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <h4 className="font-medium text-yellow-800">Comparison overlay unavailable</h4>
+                <p className="mt-1 text-sm text-yellow-700">{data.note}</p>
+                <p className="mt-1 text-sm text-yellow-700">
+                  Side-by-side and slider comparison both require cached overlays for the compared variants.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="border-b border-gray-200 px-3 py-2">
+                      <p className="text-sm font-medium text-gray-900">{data.left.label}</p>
+                      <p className="text-xs text-gray-500">
+                        {showSimilarityHeatmaps ? 'Feature-local similarity' : 'Global overlay'} · {percentileCopy}
+                      </p>
                     </div>
-                  )}
-                  {showBboxes && bboxes.length > 0 && (
-                    <InteractiveBboxOverlay
-                      bboxes={bboxes}
-                      selectedIndex={selectedBboxIndex}
-                      onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
-                    />
-                  )}
-                </div>
-                <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
-                  {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
-                    <VariantMetricSummary metrics={bboxMetrics.left} selectedMetric={metric} />
-                  ) : selectedBbox && bboxMetricsLoading ? (
-                    <span>Loading metrics…</span>
-                  ) : (
-                    <span>Click a feature to see local metrics for this variant.</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
+                      <CompareCanvas
+                        imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
+                        imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
+                        overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
+                        overlayAlt={`${data.left.label} similarity overlay`}
+                      />
+                      {similarityLoading && selectedBbox && (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        </div>
+                      )}
+                      {showBboxes && bboxes.length > 0 && (
+                        <InteractiveBboxOverlay
+                          bboxes={bboxes}
+                          selectedIndex={selectedBboxIndex}
+                          onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
+                        />
+                      )}
+                    </div>
+                    <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
+                      {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
+                        <VariantMetricSummary metrics={bboxMetrics.left} selectedMetric={metric} />
+                      ) : selectedBbox && bboxMetricsLoading ? (
+                        <span>Loading metrics…</span>
+                      ) : (
+                        <span>Click a feature to see local metrics for this variant.</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardContent className="p-0">
-                <div className="border-b border-gray-200 px-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">{data.right.label}</p>
-                  <p className="text-xs text-gray-500">
-                    {showSimilarityHeatmaps ? 'Feature-local similarity' : 'Global overlay'} · {percentileCopy}
-                  </p>
-                </div>
-                <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
-                  <CompareCanvas
-                    imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
-                    imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
-                    overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
-                    overlayAlt={`${data.right.label} similarity overlay`}
-                  />
-                  {similarityLoading && selectedBbox && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="border-b border-gray-200 px-3 py-2">
+                      <p className="text-sm font-medium text-gray-900">{data.right.label}</p>
+                      <p className="text-xs text-gray-500">
+                        {showSimilarityHeatmaps ? 'Feature-local similarity' : 'Global overlay'} · {percentileCopy}
+                      </p>
                     </div>
-                  )}
-                  {showBboxes && bboxes.length > 0 && (
-                    <InteractiveBboxOverlay
-                      bboxes={bboxes}
-                      selectedIndex={selectedBboxIndex}
-                      onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
-                    />
-                  )}
-                </div>
-                <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
-                  {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
-                    <VariantMetricSummary metrics={bboxMetrics.right} selectedMetric={metric} />
-                  ) : selectedBbox && bboxMetricsLoading ? (
-                    <span>Loading metrics…</span>
-                  ) : (
-                    <span>Click a feature to see local metrics for this variant.</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
+                      <CompareCanvas
+                        imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
+                        imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
+                        overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
+                        overlayAlt={`${data.right.label} similarity overlay`}
+                      />
+                      {similarityLoading && selectedBbox && (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        </div>
+                      )}
+                      {showBboxes && bboxes.length > 0 && (
+                        <InteractiveBboxOverlay
+                          bboxes={bboxes}
+                          selectedIndex={selectedBboxIndex}
+                          onBboxClick={(_bbox, index) => setSelectedBboxIndex(selectedBboxIndex === index ? null : index)}
+                        />
+                      )}
+                    </div>
+                    <div className="border-t border-gray-200 px-3 py-2 text-sm text-gray-600">
+                      {selectedBbox && bboxMetrics && !bboxMetricsLoading ? (
+                        <VariantMetricSummary metrics={bboxMetrics.right} selectedMetric={metric} />
+                      ) : selectedBbox && bboxMetricsLoading ? (
+                        <span>Loading metrics…</span>
+                      ) : (
+                        <span>Click a feature to see local metrics for this variant.</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              {data.linearProbeInvolved && (
+                <p className="text-center text-xs text-amber-700">
+                  Linear probe is the no-backbone-change baseline, so attention differences are expected to stay small.
+                </p>
+              )}
+              {similarityError && selectedBbox && (
+                <p className="text-center text-xs text-amber-700">
+                  Similarity heatmaps are unavailable for this selection. Run feature-cache generation for both compared variants to enable bbox-local inspection.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {viewMode === 'shift-map' && shiftSupported && (
+        <>
+          <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
+            This map always shows {comparedVariantDetails?.label ?? 'Adapted variant'} minus{' '}
+            {frozenVariant?.label ?? 'Frozen'} using cached numeric heatmaps. Red means more attention
+            after fine-tuning, blue means less. The selected metric ({metricMetadata.optionLabel}) and
+            percentile stay visible for the Q2 summary and feature-local delta cards below, but they do
+            not change this shift map.
           </div>
+          <Card>
+            <CardContent className="p-0">
+              <div className="border-b border-gray-200 px-3 py-2">
+                <p className="text-sm font-medium text-gray-900">Attention shift map</p>
+                <p className="text-xs text-gray-500">
+                  {comparedVariantDetails?.label ?? 'Adapted variant'} minus {frozenVariant?.label ?? 'Frozen'} · raw cached heatmaps
+                </p>
+              </div>
+              {shiftLoading ? (
+                <div className="p-4 text-sm text-gray-600">Loading attention shift map...</div>
+              ) : shiftError ? (
+                <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  Failed to load the attention shift map for this comparison.
+                </div>
+              ) : shiftData && !shiftData.available ? (
+                <div className="m-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
+                  <p className="font-medium">Attention shift unavailable</p>
+                  <p className="mt-1">{shiftData.reason}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="relative aspect-square w-full overflow-hidden bg-gray-950">
+                    <CompareCanvas
+                      imageSrc={originalUrl}
+                      imageAlt={`${comparedVariantDetails?.label ?? 'Adapted variant'} minus ${frozenVariant?.label ?? 'Frozen'} shift map`}
+                      overlaySrc={shiftHeatmapUrl}
+                      overlayAlt="Attention shift heatmap"
+                    />
+                    {showBboxes && bboxes.length > 0 && (
+                      <InteractiveBboxOverlay
+                        bboxes={bboxes}
+                        selectedIndex={selectedBboxIndex}
+                        onBboxClick={(_bbox, index) => setSelectedBboxIndex((current) => (current === index ? null : index))}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2 border-t border-gray-200 px-3 py-3 text-xs text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                      <p>
+                        Shift = {shiftData?.operation ?? 'compared_variant_attention - frozen_attention'}
+                      </p>
+                      <p>
+                        Range {shiftData?.min_value?.toFixed(3) ?? 'n/a'} to {shiftData?.max_value?.toFixed(3) ?? 'n/a'}
+                        {shiftData?.max_abs_value !== null && shiftData?.max_abs_value !== undefined
+                          ? ` · symmetric color scale ±${shiftData.max_abs_value.toFixed(3)}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>Less attention</span>
+                      <img src={shiftLegendUrl} alt="Attention shift scale" className="h-4 rounded" />
+                      <span>More attention</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
           {data.linearProbeInvolved && (
             <p className="text-center text-xs text-amber-700">
               Linear probe is the no-backbone-change baseline, so attention differences are expected to stay small.
-            </p>
-          )}
-          {similarityError && selectedBbox && (
-            <p className="text-center text-xs text-amber-700">
-              Similarity heatmaps are unavailable for this selection. Run feature-cache generation for both compared variants to enable bbox-local inspection.
             </p>
           )}
         </>
@@ -777,64 +937,76 @@ export function VariantCompare({
 
       {viewMode === 'slider' && (
         <>
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>{data.left.label}</span>
-            <span>{data.right.label}</span>
-          </div>
-          <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
-            Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
-            similarity heatmaps. The selected metric is {metricMetadata.optionLabel.toLowerCase()}, and
-            {metricMetadata.direction === 'higher' ? ' higher values are better.' : ' lower values are better.'}
-          </div>
-          <div className="relative mx-auto w-full max-w-3xl">
-            <ReactCompareSlider
-              itemOne={
-                <CompareCanvas
-                  imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
-                  imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
-                  overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
-                  overlayAlt={`${data.left.label} similarity overlay`}
-                />
-              }
-              itemTwo={
-                <CompareCanvas
-                  imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
-                  imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
-                  overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
-                  overlayAlt={`${data.right.label} similarity overlay`}
-                />
-              }
-              className="aspect-square overflow-hidden rounded-lg"
-              position={50}
-            />
-            {similarityLoading && selectedBbox && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          {!sliderAvailable ? (
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+              <h4 className="font-medium text-yellow-800">Comparison overlay unavailable</h4>
+              <p className="mt-1 text-sm text-yellow-700">{data.note}</p>
+              <p className="mt-1 text-sm text-yellow-700">
+                Generate cached overlays for both selected variants to enable the slider view.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>{data.left.label}</span>
+                <span>{data.right.label}</span>
               </div>
-            )}
-            {showBboxes && bboxes.length > 0 && (
-              <InteractiveBboxOverlay
-                bboxes={bboxes}
-                selectedIndex={selectedBboxIndex}
-                onBboxClick={(_bbox, index) => setSelectedBboxIndex((current) => (current === index ? null : index))}
-              />
-            )}
-          </div>
-          <p className="text-center text-xs text-gray-500">
-            {showSimilarityHeatmaps
-              ? 'Drag slider to compare bbox-conditioned similarity heatmaps'
-              : `Drag slider to compare ${data.left.label.toLowerCase()} vs ${data.right.label.toLowerCase()} attention${showBboxes ? ' with annotated boxes' : ''}`}
-          </p>
-          {data.linearProbeInvolved && (
-            <p className="text-center text-xs text-amber-700">
-              Linear probe is the no-backbone-change baseline, so attention differences are expected to stay small.
-            </p>
-          )}
-          {similarityError && selectedBbox && (
-            <p className="text-center text-xs text-amber-700">
-              Similarity heatmaps are unavailable for this selection, so the view stays on the global overlays. Run
-              feature-cache generation for both compared variants to enable bbox-local inspection.
-            </p>
+              <div className="rounded-lg border border-sky-100 bg-sky-50/70 px-4 py-3 text-sm text-sky-900">
+                Clicking a bounding box switches the slider from cached global overlays to bbox-conditioned
+                similarity heatmaps. The selected metric is {metricMetadata.optionLabel.toLowerCase()}, and
+                {metricMetadata.direction === 'higher' ? ' higher values are better.' : ' lower values are better.'}
+              </div>
+              <div className="relative mx-auto w-full max-w-3xl">
+                <ReactCompareSlider
+                  itemOne={
+                    <CompareCanvas
+                      imageSrc={showSimilarityHeatmaps ? originalUrl : leftUrl!}
+                      imageAlt={showSimilarityHeatmaps ? `${data.left.label} similarity heatmap` : `${data.left.label} attention`}
+                      overlaySrc={showSimilarityHeatmaps ? leftSimilarityHeatmapUrl : null}
+                      overlayAlt={`${data.left.label} similarity overlay`}
+                    />
+                  }
+                  itemTwo={
+                    <CompareCanvas
+                      imageSrc={showSimilarityHeatmaps ? originalUrl : rightUrl!}
+                      imageAlt={showSimilarityHeatmaps ? `${data.right.label} similarity heatmap` : `${data.right.label} attention`}
+                      overlaySrc={showSimilarityHeatmaps ? rightSimilarityHeatmapUrl : null}
+                      overlayAlt={`${data.right.label} similarity overlay`}
+                    />
+                  }
+                  className="aspect-square overflow-hidden rounded-lg"
+                  position={50}
+                />
+                {similarityLoading && selectedBbox && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  </div>
+                )}
+                {showBboxes && bboxes.length > 0 && (
+                  <InteractiveBboxOverlay
+                    bboxes={bboxes}
+                    selectedIndex={selectedBboxIndex}
+                    onBboxClick={(_bbox, index) => setSelectedBboxIndex((current) => (current === index ? null : index))}
+                  />
+                )}
+              </div>
+              <p className="text-center text-xs text-gray-500">
+                {showSimilarityHeatmaps
+                  ? 'Drag slider to compare bbox-conditioned similarity heatmaps'
+                  : `Drag slider to compare ${data.left.label.toLowerCase()} vs ${data.right.label.toLowerCase()} attention${showBboxes ? ' with annotated boxes' : ''}`}
+              </p>
+              {data.linearProbeInvolved && (
+                <p className="text-center text-xs text-amber-700">
+                  Linear probe is the no-backbone-change baseline, so attention differences are expected to stay small.
+                </p>
+              )}
+              {similarityError && selectedBbox && (
+                <p className="text-center text-xs text-amber-700">
+                  Similarity heatmaps are unavailable for this selection, so the view stays on the global overlays. Run
+                  feature-cache generation for both compared variants to enable bbox-local inspection.
+                </p>
+              )}
+            </>
           )}
         </>
       )}
@@ -886,9 +1058,11 @@ export function VariantCompare({
                   Selected feature: {selectedBbox.label_name || `Feature ${selectedBbox.label}`}
                 </p>
                 <p className="mt-1 text-xs text-gray-600">
-                  Bounding box #{selectedBboxIndex! + 1} at layer {effectiveLayer}. The slider now uses this expert
-                  region as the similarity query. The highlighted delta card tracks {metricMetadata.optionLabel}, while
-                  the detailed panels keep all local metrics visible for context.
+                  Bounding box #{selectedBboxIndex! + 1} at layer {effectiveLayer}. {viewMode === 'shift-map'
+                    ? `The main view stays on the frozen-vs-variant shift map while the lower panels keep ${metricMetadata.optionLabel} and the full local metric bundle visible for context.`
+                    : viewMode === 'slider'
+                      ? `The slider now uses this expert region as the similarity query. The highlighted delta card tracks ${metricMetadata.optionLabel}, while the detailed panels keep all local metrics visible for context.`
+                      : `The comparison panels now use this expert region as the similarity query. The highlighted delta card tracks ${metricMetadata.optionLabel}, while the detailed panels keep all local metrics visible for context.`}
                 </p>
               </div>
 

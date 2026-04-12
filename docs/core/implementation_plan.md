@@ -296,12 +296,12 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Holm correction for multiple comparisons across models, with explicit correction-family metadata in the saved artifact
    - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page via `outputs/results/active_experiment.json`
 
-4. **Visualization** 🔄
+4. **Visualization** ✅
    - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Variant vs Variant`
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
-   - Attention shift maps (where did attention move?) — tracked in issue #474
+   - Compare page ships a frozen-vs-variant `Shift map` view that renders `compared_variant_attention - frozen_attention` from cached numeric heatmaps with a diverging color scale
 
-> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is limited to (a) first-class fine-tuned leaderboard/dashboard support and (b) attention shift visualization. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
+> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is now limited to first-class fine-tuned leaderboard/dashboard support. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2` plus the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 

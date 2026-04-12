@@ -451,6 +451,23 @@ export const comparisonAPI = {
     );
   },
 
+  compareVariantShift: (
+    imageId: string,
+    model: string,
+    layer: number,
+    comparedVariant: import('../types').ShiftComparedVariantId
+  ) => {
+    const query = new URLSearchParams({
+      image_id: imageId,
+      model,
+      layer: String(layer),
+      compared_variant: comparedVariant,
+    });
+    return fetchJSON<import('../types').VariantShiftMap>(
+      `/compare/variants/shift?${query.toString()}`
+    );
+  },
+
   getAllModelsSummary: (
     percentile = 90,
     metric: import('../types').DashboardMetric = 'iou',

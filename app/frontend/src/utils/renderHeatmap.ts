@@ -71,6 +71,22 @@ function turboColor(value: number): [number, number, number] {
   return TURBO[index];
 }
 
+function mixChannel(start: number, end: number, ratio: number): number {
+  return Math.round(start + (end - start) * ratio);
+}
+
+function divergingColor(value: number): [number, number, number, number] {
+  const clampedValue = Math.max(-1, Math.min(1, value));
+  const magnitude = Math.abs(clampedValue);
+  const target = clampedValue >= 0
+    ? [220, 38, 38]
+    : [37, 99, 235];
+  const r = mixChannel(255, target[0], magnitude);
+  const g = mixChannel(255, target[1], magnitude);
+  const b = mixChannel(255, target[2], magnitude);
+  return [r, g, b, magnitude];
+}
+
 export type HeatmapStyleType = 'smooth' | 'squares' | 'circles';
 
 export interface RenderHeatmapOptions {
@@ -81,6 +97,16 @@ export interface RenderHeatmapOptions {
   opacity?: number;
   minValue?: number;
   maxValue?: number;
+  style?: HeatmapStyleType;
+}
+
+export interface RenderDivergingHeatmapOptions {
+  values: number[];
+  patchGrid: [number, number];
+  width?: number;
+  height?: number;
+  opacity?: number;
+  maxAbsValue?: number;
   style?: HeatmapStyleType;
 }
 
@@ -194,6 +220,98 @@ export function renderHeatmap(options: RenderHeatmapOptions): string {
   return canvas.toDataURL('image/png');
 }
 
+export function renderDivergingHeatmap(options: RenderDivergingHeatmapOptions): string {
+  const {
+    values,
+    patchGrid,
+    width = 224,
+    height = 224,
+    opacity = 0.7,
+    maxAbsValue,
+    style = 'smooth',
+  } = options;
+
+  const [gridRows, gridCols] = patchGrid;
+  const resolvedMaxAbs = maxAbsValue ?? Math.max(...values.map((value) => Math.abs(value)), 0);
+  const scale = resolvedMaxAbs > 0 ? resolvedMaxAbs : 1;
+
+  if (style === 'smooth') {
+    const smallCanvas = document.createElement('canvas');
+    smallCanvas.width = gridCols;
+    smallCanvas.height = gridRows;
+    const smallCtx = smallCanvas.getContext('2d');
+
+    if (!smallCtx) {
+      throw new Error('Could not get small canvas context');
+    }
+
+    const imageData = smallCtx.createImageData(gridCols, gridRows);
+    for (let i = 0; i < values.length; i++) {
+      const normalizedValue = values[i] / scale;
+      const [r, g, b, alphaFactor] = divergingColor(normalizedValue);
+      const idx = i * 4;
+      imageData.data[idx] = r;
+      imageData.data[idx + 1] = g;
+      imageData.data[idx + 2] = b;
+      imageData.data[idx + 3] = Math.round(opacity * alphaFactor * 255);
+    }
+    smallCtx.putImageData(imageData, 0, 0);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Could not get canvas context');
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(smallCanvas, 0, 0, width, height);
+
+    return canvas.toDataURL('image/png');
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
+
+  const patchWidth = width / gridCols;
+  const patchHeight = height / gridRows;
+
+  for (let i = 0; i < values.length; i++) {
+    const row = Math.floor(i / gridCols);
+    const col = i % gridCols;
+    const normalizedValue = values[i] / scale;
+    const [r, g, b, alphaFactor] = divergingColor(normalizedValue);
+
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity * alphaFactor})`;
+
+    const x = col * patchWidth;
+    const y = row * patchHeight;
+
+    if (style === 'squares') {
+      ctx.fillRect(x, y, patchWidth, patchHeight);
+    } else if (style === 'circles') {
+      const centerX = x + patchWidth / 2;
+      const centerY = y + patchHeight / 2;
+      const radius = Math.min(patchWidth, patchHeight) / 2 * 0.85;
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
 /**
  * Render a color legend for the heatmap using Turbo colormap.
  *
@@ -221,6 +339,30 @@ export function renderHeatmapLegend(
     const [r, g, b] = turboColor(t);
     gradient.addColorStop(t, `rgb(${r}, ${g}, ${b})`);
   }
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  return canvas.toDataURL('image/png');
+}
+
+export function renderDivergingHeatmapLegend(
+  width = 200,
+  height = 20
+): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
+
+  const gradient = ctx.createLinearGradient(0, 0, width, 0);
+  gradient.addColorStop(0, 'rgb(37, 99, 235)');
+  gradient.addColorStop(0.5, 'rgb(255, 255, 255)');
+  gradient.addColorStop(1, 'rgb(220, 38, 38)');
 
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);

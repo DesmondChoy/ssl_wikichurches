@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import h5py
+import torch
 
 # Add SSL attention source to path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -209,18 +210,15 @@ class AttentionService:
                 - min_value: float
                 - max_value: float
         """
-        layer_key = f"layer{layer}"
-        cache_model = resolve_model_name(model)
-        variant = self.resolve_variant(method, head)
+        attention_tensor = self.load_attention_tensor(
+            image_id=image_id,
+            model=model,
+            layer=layer,
+            method=method,
+            head=head,
+        )
 
-        # Load from cache
-        try:
-            attention_tensor = self.cache.load(cache_model, layer_key, image_id, variant=variant)
-        except KeyError as e:
-            raise ValueError(
-                f"Attention not cached for {model}/{layer_key}/{variant}/{image_id}. "
-                "Run generate_attention_cache.py first."
-            ) from e
+        cache_model = resolve_model_name(model)
 
         # Get expected grid dimensions
         grid_rows, grid_cols = self.get_attention_grid(cache_model)
@@ -245,6 +243,69 @@ class AttentionService:
             "shape": shape,
             "min_value": min(attention_flat),
             "max_value": max(attention_flat),
+        }
+
+    def load_attention_tensor(
+        self,
+        image_id: str,
+        model: str,
+        layer: int,
+        method: str = "cls",
+        head: int | None = None,
+    ) -> torch.Tensor:
+        """Load the cached numeric attention tensor for one image/model/layer."""
+        layer_key = f"layer{layer}"
+        cache_model = resolve_model_name(model)
+        variant = self.resolve_variant(method, head)
+
+        try:
+            return self.cache.load(cache_model, layer_key, image_id, variant=variant)
+        except KeyError as e:
+            raise ValueError(
+                f"Attention not cached for {model}/{layer_key}/{variant}/{image_id}. "
+                "Run generate_attention_cache.py first."
+            ) from e
+
+    def get_attention_shift(
+        self,
+        *,
+        image_id: str,
+        baseline_model: str,
+        compared_model: str,
+        layer: int,
+        method: str = "cls",
+    ) -> dict:
+        """Compute a numeric attention-shift map as compared minus baseline."""
+        baseline_attention = self.load_attention_tensor(
+            image_id=image_id,
+            model=baseline_model,
+            layer=layer,
+            method=method,
+        )
+        compared_attention = self.load_attention_tensor(
+            image_id=image_id,
+            model=compared_model,
+            layer=layer,
+            method=method,
+        )
+
+        if baseline_attention.shape != compared_attention.shape:
+            raise ValueError(
+                "Attention shift requires matching cached heatmap shapes, "
+                f"got {tuple(baseline_attention.shape)} vs {tuple(compared_attention.shape)}."
+            )
+
+        shift_tensor = compared_attention - baseline_attention
+        shift_flat = shift_tensor.flatten().tolist()
+        min_value = float(shift_tensor.min().item()) if shift_flat else 0.0
+        max_value = float(shift_tensor.max().item()) if shift_flat else 0.0
+
+        return {
+            "shift": shift_flat,
+            "shape": list(shift_tensor.shape),
+            "min_value": min_value,
+            "max_value": max_value,
+            "max_abs_value": max(abs(min_value), abs(max_value)),
         }
 
 

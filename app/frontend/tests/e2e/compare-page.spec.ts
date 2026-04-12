@@ -73,29 +73,35 @@ async function stubVariantCompareApis(page: import('@playwright/test').Page) {
   });
 
   await page.route('**/api/compare/variants?**', async (route) => {
+    const url = new URL(route.request().url());
+    const model = url.searchParams.get('model') ?? 'dinov2';
+    const leftVariant = url.searchParams.get('left_variant') ?? 'frozen';
+    const rightVariant = url.searchParams.get('right_variant') ?? 'lora';
+    const variantLabels: Record<string, string> = {
+      frozen: 'Frozen (Pretrained)',
+      linear_probe: 'Linear Probe',
+      lora: 'LoRA',
+      full: 'Full Fine-tune',
+    };
+    const buildVariantPayload = (variant: string) => ({
+      model_key: variant === 'frozen' ? model : `${model}_finetuned_${variant}`,
+      strategy: variant === 'frozen' ? null : variant,
+      label: variantLabels[variant] ?? variant,
+      available: true,
+      url: `/api/attention/${IMAGE_ID}/overlay?model=${variant === 'frozen' ? model : `${model}_finetuned_${variant}`}&layer=0&method=cls`,
+    });
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         image_id: IMAGE_ID,
-        model: 'dinov2',
+        model,
         layer: 'layer0',
         method: 'cls',
         show_bboxes: true,
-        left: {
-          model_key: 'dinov2',
-          strategy: null,
-          label: 'Frozen (Pretrained)',
-          available: true,
-          url: '/api/attention/Q2034923_wd0.jpg/overlay?model=dinov2&layer=0&method=cls',
-        },
-        right: {
-          model_key: 'dinov2_finetuned_lora',
-          strategy: 'lora',
-          label: 'LoRA',
-          available: true,
-          url: '/api/attention/Q2034923_wd0.jpg/overlay?model=dinov2_finetuned_lora&layer=0&method=cls',
-        },
+        left: buildVariantPayload(leftVariant),
+        right: buildVariantPayload(rightVariant),
         note: 'ok',
       }),
     });
@@ -115,6 +121,47 @@ async function stubVariantCompareApis(page: import('@playwright/test').Page) {
         timestamp: null,
         rows: [],
         strategy_comparisons: [],
+      }),
+    });
+  });
+}
+
+async function stubVariantShiftApi(
+  page: import('@playwright/test').Page,
+  options?: { available?: boolean; reason?: string }
+) {
+  await page.route('**/api/compare/variants/shift?**', async (route) => {
+    const url = new URL(route.request().url());
+    const model = url.searchParams.get('model') ?? 'dinov2';
+    const comparedVariant = (url.searchParams.get('compared_variant') ?? 'lora') as 'linear_probe' | 'lora' | 'full';
+    const variantLabels: Record<string, string> = {
+      linear_probe: 'Linear Probe',
+      lora: 'LoRA',
+      full: 'Full Fine-tune',
+    };
+    const available = options?.available ?? true;
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: IMAGE_ID,
+        model,
+        layer: 'layer0',
+        method: 'cls',
+        available,
+        reason: available ? null : (options?.reason ?? 'Compared variant attention is not cached for this selection.'),
+        baseline_variant: 'frozen',
+        compared_variant: comparedVariant,
+        baseline_model_key: model,
+        compared_model_key: `${model}_finetuned_${comparedVariant}`,
+        operation: 'compared_variant_attention - frozen_attention',
+        shape: available ? [2, 2] : [],
+        shift: available ? [0.25, -0.1, 0.0, 0.45] : [],
+        min_value: available ? -0.1 : null,
+        max_value: available ? 0.45 : null,
+        max_abs_value: available ? 0.45 : null,
+        label: variantLabels[comparedVariant],
       }),
     });
   });
@@ -460,6 +507,41 @@ test.describe('Compare page', () => {
     await expect(page).toHaveURL(/right_variant=lora/);
     await expect(page.getByText(/threshold-free, so percentile stays visible/)).toBeVisible();
     await expect(getSelectByLabel(page, 'Percentile')).toBeDisabled();
+  });
+
+  test('shows the shift-map view for frozen-vs-adapted pairs and hides it for adapted-only pairs', async ({ page }) => {
+    await stubVariantCompareApis(page);
+    await stubVariantShiftApi(page);
+
+    await page.goto(`/compare?image=${encodeURIComponent(IMAGE_ID)}&type=variants&model=dinov2&left_variant=frozen&right_variant=lora`);
+
+    const shiftButton = page.getByRole('button', { name: 'Shift map' });
+    await expect(shiftButton).toBeVisible();
+    await shiftButton.click();
+
+    await expect(page.getByText(/This map always shows LoRA minus Frozen/)).toBeVisible();
+    await expect(page.getByText(/Red means more attention after fine-tuning, blue means less/)).toBeVisible();
+
+    await getSelectByLabel(page, 'Left Variant').selectOption('linear_probe');
+    await getSelectByLabel(page, 'Right Variant').selectOption('full');
+
+    await expect(page.getByRole('button', { name: 'Shift map' })).toHaveCount(0);
+  });
+
+  test('shows shift-specific unavailable messaging without failing the compare page', async ({ page }) => {
+    await stubVariantCompareApis(page);
+    await stubVariantShiftApi(page, {
+      available: false,
+      reason: 'Compared variant attention is not cached for this model/layer/image. Generate fine-tuned attention caches for the requested strategy first.',
+    });
+
+    await page.goto(`/compare?image=${encodeURIComponent(IMAGE_ID)}&type=variants&model=dinov2&left_variant=frozen&right_variant=full`);
+
+    await page.getByRole('button', { name: 'Shift map' }).click();
+
+    await expect(page.getByText('Attention shift unavailable')).toBeVisible();
+    await expect(page.getByText(/Generate fine-tuned attention caches for the requested strategy first/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Side by side' })).toBeVisible();
   });
 
   test('keeps the Q2-selected model available before an image is chosen', async ({ page }) => {

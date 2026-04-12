@@ -107,6 +107,7 @@ Use this when you want to compare any two states of the same base model.
 - Choose one model.
 - Choose any two variants from `Frozen`, `Linear Probe`, `LoRA`, and `Full Fine-tune`.
 - Switch between **Side by side** and **Slider** view.
+- When one side is `Frozen` and the other is adapted, a **Shift map** view becomes available and shows `adapted - frozen` directly on the image.
 - Use the layer controls to inspect how the comparison changes through the network.
 - Click a bounding box to switch from global overlays to bbox-conditioned similarity overlays.
 
@@ -117,12 +118,14 @@ This is the most common variant comparison preset.
 - Choose one model.
 - Hold one side on `Frozen`.
 - Compare it against `Linear Probe`, `LoRA`, or `Full Fine-tune`.
+- Use **Shift map** when you want a single diverging view of where attention increased or decreased after fine-tuning.
 - Use the same layer and bbox-conditioned similarity tools as the broader variant workflow.
 
 Important behavior:
 
 - The page supports **any pairwise variant comparison**, and Frozen vs Fine-tuned is one focused case of that broader flow.
 - When Q2 summary data is available for the selected model and metric, the page can show an **experiment summary** card sourced from the active Q2 analysis.
+- The shift-map view is always computed from cached numeric heatmaps, so the selected metric and percentile do not change its colors. They still affect the summary tables and feature-local metrics below the main image.
 
 ### Dashboard (`/dashboard`)
 

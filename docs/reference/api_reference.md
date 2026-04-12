@@ -1509,6 +1509,66 @@ Use this endpoint when the compared pair could be:
 
 ---
 
+### `GET /api/compare/variants/shift`
+
+Return an explicit frozen-vs-variant attention-shift map for one image. The
+shift is computed from cached numeric heatmaps, not from rendered overlay PNGs:
+
+`shift = compared_variant_attention - frozen_attention`
+
+This endpoint is used by the `Shift map` view in the Compare page and is only
+defined for frozen-vs-adapted pairs.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
+| `model` | string | No | `dinov2` | Base-model name | Base model name |
+| `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `compared_variant` | string | No | `full` | `linear_probe`, `lora`, `full` | Non-frozen comparison variant |
+
+**Response**: `VariantShiftMapSchema`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "layer": "layer0",
+  "method": "cls",
+  "available": true,
+  "reason": null,
+  "baseline_variant": "frozen",
+  "compared_variant": "lora",
+  "baseline_model_key": "dinov2",
+  "compared_model_key": "dinov2_finetuned_lora",
+  "operation": "compared_variant_attention - frozen_attention",
+  "shape": [224, 224],
+  "shift": [0.012, -0.004, 0.0, 0.031],
+  "min_value": -0.182,
+  "max_value": 0.247,
+  "max_abs_value": 0.247
+}
+```
+
+Important behavior:
+
+- The shift map always comes from cached numeric heatmaps in `attention_viz.h5`.
+- The selected metric and percentile in the Compare page do **not** change this
+  response; they still affect the Q2 summary cards and bbox-local metric panels.
+- If frozen or fine-tuned attention is missing, the endpoint returns `200` with
+  `available = false` and a human-readable `reason`, so the UI can show a
+  dedicated empty state instead of failing the whole compare view.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, layer, or compared variant |
+| 404 | Image not found |
+
+---
+
 ### `GET /api/compare/frozen_vs_finetuned`
 
 Compare frozen (pretrained) vs fine-tuned model attention on a single image.
