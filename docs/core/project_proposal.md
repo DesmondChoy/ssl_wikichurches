@@ -22,7 +22,7 @@ Existing interpretability tools address parts of this problem but leave a critic
 |-------------------|----------|-------------|
 | **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU, Coverage, MSE, KL divergence, and EMD between attention maps and expert bounding boxes across 7 models and 12 layers | Attention heatmap overlay, multi-metric dashboard, model leaderboard |
 | **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare frozen-vs-fine-tuned attention-shift deltas across IoU, Coverage, MSE, KL, and EMD on the same images; retain Preserve / Enhance / Destroy as the IoU-centered interpretation layer; compare strategies with paired Wilcoxon tests, Holm correction, and Cohen's d effect sizes | Frozen vs fine-tuned comparison view, Variant vs Variant comparison view, and strategy-aware Q2 metric tables |
-| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Per-head attention selector, head IoU heatmap (head × feature type), head specialization dashboard |
+| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Dashboard Q3 ranking and head-feature heatmap, Image Detail Q3 drill-down, and the advanced `/q3` comparison workspace |
 
 > **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
 
@@ -239,7 +239,7 @@ All models compared against:
 1. **Multi-metric benchmark:** Quantitative attention-alignment evaluation on expert-annotated architectural features using 5 complementary metrics (IoU, Coverage, MSE, KL, EMD) — combining threshold-dependent and threshold-free approaches
 2. **Q1:** Empirical comparison of 7 models spanning 4 SSL paradigms plus a supervised baseline on expert attention alignment
 3. **Q2:** Preserve / Enhance / Destroy taxonomy for classifying how fine-tuning shifts attention toward expert features, with Holm-corrected paired statistical tests and effect sizes across 3 strategies (Linear Probe, LoRA, Full)
-4. **Q3:** Identification of attention heads specialized for architectural recognition (planned)
+4. **Q3:** Identification of attention heads specialized for architectural recognition through the implemented per-head ranking, heatmap, and exemplar workflow
 5. **Continuous metrics methodology:** Gaussian soft ground truth generation from expert bounding boxes, enabling distribution-based alignment evaluation (MSE, KL, EMD)
 6. **Deliverable:** Reproducible codebase and interactive analysis tool
 

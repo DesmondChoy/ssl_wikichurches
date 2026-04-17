@@ -16,7 +16,9 @@ from app.backend.schemas import (
     LeaderboardEntry,
     ModelComparisonSchema,
     VariantComparisonSchema,
+    VariantShiftMapSchema,
 )
+from app.backend.services.attention_service import attention_service
 from app.backend.services.image_service import image_service
 from app.backend.services.metrics_service import metrics_service
 from app.backend.validators import (
@@ -32,6 +34,7 @@ from app.backend.validators import (
 
 router = APIRouter(prefix="/compare", tags=["comparison"])
 CompareVariant = Literal["frozen", "linear_probe", "lora", "full"]
+ShiftComparedVariant = Literal["linear_probe", "lora", "full"]
 
 
 def _build_overlay_url(
@@ -106,6 +109,37 @@ def _resolve_overlay_candidate(
             )
 
     return fallback_model_key, fallback_strategy, False, None
+
+
+def _resolve_attention_candidate(
+    *,
+    candidates: list[tuple[str | None, str]],
+    image_id: str,
+    layer_key: str,
+    method: str,
+) -> tuple[str, str | None, bool]:
+    """Resolve the first available raw-attention cache candidate."""
+    fallback_model_key = candidates[0][1]
+    fallback_strategy = candidates[0][0]
+
+    for candidate_strategy, candidate_model in candidates:
+        try:
+            resolved_model = validate_model(candidate_model)
+        except HTTPException:
+            continue
+
+        if candidate_model == fallback_model_key:
+            fallback_model_key = resolved_model
+
+        if attention_service.exists(
+            resolved_model,
+            layer_key,
+            image_id,
+            method=method,
+        ):
+            return resolved_model, candidate_strategy, True
+
+    return fallback_model_key, fallback_strategy, False
 
 
 def _variant_label(variant: CompareVariant) -> str:
@@ -374,6 +408,103 @@ async def compare_variants(
         left=left,
         right=right,
         note=note,
+    )
+
+
+@router.get("/variants/shift", response_model=VariantShiftMapSchema)
+async def compare_variant_shift(
+    image_id: str,
+    model: Annotated[str, Query()] = "dinov2",
+    layer: Annotated[int, Query(ge=0)] = 0,
+    compared_variant: Annotated[
+        ShiftComparedVariant,
+        Query(description="Non-frozen comparison variant used in shift = compared - frozen"),
+    ] = "full",
+) -> VariantShiftMapSchema:
+    """Return a numeric frozen-vs-variant attention-shift map."""
+    resolved_model = validate_model(model)
+    base_model, _, _ = split_model_variant(resolved_model)
+    layer_key = validate_layer_for_model(layer, base_model)
+
+    if not image_service.get_annotation(image_id):
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_id}")
+
+    method = resolve_default_method(base_model)
+    baseline_model_key = base_model
+    baseline_available = attention_service.exists(
+        base_model,
+        layer_key,
+        image_id,
+        method=method,
+    )
+    compared_model_key, _resolved_strategy, compared_available = _resolve_attention_candidate(
+        candidates=_finetuned_variant_candidates(base_model, compared_variant),
+        image_id=image_id,
+        layer_key=layer_key,
+        method=method,
+    )
+
+    if not baseline_available or not compared_available:
+        reasons = []
+        if not baseline_available:
+            reasons.append(
+                "Frozen attention is not cached for this model/layer/image. "
+                "Run generate_attention_cache.py first."
+            )
+        if not compared_available:
+            reasons.append(
+                "Compared variant attention is not cached for this model/layer/image. "
+                "Generate fine-tuned attention caches for the requested strategy first."
+            )
+
+        return VariantShiftMapSchema(
+            image_id=image_id,
+            model=base_model,
+            layer=layer_key,
+            method=method,
+            available=False,
+            reason=" ".join(reasons),
+            compared_variant=compared_variant,
+            baseline_model_key=baseline_model_key,
+            compared_model_key=compared_model_key,
+        )
+
+    try:
+        shift_payload = attention_service.get_attention_shift(
+            image_id=image_id,
+            baseline_model=baseline_model_key,
+            compared_model=compared_model_key,
+            layer=layer,
+            method=method,
+        )
+    except ValueError as exc:
+        return VariantShiftMapSchema(
+            image_id=image_id,
+            model=base_model,
+            layer=layer_key,
+            method=method,
+            available=False,
+            reason=str(exc),
+            compared_variant=compared_variant,
+            baseline_model_key=baseline_model_key,
+            compared_model_key=compared_model_key,
+        )
+
+    return VariantShiftMapSchema(
+        image_id=image_id,
+        model=base_model,
+        layer=layer_key,
+        method=method,
+        available=True,
+        reason=None,
+        compared_variant=compared_variant,
+        baseline_model_key=baseline_model_key,
+        compared_model_key=compared_model_key,
+        shape=shift_payload["shape"],
+        shift=shift_payload["shift"],
+        min_value=shift_payload["min_value"],
+        max_value=shift_payload["max_value"],
+        max_abs_value=shift_payload["max_abs_value"],
     )
 
 

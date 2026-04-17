@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 AnalysisMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
 DashboardMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
 CompareVariant = Literal["frozen", "linear_probe", "lora", "full"]
+ShiftComparedVariant = Literal["linear_probe", "lora", "full"]
 
 
 class BoundingBoxSchema(BaseModel):
@@ -370,6 +371,27 @@ class VariantComparisonSchema(BaseModel):
     left: ComparisonVariantSchema
     right: ComparisonVariantSchema
     note: str
+
+
+class VariantShiftMapSchema(BaseModel):
+    """Numeric attention-shift payload for frozen-vs-variant comparisons."""
+
+    image_id: str
+    model: str
+    layer: str
+    method: str
+    available: bool = False
+    reason: str | None = None
+    baseline_variant: Literal["frozen"] = "frozen"
+    compared_variant: ShiftComparedVariant
+    baseline_model_key: str
+    compared_model_key: str
+    operation: str = "compared_variant_attention - frozen_attention"
+    shape: list[int] = Field(default_factory=list)
+    shift: list[float] = Field(default_factory=list)
+    min_value: float | None = None
+    max_value: float | None = None
+    max_abs_value: float | None = None
 
 
 class Q2SummaryRowSchema(BaseModel):

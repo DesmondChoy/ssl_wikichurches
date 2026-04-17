@@ -8,10 +8,10 @@
 | Phase 2 | Data Pipeline | ✅ Complete |
 | Phase 3 | Metrics & Evaluation | ✅ Complete |
 | Phase 4 | Visualization & Analysis | ✅ Complete |
-| Phase 5 | Fine-Tuning Analysis | 🔄 In Progress |
+| Phase 5 | Fine-Tuning Analysis | 🟡 Core complete, polish pending |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-04-10 (Added fine-tuning results analysis; Q2 primary experiment `fine_tuning_primary_20260327` complete; see `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for findings brainstorm)
+**Last Updated:** 2026-04-12
 
 ---
 
@@ -78,7 +78,7 @@ ssl_wikichurches/
 │   ├── evaluation/
 │   │   ├── __init__.py
 │   │   ├── linear_probe.py      # Linear classifier training
-│   │   └── fine_tuning.py       # Full backbone fine-tuning
+│   │   └── fine_tuning.py       # Fine-tuning strategies and training loop
 │   │
 │   ├── visualization/
 │   │   ├── __init__.py
@@ -100,7 +100,7 @@ ssl_wikichurches/
 │       ├── analyze_q2_metrics.py # Canonical multi-metric Q2 analysis
 │       └── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
 │
-├── outputs/                     # Git-ignored
+├── outputs/                     # Tracked results plus git-ignored caches/checkpoints
 │   ├── cache/
 │   ├── checkpoints/
 │   └── results/
@@ -257,7 +257,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Style breakdown charts
    - Scatter plots for coverage vs IoU
 
-### Phase 5: Fine-Tuning Analysis 🔄 IN PROGRESS
+### Phase 5: Fine-Tuning Analysis 🟡 CORE COMPLETE, POLISH PENDING
 
 1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`) ✅
    - `FineTuningConfig` dataclass for hyperparameters
@@ -293,14 +293,15 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Compute Δ metrics per model with per-image breakdown
    - Bootstrap 95% CIs, Cohen's d effect sizes
    - Paired t-test / Wilcoxon (auto-selected based on normality)
-   - Holm correction for multiple comparisons across models
-   - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page
+   - Holm correction for multiple comparisons across models, with explicit correction-family metadata in the saved artifact
+   - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page via `outputs/results/active_experiment.json`
 
-4. **Visualization** 🔄
+4. **Visualization** ✅
    - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Variant vs Variant`
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
-   - Attention shift maps (where did attention move?) — tracked in issue #474
+   - Compare page ships a frozen-vs-variant `Shift map` view that renders `compared_variant_attention - frozen_attention` from cached numeric heatmaps with a diverging color scale
 
+<<<<<<< HEAD
 5. **Q2 Primary Results** (`fine_tuning_primary_20260327`) ✅
    - Full experiment completed 2026-03-27; analysis committed 2026-03-28
    - Key finding: CLIP (d=1.005) and SigLIP family (d=0.6–0.8) show significant positive Δ IoU; DINOv2/v3 show Δ ≈ 0
@@ -308,6 +309,9 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - See `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for deep analysis and hypotheses
 
 > **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support, (b) attention shift visualization (issue #474), (c) layer-sweep IoU post-FT, and (d) per-feature-type / per-style Δ IoU breakdowns. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
+=======
+> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is now limited to first-class fine-tuned leaderboard/dashboard support. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2` plus the compare flows.
+>>>>>>> main
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -339,7 +343,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Click on bounding box to compute cosine similarity with all image patches
    - Visualize which regions share similar learned representations
    - Compare feature similarity across models and layers
-   - **Files added:**
+   - **Key files:**
      - `app/precompute/generate_feature_cache.py` - Cache patch tokens to HDF5
      - `app/backend/services/similarity_service.py` - Bbox-to-patch similarity computation
      - `POST /api/attention/{image_id}/similarity` - Similarity API endpoint
@@ -371,7 +375,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
     - Color-coded: green ≥75%, yellow ≥50%, orange ≥25%, red <25%
 
 11. **UI Polish** ✅
-    - Annotations panel moved to left sidebar (3-column layout: annotations | viewer | controls)
+    - Main Image Detail tab uses a current 3-column layout: controls on the left, viewer plus annotations in the center, and the metrics progression panel on the right
     - Bounding boxes shown by default
     - Portal-rendered tooltips (escape overflow-hidden containers)
     - `keepPreviousData` on React Query hooks prevents UI flash during layer animation
@@ -380,7 +384,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
    - Clicking a bbox shows similarity heatmaps for both models simultaneously
    - Synchronized selection across both panels for direct comparison
-   - **Files added:**
+   - **Key files:**
      - `app/frontend/src/components/comparison/SimilarityViewer.tsx` - Bbox overlay + similarity heatmap viewer
      - `app/frontend/src/components/comparison/ModelCompare.tsx` - Updated with synchronized selection
      - Selection info bar, clear button, and colormap legend

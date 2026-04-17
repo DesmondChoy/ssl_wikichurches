@@ -34,6 +34,7 @@ from app.backend.schemas.models import (
     Q2SummaryRowSchema,
     StyleBreakdownSchema,
     VariantComparisonSchema,
+    VariantShiftMapSchema,
 )
 
 __all__ = [
@@ -70,4 +71,5 @@ __all__ = [
     "Q2StrategyComparisonSchema",
     "StyleBreakdownSchema",
     "VariantComparisonSchema",
+    "VariantShiftMapSchema",
 ]

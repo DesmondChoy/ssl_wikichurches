@@ -230,7 +230,7 @@ CACHE_MAX_MODELS: int = 2
 # Standard ViT input size is 224x224.
 DEFAULT_IMAGE_SIZE: int = 224
 
-# Small epsilon for numerical stability in attention computations.
+# Small epsilon added before KL probability normalization so zero-heavy maps stay finite.
 EPSILON: float = 1e-8
 
 # Interpolation mode for upsampling attention maps to image size.

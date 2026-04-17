@@ -1,7 +1,7 @@
 ---
 name: quality
 description: Review recent code changes with "fresh eyes" and fix any issues found. Use before commits to catch bugs. Trigger with /quality or before git commit, bd dolt push, or bd close.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(uv run ruff *), Bash(uv run mypy *), Read, Edit, Glob, Grep
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(uv run ruff *), Bash(uv run mypy *), Bash(uv run pytest *), Bash(cd app/frontend && npm run lint), Bash(cd app/frontend && npm run build), Read, Edit, Glob, Grep
 ---
 
 Review all code changes with "fresh eyes" before committing. This catches bugs that accumulate during implementation when focus is on making things work.
@@ -62,11 +62,19 @@ For each file, check:
 ### 4. Run Automated Checks
 
 ```bash
-uv run ruff check src/
-uv run mypy src/
+uv run ruff check .
+uv run mypy
+uv run pytest
 ```
 
-Fix any issues these tools report before proceeding.
+If the changes touched the frontend, also run:
+
+```bash
+cd app/frontend && npm run lint
+cd app/frontend && npm run build
+```
+
+If a full-tree check fails only because of known unrelated files, note that clearly and still run the most relevant targeted checks for the touched area.
 
 ### 5. Fix Issues Immediately
 
@@ -90,6 +98,9 @@ After reviewing all files, provide:
 
 **Issues for Human Review:** (if any)
 - <file>: <issue that requires human decision>
+
+**Checks Run:**
+- <command>: <passed/failed and why>
 
 **Confidence:** <High/Medium/Low> - <brief explanation>
 ```

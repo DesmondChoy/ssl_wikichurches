@@ -32,6 +32,10 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/progression` | Layer-by-layer aggregate metric progression |
 | GET | `/api/metrics/model/{model}/style_breakdown` | Metric breakdown by architectural style |
 | GET | `/api/metrics/model/{model}/feature_breakdown` | Metric breakdown by feature type |
+| GET | `/api/metrics/model/{model}/head_ranking` | Q3 aggregate per-head ranking summary for one model/layer/metric |
+| GET | `/api/metrics/{image_id}/head_ranking` | Q3 per-head ranking for one image and optional bbox selection |
+| GET | `/api/metrics/model/{model}/head_feature_matrix` | Q3 head-by-feature heatmap data for one model/layer/metric |
+| GET | `/api/metrics/model/{model}/head_exemplars` | Q3 representative exemplar images for one selected head or head-feature cell |
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
@@ -54,6 +58,8 @@ These parameters appear across multiple endpoints:
 | `layer` | int | 0–11 (ViTs), 0–3 (ResNet) | varies | Layer index (0-based). Range depends on model. |
 | `percentile` | int | 50–95 | `90` | Attention threshold percentile for IoU computation. |
 | `method` | string | `cls`, `rollout`, `mean`, `gradcam` | per-model | Attention extraction method. Availability depends on model (see table below). |
+| `variant` | string | `frozen`, `linear_probe`, `lora`, `full` | `frozen` | Fine-tuning variant used by the Q2/Q3 comparison and per-head endpoints. |
+| `head` | int | 0–11 (model-dependent) | `null` or `0` | Optional attention head index for per-head raw attention and Q3 drill-down endpoints. |
 
 ### Model / Method / Layer Matrix
 
@@ -254,18 +260,50 @@ List all available models with their configurations, supported attention methods
   },
   "methods": {
     "dinov2": ["cls", "rollout"],
+    "dinov3": ["cls", "rollout"],
+    "mae": ["cls", "rollout"],
+    "clip": ["cls", "rollout"],
     "siglip": ["mean"],
     "siglip2": ["mean"],
     "resnet50": ["gradcam"]
   },
+  "num_heads_per_model": {
+    "dinov2": 12,
+    "dinov3": 12,
+    "mae": 12,
+    "clip": 12,
+    "siglip": 12,
+    "siglip2": 12,
+    "resnet50": 0
+  },
+  "per_head_methods": ["cls", "mean"],
+  "per_head_available_models": ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"],
+  "q3_per_head_variant_availability": {
+    "dinov2": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "dinov3": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "mae": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "clip": { "frozen": true, "linear_probe": false, "lora": true, "full": true },
+    "siglip": { "frozen": false, "linear_probe": false, "lora": false, "full": false },
+    "siglip2": { "frozen": false, "linear_probe": false, "lora": false, "full": false },
+    "resnet50": { "frozen": false, "linear_probe": false, "lora": false, "full": false }
+  },
   "default_methods": {
     "dinov2": "cls",
+    "dinov3": "cls",
+    "mae": "cls",
+    "clip": "cls",
     "siglip": "mean",
     "siglip2": "mean",
     "resnet50": "gradcam"
   }
 }
 ```
+
+`per_head_methods` describes which attention methods accept the optional `head`
+parameter on `/api/attention/{image_id}/raw`. `per_head_available_models` and
+`q3_per_head_variant_availability` are runtime availability fields driven by the
+currently populated per-head caches, so their values can change after running
+the Q3 precompute commands.
 
 ---
 
@@ -345,6 +383,7 @@ Get raw attention values as a flat numeric array for client-side rendering and d
 | `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
 | `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
 | `method` | string | No | model default | Must be valid for model | Attention method |
+| `head` | int | No | `null` | ≥ 0, within model head range | Optional attention head index for per-head-capable methods |
 
 **Response**: `RawAttentionResponse`
 
@@ -357,11 +396,18 @@ Get raw attention values as a flat numeric array for client-side rendering and d
 }
 ```
 
+`head` is valid only when:
+
+- the selected method is listed in `/api/attention/models -> per_head_methods`
+- the selected model exposes attention heads
+- the requested head index is within that model's head range
+
 **Errors**
 
 | Status | Condition |
 |--------|-----------|
 | 400 | Invalid model, layer, or method |
+| 400 | `head` requested for an unsupported model/method or out of range |
 | 404 | Attention not cached (run `generate_attention_cache.py` first) |
 | 500 | Error loading attention data |
 
@@ -473,8 +519,9 @@ Compute cosine similarity between a bounding box region and all image patches. E
 
 Most metrics endpoints require the pre-computed metrics database (`metrics.db`).
 Two exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
-and `/api/metrics/q2_summary`, which reads the active experiment's
-`q2_metrics_analysis.json`.
+and `/api/metrics/q2_summary`, which resolves the active experiment's
+`q2_metrics_analysis.json` and falls back to the legacy top-level path when
+needed.
 
 ### `GET /api/metrics/leaderboard`
 
@@ -538,9 +585,10 @@ This is a static snapshot exported with `ranking_mode = "default_method"`, not a
 Get the strategy-aware fine-tuning attention-analysis summary exported by
 `experiments/scripts/analyze_q2_metrics.py`.
 
-> **Data source**: This endpoint reads the active experiment's
-> `q2_metrics_analysis.json` through `outputs/results/active_experiment.json`.
-> It does not depend on `metrics.db`.
+> **Data source**: This endpoint resolves `q2_metrics_analysis.json` through
+> `outputs/results/active_experiment.json` when that pointer is present, and
+> falls back to the legacy top-level results path when it is not. It does not
+> depend on `metrics.db`.
 
 **Query Parameters**
 
@@ -555,52 +603,58 @@ Get the strategy-aware fine-tuning attention-analysis summary exported by
 
 ```json
 {
+  "metric": "iou",
+  "label": "IoU",
+  "direction": "higher",
+  "percentile_dependent": true,
+  "selected_percentile": 90,
   "experiment_id": "fine_tuning_primary_20260327",
   "split_id": "fine_tuning_primary_20260327__primary__seed42",
   "analysis_git_commit_sha": "abcdef1234567890",
+  "analyzed_layer": 11,
   "evaluation_image_count": 139,
   "checkpoint_selection_rule": "best classification validation accuracy on shared non-annotated validation split",
   "result_set_scope": "primary",
-  "percentiles": [90, 80, 70, 60, 50],
   "timestamp": "2026-03-16T21:23:57+08:00",
-  "models": {
-    "clip": {
-      "lora": {
-        "90": {
-          "model_name": "clip",
-          "strategy_id": "lora",
-          "metric": "iou",
-          "percentile": 90,
-          "method": "cls",
-          "frozen_mean": 0.018,
-          "finetuned_mean": 0.082,
-          "mean_delta": 0.063,
-          "delta_ci_lower": 0.046,
-          "delta_ci_upper": 0.079,
-          "cohens_d": 0.91,
-          "corrected_p_value": 0.004,
-          "significant": true,
-          "num_images": 139
-        }
-      }
+  "rows": [
+    {
+      "model_name": "clip",
+      "strategy_id": "lora",
+      "metric": "iou",
+      "label": "IoU",
+      "direction": "higher",
+      "percentile_dependent": true,
+      "percentile": 90,
+      "method": "cls",
+      "frozen_mean": 0.018,
+      "finetuned_mean": 0.082,
+      "mean_delta": 0.063,
+      "std_delta": 0.081,
+      "delta_ci_lower": 0.046,
+      "delta_ci_upper": 0.079,
+      "cohens_d": 0.91,
+      "p_value": 0.001,
+      "corrected_p_value": 0.004,
+      "significant": true,
+      "test_name": "Wilcoxon signed-rank",
+      "num_images": 139
     }
-  },
-  "strategy_comparisons": {
-    "clip": {
-      "90": [
-        {
-          "model_name": "clip",
-          "percentile": 90,
-          "strategy_a": "lora",
-          "strategy_b": "full",
-          "mean_delta_difference": -0.006,
-          "cohens_d": -0.08,
-          "corrected_p_value": 0.71,
-          "significant": false
-        }
-      ]
+  ],
+  "strategy_comparisons": [
+    {
+      "model_name": "clip",
+      "metric": "iou",
+      "percentile": 90,
+      "strategy_a": "lora",
+      "strategy_b": "full",
+      "mean_delta_difference": -0.006,
+      "cohens_d": -0.08,
+      "p_value": 0.71,
+      "corrected_p_value": 0.71,
+      "significant": false,
+      "test_name": "Wilcoxon signed-rank"
     }
-  }
+  ]
 }
 ```
 
@@ -1001,6 +1055,248 @@ windows, doors, or arches) across all feature categories.
 
 ---
 
+### `GET /api/metrics/model/{model}/head_ranking`
+
+Get the Q3 aggregate per-head ranking summary for one model, variant, layer, metric, and percentile.
+
+This powers the Dashboard `Q3` tab's single-variant ranking view.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+
+**Response**: `HeadRankingResponse`
+
+```json
+{
+  "model": "dinov2",
+  "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "iou",
+  "direction": "higher",
+  "percentile": 90,
+  "supported": true,
+  "heads": [
+    {
+      "head": 7,
+      "mean_score": 0.241,
+      "std_score": 0.081,
+      "mean_rank": 1.84,
+      "top1_count": 31,
+      "top3_count": 76,
+      "image_count": 139
+    }
+  ]
+}
+```
+
+When Q3 is unsupported or the required per-head caches are missing, this
+endpoint still returns a schema-valid payload with `supported: false` and a
+human-readable `reason`.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/{image_id}/head_ranking`
+
+Get the Q3 per-head ranking for one image. Optionally scope the ranking to one selected bounding box.
+
+This powers the Image Detail `Q3` tab head strip and head gallery.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `image_id` | string | Image filename |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `model` | string | No | `dinov2` | See [Common Parameters](#common-parameters) | Model name |
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+| `bbox_index` | int | No | `null` | ≥ 0 | Optional bbox-local ranking scope |
+
+**Response**: `ImageHeadRankingResponse`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "coverage",
+  "direction": "higher",
+  "percentile": 90,
+  "selection": {
+    "mode": "union",
+    "bbox_index": null,
+    "bbox_label": null
+  },
+  "supported": true,
+  "heads": [
+    { "head": 3, "score": 0.418 },
+    { "head": 7, "score": 0.401 }
+  ]
+}
+```
+
+This endpoint uses the same `supported` / `reason` pattern as the aggregate
+head-ranking endpoint when the selected Q3 context is unavailable.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid query parameters or bbox index |
+| 404 | Image annotation not found |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/model/{model}/head_feature_matrix`
+
+Get the Q3 head-by-feature heatmap payload for one model, variant, layer, metric, and percentile.
+
+Each feature row contains one score per head. The Dashboard uses this to render the interactive heatmap and drill-down selection state.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+
+**Response**: `HeadFeatureMatrixResponse`
+
+```json
+{
+  "model": "dinov2",
+  "variant": "frozen",
+  "layer": "layer11",
+  "method": "cls",
+  "metric": "emd",
+  "direction": "lower",
+  "percentile": 90,
+  "supported": true,
+  "heads": [0, 1, 2, 3],
+  "features": [
+    {
+      "feature_label": 42,
+      "feature_name": "window",
+      "bbox_count": 87,
+      "scores": [0.24, 0.18, 0.16, 0.19]
+    }
+  ]
+}
+```
+
+Each row in `features` contains one score slot per head. Individual score
+entries may be `null` when a specific head-feature combination has no cached
+row for the current selection.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
+### `GET /api/metrics/model/{model}/head_exemplars`
+
+Get representative image candidates for a selected Q3 head. Optionally restrict the exemplars to one feature label.
+
+This powers Dashboard `Q3` drill-down into the Image Detail `Q3` tab.
+
+**Path Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | string | Model name |
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `head` | int | No | `0` | ≥ 0, within model head range | Selected head index |
+| `layer` | int | No | `11` | ≥ 0, within model range | Layer index |
+| `percentile` | int | No | `90` | 50–95 | Attention threshold percentile |
+| `metric` | string | No | `iou` | `iou`, `coverage`, `mse`, `kl`, `emd` | Metric used for ranking |
+| `variant` | string | No | `frozen` | `frozen`, `linear_probe`, `lora`, `full` | Variant to query |
+| `feature_label` | int | No | `null` | ≥ 0 | Optional feature label to scope exemplar selection |
+| `limit` | int | No | `12` | 1–24 | Maximum exemplar candidates |
+
+**Response**: `HeadExemplarResponse`
+
+```json
+{
+  "model": "dinov2",
+  "variant": "frozen",
+  "layer": "layer11",
+  "direction": "higher",
+  "head": 7,
+  "metric": "iou",
+  "percentile": 90,
+  "feature_label": 42,
+  "feature_name": "window",
+  "supported": true,
+  "candidates": [
+    {
+      "image_id": "Q2270_0.jpg",
+      "score": 0.318,
+      "thumbnail_url": "/api/images/Q2270_0.jpg/thumbnail",
+      "style_names": ["Romanesque"],
+      "matching_bbox_indices": [2, 3],
+      "default_bbox_index": 2
+    }
+  ]
+}
+```
+
+This endpoint also returns `supported: false` plus `reason` when exemplar
+selection is unavailable for the requested Q3 context.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model or layer |
+| 503 | Metrics database not available |
+
+---
+
 ### `GET /api/metrics/model/{model}/aggregate`
 
 Get aggregate statistics for a model/layer combination across all images, including IoU, MSE, KL, and EMD summaries.
@@ -1213,9 +1509,73 @@ Use this endpoint when the compared pair could be:
 
 ---
 
+### `GET /api/compare/variants/shift`
+
+Return an explicit frozen-vs-variant attention-shift map for one image. The
+shift is computed from cached numeric heatmaps, not from rendered overlay PNGs:
+
+`shift = compared_variant_attention - frozen_attention`
+
+This endpoint is used by the `Shift map` view in the Compare page and is only
+defined for frozen-vs-adapted pairs.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `image_id` | string | **Yes** | — | Must exist in dataset | Image filename |
+| `model` | string | No | `dinov2` | Base-model name | Base model name |
+| `layer` | int | No | `0` | ≥ 0, within model range | Layer index |
+| `compared_variant` | string | No | `full` | `linear_probe`, `lora`, `full` | Non-frozen comparison variant |
+
+**Response**: `VariantShiftMapSchema`
+
+```json
+{
+  "image_id": "Q2270_0.jpg",
+  "model": "dinov2",
+  "layer": "layer0",
+  "method": "cls",
+  "available": true,
+  "reason": null,
+  "baseline_variant": "frozen",
+  "compared_variant": "lora",
+  "baseline_model_key": "dinov2",
+  "compared_model_key": "dinov2_finetuned_lora",
+  "operation": "compared_variant_attention - frozen_attention",
+  "shape": [224, 224],
+  "shift": [0.012, -0.004, 0.0, 0.031],
+  "min_value": -0.182,
+  "max_value": 0.247,
+  "max_abs_value": 0.247
+}
+```
+
+Important behavior:
+
+- The shift map always comes from cached numeric heatmaps in `attention_viz.h5`.
+- The selected metric and percentile in the Compare page do **not** change this
+  response; they still affect the Q2 summary cards and bbox-local metric panels.
+- If frozen or fine-tuned attention is missing, the endpoint returns `200` with
+  `available = false` and a human-readable `reason`, so the UI can show a
+  dedicated empty state instead of failing the whole compare view.
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model, layer, or compared variant |
+| 404 | Image not found |
+
+---
+
 ### `GET /api/compare/frozen_vs_finetuned`
 
 Compare frozen (pretrained) vs fine-tuned model attention on a single image.
+
+The current Compare page uses `GET /api/compare/variants` as the primary
+generalized variant surface. This endpoint remains useful for the explicit
+Frozen vs Fine-tuned helper flow and for compatibility consumers.
 
 > **Note**: This endpoint performs real cache availability checks. Returned URLs
 > include explicit `model` and `method` query parameters. For fine-tuned overlays,

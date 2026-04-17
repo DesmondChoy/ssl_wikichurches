@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 import torch
 
+from ssl_attention.config import DEFAULT_IMAGE_SIZE, EPSILON
 from ssl_attention.data.annotations import BoundingBox, ImageAnnotation
 from ssl_attention.metrics import continuous as continuous_module
 from ssl_attention.metrics.continuous import (
@@ -59,6 +62,62 @@ def _make_finite_gt_heatmap() -> torch.Tensor:
 
 def _make_gt_mask(gt_heatmap: torch.Tensor) -> torch.Tensor:
     return gt_heatmap > 0.45
+
+
+@dataclass(frozen=True)
+class KLSmoothingMeasurement:
+    raw_added_mass: float
+    pseudo_mass_fraction: float
+    peak_probability_drop: float
+    l1_distance: float
+
+
+def _normalize_without_epsilon(values: torch.Tensor) -> torch.Tensor:
+    sanitized = sanitize_nonnegative_heatmap(values)
+    total = sanitized.sum()
+    if not torch.isfinite(total) or total <= 0:
+        return torch.full_like(sanitized, 1.0 / sanitized.numel())
+    return sanitized / total
+
+
+def _make_single_pixel_spike_heatmap(size: int = DEFAULT_IMAGE_SIZE) -> torch.Tensor:
+    heatmap = torch.zeros((size, size), dtype=torch.float32)
+    heatmap[size // 2, size // 2] = 1.0
+    return heatmap
+
+
+def _make_hotspot_heatmap(size: int = DEFAULT_IMAGE_SIZE) -> torch.Tensor:
+    heatmap = torch.zeros((size, size), dtype=torch.float32)
+    center = size // 2
+    heatmap[center - 1 : center + 2, center - 1 : center + 2] = 1.0 / 9.0
+    return heatmap
+
+
+def _make_broad_gaussian_heatmap(size: int = DEFAULT_IMAGE_SIZE) -> torch.Tensor:
+    coords = torch.arange(size, dtype=torch.float32)
+    yy, xx = torch.meshgrid(coords, coords, indexing="ij")
+    center = (size - 1) / 2.0
+    sigma = size / 10.0
+    heatmap = torch.exp(-(((xx - center) ** 2) + ((yy - center) ** 2)) / (2 * sigma**2))
+    return heatmap / heatmap.sum()
+
+
+def _make_uniform_heatmap(size: int = DEFAULT_IMAGE_SIZE) -> torch.Tensor:
+    return torch.full((size, size), 1.0 / (size * size), dtype=torch.float32)
+
+
+def _measure_kl_smoothing(values: torch.Tensor) -> KLSmoothingMeasurement:
+    unsmoothed = _normalize_without_epsilon(values)
+    smoothed = prepare_probability_distribution(values)
+    sanitized_total = sanitize_nonnegative_heatmap(values).sum().item()
+    raw_added_mass = values.numel() * EPSILON
+    pseudo_mass_fraction = raw_added_mass / (sanitized_total + raw_added_mass)
+    return KLSmoothingMeasurement(
+        raw_added_mass=raw_added_mass,
+        pseudo_mass_fraction=pseudo_mass_fraction,
+        peak_probability_drop=(unsmoothed.max() - smoothed.max()).item(),
+        l1_distance=torch.sum(torch.abs(unsmoothed - smoothed)).item(),
+    )
 
 
 class TestGaussianGroundTruth:
@@ -378,3 +437,53 @@ class TestSharedContinuousMetricPreprocessing:
         assert coverage == pytest.approx(expected_coverage)
         assert kl == pytest.approx(expected_kl, rel=1e-6, abs=1e-8)
         assert emd == pytest.approx(expected_emd, rel=1e-6, abs=1e-8)
+
+
+class TestKlEpsilonSmoothing:
+    """Characterize how KL epsilon smoothing affects sparse vs diffuse maps."""
+
+    def test_uniform_distribution_is_unchanged_after_epsilon_smoothing(self):
+        uniform = _make_uniform_heatmap()
+
+        unsmoothed = _normalize_without_epsilon(uniform)
+        smoothed = prepare_probability_distribution(uniform)
+        measurement = _measure_kl_smoothing(uniform)
+
+        assert torch.allclose(smoothed, unsmoothed)
+        assert measurement.peak_probability_drop == pytest.approx(0.0, abs=1e-12)
+        assert measurement.l1_distance == pytest.approx(0.0, abs=1e-12)
+
+    def test_standard_grid_epsilon_mass_stays_below_acceptability_threshold(self):
+        spike = _make_single_pixel_spike_heatmap()
+        measurement = _measure_kl_smoothing(spike)
+
+        assert measurement.raw_added_mass == pytest.approx(
+            DEFAULT_IMAGE_SIZE * DEFAULT_IMAGE_SIZE * EPSILON,
+            rel=1e-12,
+        )
+        assert measurement.raw_added_mass == pytest.approx(5.0176e-4, rel=1e-6)
+        assert measurement.pseudo_mass_fraction == pytest.approx(
+            measurement.raw_added_mass / (1.0 + measurement.raw_added_mass),
+            rel=1e-12,
+        )
+        assert measurement.pseudo_mass_fraction < 1e-3
+
+    def test_single_pixel_spike_has_largest_peak_drop_of_representative_sparse_fixtures(self):
+        spike = _measure_kl_smoothing(_make_single_pixel_spike_heatmap())
+        hotspot = _measure_kl_smoothing(_make_hotspot_heatmap())
+        broad = _measure_kl_smoothing(_make_broad_gaussian_heatmap())
+        uniform = _measure_kl_smoothing(_make_uniform_heatmap())
+
+        assert spike.peak_probability_drop > hotspot.peak_probability_drop
+        assert hotspot.peak_probability_drop > broad.peak_probability_drop
+        assert broad.peak_probability_drop > uniform.peak_probability_drop
+
+    def test_diffuse_fixture_stays_closer_to_unchanged_than_sparse_fixtures(self):
+        spike = _measure_kl_smoothing(_make_single_pixel_spike_heatmap())
+        hotspot = _measure_kl_smoothing(_make_hotspot_heatmap())
+        broad = _measure_kl_smoothing(_make_broad_gaussian_heatmap())
+        uniform = _measure_kl_smoothing(_make_uniform_heatmap())
+
+        assert broad.l1_distance < spike.l1_distance
+        assert broad.l1_distance < hotspot.l1_distance
+        assert uniform.l1_distance == pytest.approx(0.0, abs=1e-12)

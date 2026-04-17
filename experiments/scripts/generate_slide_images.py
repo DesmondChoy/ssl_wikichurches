@@ -7,13 +7,15 @@ Output: PNG images in outputs/slides/ for embedding in the PPTX.
 
 from __future__ import annotations
 
+import importlib
 import json
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
+from matplotlib.lines import Line2D
 from PIL import Image, ImageDraw, ImageFont
 
 matplotlib.use("Agg")
@@ -23,8 +25,9 @@ matplotlib.use("Agg")
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
-
-from ssl_attention.evaluation.fine_tuning_artifacts import resolve_active_artifact_path  # noqa: E402
+resolve_active_artifact_path = importlib.import_module(
+    "ssl_attention.evaluation.fine_tuning_artifacts"
+).resolve_active_artifact_path
 
 CACHE = ROOT / "outputs" / "cache" / "heatmaps"
 ORIGINALS_CLEAN = CACHE / "originals" / "clean"
@@ -68,6 +71,13 @@ MODEL_LABELS = {
 }
 
 
+class ModelPoint(TypedDict):
+    frozen: float
+    delta: float
+    strategy: str
+    sig: bool
+
+
 def _load_cached_image(model: str, layer: str, method: str, variant: str, image_id: str) -> Image.Image:
     """Load a pre-rendered heatmap image from cache."""
     path = CACHE / model / layer / method / variant / f"{image_id}.png"
@@ -85,9 +95,10 @@ def _add_label(img: Image.Image, label: str, position: str = "bottom") -> Image.
     y_offset = bar_h if position == "top" else 0
     canvas.paste(img, (0, y_offset))
     draw = ImageDraw.Draw(canvas)
+    font: ImageFont.ImageFont | ImageFont.FreeTypeFont
     try:
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 18)
-    except (OSError, IOError):
+    except OSError:
         font = ImageFont.load_default()
     text_y = new_h - bar_h + 6 if position == "bottom" else 6
     bbox = draw.textbbox((0, 0), label, font=font)
@@ -99,7 +110,7 @@ def _add_label(img: Image.Image, label: str, position: str = "bottom") -> Image.
 # ---------------------------------------------------------------------------
 # Slide 1: Title hero image (DINOv3 overlay + bboxes on Gothic church)
 # ---------------------------------------------------------------------------
-def generate_slide1_title():
+def generate_slide1_title() -> None:
     print("Generating Slide 1: Title hero image...")
     # Use overlay WITHOUT bboxes for a cleaner hero visual
     img = _load_cached_image("dinov3", "layer11", "cls", "overlay", HERO_IMAGE)
@@ -110,12 +121,8 @@ def generate_slide1_title():
 # ---------------------------------------------------------------------------
 # Slide 2: Good vs bad attention comparison (DINOv3 vs MAE, same image)
 # ---------------------------------------------------------------------------
-def generate_slide2_motivation():
+def generate_slide2_motivation() -> None:
     print("Generating Slide 2: Good vs bad attention comparison...")
-    # Use pure heatmaps (no image underneath, no bboxes) for maximum contrast.
-    # DINOv3 at layer 11 shows focused attention; MAE at layer 4 shows diffuse.
-    good_heatmap = _load_cached_image("dinov3", "layer11", "cls", "heatmap", HERO_IMAGE)
-    bad_heatmap = _load_cached_image("mae", "layer4", "cls", "heatmap", HERO_IMAGE)
     # Also get the overlays (image + heatmap, no bboxes) for context
     good_overlay = _load_cached_image("dinov3", "layer11", "cls", "overlay", HERO_IMAGE)
     bad_overlay = _load_cached_image("mae", "layer4", "cls", "overlay", HERO_IMAGE)
@@ -148,7 +155,7 @@ def generate_slide2_motivation():
 # ---------------------------------------------------------------------------
 # Slide 4: 2x2 grid of churches by style with bounding boxes
 # ---------------------------------------------------------------------------
-def generate_slide4_dataset():
+def generate_slide4_dataset() -> None:
     print("Generating Slide 4: Style grid...")
     images = []
     for style, img_id in STYLE_IMAGES.items():
@@ -192,7 +199,7 @@ def generate_slide4_dataset():
 # ---------------------------------------------------------------------------
 # Slide 6: Methodology pipeline (4 panels)
 # ---------------------------------------------------------------------------
-def generate_slide6_pipeline():
+def generate_slide6_pipeline() -> None:
     """Slide 6 pipeline images are now captured via Playwright screenshots."""
     print("Slide 6: Pipeline images will be captured via Playwright (skipping Python generation)")
 
@@ -200,7 +207,7 @@ def generate_slide6_pipeline():
 # ---------------------------------------------------------------------------
 # Slide 13: Frozen IoU vs Delta IoU scatter
 # ---------------------------------------------------------------------------
-def generate_slide13_scatter():
+def generate_slide13_scatter() -> None:
     print("Generating Slide 13: Frozen IoU vs Delta IoU scatter...")
 
     metrics_summary = json.loads(METRICS_SUMMARY.read_text(encoding="utf-8"))
@@ -211,15 +218,15 @@ def generate_slide13_scatter():
         if row.get("metric") == "iou" and row.get("percentile") == 90
     ]
 
-    models_data: dict[str, dict[str, object]] = {}
+    models_data: dict[str, ModelPoint] = {}
     for model_key, summary in metrics_summary.get("models", {}).items():
         candidate_rows = [row for row in q2_rows if row.get("model_name") == model_key]
         if not candidate_rows:
             continue
         best_row = max(candidate_rows, key=lambda row: row.get("mean_delta", float("-inf")))
         models_data[MODEL_LABELS.get(model_key, model_key)] = {
-            "frozen": summary.get("best_iou", 0.0),
-            "delta": best_row.get("mean_delta", 0.0),
+            "frozen": float(summary.get("best_iou", 0.0)),
+            "delta": float(best_row.get("mean_delta", 0.0)),
             "strategy": str(best_row.get("strategy_id", "full")).replace("_", " ").title(),
             "sig": bool(best_row.get("significant", False)),
         }
@@ -257,7 +264,6 @@ def generate_slide13_scatter():
     ax.spines["right"].set_visible(False)
 
     # Legend
-    from matplotlib.lines import Line2D
     legend_elements = [
         Line2D([0], [0], marker="D", color="w", markerfacecolor=SUCCESS,
                markersize=10, markeredgecolor=CHARCOAL, label="Significant (LoRA)"),
@@ -278,7 +284,7 @@ def generate_slide13_scatter():
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def main():
+def main() -> None:
     print(f"Output directory: {OUT}\n")
     generate_slide1_title()
     generate_slide2_motivation()

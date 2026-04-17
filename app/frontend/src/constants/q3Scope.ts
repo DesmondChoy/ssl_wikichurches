@@ -19,6 +19,10 @@ export const Q3_SCOPE_COPY = {
     'Start on Dashboard Q3 to compare candidate heads across dinov2, dinov3, mae, and clip.',
   dashboardDetail:
     'Use the heatmap and inline exemplar panel to open one concrete image in Image Detail Q3 with the same variant, layer, head, and feature context already loaded.',
+  workspaceSummary:
+    'Dashboard Q3 remains the main summary surface. Use this advanced workspace when you need to compare two primary-study models side by side.',
+  workspaceDetail:
+    'Shared controls keep variant, layer, metric, and percentile aligned so both panes stay in the same Q3 context while you compare model families.',
   dashboardSelectionNote:
     'Frozen, LoRA, and Full are the headline comparison set. Linear Probe remains available as a control condition.',
   imageDetailSummary:

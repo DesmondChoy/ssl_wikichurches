@@ -52,7 +52,7 @@ This application helps answer three interconnected questions from our [research 
 |---|-------------------|-------------------|
 | 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + multi-metric alignment views |
 | 2 | Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Frozen vs. fine-tuned comparison + Variant vs Variant comparison + multi-metric Q2 attention-shift tables |
-| 3 | Do individual attention heads specialize for different architectural features? | Planned per-head analysis workflow in the library and design docs (not yet exposed as a main app control) |
+| 3 | Do individual attention heads specialize for different architectural features? | Shipped Dashboard Q3 heatmap + ranking workflow with exemplar drill-down into the Image Detail Q3 tab |
 
 ### Fine-Tuning Strategy Comparison (Research Question 2)
 
@@ -72,10 +72,16 @@ Q2 encompasses both the general question of whether fine-tuning shifts attention
 
 Rather than fusing all 12 attention heads via averaging, Q3 examines each head individually to understand **which heads develop alignment with expert annotations**.
 
-**Key metrics:**
-- **Per-head IoU:** Compute IoU for each head separately (head 0, head 1, ..., head 11)
-- **Head ranking:** Identify which heads consistently achieve highest IoU across all images
-- **Head × feature type matrix:** Analyze whether specific heads specialize for specific architectural features
+The app exposes Q3 as a two-step workflow:
+
+1. Use the Dashboard `Q3` tab to inspect the head-ranking summary, the head-by-feature heatmap, and the frozen-to-adapted delta view.
+2. Drill into representative exemplar images on the Image Detail `Q3` tab with the selected model, variant, layer, head, and feature context already loaded.
+
+**Key analyses:**
+- **Per-head ranking:** Identify which heads consistently score best for the current metric across all images
+- **Head × feature heatmap:** Analyze whether specific heads specialize for specific architectural features
+- **Exemplar drill-down:** Inspect representative images for one selected head or one selected head-feature cell
+- **Frozen-to-adapted deltas:** Compare how head rankings move from `frozen` into `lora` and `full`
 
 **Academic foundation:**
 - Voita et al. (2019) showed that "a small subset of heads" performs most of the work in transformers
@@ -94,7 +100,7 @@ Most ViT models include a special **CLS (class) token** that aggregates informat
 
 ### Attention Heads
 
-Transformers have multiple **attention heads** operating in parallel, each potentially focusing on different aspects of the image. Our visualizations fuse these heads together (typically by averaging) to show the overall attention pattern.
+Transformers have multiple **attention heads** operating in parallel, each potentially focusing on different aspects of the image. Most overview views in the app fuse these heads together (typically by averaging), while the Q3 workflow can inspect one head at a time on both Dashboard and Image Detail.
 
 ---
 
@@ -249,6 +255,8 @@ To know if models perform well, we compare against [naive baselines](../core/pro
 | **Saliency** | Sobel edge detection | Low-level features |
 
 **Key question:** Do SSL models significantly outperform these baselines? A [negative result](../core/project_proposal.md#8-risks-and-mitigations) (low IoU across all models) is still informative—it tells us what models actually attend to.
+
+For the threshold-free Q1 metrics (`mse`, `kl`, and `emd`), the project uses documented dataset-level baseline references rather than IoU-style expected-overlap heuristics. Dashboard Overview surfaces those reference lines directly, and `experiments/scripts/analyze_q1_continuous_baselines.py` writes matching JSON and Markdown artifacts under `outputs/results/`. The calibration details live in [Metrics Methodology](../reference/metrics_methodology.md).
 
 ### The App Interface
 

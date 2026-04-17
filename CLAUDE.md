@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This project uses **bd** (beads) for issue tracking. Run `bd prime` to get started.
 
+## Primary Tooling
+
+- Use `uv` for Python environment and dependency management.
+- Run Python commands from repository root unless a specific file lives in a deeper subdirectory.
+- Prefer existing scripts and documented workflows in `README.md` and in scoped subdirectory docs.
+
 ## Documentation Source of Truth
 
 - Treat the root `README.md`, `docs/reference/`, `docs/core/project_proposal.md`, `docs/core/implementation_plan.md`, and the live code as the current source of truth.
@@ -31,9 +37,30 @@ This project uses **bd** (beads) for issue tracking. Run `bd prime` to get start
 ## Development
 
 ```bash
-./dev.sh              # Start the frontend React app
-pytest                # Run tests
+uv sync               # Install/update Python dependencies
+./dev.sh              # Start backend + frontend
+uv run pytest         # Run tests
 ```
+
+## Build and Test Defaults
+
+- After code changes, run at least targeted tests matching the touched module.
+- For Python changes, use `uv run pytest` as the default test runner.
+- For Python style checks, use `uv run ruff check .`.
+- For static typing checks, use `uv run mypy`.
+- For frontend changes under `app/frontend`, use `npm install` (or your lockfile workflow), `npm run lint`, and `npm run build` from `app/frontend`.
+
+## Quality Gate (Before Finishing)
+
+Before finishing work or preparing to commit, run all relevant checks for touched areas:
+
+1. `uv run ruff check .`
+2. `uv run mypy`
+3. `uv run pytest` (or targeted `pytest` scope for changed modules)
+4. Review complete changed files, not only diffs, before committing.
+5. For frontend changes: `cd app/frontend && npm run lint` and `cd app/frontend && npm run build`
+6. Run the quality skill check from [`.claude/skills/quality/SKILL.md`](./.claude/skills/quality/SKILL.md) (or trigger your local equivalent, e.g. `/quality`) before committing.
+7. Remove dead/debug code and verify no regression in changed flows.
 
 ---
 

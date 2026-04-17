@@ -5,14 +5,14 @@
 
 > **Related documents:**
 > - [Project Proposal — Q2: Fine-Tuning](../core/project_proposal.md#research-questions-and-approaches)
-> - [Implementation Plan — Phase 5: Fine-Tuning Analysis](../core/implementation_plan.md#phase-5-fine-tuning-analysis--in-progress)
+> - [Implementation Plan — Phase 5: Fine-Tuning Analysis](../core/implementation_plan.md#phase-5-fine-tuning-analysis--core-complete-polish-pending)
 
 ## Executive Summary
 
 This document outlines fine-tuning methods suitable for the SSL WikiChurches project. It supports:
 - **Research Question 2**: Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter?
 
-**Key insight:** Q2 now reads attention shift as a multi-metric story. Δ IoU remains the Preserve / Enhance / Destroy anchor, while Coverage, MSE, KL, and EMD show whether the threshold-free evidence agrees with the same directional conclusion.
+**Key insight:** Q2 reads attention shift as a multi-metric story. Δ IoU remains the Preserve / Enhance / Destroy anchor, while Coverage, MSE, KL, and EMD show whether the threshold-free evidence agrees with the same directional conclusion.
 App/API model keys in this project are `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, and `resnet50`.
 Fine-tuning is supported for `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, and `siglip2` (`resnet50` excluded).
 For `siglip`/`siglip2`, attention analysis uses the mean-attention path (no CLS-token method).
@@ -395,7 +395,7 @@ Fine-tuning is implemented as a single module rather than the multi-file structu
 
 ### Checkpoint Storage
 
-Primary fine-tuning runs are now stored per experiment batch rather than in one
+Primary fine-tuning runs are stored per experiment batch rather than in one
 flat global output directory:
 
 ```text
@@ -522,7 +522,7 @@ Treat churches with **multiple styles as multi-label** instead of picking the fi
 
 ### Post-Fine-Tuning Evaluation
 
-The canonical post-fine-tuning analysis now runs through `analyze_q2_metrics.py`, which exports the active experiment's multi-metric `q2_metrics_analysis.json`. The older `analyze_delta_iou.py` script remains as a compatibility wrapper for legacy delta-IoU consumers.
+The canonical post-fine-tuning analysis runs through `analyze_q2_metrics.py`, which exports the active experiment's multi-metric `q2_metrics_analysis.json`. The older `analyze_delta_iou.py` script remains as a compatibility wrapper for legacy delta-IoU consumers.
 
 #### Key Metrics
 
@@ -545,7 +545,7 @@ The canonical post-fine-tuning analysis now runs through `analyze_q2_metrics.py`
 
 #### Observed Results (Q2 Δ IoU)
 
-Publication-safe Q2 summaries should now be read from the active experiment's
+Publication-safe Q2 summaries should be read from the active experiment's
 `q2_metrics_analysis.json`, not from legacy top-level `q2_delta_iou_analysis.json`.
 The active batch is selected through `outputs/results/active_experiment.json`.
 
@@ -569,7 +569,7 @@ When reading a fresh primary batch, focus on:
 
 ### UI Support: Feature-Local Fine-Tuning Comparison
 
-The shipped UI now exposes two fine-tuning comparison surfaces:
+The UI exposes two fine-tuning comparison surfaces:
 
 - **Frozen vs Fine-tuned** compares a frozen backbone against one selected strategy, or an auto-discovered legacy fine-tuned variant when strategy is omitted
 - **Variant vs Variant** compares two strategy-specific variants for the same base model
@@ -596,7 +596,7 @@ That teaches us something more precise than a global slider:
 - **Near-zero local Δ IoU**: the compared variants behave similarly on that feature
 - **Negative local Δ IoU**: the right-hand variant pulled attention away from that feature
 
-In other words, bbox selection now changes both the **visualization mode** and
+In other words, bbox selection changes both the **visualization mode** and
 the **measurement slice**. This is aligned with the core research framing in
 this section: classification is only an intervention, while the real object of
 study is how attention shifts relative to expert-defined architectural regions.

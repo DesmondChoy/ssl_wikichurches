@@ -259,11 +259,13 @@ class DOCXSchemaValidator(BaseSchemaValidator):
         for xml_file in self.xml_files:
             try:
                 for elem in lxml.etree.parse(str(xml_file)).iter():
-                    if val := elem.get(para_id_attr):
-                        if self._parse_id_value(val, base=16) >= 0x80000000:
-                            errors.append(
-                                f"  {xml_file.name}:{elem.sourceline}: paraId={val} >= 0x80000000"
-                            )
+                    if (
+                        (val := elem.get(para_id_attr))
+                        and self._parse_id_value(val, base=16) >= 0x80000000
+                    ):
+                        errors.append(
+                            f"  {xml_file.name}:{elem.sourceline}: paraId={val} >= 0x80000000"
+                        )
 
                     if val := elem.get(durable_id_attr):
                         if xml_file.name == "numbering.xml":
@@ -421,10 +423,9 @@ class DOCXSchemaValidator(BaseSchemaValidator):
 
                     if needs_repair:
                         value = random.randint(1, 0x7FFFFFFE)
-                        if xml_file.name == "numbering.xml":
-                            new_id = str(value)  
-                        else:
-                            new_id = f"{value:08X}"  
+                        new_id = (
+                            str(value) if xml_file.name == "numbering.xml" else f"{value:08X}"
+                        )
 
                         elem.setAttribute("w16cid:durableId", new_id)
                         print(

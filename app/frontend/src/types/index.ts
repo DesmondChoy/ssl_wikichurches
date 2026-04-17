@@ -3,6 +3,7 @@
 export type AnalysisMetric = 'iou' | 'coverage' | 'mse' | 'kl' | 'emd';
 export type DashboardMetric = AnalysisMetric;
 export type CompareVariantId = 'frozen' | 'linear_probe' | 'lora' | 'full';
+export type ShiftComparedVariantId = Exclude<CompareVariantId, 'frozen'>;
 
 export interface BoundingBox {
   left: number;
@@ -251,6 +252,25 @@ export interface VariantComparison {
   left: ComparisonVariant;
   right: ComparisonVariant;
   note: string;
+}
+
+export interface VariantShiftMap {
+  image_id: string;
+  model: string;
+  layer: string;
+  method: string;
+  available: boolean;
+  reason: string | null;
+  baseline_variant: 'frozen';
+  compared_variant: ShiftComparedVariantId;
+  baseline_model_key: string;
+  compared_model_key: string;
+  operation: string;
+  shape: [number, number] | [];
+  shift: number[];
+  min_value: number | null;
+  max_value: number | null;
+  max_abs_value: number | null;
 }
 
 export interface AllModelsSummaryModelEntry {
