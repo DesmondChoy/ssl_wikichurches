@@ -246,6 +246,12 @@ CLIP presents another instructive contrast. In the frozen state it lags the stro
 
 The current Q2 artifacts support a clear provisional storyline: Linear Probe acts as a near-zero control, while LoRA and Full fine-tuning produce model-dependent attention shifts rather than a uniform "fine-tuning helps" story. In the checked-in experiment `fine_tuning_primary_20260327`, the reference Q2 rows show exactly zero deltas for Linear Probe across all reported metrics because the backbone remains frozen. That behavior is methodologically useful because it confirms that the Q2 pipeline is measuring attention change in the model rather than merely recomputing the same frozen heatmaps under a new label.
 
+The checked-in multi-metric improvement heatmap is already strong enough to include in this mixed draft because it compresses the full strategy comparison into one view and makes the zero-shift Linear Probe control immediately visible.
+
+![Draft Q2 multi-metric improvement heatmap](../../outputs/figures/02_all_metrics_improvement_heatmap.png)
+
+*Draft Figure. Sign-normalized Q2 metric deltas for each model and strategy. Blue denotes improvement, red denotes degradation, and asterisks denote significance in the generated artifact. The strongest positive clusters appear in CLIP, MAE, and the SigLIP family, while Linear Probe remains at zero by construction.*
+
 The most dramatic improvement currently appears in CLIP. Full fine-tuning raises CLIP's `IoU@90` from `0.0181` to `0.0745` and raises Coverage from `0.0510` to `0.1047`, while also decreasing KL from `3.6873` to `2.6967` and EMD from `0.4096` to `0.3071`. LoRA also improves CLIP substantially, but not as strongly as Full fine-tuning. This is one of the clearest current examples of a model whose frozen attention looks relatively weak yet whose task-conditioned attention becomes much more expert-aligned after adaptation.
 
 MAE and the SigLIP family also show meaningful improvements under LoRA and Full fine-tuning. For MAE, both strategies improve `IoU@90`, Coverage, KL, and EMD, with LoRA currently producing a particularly strong MSE reduction in the saved artifact. For `siglip` and `siglip2`, LoRA and Full both improve `IoU@90`, Coverage, KL, and EMD, though the absolute frozen baseline remains weaker than the DINO-family models on the overlap metrics. In contrast, the DINO family is more stable. DINOv2 stays close to preserve across most reported metrics, while DINOv3 largely preserves its strong frozen IoU but shows some threshold-free degradation under certain adapted variants in the current artifact set.
@@ -254,9 +260,25 @@ This divergence supports an interpretation already noted in the repo's fine-tuni
 
 The preserve/enhance/destroy framing is therefore useful, but it should be reported carefully. The current checked-in figure commentary summarizes `46` enhance, `16` preserve, and `10` destroy outcomes across `72` non-linear-probe model-strategy-metric combinations. That count is a helpful draft summary rather than a substitute for the final table, and the final report should make its counting convention explicit when the figure set is locked.
 
-> TODO: Insert final Q2 strategy-comparison figure. Candidate inputs: `outputs/results/active_experiment.json`, `outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json`, `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`, and `outputs/figures/`.
+The checked-in preserve/enhance/destroy figure helps simplify that same result into an easily scannable classification layer and is worth retaining in the draft because it exposes both the dominant improvement pattern and the remaining regression risk.
 
-> TODO: Insert one Q2 image-level qualitative example showing a frozen versus fine-tuned attention shift and explaining why the shift is plausible or surprising. Candidate inputs: `outputs/figures/`, `docs/assets/q2_shift_map_issue_focused.png`, and the Compare/Q2 app views.
+![Draft Q2 preserve-enhance-destroy summary](../../outputs/figures/07_preserve_enhance_destroy.png)
+
+*Draft Figure. Each cell classifies a model-strategy-metric outcome as Enhance, Preserve, or Destroy using the run-matrix logic described in the figure commentary. Enhancement is the dominant outcome in the current artifact set, but the remaining destroy cells show that adaptation can still move attention in the wrong direction.*
+
+The forest-plot visualization adds the statistical layer that the heatmap and categorical summary cannot show on their own, making it easier to distinguish robust movement from small, noisy shifts.
+
+![Draft Q2 forest plot with bootstrap confidence intervals](../../outputs/figures/08_forest_plot_ci.png)
+
+*Draft Figure. Mean Q2 deltas with 95% bootstrap confidence intervals for LoRA and Full fine-tuning across six metrics, sign-normalized so rightward always means improvement. This is currently the clearest checked-in figure for showing that several CLIP, MAE, and SigLIP-family gains are not merely anecdotal.*
+
+The draft can also support at least one qualitative example of attention shift rather than relying only on aggregate summaries. The current issue-focused shift map is useful as a provisional example because it shows what a localized redistribution of attention can look like on the architectural facade itself.
+
+![Draft Q2 qualitative attention-shift example](../assets/q2_shift_map_issue_focused.png)
+
+*Draft Figure. Example shift map for a LoRA-adapted model relative to the frozen baseline. Blue indicates regions that gained attention after adaptation and red indicates regions that lost attention. This should remain a supporting figure rather than a headline claim, but it gives the reader a concrete visual intuition for the type of change quantified by the aggregate metrics.*
+
+> TODO: Convert the current draft Q2 figure embeds into final float placement and cross-references in the course template. Current draft assets: `outputs/figures/02_all_metrics_improvement_heatmap.png`, `outputs/figures/07_preserve_enhance_destroy.png`, `outputs/figures/08_forest_plot_ci.png`, and `docs/assets/q2_shift_map_issue_focused.png`.
 
 ### 9.3 Q3 Results: Per-Head Specialization
 
@@ -314,7 +336,7 @@ Potential appendix content already has clear repo anchors:
 
 - experiment artifact layout and provenance: `docs/reference/fine_tuning_run_matrix.md`, `outputs/results/active_experiment.json`, `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`
 - continuous-metric calibration details: `docs/reference/metrics_methodology.md`, `outputs/results/q1_continuous_baseline_comparison.json`
-- supplementary Q2 figures: `outputs/figures/`
+- supplementary Q2 figures: `outputs/figures/01_val_accuracy_by_model_strategy.png`, `outputs/figures/04_iou_delta_by_percentile.png`, `outputs/figures/05_iou_coverage_mse_kl_emd_radar.png`, `outputs/figures/06_val_accuracy_vs_iou90_delta.png`, and `outputs/figures/09_per_image_delta_strips.png`
 - Q3 technical caveats and data layout: `docs/reference/per_head_methodology.md`, `outputs/cache/metrics.db`
 
 > TODO: Insert appendix table for experiment artifact provenance. Candidate inputs: `outputs/results/active_experiment.json` and `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`.
