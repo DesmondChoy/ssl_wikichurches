@@ -97,6 +97,18 @@ Baroque has the fewest boxes per image and the lowest improvement across all mod
 
 ![Per-Style Δ IoU breakdown](../../outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png)
 
+**Training configuration basis:**
+
+The style-specificity of improvement maps directly onto each model family's pretraining objective:
+
+- **CLIP** (Radford et al., 2021) — trained on 400M web image–text pairs with a global contrastive loss (InfoNCE softmax). No patch-level spatial pressure exists: the only training signal is whether the whole-image embedding matches a text embedding. CLIP's style gains concentrating on Romanesque and Gothic is explained by the caption density of those styles in web data — features like "pointed arch portal," "rose window," and "round arch" appear frequently in English descriptions of churches. Renaissance and Baroque features (Pediments, Volutes, Pilasters) have narrower English-language coverage in web alt-text. Fine-tuning adds the spatial pressure CLIP's objective never provided.
+
+- **SigLIP / SigLIP 2** (Zhai et al., 2023; Tschannen et al., 2025) — both use pairwise sigmoid loss over 10B WebLI image–text pairs (patch size 16). SigLIP replaces softmax with a per-pair sigmoid, decoupling the loss from batch size but keeping the same global alignment objective — no spatial signal. SigLIP 2 adds LocCa (captioning/grounding losses) and self-distillation + masked prediction in the **last 20% of training**, which improves local semantics but does not match full DINO-style training. This explains why SigLIP 2's Cohen's d (0.781) is higher than SigLIP (0.604) despite both having similarly low frozen IoU — partial local losses marginally increase fine-tuning responsiveness. Neither model shows the Gothic/Romanesque-specific gain CLIP shows, consistent with their sigmoid loss not emphasizing linguistic feature names as strongly as CLIP's InfoNCE.
+
+- **DINOv2** (Oquab et al., 2024) — trained on 142M curated images with DINO (student–teacher CLS) + iBOT (masked patch prediction against teacher targets) + KoLeo regularization, patch size 14. The dual CLS + patch objective directly optimizes for both global and local spatial consistency without any text labels. This explains the flat Δ across all four styles: spatial attention alignment is a byproduct of pretraining, not something style supervision can add.
+
+- **DINOv3** (Siméoni et al., 2025) — extends DINOv2 with Gram anchoring on 1.7B curated web images: the Gram matrix of L2-normalized patch features (pairwise patch–patch inner products) is matched to an early-iteration teacher, explicitly preserving second-order spatial structure throughout long training. This accounts for DINOv3's frozen IoU of 0.1327 — the highest in the dataset — and its style-invariant flat Δ. Because patch similarity structure is a training objective rather than an emergent property, fine-tuning on a 4-class style task cannot reorganize it.
+
 ---
 
 #### Step 2: Cross-Model Image-Level Correlation ✅ DONE
@@ -119,6 +131,16 @@ CLIP is the fixed reference because it has the largest and most interpretable Δ
 The DINOv3 panel (bottom-right, brown) is the key finding: the images where DINOv3's pretraining already produces expert-aligned attention are exactly the images where CLIP's fine-tuning succeeds. This tells you the images themselves are "structurally easy" — the expert bboxes happen to cover visually prominent, spatially compact regions that any spatially-sensitive model will find, given the right training signal. CLIP and DINO aren't complementary; they converge on the same images via different routes.
 
 ![Cross-model Δ IoU correlation heatmap](../../outputs/results/experiments/fine_tuning_primary_20260327/model_correlation_heatmap.png)
+
+**Training configuration basis:**
+
+The three clusters in the pairwise Δ correlation matrix each reflect a distinct pretraining objective:
+
+- **Language cluster (CLIP/SigLIP/SigLIP2, r ≈ 0.43–0.58)** — all three use global image–text alignment as their sole objective (InfoNCE for CLIP, sigmoid pairwise loss for SigLIP/SigLIP 2). Because none applies patch-level spatial pressure during pretraining, their frozen attention is diffuse in a similar way: whatever images are "easy" for CLIP to improve on are also easy for SigLIP, because the barriers are identical (no pre-existing spatial routing). They improve on the same images because they share the same frozen deficiency.
+
+- **MAE (anti-correlated with all, r ≈ −0.22 to −0.31)** — trained on ImageNet-1k with a pixel-reconstruction loss under 75% masking (MSE per masked patch, no text labels). MAE's pretraining has no style signal and no patch-correspondence objective, yet it learns holistic local geometry from reconstruction. Its fine-tuning improvement targets a completely different image subset (Renaissance, with pediment-class geometry) precisely because what makes an image "improvable" for MAE is different: MAE responds to images where its local geometry encoding can be redirected by style gradients, not images where text-aligned patch features are latent.
+
+- **DINO pair (DINOv2/v3, r = 0.33 with each other, near-zero with language cluster)** — both trained with iBOT (patch-level masked prediction against teacher targets) on large curated image-only datasets. DINOv3 adds Gram anchoring. Their frozen IoU is already high (0.082 / 0.133), so neither improves meaningfully with FT. The mild positive correlation between DINOv3 frozen IoU and CLIP Δ IoU (r = +0.677) is not a training configuration effect — it reflects that the same images have prominent, spatially compact annotations that any spatially-sensitive model (frozen DINO or fine-tuned CLIP) will align to.
 
 ---
 
@@ -157,6 +179,16 @@ The feature-level frozen IoU values show that pediment features had near-zero fr
 **Check 3 — Whitepaper-informed interpretation (He et al., MAE):**
 
 MAE's pixel-reconstruction objective under 75% masking rewards reconstructing precise local geometry — edges, shapes, corners. The pediment features that gain most (Triangular Pediment Δ +0.080, Broken Pediment Δ +0.055) are defined by sharp triangular and curved geometric contours. When fine-tuning on a 4-class style task that requires distinguishing Renaissance from Romanesque/Gothic/Baroque, the gradient signal routes to these geometrically precise regions because they are the most discriminative for Renaissance — and MAE's encoder already represents them with high local fidelity from pretraining.
+
+**Training configuration basis:**
+
+MAE (He et al., 2022) is pretrained on ImageNet-1k with an asymmetric encoder–decoder: the encoder processes only the ~25% visible patches (masking ratio 75%), the decoder reconstructs pixel values (MSE) for the masked patches. Three properties of this objective directly explain the per-feature Δ pattern:
+
+1. **Pixel reconstruction rewards local geometric precision.** The decoder must predict exact pixel intensities for masked regions, which requires the encoder to build representations that preserve edge structure, shape boundaries, and texture at the patch level. Triangular Pediments and Broken Pediments — the two largest gainers (Δ +0.080 and +0.055) — are defined by sharp angular and curved geometric contours that are highly recoverable from adjacent visible patches. Belt Courses and Pilasters (the two features with negative Δ) are elongated, low-contrast horizontal or vertical bands with low reconstruction signal relative to their spatial extent.
+
+2. **No style or semantic labels during pretraining.** MAE's encoder has no concept of architectural style — all fine-tuning signal comes from the style classification task. When trained to distinguish Renaissance from the other three styles, the gradient must find the most style-discriminative regions. Pediment forms are nearly exclusive to Renaissance in this dataset; Belt Courses and Pilasters appear across multiple styles. The model learns to suppress the ambiguous features and concentrate on the discriminative ones — producing the observed negative Δ for Pilaster and Belt Course and large positive Δ for pediments.
+
+3. **Linear probing fails; backbone gradients are required.** MAE's paper notes that linear probing accuracy is weakly correlated with fine-tuning accuracy. Our data confirms this: MAE LP Δ = 0.000 across all 139 images — the frozen CLS token is not linearly separable for style. Only full FT or LoRA (which both flow gradients into the backbone) can reorganize spatial attention. This contrasts with DINOv2/v3, where frozen features are already sufficiently discriminative for dense tasks without backbone updates.
 
 **Output artifact:** `feature_delta_iou_mae_full_renaissance.json`, `feature_delta_iou_mae_full_renaissance.png`
 
