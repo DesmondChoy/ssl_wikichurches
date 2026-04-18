@@ -296,6 +296,16 @@ The most appropriate Q3 result framing in this mixed draft is therefore that the
 
 The discussion should explain why the results are intuitive or surprising, not repeat the tables. The current repo evidence already supports several useful interpretations, though some of them remain provisional until the final figure set is frozen.
 
+> TODO: Keep the final insights non-surface-level. The discussion and headline findings should connect observed patterns back to dataset properties, fine-tuning method, model architecture, or an interaction among those factors, rather than stopping at leaderboard-style description. Where relevant, tie those interpretations to related academic literature already cited in the repo or newly added formal references.
+
+Working rubric for final insights:
+
+1. Start from a concrete result, not a vibe. Name the model, condition, metric, or comparison that actually changed.
+2. Move from observation to explanation. Ask what likely accounts for that pattern in terms of dataset properties, fine-tuning strategy, model architecture, or a specific interaction among them.
+3. Do not force every insight to cover all three axes at once. A well-supported dataset-plus-architecture claim or architecture-plus-fine-tuning claim is better than a broad but weak three-way story.
+4. Use literature to deepen the interpretation, not decorate it. When possible, state whether the result is consistent with, extends, or complicates related academic work already cited in the repo or added later.
+5. End with the substantive takeaway. Explain why the finding matters for expert-alignment, trustworthy interpretation, adaptation strategy, or the broader research question instead of stopping at score differences.
+
 ### 10.1 Intuitive vs Surprising Findings
 
 One intuitive result is that Linear Probe behaves like a true control for attention change: because the backbone stays frozen, the attention-alignment metrics remain unchanged. Another intuitive result is that stronger task-conditioned adaptation can help models whose frozen attention is not yet strongly expert-aligned. The current CLIP, MAE, and SigLIP-family results fit that pattern well.
