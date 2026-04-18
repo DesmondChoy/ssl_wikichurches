@@ -60,6 +60,7 @@ export function DashboardPage() {
   const shouldRenderQ3Panel = hasVisitedQ3Tab || isQ3Tab;
   const metricMetadata = DASHBOARD_METRIC_METADATA[metric];
   const metricLabel = metricMetadata.chartLabel;
+  const q2AnalysisHref = buildQ2AnalysisHref(metric, percentile, model);
 
   // Populate store with model config (methods, layer counts) so setModel
   // resolves the correct default method (e.g. gradcam for ResNet-50)
@@ -231,6 +232,38 @@ export function DashboardPage() {
         className={`space-y-6 ${isQ3Tab ? 'hidden' : ''}`}
         data-testid="dashboard-main-panel"
       >
+        <div
+          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-950"
+          data-testid="dashboard-q2-handoff"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1.5">
+              <div className="font-semibold">Fine-tuning analysis lives on Q2</div>
+              <p>
+                Dashboard stays focused on frozen-model Q1 overview analysis.
+              </p>
+              <p>
+                Use <code>/q2</code> for the strategy-aware fine-tuning view sourced from the
+                active experiment artifact.
+              </p>
+              <p className="text-xs text-emerald-800">
+                Keeps current context: {model} • {metricMetadata.optionLabel} • percentile{' '}
+                {percentile}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-start">
+              <Link
+                to={q2AnalysisHref}
+                data-testid="dashboard-q2-handoff-link"
+                className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-900 transition-colors hover:border-emerald-400 hover:bg-emerald-100"
+              >
+                Open Q2 Fine-Tuning Analysis
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             {metricMetadata.infoBanner}
@@ -414,12 +447,12 @@ export function DashboardPage() {
               </Link>
 
               <Link
-                to={`/q2?metric=${metric}&percentile=${percentile}&model=${model}&layer=${layer}`}
+                to={q2AnalysisHref}
                 className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                <div className="font-medium">Q2 Analysis</div>
+                <div className="font-medium">Q2 Fine-Tuning Analysis</div>
                 <div className="text-sm text-gray-500">
-                  Strategy-aware metric summary
+                  Strategy-aware summary from the active experiment
                 </div>
               </Link>
 
@@ -508,4 +541,18 @@ function formatAxisTick(value: number): string {
   }
 
   return value.toFixed(3).replace(/\.?0+$/, '');
+}
+
+function buildQ2AnalysisHref(
+  metric: DashboardMetric,
+  percentile: number,
+  model: string
+): string {
+  const params = new URLSearchParams({
+    metric,
+    percentile: String(percentile),
+    model,
+  });
+
+  return `/q2?${params.toString()}`;
 }

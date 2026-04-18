@@ -450,6 +450,33 @@ async function stubDashboardApis(page: Page, options: DashboardStubOptions = {})
   });
 }
 
+async function stubQ2SummaryApi(page: Page) {
+  await page.route('**/api/metrics/q2_summary?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        metric: 'iou',
+        label: 'IoU',
+        direction: 'higher',
+        percentile_dependent: true,
+        selected_percentile: 90,
+        experiment_id: 'exp_test',
+        split_id: 'split_test',
+        analysis_git_commit_sha: 'deadbeef',
+        analyzed_layer: 11,
+        evaluation_image_count: 139,
+        checkpoint_selection_rule:
+          'best classification validation accuracy on shared non-annotated validation split',
+        result_set_scope: 'primary',
+        timestamp: null,
+        rows: [],
+        strategy_comparisons: [],
+      }),
+    });
+  });
+}
+
 async function getYAxisTickValues(chart: Locator): Promise<number[]> {
   const textValues = await chart.locator('svg text').allTextContents();
   return textValues
@@ -1277,36 +1304,43 @@ test.describe('Dashboard metrics', () => {
     await expect(page).toHaveURL(/feature_label=7/);
   });
 
-  test('opens the Q2 analysis page from the dashboard link', async ({ page }) => {
+  test('shows a prominent Q2 handoff that preserves dashboard context', async ({ page }) => {
     await stubDashboardApis(page);
-    await page.route('**/api/metrics/q2_summary?**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          metric: 'iou',
-          label: 'IoU',
-          direction: 'higher',
-          percentile_dependent: true,
-          selected_percentile: 90,
-          experiment_id: 'exp_test',
-          split_id: 'split_test',
-          analysis_git_commit_sha: 'deadbeef',
-          analyzed_layer: 11,
-          evaluation_image_count: 139,
-          checkpoint_selection_rule: 'best classification validation accuracy on shared non-annotated validation split',
-          result_set_scope: 'primary',
-          timestamp: null,
-          rows: [],
-          strategy_comparisons: [],
-        }),
-      });
-    });
+    await stubQ2SummaryApi(page);
 
     await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: 'Q2 Analysis' })).toBeVisible();
+    await page.getByRole('combobox').first().selectOption('coverage');
+    await page.getByRole('combobox').nth(1).selectOption('80');
+    await page.getByTestId('leaderboard-row-clip').click();
 
-    await page.getByRole('link', { name: 'Q2 Analysis' }).click();
+    const handoff = page.getByTestId('dashboard-q2-handoff');
+    await expect(handoff).toBeVisible();
+    await expect(handoff).toContainText('Dashboard stays focused on frozen-model Q1 overview analysis.');
+    await expect(handoff).toContainText('Use /q2 for the strategy-aware fine-tuning view');
+    await expect(handoff).toContainText('Keeps current context: clip');
+
+    await page.getByTestId('dashboard-q2-handoff-link').click();
+
+    await expect(page).toHaveURL(/\/q2\?metric=coverage&percentile=80&model=clip/);
+    await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
+    await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
+  });
+
+  test('keeps the Q2 quick action available on the dashboard', async ({ page }) => {
+    await stubDashboardApis(page);
+    await stubQ2SummaryApi(page);
+
+    await page.goto('/dashboard');
+    const quickActionsCard = page
+      .getByRole('heading', { name: 'Quick Actions' })
+      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
+      .first();
+    const quickActionLink = quickActionsCard.getByRole('link', {
+      name: /Q2 Fine-Tuning Analysis/,
+    });
+    await expect(quickActionLink).toBeVisible();
+
+    await quickActionLink.click();
 
     await expect(page).toHaveURL(/\/q2\?/);
     await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
