@@ -97,12 +97,6 @@ export function Q2Page() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link to="/dashboard" className="text-primary-600 hover:underline">Dashboard</Link>
-        <span className="text-gray-400">/</span>
-        <span className="text-gray-600">Q2 Investigation</span>
-      </div>
-
       <h1 className="text-2xl font-bold text-gray-900">Q2 Strategy-Aware Attention Shift</h1>
 
       <Card>
