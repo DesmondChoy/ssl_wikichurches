@@ -77,23 +77,55 @@ Do individual attention heads exhibit descriptive specialization for different a
 
 Prior work has already shown that attention maps in vision transformers can carry useful spatial structure, but the literature is careful about what those maps do and do not prove. DINO popularized the observation that late-layer self-attention can resemble semantic object masks, while attention-rollout work argued that single-layer raw attention may miss how information flows across the full network. Transformer-interpretability work by Chefer et al. further demonstrated that attention visualization alone is not a complete explanation method, which is one reason this project frames its outputs as alignment measurements and descriptive evidence rather than as definitive causal proof.
 
+Representative sources already cited elsewhere in the repo include:
+
+- [Caron et al. (2021), *Emerging Properties in Self-Supervised Vision Transformers*](https://arxiv.org/abs/2104.14294)
+- [Abnar and Zuidema (2020), *Quantifying Attention Flow in Transformers*](https://arxiv.org/abs/2005.00928)
+- [Chefer et al. (2021), *Transformer Interpretability Beyond Attention Visualization*](https://arxiv.org/abs/2012.09838)
+
 ### 5.2 Evaluation Against Human or Expert Annotations
 
 The most relevant methodological precedent is the broader literature that compares model explanations against human- or expert-provided spatial targets. In computer vision, IoU-style localization evaluation, pointing-game style metrics, and plausibility-oriented explanation benchmarks established the basic pattern of comparing model-derived maps against annotated regions. More recent work in medical imaging has applied similar logic to expert annotations and found that model families behave differently when the evaluation target is domain-specific rather than generic. That precedent strengthens the framing of this project as a domain-grounded evaluation study rather than as a new interpretability algorithm.
+
+Representative sources already cited elsewhere in the repo include:
+
+- [Zhou et al. (2016), *Learning Deep Features for Discriminative Localization*](https://arxiv.org/abs/1512.04150)
+- [Zhang et al. (2016), *Top-Down Neural Attention by Excitation Backprop*](https://arxiv.org/abs/1511.02668)
+- [Choe et al. (2020), *Evaluating Weakly Supervised Object Localization Methods Right*](https://arxiv.org/abs/1910.12449)
+- [Chung et al. (2025), *What Should We Learn from Attention Maps? A ViT Study in Medical Imaging*](https://arxiv.org/abs/2503.09535)
 
 ### 5.3 Fine-Tuning, Representation Shift, and Attention Drift
 
 The fine-tuning literature suggests that adaptation can reshape pretrained representations in ways that are useful, unstable, or both. Kumar et al. showed that fine-tuning can distort pretrained features relative to linear-probe-style controls, while Biderman et al. argued that LoRA tends to learn less and forget less than full fine-tuning. Work on attention transfer and self-supervised ViT analysis further suggests that attention patterns are not incidental to downstream performance. Q2 builds on this literature by asking not just whether representations change, but whether the change moves attention toward or away from expert-marked architectural evidence.
 
+Representative sources already cited elsewhere in the repo include:
+
+- [Kumar et al. (2022), *Fine-Tuning can Distort Pretrained Features and Underperform Out-of-Distribution*](https://arxiv.org/abs/2202.10054)
+- [Biderman et al. (2024), *LoRA Learns Less and Forgets Less*](https://arxiv.org/abs/2405.09673)
+- [Park et al. (2023), *What Do Self-Supervised Vision Transformers Learn?*](https://openreview.net/forum?id=azCKuYyS74)
+- [Li et al. (2024), *On the Surprising Effectiveness of Attention Transfer for Vision Transformers*](https://arxiv.org/abs/2411.09702)
+
 ### 5.4 Attention-Head Specialization
 
 The head-specialization literature, especially Voita et al., established the broader idea that only a subset of heads may carry the most interpretable or task-relevant behavior. Later ViT work extended that intuition to head-level spatial patterns in vision models. Q3 adopts that descriptive framing. It asks whether some heads align more strongly with architectural features than others, not whether one can reduce the full model decision to a single head.
+
+Representative sources already cited elsewhere in the repo include:
+
+- [Voita et al. (2019), *Analyzing Multi-Head Self-Attention: Specialized Heads Do the Heavy Lifting*](https://arxiv.org/abs/1905.09418)
+- [Li et al. (2023), *Interpreting Vision Transformer from Head Distribution*](https://doi.org/10.1109/TVCG.2023.3327840)
+- [Walmer et al. (2023), *Teaching Matters: Investigating the Role of Supervision in Vision Transformers*](https://openaccess.thecvf.com/content/CVPR2023/papers/Walmer_Teaching_Matters_Investigating_the_Role_of_Supervision_in_Vision_Transformers_CVPR_2023_paper.pdf)
+- [Raghu et al. (2021), *Do Vision Transformers See Like Convolutional Neural Networks?*](https://arxiv.org/abs/2108.08810)
 
 ### 5.5 Cultural Heritage and Architectural Recognition Context
 
 Architectural heritage and cultural-recognition datasets are less saturated than standard object-recognition benchmarks, yet they are especially appropriate for attention-alignment studies because the diagnostic evidence is often structural, expert-defined, and visually localized. WikiChurches is particularly useful in this regard because it combines style labels with bounding-box annotations of characteristic building parts. The project's novelty therefore lies less in inventing a new metric than in bringing together expert-annotation-grounded evaluation, multiple SSL paradigms, adaptation analysis, and an architecture-focused domain where "looking at the right evidence" is central to the research question.
 
-> TODO: Insert final related-work citations and bibliography formatting in the course template. Current source notes: `docs/research/claude_novelty_check.md` and `docs/research/attention_methods.md`.
+Representative sources already cited elsewhere in the repo include:
+
+- [Barz and Denzler (2021), *WikiChurches: A Fine-Grained Dataset of Architectural Styles with Real-World Challenges*](https://arxiv.org/abs/2108.06959)
+- [Hu et al. (2025), *ASCENT-ViT: Attentive Semantic Concept Explainability for Vision Transformers*](https://www.ijcai.org/proceedings/2025/58)
+
+> TODO: Convert these inline markdown links into the course citation style and final bibliography format. Current source notes: `docs/research/claude_novelty_check.md`, `docs/research/attention_methods.md`, and `docs/reference/metrics_methodology.md`.
 
 ## 6. Dataset and Problem Setup
 
