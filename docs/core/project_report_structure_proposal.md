@@ -248,7 +248,7 @@ The current Q2 artifacts support a clear provisional storyline: Linear Probe act
 
 The checked-in multi-metric improvement heatmap is already strong enough to include in this mixed draft because it compresses the full strategy comparison into one view and makes the zero-shift Linear Probe control immediately visible.
 
-![Draft Q2 multi-metric improvement heatmap](../../outputs/figures/02_all_metrics_improvement_heatmap.png)
+![Draft Q2 multi-metric improvement heatmap](/Users/desmondchoy/Projects/ssl_wikichurches/outputs/figures/02_all_metrics_improvement_heatmap.png)
 
 *Draft Figure. Sign-normalized Q2 metric deltas for each model and strategy. Blue denotes improvement, red denotes degradation, and asterisks denote significance in the generated artifact. The strongest positive clusters appear in CLIP, MAE, and the SigLIP family, while Linear Probe remains at zero by construction.*
 
@@ -262,19 +262,19 @@ The preserve/enhance/destroy framing is therefore useful, but it should be repor
 
 The checked-in preserve/enhance/destroy figure helps simplify that same result into an easily scannable classification layer and is worth retaining in the draft because it exposes both the dominant improvement pattern and the remaining regression risk.
 
-![Draft Q2 preserve-enhance-destroy summary](../../outputs/figures/07_preserve_enhance_destroy.png)
+![Draft Q2 preserve-enhance-destroy summary](/Users/desmondchoy/Projects/ssl_wikichurches/outputs/figures/07_preserve_enhance_destroy.png)
 
 *Draft Figure. Each cell classifies a model-strategy-metric outcome as Enhance, Preserve, or Destroy using the run-matrix logic described in the figure commentary. Enhancement is the dominant outcome in the current artifact set, but the remaining destroy cells show that adaptation can still move attention in the wrong direction.*
 
 The forest-plot visualization adds the statistical layer that the heatmap and categorical summary cannot show on their own, making it easier to distinguish robust movement from small, noisy shifts.
 
-![Draft Q2 forest plot with bootstrap confidence intervals](../../outputs/figures/08_forest_plot_ci.png)
+![Draft Q2 forest plot with bootstrap confidence intervals](/Users/desmondchoy/Projects/ssl_wikichurches/outputs/figures/08_forest_plot_ci.png)
 
 *Draft Figure. Mean Q2 deltas with 95% bootstrap confidence intervals for LoRA and Full fine-tuning across six metrics, sign-normalized so rightward always means improvement. This is currently the clearest checked-in figure for showing that several CLIP, MAE, and SigLIP-family gains are not merely anecdotal.*
 
 The draft can also support at least one qualitative example of attention shift rather than relying only on aggregate summaries. The current issue-focused shift map is useful as a provisional example because it shows what a localized redistribution of attention can look like on the architectural facade itself.
 
-![Draft Q2 qualitative attention-shift example](../assets/q2_shift_map_issue_focused.png)
+![Draft Q2 qualitative attention-shift example](/Users/desmondchoy/Projects/ssl_wikichurches/docs/assets/q2_shift_map_issue_focused.png)
 
 *Draft Figure. Example shift map for a LoRA-adapted model relative to the frozen baseline. Blue indicates regions that gained attention after adaptation and red indicates regions that lost attention. This should remain a supporting figure rather than a headline claim, but it gives the reader a concrete visual intuition for the type of change quantified by the aggregate metrics.*
 
