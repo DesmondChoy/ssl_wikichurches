@@ -290,11 +290,11 @@ def save_figure(
 
         yerr_lower = [
             max(0.0, m - cl) if not (np.isnan(m) or np.isnan(cl)) else 0.0
-            for m, cl in zip(means, cis_lower)
+            for m, cl in zip(means, cis_lower, strict=True)
         ]
         yerr_upper = [
             max(0.0, cu - m) if not (np.isnan(m) or np.isnan(cu)) else 0.0
-            for m, cu in zip(means, cis_upper)
+            for m, cu in zip(means, cis_upper, strict=True)
         ]
 
         offset = (i - n_models / 2 + 0.5) * (bar_width + group_gap / n_models)

@@ -84,11 +84,18 @@ export function Q2Page() {
     selectedStrategy === 'linear_probe' || selectedStrategy === 'lora' || selectedStrategy === 'full'
       ? selectedStrategy
       : 'full';
-  const q2ImageDeltaModel = selectedModel === 'all' ? compareModel : selectedModel;
+  const q2ImageDeltaModel = selectedModel === 'all' ? undefined : selectedModel;
   const q2ImageDeltaStrategy =
     selectedStrategy === 'linear_probe' || selectedStrategy === 'lora' || selectedStrategy === 'full'
       ? selectedStrategy
       : undefined;
+  const imageDeltaSelectionMessage = !q2ImageDeltaModel && !q2ImageDeltaStrategy
+    ? 'Select a specific model and strategy to inspect per-image deltas.'
+    : !q2ImageDeltaModel
+      ? 'Select a specific model to inspect per-image deltas.'
+      : !q2ImageDeltaStrategy
+        ? 'Select a specific strategy to inspect per-image deltas.'
+        : null;
   const { data: imageDeltaData, isLoading: isImageDeltaLoading } = useQ2ImageDeltas(
     q2ImageDeltaModel,
     q2ImageDeltaStrategy,
@@ -219,15 +226,15 @@ export function Q2Page() {
           <h3 className="font-semibold">Image-Level Delta Drilldown (IoU)</h3>
         </CardHeader>
         <CardContent>
-          {!q2ImageDeltaStrategy && (
+          {imageDeltaSelectionMessage && (
             <p className="text-sm text-gray-500">
-              Select a specific strategy to inspect per-image deltas.
+              {imageDeltaSelectionMessage}
             </p>
           )}
-          {q2ImageDeltaStrategy && isImageDeltaLoading && (
+          {!imageDeltaSelectionMessage && isImageDeltaLoading && (
             <p className="text-sm text-gray-500">Loading image-level deltas...</p>
           )}
-          {q2ImageDeltaStrategy && !isImageDeltaLoading && !imageDeltaData && (
+          {!imageDeltaSelectionMessage && !isImageDeltaLoading && !imageDeltaData && (
             <p className="text-sm text-gray-500">No image-level deltas available for this selection.</p>
           )}
           {imageDeltaData && (

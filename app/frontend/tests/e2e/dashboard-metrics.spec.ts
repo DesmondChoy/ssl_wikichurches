@@ -1304,7 +1304,7 @@ test.describe('Dashboard metrics', () => {
     await expect(page).toHaveURL(/feature_label=7/);
   });
 
-  test('shows a prominent Q2 handoff that preserves dashboard context', async ({ page }) => {
+  test('keeps the Q2 quick action context-preserving for direct /q2 navigation', async ({ page }) => {
     await stubDashboardApis(page);
     await stubQ2SummaryApi(page);
 
@@ -1313,37 +1313,31 @@ test.describe('Dashboard metrics', () => {
     await page.getByRole('combobox').nth(1).selectOption('80');
     await page.getByTestId('leaderboard-row-clip').click();
 
-    const handoff = page.getByTestId('dashboard-q2-handoff');
-    await expect(handoff).toBeVisible();
-    await expect(handoff).toContainText('Dashboard stays focused on frozen-model Q1 overview analysis.');
-    await expect(handoff).toContainText('Use /q2 for the strategy-aware fine-tuning view');
-    await expect(handoff).toContainText('Keeps current context: clip');
-
-    await page.getByTestId('dashboard-q2-handoff-link').click();
-
-    await expect(page).toHaveURL(/\/q2\?metric=coverage&percentile=80&model=clip/);
-    await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
-    await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
-  });
-
-  test('keeps the Q2 quick action available on the dashboard', async ({ page }) => {
-    await stubDashboardApis(page);
-    await stubQ2SummaryApi(page);
-
-    await page.goto('/dashboard');
     const quickActionsCard = page
       .getByRole('heading', { name: 'Quick Actions' })
       .locator('xpath=ancestor::div[contains(@class,"rounded")]')
       .first();
-    const quickActionLink = quickActionsCard.getByRole('link', {
+    await quickActionsCard.getByRole('link', {
       name: /Q2 Fine-Tuning Analysis/,
-    });
-    await expect(quickActionLink).toBeVisible();
+    }).click();
 
-    await quickActionLink.click();
-
-    await expect(page).toHaveURL(/\/q2\?/);
+    await expect(page).toHaveURL(/\/q2\?metric=coverage&percentile=80&model=clip/);
     await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
     await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
+    await expect(page.getByText('Select a specific strategy to inspect per-image deltas.')).toBeVisible();
+  });
+
+  test('renders the embedded Q2 dashboard tab', async ({ page }) => {
+    await stubDashboardApis(page);
+    await stubQ2SummaryApi(page);
+
+    await page.goto('/dashboard');
+    await page.getByTestId('dashboard-page-tab-q2').click();
+
+    await expect(page).toHaveURL(/\/dashboard\?tab=q2/);
+    await expect(page.getByTestId('dashboard-q2-panel')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Q2 Strategy-Aware Attention Shift' })).toBeVisible();
+    await expect(page.getByText('No Q2 rows available for current filters.')).toBeVisible();
+    await expect(page.getByText('Select a specific model and strategy to inspect per-image deltas.')).toBeVisible();
   });
 });

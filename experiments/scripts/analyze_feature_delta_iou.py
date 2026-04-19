@@ -56,19 +56,17 @@ from ssl_attention.config import (  # noqa: E402
     STYLE_NAMES,
     AttentionMethod,
 )
-from ssl_attention.data.annotations import load_annotations  # noqa: E402
+from ssl_attention.data.annotations import ImageAnnotation, load_annotations  # noqa: E402
 from ssl_attention.data.wikichurches import AnnotatedSubset  # noqa: E402
 from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
     FineTunableModel,
     load_finetuned_model,
-    get_checkpoint_candidates,
 )
 from ssl_attention.evaluation.fine_tuning_artifacts import (  # noqa: E402
     get_experiment_paths,
     load_active_experiment,
 )
 from ssl_attention.metrics.iou import compute_iou  # noqa: E402
-from ssl_attention.models import create_model  # noqa: E402
 from ssl_attention.utils.device import clear_memory  # noqa: E402
 
 METRICS_DB_PATH = CACHE_PATH / "metrics.db"
@@ -155,7 +153,7 @@ def extract_attention_heatmap(
 
 def compute_per_feature_iou(
     heatmap: torch.Tensor,
-    annotation,
+    annotation: ImageAnnotation,
     percentile: int,
 ) -> dict[int, float]:
     """Return {group_label: iou} for each distinct feature group in the annotation."""

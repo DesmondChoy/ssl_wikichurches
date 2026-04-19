@@ -8,6 +8,7 @@ import { HomePage } from './pages/Home';
 import { ImageDetailPage } from './pages/ImageDetail';
 import { ComparePage } from './pages/Compare';
 import { DashboardPage } from './pages/Dashboard';
+import { Q2Page } from './pages/Q2';
 import { Q3Page } from './pages/Q3';
 import { NotFoundPage } from './pages/NotFound';
 import { RouteErrorBoundary } from './components/ui/ErrorBoundary';
@@ -100,6 +101,7 @@ function AppShell() {
           <Route path="/image/:imageId" element={<RouteErrorBoundary><ImageDetailPage /></RouteErrorBoundary>} />
           <Route path="/compare" element={<RouteErrorBoundary><ComparePage /></RouteErrorBoundary>} />
           <Route path="/dashboard" element={<RouteErrorBoundary><DashboardPage /></RouteErrorBoundary>} />
+          <Route path="/q2" element={<RouteErrorBoundary><Q2Page /></RouteErrorBoundary>} />
           <Route path="/q3" element={<RouteErrorBoundary><Q3Page /></RouteErrorBoundary>} />
           <Route path="*" element={<RouteErrorBoundary><NotFoundPage /></RouteErrorBoundary>} />
         </Routes>
