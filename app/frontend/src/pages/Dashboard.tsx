@@ -14,6 +14,7 @@ import { useModels } from '../hooks/useAttention';
 import { ModelLeaderboard } from '../components/metrics/ModelLeaderboard';
 import { FeatureBreakdown } from '../components/metrics/FeatureBreakdown';
 import { Q3HeadAnalysis } from '../components/metrics/Q3HeadAnalysis';
+import { Q2Page } from './Q2';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { PageTabs } from '../components/ui/PageTabs';
@@ -55,6 +56,8 @@ export function DashboardPage() {
   const [metric, setMetric] = useState<DashboardMetric>('iou');
   const [rankingMode, setRankingMode] = useState<RankingMode>('default_method');
   const currentTab = parsePageTab(searchParams.get('tab'));
+  const isMainTab = currentTab === 'main';
+  const isQ2Tab = currentTab === 'q2';
   const [hasVisitedQ3Tab, setHasVisitedQ3Tab] = useState(currentTab === 'q3');
   const isQ3Tab = currentTab === 'q3';
   const shouldRenderQ3Panel = hasVisitedQ3Tab || isQ3Tab;
@@ -161,7 +164,7 @@ export function DashboardPage() {
           </p>
         </div>
 
-        {!isQ3Tab && (
+        {isMainTab && (
           <div className="flex flex-wrap items-end gap-3">
             <Select
               value={metric}
@@ -221,6 +224,13 @@ export function DashboardPage() {
             panelId: 'dashboard-q3-panel',
             dataTestId: 'dashboard-page-tab-q3',
           },
+          {
+            value: 'q2',
+            label: 'Q2',
+            id: 'dashboard-page-tab-q2',
+            panelId: 'dashboard-q2-panel',
+            dataTestId: 'dashboard-page-tab-q2',
+          },
         ]}
       />
 
@@ -228,42 +238,10 @@ export function DashboardPage() {
         id="dashboard-main-panel"
         role="tabpanel"
         aria-labelledby="dashboard-page-tab-main"
-        hidden={isQ3Tab}
-        className={`space-y-6 ${isQ3Tab ? 'hidden' : ''}`}
+        hidden={!isMainTab}
+        className={`space-y-6 ${isMainTab ? '' : 'hidden'}`}
         data-testid="dashboard-main-panel"
       >
-        <div
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-950"
-          data-testid="dashboard-q2-handoff"
-        >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-1.5">
-              <div className="font-semibold">Fine-tuning analysis lives on Q2</div>
-              <p>
-                Dashboard stays focused on frozen-model Q1 overview analysis.
-              </p>
-              <p>
-                Use <code>/q2</code> for the strategy-aware fine-tuning view sourced from the
-                active experiment artifact.
-              </p>
-              <p className="text-xs text-emerald-800">
-                Keeps current context: {model} • {metricMetadata.optionLabel} • percentile{' '}
-                {percentile}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-start">
-              <Link
-                to={q2AnalysisHref}
-                data-testid="dashboard-q2-handoff-link"
-                className="rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-900 transition-colors hover:border-emerald-400 hover:bg-emerald-100"
-              >
-                Open Q2 Fine-Tuning Analysis
-              </Link>
-            </div>
-          </div>
-        </div>
-
         {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             {metricMetadata.infoBanner}
@@ -465,6 +443,17 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div
+        id="dashboard-q2-panel"
+        role="tabpanel"
+        aria-labelledby="dashboard-page-tab-q2"
+        hidden={!isQ2Tab}
+        className={`space-y-6 ${isQ2Tab ? '' : 'hidden'}`}
+        data-testid="dashboard-q2-panel"
+      >
+        <Q2Page />
       </div>
 
       {shouldRenderQ3Panel && (

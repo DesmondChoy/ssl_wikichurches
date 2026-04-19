@@ -25,3 +25,14 @@ When you fine-tune DINOv2 on classification, the [CLS] token is already aggregat
 This is a property Park & Kim (2022 — [arXiv:2202.06709](https://arxiv.org/abs/2202.06709)) connect to the *spectral structure* of attention in discriminatively pretrained ViTs: the attention is already low-entropy (concentrated) before fine-tuning, leaving less room for the classification objective to reshape it.
 
 A deeper implication: for CLIP/SigLIP/MAE, the IoU improvement you're seeing is partly a sign that the pretrained representations needed the fine-tuning to become spatially coherent. For DINOv2, the spatial coherence was a *byproduct of pretraining*, not a product of supervision — which also means it generalizes more robustly across domains, whereas the CLIP/SigLIP localization you measured may be more tightly coupled to the specific classification vocabulary it was fine-tuned on.
+
+---
+
+### Image-level CLIP finding: selected-feature peak at Layer 10 (not Layer 11)
+
+In the feature-local compare view (selected bbox: **"Columned Portal"**), CLIP shows a non-monotonic late-layer pattern: **Layer 10 aligns better than Layer 11** for this specific image/feature pair.
+
+- **Layer 10:** Frozen IoU = `0.080`, Full fine-tune IoU = `0.208`
+- **Layer 11:** Frozen IoU = `0.046`, Full fine-tune IoU = `0.113`
+
+Interpretation: even when Q2 aggregate analysis uses a single late layer, local feature alignment can peak one layer earlier for some CLIP cases. This should be treated as an image-level case-study finding (not a replacement for aggregate statistics), and it supports the need for per-image/per-feature layer inspection in addition to global summaries.
