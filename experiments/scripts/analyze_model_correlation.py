@@ -214,7 +214,7 @@ def print_frozen_vs_delta_table(
     """Print correlations between each model's frozen IoU and CLIP's Δ IoU."""
     print(f"\n{'=' * 80}")
     print(f"Frozen IoU vs CLIP Δ IoU (strategy={strategy})")
-    print(f"Rows: frozen IoU of <model> vs CLIP Δ IoU per image")
+    print("Rows: frozen IoU of <model> vs CLIP Δ IoU per image")
     print(f"{'=' * 80}")
     print(f"{'Model (frozen)':20}  {'Pearson r':>10}  {'p':>8}  {'Spearman ρ':>11}  {'p':>8}  {'n':>5}")
     print("-" * 80)

@@ -1006,7 +1006,7 @@ class MetricsService:
             rows: list[dict[str, Any]] = []
             for image_id, delta in items:
                 annotation = image_service.get_annotation(image_id)
-                style_names = image_service.get_style_names(annotation.styles) if annotation else []
+                style_names = image_service.get_style_names(list(annotation.styles)) if annotation else []
                 rows.append(
                     {
                         "image_id": image_id,

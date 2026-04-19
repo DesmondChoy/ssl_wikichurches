@@ -301,17 +301,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Compare page ships a frozen-vs-variant `Shift map` view that renders `compared_variant_attention - frozen_attention` from cached numeric heatmaps with a diverging color scale
 
-<<<<<<< HEAD
 5. **Q2 Primary Results** (`fine_tuning_primary_20260327`) ✅
    - Full experiment completed 2026-03-27; analysis committed 2026-03-28
    - Key finding: CLIP (d=1.005) and SigLIP family (d=0.6–0.8) show significant positive Δ IoU; DINOv2/v3 show Δ ≈ 0
    - DINOv3 frozen IoU (0.133 at p90) is the highest of all models — beats CLIP post-FT (0.075)
    - See `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for deep analysis and hypotheses
 
-> **Note:** Remaining Phase 5 work includes (a) first-class fine-tuned leaderboard/dashboard support, (b) attention shift visualization (issue #474), (c) layer-sweep IoU post-FT, and (d) per-feature-type / per-style Δ IoU breakdowns. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis currently lives in `/q2` plus the compare flows.
-=======
-> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work is now limited to first-class fine-tuned leaderboard/dashboard support. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2` plus the compare flows.
->>>>>>> main
+> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work now centers on (a) first-class fine-tuned leaderboard/dashboard support, (b) attention shift visualization (issue #474), (c) layer-sweep IoU post-FT, and (d) per-feature-type Δ IoU breakdowns. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2`, the Dashboard Q2 tab, and the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
