@@ -292,6 +292,38 @@ The most appropriate Q3 result framing in this mixed draft is therefore that the
 
 > TODO: Add the finalized Q3 narrative once the team confirms which scoped head-specialization claims are mature enough for the main report.
 
+### 9.4 Investigation Note: CNN Feature-Map Analogy
+
+> Investigation note: Explore whether the layer-wise Q3 pattern in ViTs partly mirrors the hierarchical progression often described for CNN feature maps. Treat this as a hypothesis to test, not as an equivalence to assume.
+
+In a CNN, a feature map is an activation map for a learned filter. Early CNN layers often respond to local primitives such as edges, color transitions, or repeated textures, while deeper layers respond to larger compositions such as corners, object parts, or whole objects. In a vision transformer, an attention map is not the same thing. It is a patch-to-patch weighting pattern that describes how information is routed, not a direct activation map of a detector. The closer transformer analogue to a CNN feature map is the evolving patch-token representation at each layer. Even so, the analogy remains useful at a higher level because both architectures may build progressively more structured and semantically meaningful spatial organization with depth.
+
+For the report, describe this angle carefully. The claim should not be that attention heads are just feature maps, or that one head is equivalent to one CNN channel. The safer claim is that later transformer layers may show more expert-aligned spatial patterns in the same broad sense that deeper CNN layers show more abstract visual structure. The parallel is therefore about hierarchical abstraction, not about architectural identity. That wording also fits the repo's current guardrail that Q3 is descriptive rather than causal.
+
+A defensible way to study this angle in the current repo is to separate three questions:
+
+1. Layer progression: do fused or aggregate attention metrics improve from early to late layers for the architecture-native Q3 models?
+2. Head specialization: within each layer, do a small number of heads dominate the alignment ranking, and does that sparsity increase in later layers?
+3. Feature specificity: do certain late heads align repeatedly with certain architectural feature labels, such as arches, towers, or windows, across many images?
+
+Then compare those patterns across `frozen`, `lora`, and `full`. If `lora` or `full` improves alignment, the useful follow-up question is whether adaptation sharpens an existing layer hierarchy, shifts the dominant heads to different layers, or reorganizes which feature types each head best aligns with. This gives the report a more precise claim than simply saying that fine-tuning changed attention.
+
+This angle should be described with two explicit caveats. First, strong late-layer alignment does not prove that the model has learned human-like part detectors. It only shows that its spatial weighting patterns are becoming more compatible with expert annotations. Second, because raw attention is only one interpretability signal, the strongest version of the claim should be that expert-aligned structure emerges with depth in a descriptive sense, not that the measured heads are the sole causal mechanism behind the prediction.
+
+Most useful repo entry points for a deeper dive:
+
+- `docs/research/attention_methods.md` for the current layer-by-layer interpretation language
+- `docs/reference/metrics_methodology.md` for layer progression expectations, metric behavior, and threshold caveats
+- `docs/reference/per_head_methodology.md` for Q3 scope, head-level caveats, and wording guardrails
+- `app/backend/services/metrics_service.py` for layer progression, head ranking, head-feature matrix, and exemplar queries
+- `src/ssl_attention/attention/cls_attention.py` and `src/ssl_attention/attention/rollout.py` for how the attention maps are extracted
+- `app/precompute/generate_attention_cache.py` and `app/precompute/generate_metrics_cache.py` for how per-layer and per-head artifacts are generated
+- `outputs/cache/metrics.db` and `outputs/cache/attention_viz.h5` for the main cached Q1, Q2, and Q3 analysis artifacts
+
+Potential report wording if this angle becomes part of the final narrative:
+
+> Although transformer attention maps are not equivalent to CNN feature maps, both architectures may exhibit a depth-wise progression from lower-level spatial organization toward more semantically meaningful structure. We therefore treat increasing late-layer head alignment as a testable descriptive pattern rather than assuming that individual heads are fixed feature detectors.
+
 ## 10. Discussion
 
 The discussion should explain why the results are intuitive or surprising, not repeat the tables. The current repo evidence already supports several useful interpretations, though some of them remain provisional until the final figure set is frozen.
