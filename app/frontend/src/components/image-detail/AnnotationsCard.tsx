@@ -5,6 +5,7 @@ interface AnnotationsCardProps {
   annotation: ImageAnnotation;
   mode: ImageDetailMode;
   showBboxes: boolean;
+  bboxSelectionDrivesOverlay?: boolean;
   selectedBboxIndex: number | null;
   onBboxSelect: (index: number | null) => void;
 }
@@ -13,11 +14,12 @@ export function AnnotationsCard({
   annotation,
   mode,
   showBboxes,
+  bboxSelectionDrivesOverlay = false,
   selectedBboxIndex,
   onBboxSelect,
 }: AnnotationsCardProps) {
   const selectedBbox = selectedBboxIndex !== null ? annotation.bboxes[selectedBboxIndex] : null;
-  const helperCopy = getHelperCopy(mode, showBboxes, selectedBbox?.label_name ?? null);
+  const helperCopy = getHelperCopy(mode, showBboxes, bboxSelectionDrivesOverlay, selectedBbox?.label_name ?? null);
 
   return (
     <div data-testid="annotations-card">
@@ -82,7 +84,12 @@ export function AnnotationsCard({
   );
 }
 
-function getHelperCopy(mode: ImageDetailMode, showBboxes: boolean, selectedLabel: string | null) {
+function getHelperCopy(
+  mode: ImageDetailMode,
+  showBboxes: boolean,
+  bboxSelectionDrivesOverlay: boolean,
+  selectedLabel: string | null,
+) {
   if (!showBboxes) {
     return {
       className: 'bg-amber-50 text-amber-800',
@@ -99,6 +106,18 @@ function getHelperCopy(mode: ImageDetailMode, showBboxes: boolean, selectedLabel
       : {
           className: 'bg-green-50 text-green-700',
           text: 'Click a bounding box to use it as the feature-similarity query.',
+        };
+  }
+
+  if (bboxSelectionDrivesOverlay) {
+    return selectedLabel
+      ? {
+          className: 'bg-green-50 text-green-700',
+          text: `${selectedLabel} is driving the focused overlay. Click it again to return to the global attention view.`,
+        }
+      : {
+          className: 'bg-green-50 text-green-700',
+          text: 'Click a bounding box to swap the global attention view for a focused overlay around that feature.',
         };
   }
 

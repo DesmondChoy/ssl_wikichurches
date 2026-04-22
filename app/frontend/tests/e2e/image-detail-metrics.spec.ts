@@ -933,7 +933,23 @@ test.describe('Image detail metrics chart', () => {
     await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
     await expect(page.getByTestId('similarity-stats')).toHaveCount(0);
     await expect(page.getByTestId('similarity-legend')).toHaveCount(0);
-    await expect(page.getByTestId('annotations-helper-copy')).toContainText('context while you inspect attention');
+    await expect(page.getByTestId('annotations-helper-copy')).toContainText('global attention view');
+
+    await page.getByTestId('bbox-list-item-0').click();
+
+    await expect(page.getByTestId('attention-overlay-image')).toHaveCount(0);
+    await expect(page.getByTestId('similarity-overlay-image')).toBeVisible();
+    await expect(page.getByTestId('similarity-stats')).toBeVisible();
+    await expect(page.getByTestId('similarity-legend')).toBeVisible();
+    await expect(page.getByTestId('annotations-helper-copy')).toContainText('driving the focused overlay');
+    await expect(page.getByTestId('metrics-mode-note')).toContainText('bbox-conditioned focused overlay');
+
+    await page.getByTestId('bbox-list-item-0').click();
+
+    await expect(page.getByTestId('attention-overlay-image')).toBeVisible();
+    await expect(page.getByTestId('similarity-overlay-image')).toHaveCount(0);
+    await expect(page.getByTestId('similarity-stats')).toHaveCount(0);
+    await expect(page.getByTestId('similarity-legend')).toHaveCount(0);
 
     await page.getByRole('tab', { name: 'Q3' }).click();
 

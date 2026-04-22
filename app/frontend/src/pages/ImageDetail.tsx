@@ -367,6 +367,7 @@ export function ImageDetailPage() {
               mode={activeMode}
               percentile={activePercentile}
               showBboxes={activeShowBboxes}
+              bboxSelectionDrivesOverlay={!isQ3Tab}
               bboxes={imageDetail?.annotation.bboxes ?? []}
               selectedBboxIndex={activeBboxIndex}
               onBboxSelect={handleActiveBboxSelect}
@@ -394,6 +395,7 @@ export function ImageDetailPage() {
               annotation={imageDetail.annotation}
               mode={activeMode}
               showBboxes={activeShowBboxes}
+              bboxSelectionDrivesOverlay={!isQ3Tab}
               selectedBboxIndex={activeBboxIndex}
               onBboxSelect={handleActiveBboxSelect}
             />
@@ -423,6 +425,7 @@ export function ImageDetailPage() {
                 percentile={mainPercentile}
                 method={mainMethod}
                 mode="head_attention"
+                bboxSelectionDrivesOverlay
                 selectedBboxIndex={mainSelectedBboxIndex}
                 currentLayer={mainLayer}
                 isPlaying={isPlaying}
