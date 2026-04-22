@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const IMAGE_ID = 'Q2034923_wd0.jpg';
+const TYPED_IMAGE_ID = 'Q908802_wd0.jpg';
 
 function getModelResult(
   payload: {
@@ -319,6 +320,115 @@ async function stubCompareControlApis(page: Page) {
   });
 }
 
+async function stubCompareImageSelectorApis(page: Page) {
+  const galleryImages = [
+    {
+      image_id: IMAGE_ID,
+      thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+      styles: ['gothic'],
+      style_names: ['Gothic'],
+      num_bboxes: 1,
+    },
+    {
+      image_id: TYPED_IMAGE_ID,
+      thumbnail_url: `/api/images/${TYPED_IMAGE_ID}/thumbnail`,
+      styles: ['roman'],
+      style_names: ['Romanesque'],
+      num_bboxes: 2,
+    },
+  ];
+
+  await page.route('**/api/images?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(galleryImages),
+    });
+  });
+
+  await page.route(/\/api\/images\/[^/]+\.jpg$/, async (route) => {
+    const url = new URL(route.request().url());
+    const requestedImageId = decodeURIComponent(url.pathname.split('/').pop() ?? '');
+    const matchedImage = galleryImages.find((image) => image.image_id === requestedImageId);
+
+    if (!matchedImage) {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'Not found' }) });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: matchedImage.image_id,
+        image_url: `/api/images/${matchedImage.image_id}/file`,
+        thumbnail_url: matchedImage.thumbnail_url,
+        available_models: ['dinov2', 'clip'],
+        annotation: {
+          image_id: matchedImage.image_id,
+          styles: matchedImage.styles,
+          style_names: matchedImage.style_names,
+          num_bboxes: matchedImage.num_bboxes,
+          bboxes: [],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2', 'clip'],
+        num_layers: 12,
+        num_layers_per_model: { dinov2: 12, clip: 12 },
+        methods: { dinov2: ['cls'], clip: ['cls'] },
+        default_methods: { dinov2: 'cls', clip: 'cls' },
+      }),
+    });
+  });
+
+  await page.route('**/api/compare/models?**', async (route) => {
+    const url = new URL(route.request().url());
+    const models = url.searchParams.getAll('models');
+    const selectedImageId = url.searchParams.get('image') ?? IMAGE_ID;
+    const method = url.searchParams.get('method') ?? 'cls';
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: selectedImageId,
+        models,
+        layer: 'layer0',
+        percentile: 90,
+        selection: {
+          mode: 'union',
+          bbox_index: null,
+          bbox_label: null,
+        },
+        results: models.map((model, index) => ({
+          image_id: selectedImageId,
+          model,
+          layer: 'layer0',
+          percentile: 90,
+          iou: index === 0 ? 0.12 : 0.18,
+          coverage: index === 0 ? 0.31 : 0.34,
+          mse: index === 0 ? 0.0112 : 0.0104,
+          kl: index === 0 ? 4.21 : 3.88,
+          emd: index === 0 ? 0.29 : 0.24,
+          attention_area: 0.12,
+          annotation_area: 0.09,
+          method,
+        })),
+        heatmap_urls: {},
+        unavailable_models: {},
+      }),
+    });
+  });
+}
+
 test.describe('Compare page', () => {
   test('removes the View Details CTA and keeps the right controls when switching modes', async ({ page }) => {
     await stubCompareControlApis(page);
@@ -341,6 +451,28 @@ test.describe('Compare page', () => {
     await expect(page.getByText('Left Variant', { exact: true })).toBeVisible();
     await expect(page.getByText('Right Variant', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: /View Details/i })).toHaveCount(0);
+  });
+
+  test('lets users type an exact filename while keeping the image dropdown available', async ({ page }) => {
+    await stubCompareImageSelectorApis(page);
+
+    await page.goto('/compare?type=models');
+
+    const filenameInput = page.getByLabel('Filename');
+    const imageSelect = getSelectByLabel(page, 'Image');
+
+    await filenameInput.fill('Q908802');
+    await expect(page).not.toHaveURL(/image=/);
+    await expect(imageSelect.locator('option')).toHaveCount(2);
+    await expect(imageSelect.locator('option').nth(1)).toHaveAttribute('value', TYPED_IMAGE_ID);
+
+    await filenameInput.fill(TYPED_IMAGE_ID);
+    await expect(page).toHaveURL(/image=Q908802_wd0\.jpg/);
+    await expect(imageSelect).toHaveValue(TYPED_IMAGE_ID);
+
+    await imageSelect.selectOption(IMAGE_ID);
+    await expect(page).toHaveURL(/image=Q2034923_wd0\.jpg/);
+    await expect(filenameInput).toHaveValue(IMAGE_ID);
   });
 
   test('preserves a shared attention method when both selected models support it', async ({ page }) => {

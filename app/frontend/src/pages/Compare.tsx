@@ -34,12 +34,17 @@ function clampLayer(value: string | null, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeImageFilename(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export function ComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isPlaying, setIsPlaying] = useState(false);
   const imageQueryImageId = searchParams.get('image');
   const legacyImageId = searchParams.get('image_id');
   const imageId = imageQueryImageId || legacyImageId || '';
+  const [imageFilenameInput, setImageFilenameInput] = useState(imageId);
   const comparisonTypeParam = searchParams.get('type');
   const comparisonType: ComparisonType = comparisonTypeParam === 'variants' ? 'variants' : 'models';
   const legacyStrategy = searchParams.get('strategy') || '';
@@ -79,6 +84,10 @@ export function ComparePage() {
       setSearchParams(nextParams, { replace: true });
     }
   }, [imageQueryImageId, legacyImageId, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setImageFilenameInput(imageId);
+  }, [imageId]);
 
   useEffect(() => {
     if (comparisonTypeParam === 'frozen') {
@@ -142,11 +151,20 @@ export function ComparePage() {
     enabled: !!imageId,
   });
 
-  const imageOptions = images?.map((img) => ({
+  const normalizedImageFilenameInput = normalizeImageFilename(imageFilenameInput);
+  const selectedImage = images?.find((img) => img.image_id === imageId) || null;
+  const shouldFilterImageOptions = !!normalizedImageFilenameInput
+    && selectedImage?.image_id.toLowerCase() !== normalizedImageFilenameInput;
+  const filteredImages = images?.filter((img) => (
+    !shouldFilterImageOptions || img.image_id.toLowerCase().includes(normalizedImageFilenameInput)
+  )) || [];
+  const visibleImages = selectedImage && !filteredImages.some((img) => img.image_id === selectedImage.image_id)
+    ? [selectedImage, ...filteredImages]
+    : filteredImages;
+  const imageOptions = visibleImages.map((img) => ({
     value: img.image_id,
     label: `${img.image_id.split('_')[0]} (${img.style_names.join(', ')})`,
-  })) || [];
-
+  }));
   const comparisonTypes = [
     { value: 'models', label: 'Model vs Model' },
     { value: 'variants', label: 'Variant vs Variant' },
@@ -163,9 +181,7 @@ export function ComparePage() {
     value: entry,
     label: entry,
   }));
-  const headerControlsClassName = comparisonType === 'models'
-    ? 'grid grid-cols-1 gap-4 md:grid-cols-3'
-    : 'grid grid-cols-1 gap-4 md:grid-cols-4';
+  const headerControlsClassName = 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4';
 
   const buildSearchParams = (overrides?: Record<string, string>) => ({
     image: imageId,
@@ -184,6 +200,20 @@ export function ComparePage() {
     setSearchParams(buildSearchParams({ layer: String(nextLayer) }), { replace: options?.replace ?? false });
   };
 
+  const updateImage = (nextImageId: string) => {
+    setSearchParams(buildSearchParams({ image: nextImageId }));
+  };
+
+  const handleImageFilenameChange = (value: string) => {
+    setImageFilenameInput(value);
+
+    const normalizedValue = normalizeImageFilename(value);
+    const matchedImage = images?.find((img) => img.image_id.toLowerCase() === normalizedValue);
+    if (matchedImage && matchedImage.image_id !== imageId) {
+      updateImage(matchedImage.image_id);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm">
@@ -199,9 +229,26 @@ export function ComparePage() {
       <Card>
         <CardContent>
           <div className={headerControlsClassName} data-testid="compare-header-controls">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="compare-image-filename" className="text-sm font-medium text-gray-700">
+                Filename
+              </label>
+              <input
+                id="compare-image-filename"
+                type="text"
+                value={imageFilenameInput}
+                onChange={(event) => handleImageFilenameChange(event.target.value)}
+                placeholder="Type exact filename..."
+                className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
             <Select
               value={imageId}
-              onChange={(value) => setSearchParams(buildSearchParams({ image: value }))}
+              onChange={(value) => {
+                setImageFilenameInput(value);
+                updateImage(value);
+              }}
               options={[{ value: '', label: 'Select an image...' }, ...imageOptions]}
               label="Image"
             />
