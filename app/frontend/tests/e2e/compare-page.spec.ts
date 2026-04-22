@@ -22,6 +22,10 @@ function getSelectByLabel(page: Page, label: string) {
     .first();
 }
 
+function getCompareImageInput(page: Page) {
+  return page.locator('#compare-image-input');
+}
+
 async function clickBbox(page: Page, index: number) {
   await page.getByTestId(`bbox-hitbox-${index}`).first().evaluate((element) => {
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -443,7 +447,7 @@ test.describe('Compare page', () => {
       'Comparing with shared method: cls'
     );
 
-    await page.getByRole('combobox').nth(1).selectOption('variants');
+    await getSelectByLabel(page, 'Comparison Type').selectOption('variants');
 
     await expect(page).toHaveURL(/type=variants/);
     await expect(page.getByText('Model', { exact: true })).toBeVisible();
@@ -453,26 +457,28 @@ test.describe('Compare page', () => {
     await expect(page.getByRole('link', { name: /View Details/i })).toHaveCount(0);
   });
 
-  test('lets users type an exact filename while keeping the image dropdown available', async ({ page }) => {
+  test('lets users type an exact filename from the combined image picker', async ({ page }) => {
     await stubCompareImageSelectorApis(page);
 
     await page.goto('/compare?type=models');
 
-    const filenameInput = page.getByLabel('Filename');
-    const imageSelect = getSelectByLabel(page, 'Image');
+    const imageInput = getCompareImageInput(page);
+    const imageSuggestions = page.locator('#compare-image-options option');
 
-    await filenameInput.fill('Q908802');
+    await expect(imageInput).toHaveAttribute('list', 'compare-image-options');
+    await expect(imageSuggestions).toHaveCount(2);
+    await expect(imageSuggestions.nth(1)).toHaveAttribute('value', TYPED_IMAGE_ID);
+
+    await imageInput.fill('Q908802');
     await expect(page).not.toHaveURL(/image=/);
-    await expect(imageSelect.locator('option')).toHaveCount(2);
-    await expect(imageSelect.locator('option').nth(1)).toHaveAttribute('value', TYPED_IMAGE_ID);
 
-    await filenameInput.fill(TYPED_IMAGE_ID);
+    await imageInput.fill(TYPED_IMAGE_ID);
     await expect(page).toHaveURL(/image=Q908802_wd0\.jpg/);
-    await expect(imageSelect).toHaveValue(TYPED_IMAGE_ID);
+    await expect(imageInput).toHaveValue(TYPED_IMAGE_ID);
 
-    await imageSelect.selectOption(IMAGE_ID);
+    await imageInput.fill(IMAGE_ID);
     await expect(page).toHaveURL(/image=Q2034923_wd0\.jpg/);
-    await expect(filenameInput).toHaveValue(IMAGE_ID);
+    await expect(imageInput).toHaveValue(IMAGE_ID);
   });
 
   test('preserves a shared attention method when both selected models support it', async ({ page }) => {
@@ -487,7 +493,7 @@ test.describe('Compare page', () => {
         && response.url().includes('method=rollout')
         && response.status() === 200
     );
-    await getSelectByLabel(page, 'Image').selectOption(IMAGE_ID);
+    await getCompareImageInput(page).fill(IMAGE_ID);
     await comparisonResponse;
 
     await expect(page.getByTestId('comparison-method-context')).toContainText(
@@ -504,7 +510,7 @@ test.describe('Compare page', () => {
     await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
 
     await page.getByRole('link', { name: 'Compare' }).click();
-    await getSelectByLabel(page, 'Image').selectOption(IMAGE_ID);
+    await getCompareImageInput(page).fill(IMAGE_ID);
 
     await expect(page.getByText('Model Comparison')).toBeVisible();
     await getSelectByLabel(page, 'Left Model').selectOption('siglip');

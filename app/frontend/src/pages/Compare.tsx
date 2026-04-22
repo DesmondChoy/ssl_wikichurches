@@ -44,7 +44,7 @@ export function ComparePage() {
   const imageQueryImageId = searchParams.get('image');
   const legacyImageId = searchParams.get('image_id');
   const imageId = imageQueryImageId || legacyImageId || '';
-  const [imageFilenameInput, setImageFilenameInput] = useState(imageId);
+  const [imageInputValue, setImageInputValue] = useState(imageId);
   const comparisonTypeParam = searchParams.get('type');
   const comparisonType: ComparisonType = comparisonTypeParam === 'variants' ? 'variants' : 'models';
   const legacyStrategy = searchParams.get('strategy') || '';
@@ -86,7 +86,7 @@ export function ComparePage() {
   }, [imageQueryImageId, legacyImageId, searchParams, setSearchParams]);
 
   useEffect(() => {
-    setImageFilenameInput(imageId);
+    setImageInputValue(imageId);
   }, [imageId]);
 
   useEffect(() => {
@@ -151,20 +151,10 @@ export function ComparePage() {
     enabled: !!imageId,
   });
 
-  const normalizedImageFilenameInput = normalizeImageFilename(imageFilenameInput);
-  const selectedImage = images?.find((img) => img.image_id === imageId) || null;
-  const shouldFilterImageOptions = !!normalizedImageFilenameInput
-    && selectedImage?.image_id.toLowerCase() !== normalizedImageFilenameInput;
-  const filteredImages = images?.filter((img) => (
-    !shouldFilterImageOptions || img.image_id.toLowerCase().includes(normalizedImageFilenameInput)
-  )) || [];
-  const visibleImages = selectedImage && !filteredImages.some((img) => img.image_id === selectedImage.image_id)
-    ? [selectedImage, ...filteredImages]
-    : filteredImages;
-  const imageOptions = visibleImages.map((img) => ({
+  const imageOptions = images?.map((img) => ({
     value: img.image_id,
     label: `${img.image_id.split('_')[0]} (${img.style_names.join(', ')})`,
-  }));
+  })) || [];
   const comparisonTypes = [
     { value: 'models', label: 'Model vs Model' },
     { value: 'variants', label: 'Variant vs Variant' },
@@ -204,10 +194,17 @@ export function ComparePage() {
     setSearchParams(buildSearchParams({ image: nextImageId }));
   };
 
-  const handleImageFilenameChange = (value: string) => {
-    setImageFilenameInput(value);
+  const handleImageInputChange = (value: string) => {
+    setImageInputValue(value);
 
     const normalizedValue = normalizeImageFilename(value);
+    if (!normalizedValue) {
+      if (imageId) {
+        updateImage('');
+      }
+      return;
+    }
+
     const matchedImage = images?.find((img) => img.image_id.toLowerCase() === normalizedValue);
     if (matchedImage && matchedImage.image_id !== imageId) {
       updateImage(matchedImage.image_id);
@@ -230,28 +227,24 @@ export function ComparePage() {
         <CardContent>
           <div className={headerControlsClassName} data-testid="compare-header-controls">
             <div className="flex flex-col gap-1">
-              <label htmlFor="compare-image-filename" className="text-sm font-medium text-gray-700">
-                Filename
+              <label htmlFor="compare-image-input" className="text-sm font-medium text-gray-700">
+                Image
               </label>
               <input
-                id="compare-image-filename"
+                id="compare-image-input"
                 type="text"
-                value={imageFilenameInput}
-                onChange={(event) => handleImageFilenameChange(event.target.value)}
-                placeholder="Type exact filename..."
+                list="compare-image-options"
+                value={imageInputValue}
+                onChange={(event) => handleImageInputChange(event.target.value)}
+                placeholder="Type a filename or pick from the list..."
                 className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
+              <datalist id="compare-image-options">
+                {imageOptions.map((option) => (
+                  <option key={option.value} value={option.value} label={option.label} />
+                ))}
+              </datalist>
             </div>
-
-            <Select
-              value={imageId}
-              onChange={(value) => {
-                setImageFilenameInput(value);
-                updateImage(value);
-              }}
-              options={[{ value: '', label: 'Select an image...' }, ...imageOptions]}
-              label="Image"
-            />
 
             <Select
               value={comparisonType}
