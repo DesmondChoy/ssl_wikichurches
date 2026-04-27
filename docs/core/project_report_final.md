@@ -20,7 +20,9 @@ It also reflects the current project guidance from the repo: keep the report que
 
 Self-supervised vision models achieve strong downstream performance, but high classification accuracy alone does not reveal whether those models attend to the same visual evidence that human experts consider diagnostically important. This project studies that question in the WikiChurches setting, where expert bounding boxes identify architectural features such as arches, windows, towers, and facade elements that matter for style recognition. We evaluate seven vision models across self-distillation, masked autoencoding, multimodal contrastive pretraining, and a supervised CNN baseline, then measure attention-alignment against 631 expert boxes on 139 annotated church images using IoU, Coverage, MSE, KL divergence, and EMD. The study is organized around three linked questions: how well frozen models align with expert-marked regions, how Linear Probe, LoRA, and Full fine-tuning change that alignment, and whether individual attention heads exhibit descriptive specialization for different architectural features. The current repository already supports the full pipeline for dataset preparation, attention extraction, metric precomputation, fine-tuning analysis, and interactive inspection through a backend and frontend analysis application.
 
-> TODO: Add the final abstract findings sentence once the report locks the headline Q1, Q2, and Q3 claims.
+The Q2 findings are that fine-tuning moves attention unevenly across families: CLIP gains the most (IoU 0.0181→0.0745, Cohen's d≈1.0) but its gains concentrate on Gothic and Romanesque features that are densely described in English-language web text; MAE's largest single-style gain is on Renaissance, driven specifically by pediment geometry; and the DINO family preserves its already-strong frozen alignment. Models with different pretraining objectives converge on the same structurally easy images rather than covering complementary subsets, with DINOv3 frozen IoU predicting per-image CLIP Δ at Pearson r=+0.677.
+
+> TODO: Add the final abstract findings sentence for the headline Q1 and Q3 claims once those sections lock.
 
 ## 2. Project-At-A-Glance Overview
 
@@ -149,7 +151,14 @@ The methodology is designed to support a comparative evaluation study rather tha
 
 The frozen benchmark compares seven models. Six are transformer-based models: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, and `siglip2`. The seventh, `resnet50`, acts as a supervised CNN baseline. All transformer models use ViT-Base scale backbones in the current implementation. DINOv2 uses a patch-size-14 configuration with 4 register tokens and a 16 x 16 spatial patch grid. DINOv3, MAE, CLIP, SigLIP, and SigLIP2 use patch size 16 and a 14 x 14 patch grid at the standard input resolution. ResNet-50 is handled through a separate Grad-CAM path.
 
-The attention-extraction method depends on model architecture. For DINOv2, DINOv3, MAE, and CLIP, the main methods are CLS attention and attention rollout. CLS attention isolates the class token's attention to patch tokens in a selected layer. Attention rollout composes attention across layers to capture indirect information flow. For SigLIP and SigLIP2, the project uses a mean attention proxy because those models do not expose a CLS-token path equivalent to the DINO, MAE, or CLIP setup. For ResNet-50, the interpretability baseline is Grad-CAM rather than transformer attention.
+The attention-extraction method depends on model architecture. For DINOv2, DINOv3, MAE, and CLIP, the main methods are CLS attention and attention rollout. CLS attention isolates the class token's attention to patch tokens in a selected layer. Attention rollout composes attention across layers to capture indirect information flow. For SigLIP and SigLIP2, the project uses a mean attention proxy because those models do not expose a CLS-token path equivalent to the DINO, MAE, or CLIP setup. For ResNet-50, the interpretability baseline is Grad-CAM rather than transformer attention. The extraction methods are summarised below.
+
+| Extraction Method | Models | Description|
+| :---- | :---- | :---- |
+| **CLS token attention** | DINOv2, DINOv3, MAE, CLIP | Aggregate attention from [CLS] token to spatial patches across heads. Supports head fusion strategies: mean (default), max, or min across the 12 attention heads.|
+| **Attention rollout** | DINOv2, DINOv3, MAE, CLIP | Propagate attention through layers to capture indirect dependencies. Recursive layer-wise multiplication following Abnar & Zuidema (2020).|
+| **Mean attention** | SigLIP, SigLIP2 | Average attention across all tokens for models without [CLS] token. In this project it is used as an interpretability proxy for models that expose a separate pooling head rather than a CLS-token attention path.|
+| **Grad-CAM (baseline)** | ResNET | Gradient-weighted activation maps across all 4 ResNet stages (7×7 final feature grid).|
 
 These choices are important for interpretation. CLS attention and rollout are not interchangeable, and mean attention for the SigLIP family is an interpretability proxy rather than an architecture-native pooling explanation. That distinction becomes especially important in Q3, where the report should avoid mixing architecture-native and proxy-based per-head claims without qualification.
 
@@ -280,6 +289,64 @@ The draft can also support at least one qualitative example of attention shift r
 
 *Draft Figure. Example shift map for a LoRA-adapted model relative to the frozen baseline. Blue indicates regions that gained attention after adaptation and red indicates regions that lost attention. This should remain a supporting figure rather than a headline claim, but it gives the reader a concrete visual intuition for the type of change quantified by the aggregate metrics.*
 
+#### 9.2.1 Per-Style and Per-Feature Breakdown
+
+The aggregate deltas above mask a sharp asymmetry in where each model's improvement lands. Decomposing each model's per-image Δ IoU by the architectural style of the image exposes two patterns that the aggregate cannot show.
+
+| Model | Romanesque (n=54) | Gothic (n=49) | Renaissance (n=22) | Baroque (n=17) |
+|-------|:-----------------:|:-------------:|:-----------------:|:--------------:|
+| **CLIP** | **+0.066** | **+0.079** | +0.014 | +0.013 |
+| **MAE** | +0.007 | +0.009 | **+0.108** | **+0.045** |
+| **SigLIP2** | +0.034 | +0.044 | +0.007 | +0.007 |
+| **SigLIP** | +0.029 | +0.039 | -0.006 | +0.005 |
+| **DINOv2** | -0.010 | +0.001 | -0.004 | -0.012 |
+| **DINOv3** | -0.001 | +0.006 | -0.004 | -0.009 |
+
+*Δ IoU (full fine-tuning, IoU p90, layer 11) by architectural style.*
+
+![Per-style Δ IoU breakdown](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png)
+
+*Figure. Per-style Δ IoU for each fine-tuned model relative to its frozen baseline. CLIP's improvement is entirely carried by Romanesque and Gothic; MAE's largest single-style gain is on Renaissance; DINOv2 and DINOv3 are flat across all four styles.*
+
+CLIP's +0.0564 aggregate gain is not uniformly distributed across the dataset. Virtually all of it comes from Romanesque (+0.066) and Gothic (+0.079) images, with Renaissance (+0.014) and Baroque (+0.013) near zero. The strongly improving styles are dominated by features with heavy presence in English-language descriptions of churches — Romanesque Round Arch Portals and Lesenes, Gothic Pointed Arch Portals, Bull's-eye Windows, and Tracery — which is consistent with, though not directly quantified by, the hypothesis that CLIP's fine-tuning unlocks latent text-aligned patch features. Renaissance and Baroque features such as Pediments, Volutes, and Pilasters are comparatively under-represented in English alt-text, and CLIP shows little gain there. A Kruskal-Wallis test finds significant style moderation only for MAE at this scope.
+
+MAE's Renaissance Δ of +0.108 is the largest single-style shift observed in the dataset and is not explained by its modest aggregate (+0.029). Decomposing MAE's Renaissance improvement by feature reveals that the gain is concentrated on pediment-class shapes.
+
+| Feature | Frozen IoU | FT IoU | Δ IoU | n images |
+|---------|-----------|--------|-------|----------|
+| Triangular Pediment | 0.0360 | 0.1161 | **+0.0800** | 19 |
+| Cranked Cornice | 0.0045 | 0.0668 | **+0.0623** | 2 |
+| Broken Pediment | 0.0054 | 0.0599 | **+0.0545** | 7 |
+| Volute | 0.0087 | 0.0516 | **+0.0429** | 4 |
+| Segmental Pediment | 0.0126 | 0.0543 | **+0.0417** | 7 |
+| Pilaster | 0.0232 | 0.0111 | −0.0121 | 15 |
+| Belt Course | 0.0311 | 0.0155 | −0.0156 | 9 |
+
+*Per-feature Δ IoU for MAE under full fine-tuning, on Renaissance images.*
+
+![MAE per-feature Δ IoU on Renaissance images](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/feature_delta_iou_mae_full_renaissance.png)
+
+*Figure. Per-feature Δ IoU for MAE, full fine-tuning, on the 22 Renaissance images. Pediment-class features dominate the positive tail; Pilaster and Belt Course show negative Δ.*
+
+Two points stand out. First, the frozen IoU values for the top-gaining pediment features are near zero, so fine-tuning is creating alignment from scratch rather than amplifying a pre-existing advantage. Second, the most common Renaissance features — Pilaster (15 images) and Belt Course (9 images) — show negative Δ, meaning fine-tuning actively shifts MAE's attention away from them and toward the pediment forms. A plausible reading consistent with MAE's pixel-reconstruction pretraining is that the 75%-masking objective rewards precise local geometry, pediments are geometrically compact and Renaissance-exclusive in this dataset, and the style-classification gradient routes attention to the most discriminative geometric forms while suppressing features that appear across multiple styles.
+
+A caveat applies to the Baroque column. The annotated Baroque subset has only 1.8 boxes per image (versus 4.2–5.9 for the other three styles), so the weak improvement across all models partly reflects a weaker evaluation signal rather than a clean null. The report should not over-interpret Baroque Δ values in either direction.
+
+#### 9.2.2 Cross-Model Structure: Shared Easy Images
+
+The per-style table invites a second question: are different models improving on the same images through different mechanisms, or are they finding complementary subsets that ensemble well? A per-image correlation analysis points clearly to the first answer.
+
+![DINOv3 frozen IoU vs. CLIP Δ IoU scatter](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/model_correlation_scatter.png)
+
+*Figure. Per-image scatter of CLIP Δ IoU (y-axis) against each other model's frozen IoU (x-axis), across the 139 annotated images. CLIP is the reference because its Δ is both the largest and the most interpretable. The DINOv3 panel shows the central finding: images where DINOv3's pretraining already produces expert-aligned attention are the same images where CLIP's fine-tuning succeeds.*
+
+Across the 139 annotated images, DINOv3 frozen IoU predicts CLIP Δ IoU at Pearson r=+0.677 (Spearman ρ=+0.612, both p<0.0001). That is a large effect on a modest sample, and it reframes what CLIP's fine-tuning is doing. The images CLIP "gains" on are not a CLIP-specific niche; they are the images whose expert annotations cover visually prominent, spatially compact regions — regions that any spatially-sensitive model (frozen DINOv3 or fine-tuned CLIP) can align to given the right training signal. The structural barrier is the image, not the model family.
+<!-- TODO(KM): Add image evidence here to support this. -->
+
+Extending this to all pairwise per-image Δ correlations produces three clusters. The language cluster — CLIP, SigLIP, SigLIP2 — shows within-cluster correlations of roughly r=0.43–0.58, consistent with these three models sharing the same frozen deficiency (no patch-level spatial pressure during pretraining) and therefore improving on the same images when adaptation supplies spatial signal. MAE is anti-correlated with the language cluster at r≈−0.22 to −0.31, which is consistent with MAE's Renaissance pediment finding: its improvements target a different image subset (Renaissance geometry) rather than the Gothic/Romanesque portals the language cluster responds to. The DINO pair (DINOv2, DINOv3) correlates weakly with each other (r=0.33) and near zero with the language cluster, which is consistent with their Δ being essentially zero everywhere — there is nothing for a correlation to latch onto.
+
+The substantive reading is that models with different pretraining objectives converge on the same structurally easy images rather than specializing on complementary subsets. MAE is the single exception, and it covers a disjoint part of the dataset. This is a meaningful finding beyond the aggregate Δ story: it tells the reader that the "hard" images are hard for most of these models in the same way, and that an ensemble of language-cluster and DINO models would be unlikely to add coverage on the hard subset.
+
 > TODO: Convert the current draft Q2 figure embeds into final float placement and cross-references in the course template. Current draft assets: `outputs/figures/02_all_metrics_improvement_heatmap.png`, `outputs/figures/07_preserve_enhance_destroy.png`, `outputs/figures/08_forest_plot_ci.png`, and `docs/assets/q2_shift_map_issue_focused.png`.
 
 ### 9.3 Q3 Results: Per-Head Specialization
@@ -348,13 +415,24 @@ A more surprising result is that the strongest frozen score on one metric does n
 
 ### 10.2 What the Results Suggest About Pretraining Objectives
 
-The current artifact set tentatively suggests that pretraining objectives shape not only downstream accuracy but also the ease with which attention becomes expert-aligned in a feature-rich architectural dataset. DINOv3's strong frozen Q1 profile suggests that self-distillation can yield attention patterns that already land comparatively close to expert-marked spatial evidence, which is consistent with the DINO literature on emergent semantic attention. By contrast, CLIP, MAE, and the SigLIP family appear to gain more from task-specific adaptation in Q2, which suggests that their frozen attention may encode useful semantics without yet concentrating strongly on the exact parts that architectural experts use to separate styles. Park et al.'s comparison of self-supervised objectives and Walmer et al.'s supervision-regime analysis both support the broader idea that pretraining objective changes not just what features are learned, but how attention is spatially organized.
+The Q2 per-style and cross-model evidence lets the report move from a general objective-shapes-attention claim to a more specific mechanistic account, grounded in each model's pretraining whitepaper.
 
-This interpretation should remain measured. The report should not claim that one pretraining paradigm is universally "better" at explanation. Instead, it should state that the current WikiChurches benchmark suggests different paradigms begin with different spatial priors, and that those priors interact with downstream adaptation differently depending on how strongly the target task depends on localized, expert-defined visual structures.
+CLIP (Radford et al., 2021) is trained on 400M web image–text pairs with a global InfoNCE contrastive loss. That objective applies no patch-level spatial pressure: the only gradient signal is whether the whole-image embedding matches a caption embedding. Frozen CLIP attention is therefore diffuse, and the report's Q1 artifact has CLIP's best frozen IoU at an early layer rather than a late one. Fine-tuning on a 4-class style task is the first time a spatial signal is applied, and the Q2 aggregate gain (IoU 0.0181→0.0745, Cohen's d≈1.0) is the largest in the dataset. The per-style breakdown sharpens this reading: CLIP's gain concentrates almost entirely on Romanesque (+0.066) and Gothic (+0.079), the two styles whose diagnostic features (Round Arch Portals, Pointed Arch Portals, Bull's-eye Windows, Tracery) appear most frequently in English-language descriptions of churches. Renaissance and Baroque features such as Pediments, Volutes, and Pilasters are less densely described in web alt-text, and CLIP shows near-zero Δ on those styles. The linguistic-grounding hypothesis is consistent with this pattern but is not directly quantified in this report; a patch-level text-similarity probe is the natural next step to close it.
+<!-- TODO(KM): Find research that backs up that these 2 styles have diagnostic features more commonly seen in English descriptions. -->
+
+SigLIP and SigLIP 2 (Zhai et al., 2023; Tschannen et al., 2025) use a pairwise sigmoid loss over 10B WebLI image–text pairs, which decouples the loss from batch size but retains a global alignment objective with no spatial signal for the bulk of training. SigLIP 2 adds LocCa spatial grounding and masked patch prediction for the last 20% of training, and the whitepaper reports a modest +2% ADE20k mIoU from that change. The Q2 artifacts are consistent with that partial spatial stage: SigLIP 2's Cohen's d of 0.781 exceeds SigLIP's 0.604 despite a comparable frozen IoU, and both show LP Δ=0.000 across all images, confirming that neither model develops a linearly-separable style representation at the frozen CLS token. Neither shows CLIP's Gothic/Romanesque-specific gain pattern, which is consistent with the sigmoid objective not emphasizing named linguistic features as strongly as CLIP's InfoNCE.
+
+MAE (He et al., 2022) is pretrained on ImageNet-1k with an asymmetric encoder-decoder reconstructing pixel values for masked patches under 75% masking. The whitepaper's masking-ratio ablation identifies 75% as optimal (76.5% fine-tune accuracy versus 73.9% at 50% and 76.0% at 90%), because that ratio forces the encoder to build precise local geometry representations from sparse visible context. The Q2 per-feature table is consistent with that mechanism: MAE's Renaissance Δ of +0.108 is carried by pediment-class features (Triangular Pediment +0.080, Broken Pediment +0.055, Segmental Pediment +0.042, Cranked Cornice +0.062, Volute +0.043), all geometrically compact and Renaissance-exclusive in this dataset. The two most common Renaissance features that are not style-discriminative, Pilaster (−0.012) and Belt Course (−0.016), show negative Δ. MAE's LP Δ=0.000 result confirms the whitepaper's broader observation that MAE's frozen CLS token is not linearly separable (the paper reports a ~7-point LP-vs-FT gap on ImageNet-1k), and that backbone gradients are required to reorganize spatial attention.
+
+The DINO family behaves differently. DINOv2 (Oquab et al., 2024) combines DINO self-distillation, iBOT patch prediction, and KoLeo regularization on the curated LVD-142M, and the whitepaper reports frozen ADE20k mIoU of 75.9 versus OpenCLIP's 63.8 — a 12.1-point gap — with only a ~2-point frozen-to-FT gap on ImageNet-1k. DINOv3 (Siméoni et al., 2025) extends this on LVD-1689M and adds a Gram-anchoring loss that penalizes Frobenius drift between student and early-teacher patch-patch Gram matrices, explicitly preserving second-order spatial structure during long training. DINOv3 reaches frozen ADE20k mIoU of 81.1. In the Q2 artifacts, both DINO variants have near-zero Δ across all four styles and across the preserve/enhance/destroy classification. The most defensible reading is that expert-aligned spatial structure is already baked in by pretraining, the style-classification gradient is absorbed by the classification head rather than propagated to reshape attention, and the small DINOv3 Coverage drop under fine-tuning is consistent with fine-tuning sharpening selectivity while the Gram-anchored patch structure resists reorganization. Δ≈0 is a positive generalization result for DINO, not a failure to learn.
+
+Taken together, the Q2 picture is that pretraining objectives set different spatial priors, and those priors interact with downstream adaptation in different ways depending on whether the target task's diagnostic evidence is localized and whether the pretraining signal already carries spatial structure. The report does not claim that one paradigm is universally preferable; it claims that the compatibility between pretraining objective and downstream adaptation strategy is the right unit of analysis for expert-aligned evidence use.
 
 ### 10.3 Practical Implications
 
 From a practical perspective, the current results suggest that model selection for domain adaptation should not be guided by classification accuracy alone. A frozen model such as DINOv3, which already aligns comparatively well with expert-marked evidence, may be preferable when plausible evidence use matters and when preserving a strong pretrained spatial prior is more valuable than extracting the largest possible task-specific shift. By contrast, a model such as CLIP or MAE may become much more attractive once the workflow allows adaptation, because the downstream task can redirect attention toward architectural parts that the frozen model underemphasizes. The Q2 comparison also suggests that LoRA can capture a substantial share of the attention-shift benefit in several models without always requiring the full cost or instability of end-to-end fine-tuning, while Full fine-tuning remains the stronger option when a model clearly needs a larger reorganization of its attention patterns. That is the practical takeaway the paper can offer: the best adaptation choice depends not only on task accuracy, but on whether the chosen model-method combination encourages attention to move toward the expert evidence that defines success in this domain.
+
+The cross-model correlation evidence adds a second practical implication for ensembling. Because the language cluster (CLIP, SigLIP, SigLIP 2) and the DINO family converge on the same structurally easy images rather than covering complementary subsets, an ensemble that combines a language-cluster model with a DINO model would be unlikely to gain coverage on the hard image subset that none of them currently explain well. MAE is the only model whose per-image Δ is anti-correlated with the language cluster, which makes MAE the natural complementary partner in an ensemble aimed at expanding coverage rather than reinforcing consensus.
 
 ### 10.4 Limitations and Threats to Validity
 
@@ -370,7 +448,9 @@ This project asks whether self-supervised vision models attend to the same archi
 
 The current repository already supports a strong draft conclusion. The project has a defensible methodology, a calibrated Q1 benchmark, an experiment-scoped Q2 analysis workflow, and a scoped Q3 study design. The draft evidence suggests that model families differ meaningfully both in their frozen spatial alignment and in how much they change under task-specific adaptation. At the same time, the report should remain careful about metric calibration, sparse annotation bias, and the broader limitation that attention is not identical to causal explanation.
 
-> TODO: Add the final conclusion sentence that synthesizes the locked headline findings once the report figures and tables are frozen.
+For Q2, the headline synthesis is that fine-tuning's effect on expert alignment is mediated by three interacting factors: the pretraining objective's spatial prior (DINO preserves strong frozen alignment; CLIP, MAE, and the SigLIP family gain because they lack that prior); dataset linguistic coverage (CLIP's gain concentrates on Gothic and Romanesque features that are densely described in English web text); and geometric discriminability (MAE redirects attention to Renaissance-exclusive pediment forms that its pixel-reconstruction pretraining already encodes with high local fidelity). Models with different objectives converge on the same structurally easy images rather than specializing on complementary subsets, which has direct implications for ensembling and for interpreting what fine-tuning has actually taught each model to look at.
+
+> TODO: Add the final synthesis sentences for the Q1 and Q3 headline findings once those sections lock.
 
 ## 12. Appendix
 
@@ -381,6 +461,7 @@ Potential appendix content already has clear repo anchors:
 - experiment artifact layout and provenance: `docs/reference/fine_tuning_run_matrix.md`, `outputs/results/active_experiment.json`, `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`
 - continuous-metric calibration details: `docs/reference/metrics_methodology.md`, `outputs/results/q1_continuous_baseline_comparison.json`
 - supplementary Q2 figures: `outputs/figures/01_val_accuracy_by_model_strategy.png`, `outputs/figures/04_iou_delta_by_percentile.png`, `outputs/figures/05_iou_coverage_mse_kl_emd_radar.png`, `outputs/figures/06_val_accuracy_vs_iou90_delta.png`, and `outputs/figures/09_per_image_delta_strips.png`
+- Q2 per-style and cross-model artifacts: `outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png` and `style_breakdown.json`; `model_correlation_scatter.png`, `model_correlation_heatmap.png`, and `model_correlation.json`; `feature_delta_iou_mae_full_renaissance.png` and `feature_delta_iou_mae_full_renaissance.json`
 - Q3 technical caveats and data layout: `docs/reference/per_head_methodology.md`, `outputs/cache/metrics.db`
 
 > TODO: Insert appendix table for experiment artifact provenance. Candidate inputs: `outputs/results/active_experiment.json` and `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`.
