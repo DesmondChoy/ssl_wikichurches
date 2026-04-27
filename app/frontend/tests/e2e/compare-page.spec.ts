@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const IMAGE_ID = 'Q2034923_wd0.jpg';
+const TYPED_IMAGE_ID = 'Q908802_wd0.jpg';
 
 function getModelResult(
   payload: {
@@ -19,6 +20,10 @@ function getSelectByLabel(page: Page, label: string) {
     .filter({ has: page.getByText(label, { exact: true }) })
     .locator('select')
     .first();
+}
+
+function getCompareImageInput(page: Page) {
+  return page.locator('#compare-image-input');
 }
 
 async function clickBbox(page: Page, index: number) {
@@ -319,6 +324,115 @@ async function stubCompareControlApis(page: Page) {
   });
 }
 
+async function stubCompareImageSelectorApis(page: Page) {
+  const galleryImages = [
+    {
+      image_id: IMAGE_ID,
+      thumbnail_url: `/api/images/${IMAGE_ID}/thumbnail`,
+      styles: ['gothic'],
+      style_names: ['Gothic'],
+      num_bboxes: 1,
+    },
+    {
+      image_id: TYPED_IMAGE_ID,
+      thumbnail_url: `/api/images/${TYPED_IMAGE_ID}/thumbnail`,
+      styles: ['roman'],
+      style_names: ['Romanesque'],
+      num_bboxes: 2,
+    },
+  ];
+
+  await page.route('**/api/images?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(galleryImages),
+    });
+  });
+
+  await page.route(/\/api\/images\/[^/]+\.jpg$/, async (route) => {
+    const url = new URL(route.request().url());
+    const requestedImageId = decodeURIComponent(url.pathname.split('/').pop() ?? '');
+    const matchedImage = galleryImages.find((image) => image.image_id === requestedImageId);
+
+    if (!matchedImage) {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'Not found' }) });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: matchedImage.image_id,
+        image_url: `/api/images/${matchedImage.image_id}/file`,
+        thumbnail_url: matchedImage.thumbnail_url,
+        available_models: ['dinov2', 'clip'],
+        annotation: {
+          image_id: matchedImage.image_id,
+          styles: matchedImage.styles,
+          style_names: matchedImage.style_names,
+          num_bboxes: matchedImage.num_bboxes,
+          bboxes: [],
+        },
+      }),
+    });
+  });
+
+  await page.route('**/api/attention/models', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        models: ['dinov2', 'clip'],
+        num_layers: 12,
+        num_layers_per_model: { dinov2: 12, clip: 12 },
+        methods: { dinov2: ['cls'], clip: ['cls'] },
+        default_methods: { dinov2: 'cls', clip: 'cls' },
+      }),
+    });
+  });
+
+  await page.route('**/api/compare/models?**', async (route) => {
+    const url = new URL(route.request().url());
+    const models = url.searchParams.getAll('models');
+    const selectedImageId = url.searchParams.get('image') ?? IMAGE_ID;
+    const method = url.searchParams.get('method') ?? 'cls';
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        image_id: selectedImageId,
+        models,
+        layer: 'layer0',
+        percentile: 90,
+        selection: {
+          mode: 'union',
+          bbox_index: null,
+          bbox_label: null,
+        },
+        results: models.map((model, index) => ({
+          image_id: selectedImageId,
+          model,
+          layer: 'layer0',
+          percentile: 90,
+          iou: index === 0 ? 0.12 : 0.18,
+          coverage: index === 0 ? 0.31 : 0.34,
+          mse: index === 0 ? 0.0112 : 0.0104,
+          kl: index === 0 ? 4.21 : 3.88,
+          emd: index === 0 ? 0.29 : 0.24,
+          attention_area: 0.12,
+          annotation_area: 0.09,
+          method,
+        })),
+        heatmap_urls: {},
+        unavailable_models: {},
+      }),
+    });
+  });
+}
+
 test.describe('Compare page', () => {
   test('removes the View Details CTA and keeps the right controls when switching modes', async ({ page }) => {
     await stubCompareControlApis(page);
@@ -333,7 +447,7 @@ test.describe('Compare page', () => {
       'Comparing with shared method: cls'
     );
 
-    await page.getByRole('combobox').nth(1).selectOption('variants');
+    await getSelectByLabel(page, 'Comparison Type').selectOption('variants');
 
     await expect(page).toHaveURL(/type=variants/);
     await expect(page.getByText('Model', { exact: true })).toBeVisible();
@@ -341,6 +455,30 @@ test.describe('Compare page', () => {
     await expect(page.getByText('Left Variant', { exact: true })).toBeVisible();
     await expect(page.getByText('Right Variant', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: /View Details/i })).toHaveCount(0);
+  });
+
+  test('lets users type an exact filename from the combined image picker', async ({ page }) => {
+    await stubCompareImageSelectorApis(page);
+
+    await page.goto('/compare?type=models');
+
+    const imageInput = getCompareImageInput(page);
+    const imageSuggestions = page.locator('#compare-image-options option');
+
+    await expect(imageInput).toHaveAttribute('list', 'compare-image-options');
+    await expect(imageSuggestions).toHaveCount(2);
+    await expect(imageSuggestions.nth(1)).toHaveAttribute('value', TYPED_IMAGE_ID);
+
+    await imageInput.fill('Q908802');
+    await expect(page).not.toHaveURL(/image=/);
+
+    await imageInput.fill(TYPED_IMAGE_ID);
+    await expect(page).toHaveURL(/image=Q908802_wd0\.jpg/);
+    await expect(imageInput).toHaveValue(TYPED_IMAGE_ID);
+
+    await imageInput.fill(IMAGE_ID);
+    await expect(page).toHaveURL(/image=Q2034923_wd0\.jpg/);
+    await expect(imageInput).toHaveValue(IMAGE_ID);
   });
 
   test('preserves a shared attention method when both selected models support it', async ({ page }) => {
@@ -355,7 +493,7 @@ test.describe('Compare page', () => {
         && response.url().includes('method=rollout')
         && response.status() === 200
     );
-    await getSelectByLabel(page, 'Image').selectOption(IMAGE_ID);
+    await getCompareImageInput(page).fill(IMAGE_ID);
     await comparisonResponse;
 
     await expect(page.getByTestId('comparison-method-context')).toContainText(
@@ -372,7 +510,7 @@ test.describe('Compare page', () => {
     await expect(page.getByTestId('active-layer-indicator')).toContainText('Focused: Layer 11');
 
     await page.getByRole('link', { name: 'Compare' }).click();
-    await getSelectByLabel(page, 'Image').selectOption(IMAGE_ID);
+    await getCompareImageInput(page).fill(IMAGE_ID);
 
     await expect(page.getByText('Model Comparison')).toBeVisible();
     await getSelectByLabel(page, 'Left Model').selectOption('siglip');

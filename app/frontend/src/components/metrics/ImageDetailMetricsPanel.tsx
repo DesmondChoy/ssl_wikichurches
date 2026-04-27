@@ -62,6 +62,7 @@ interface ImageDetailMetricsPanelProps {
   percentile: number;
   method: string;
   mode: ImageDetailMode;
+  bboxSelectionDrivesOverlay?: boolean;
   selectedBboxIndex: number | null;
   currentLayer: number;
   isPlaying: boolean;
@@ -74,6 +75,7 @@ export function ImageDetailMetricsPanel({
   percentile,
   method,
   mode,
+  bboxSelectionDrivesOverlay = false,
   selectedBboxIndex,
   currentLayer,
   isPlaying,
@@ -93,7 +95,7 @@ export function ImageDetailMetricsPanel({
     .filter((metric) => metricVisibilityOverrides[metric.key] ?? metric.default_enabled)
     .map((metric) => metric.key);
   const semanticsCopy = buildSemanticsCopy(metrics);
-  const modeCopy = buildModeCopy(mode, selectedBboxIndex !== null);
+  const modeCopy = buildModeCopy(mode, bboxSelectionDrivesOverlay, selectedBboxIndex !== null);
 
   return (
     <div data-testid="metrics-panel">
@@ -295,11 +297,17 @@ function getMetricTooltipContent(metricKey: string): string {
   return glossaryKey ? GLOSSARY[glossaryKey] : 'Metric details are not available.';
 }
 
-function buildModeCopy(mode: ImageDetailMode, hasSelectedBbox: boolean) {
+function buildModeCopy(mode: ImageDetailMode, bboxSelectionDrivesOverlay: boolean, hasSelectedBbox: boolean) {
   if (mode === 'feature_similarity') {
     return hasSelectedBbox
       ? 'Feature Similarity mode is active. The viewer is showing bbox-conditioned similarity, while this chart still provides contextual annotation-alignment metrics for the same selection.'
       : 'Feature Similarity mode is active. Select a bounding box to drive the viewer overlay; this chart remains contextual annotation-alignment data for the current image and method.';
+  }
+
+  if (bboxSelectionDrivesOverlay) {
+    return hasSelectedBbox
+      ? 'Head Attention mode is active. In Image Detail, selecting a bounding box swaps the viewer to a bbox-conditioned focused overlay and the chart to bbox-scoped metrics.'
+      : 'Head Attention mode is active. The viewer is showing the global attention overlay. Select a bounding box to switch both the viewer and chart into bbox-scoped inspection.';
   }
 
   return hasSelectedBbox

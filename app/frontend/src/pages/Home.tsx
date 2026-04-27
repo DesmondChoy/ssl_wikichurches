@@ -13,6 +13,7 @@ import type { ImageListItem } from '../types';
 export function HomePage() {
   const navigate = useNavigate();
   const [styleFilter, setStyleFilter] = useState<string>('');
+  const [filenameFilter, setFilenameFilter] = useState<string>('');
 
   // Fetch styles
   const { data: styles, error: stylesError } = useQuery({
@@ -26,6 +27,11 @@ export function HomePage() {
     queryFn: () => imagesAPI.list({ style: styleFilter || undefined }),
   });
   const hasLoadError = !!stylesError || !!error;
+  const normalizedFilenameFilter = filenameFilter.trim().toLowerCase();
+  const filteredImages = images?.filter((image) => (
+    !normalizedFilenameFilter || image.image_id.toLowerCase().includes(normalizedFilenameFilter)
+  )) || [];
+  const visibleBboxCount = filteredImages.reduce((sum, image) => sum + image.num_bboxes, 0);
 
   const styleOptions = [
     { value: '', label: 'All Styles' },
@@ -35,22 +41,39 @@ export function HomePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">WikiChurches Attention Analysis</h1>
           <p className="text-gray-600 mt-1">
             {hasLoadError
               ? 'Dataset summary unavailable while the backend is offline.'
-              : `${images?.length || 0} annotated images with ${images?.reduce((sum, img) => sum + img.num_bboxes, 0) || 0} bounding boxes`}
+              : `${filteredImages.length} annotated images with ${visibleBboxCount} bounding boxes`}
           </p>
         </div>
 
-        <Select
-          value={styleFilter}
-          onChange={setStyleFilter}
-          options={styleOptions}
-          className="w-48"
-        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:w-auto">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="gallery-filename-filter" className="text-sm font-medium text-gray-700">
+              Filename
+            </label>
+            <input
+              id="gallery-filename-filter"
+              type="text"
+              value={filenameFilter}
+              onChange={(event) => setFilenameFilter(event.target.value)}
+              placeholder="Search filename..."
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 sm:w-64"
+            />
+          </div>
+
+          <Select
+            value={styleFilter}
+            onChange={setStyleFilter}
+            options={styleOptions}
+            label="Style"
+            className="w-full sm:w-48"
+          />
+        </div>
       </div>
 
       {/* Loading state */}
@@ -73,15 +96,21 @@ export function HomePage() {
       )}
 
       {/* Image grid */}
-      {images && !hasLoadError && (
+      {images && !hasLoadError && filteredImages.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {images.map((image) => (
+          {filteredImages.map((image) => (
             <ImageCard
               key={image.image_id}
               image={image}
               onClick={() => navigate(`/image/${encodeURIComponent(image.image_id)}`)}
             />
           ))}
+        </div>
+      )}
+
+      {images && !hasLoadError && filteredImages.length === 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          No images match the current filename and style filters.
         </div>
       )}
     </div>
