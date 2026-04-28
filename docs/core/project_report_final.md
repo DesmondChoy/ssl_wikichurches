@@ -22,7 +22,9 @@ Self-supervised vision models achieve strong downstream performance, but high cl
 
 The Q2 findings are that fine-tuning moves attention unevenly across families: CLIP gains the most (IoU 0.0181→0.0745, Cohen's d≈1.0) but its gains concentrate on Gothic and Romanesque features that are densely described in English-language web text; MAE's largest single-style gain is on Renaissance, driven specifically by pediment geometry; and the DINO family preserves its already-strong frozen alignment. Models with different pretraining objectives converge on the same structurally easy images rather than covering complementary subsets, with DINOv3 frozen IoU predicting per-image CLIP Δ at Pearson r=+0.677.
 
-> TODO: Add the final abstract findings sentence for the headline Q1 and Q3 claims once those sections lock.
+For Q1, frozen expert-aligned attention is present but highly model-family dependent: DINOv3 is the only model with consistently strong cross-metric alignment, leading the default-method benchmark on overlap and distributional metrics and clearing all calibrated continuous baselines, while the other frozen models show more partial or metric-specific alignment.
+
+> TODO: Add the final abstract findings sentence for the headline Q3 claim once that section locks.
 
 ## 2. Project-At-A-Glance Overview
 
@@ -84,6 +86,8 @@ Prior work has already shown that attention maps in vision transformers can carr
 Representative sources already cited elsewhere in the repo include:
 
 - [Caron et al. (2021), *Emerging Properties in Self-Supervised Vision Transformers*](https://arxiv.org/abs/2104.14294)
+- [Oquab et al. (2024), *DINOv2: Learning Robust Visual Features without Supervision*](https://arxiv.org/abs/2304.07193)
+- [Siméoni et al. (2025), *DINOv3*](https://arxiv.org/abs/2508.10104)
 - [Abnar and Zuidema (2020), *Quantifying Attention Flow in Transformers*](https://arxiv.org/abs/2005.00928)
 - [Chefer et al. (2021), *Transformer Interpretability Beyond Attention Visualization*](https://arxiv.org/abs/2012.09838)
 
@@ -256,6 +260,12 @@ Q1 asks whether attention alignment with expert architectural annotations is alr
 | 7 | `siglip2` | Sigmoid contrastive pretraining with denser grounding components | `mean` | 0.0466 (layer4) | 0.0705 (layer4) | 0.0175 (layer6) | 3.0710 (layer4) | 0.3538 (layer4) | MSE 4/4; KL 2/4; EMD 0/4 |
 
 The most defensible headline is that DINOv3 has the cleanest frozen cross-metric alignment profile. It leads the checked-in default-method leaderboard on `IoU@90`, Coverage, KL, and EMD. It is not the absolute winner on MSE, where the SigLIP family scores lowest, but the calibrated Q1 artifact shows that DINOv3 is the only model that beats all four naive baselines on all three continuous metrics when each metric is evaluated at that model's best default-method layer. This distinction matters: a model can look good on one metric while still failing a stronger calibration check.
+
+One plausible hypothesis is that DINOv3's Q1 advantage comes from the interaction of scale, curated data, and a training recipe that explicitly preserves dense spatial structure, rather than from dataset size alone. The DINOv2 paper already argues that curated, diverse data improves feature quality beyond raw web scale. DINOv3 then scales the DINOv2-style recipe to a much larger curated corpus and model, but its more Q1-relevant addition is Gram anchoring: the DINOv3 technical report identifies dense-feature degradation as a failure mode of long SSL training and introduces Gram anchoring to stabilize patch-level feature maps. Because this project's Q1 metrics reward spatial correspondence to expert boxes, a method designed to preserve clean dense features is a natural fit for the observed DINOv3 pattern. This remains a hypothesis, not a causal claim, because the current WikiChurches artifact does not ablate DINOv3's data size, model scale, and Gram-anchored training separately.
+
+[![Direct React dashboard screenshot showing DINOv3 ranked first on the KL default-method leaderboard](assets/q1_dinov3_react_dashboard_kl.png)](http://127.0.0.1:5173/dashboard)
+
+*Draft Figure. Direct screenshot from the React dashboard for a cited continuous metric. With `Metric = KL`, `Threshold = Top 10%`, and `Ranking = Default method`, DINOv3 ranks first at layer11 with KL = 2.3247 and is shown against the documented random, center Gaussian, saliency-prior, and Sobel-edge baselines. The linked dashboard route is local and requires the development server.*
 
 The headline rank differences are also supported by paired image-level checks from `outputs/cache/metrics.db`. The table below compares DINOv3 with the next-best model for the metric in question, using the same best default-method layers reported above. Mean improvement is sign-normalized so positive values always favor DINOv3. The one-sided Wilcoxon signed-rank p-values are Holm-adjusted across the 21 pairwise model comparisons within each metric.
 
@@ -471,7 +481,9 @@ The current repository already supports a strong draft conclusion. The project h
 
 For Q2, the headline synthesis is that fine-tuning's effect on expert alignment is mediated by three interacting factors: the pretraining objective's spatial prior (DINO preserves strong frozen alignment; CLIP, MAE, and the SigLIP family gain because they lack that prior); dataset linguistic coverage (CLIP's gain concentrates on Gothic and Romanesque features that are densely described in English web text); and geometric discriminability (MAE redirects attention to Renaissance-exclusive pediment forms that its pixel-reconstruction pretraining already encodes with high local fidelity). Models with different objectives converge on the same structurally easy images rather than specializing on complementary subsets, which has direct implications for ensembling and for interpreting what fine-tuning has actually taught each model to look at.
 
-> TODO: Add the final synthesis sentences for the Q1 and Q3 headline findings once those sections lock.
+For Q1, the headline synthesis is that frozen expert-aligned attention exists, but it is not evenly distributed across pretraining families. DINOv3 provides the strongest evidence because it leads the default-method benchmark on `IoU@90`, Coverage, KL, and EMD, clears all calibrated continuous baselines across MSE, KL, and EMD, and remains statistically separated from the next-best model on the headline metrics. The safest interpretation is therefore not that all SSL models attend like experts, but that DINOv3's spatial prior is unusually compatible with the expert-marked architectural evidence in WikiChurches.
+
+> TODO: Add the final synthesis sentence for the Q3 headline finding once that section locks.
 
 ## 12. Appendix
 
