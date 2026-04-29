@@ -36,7 +36,7 @@ This repository answers that question with a quantitative benchmark over expert 
 
 ## Current Results Surface
 
-**Result provenance:** Q1 frozen-model summaries come from the cache-backed frozen metrics pipeline. Q2 summaries come from the active experiment's `q2_metrics_analysis.json`, selected through `outputs/results/active_experiment.json`. Compatibility exports remain available, but the active experiment is the primary source for app, reporting, and documentation workflows.
+**Result provenance:** Q1 frozen-model summaries come from the cache-backed frozen metrics pipeline. Q2 summaries come from the active experiment's `q2_metrics_analysis.json`, selected through `outputs/results/active_experiment.json`. Image-level Q2 deltas live in `q2_delta_iou_analysis.json`; the active experiment is the primary source for app, reporting, and documentation workflows.
 
 ### Q1
 
@@ -48,7 +48,9 @@ This repository answers that question with a quantitative benchmark over expert 
 ### Q2
 
 - Strategy-aware attention-shift summaries live on **`/q2`**.
-- Compare flows let you inspect the same model as `Frozen`, `Linear Probe`, `LoRA`, or `Full Fine-tune` on one image.
+- Compare flows let you inspect the same model as `Frozen`, `Linear Probe`, `LoRA`, or `Full Fine-tune` on one typed or selected image.
+- Frozen-vs-adapted shift maps render `adapted - frozen` from cached numeric heatmaps.
+- Q2 investigation artifacts cover per-style deltas, cross-model image-level correlations, and MAE Renaissance feature-level deltas.
 - The canonical artifact is `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`.
 
 ### Q3
@@ -92,7 +94,7 @@ Primary operational sources are:
 
 **What remains future-facing?**
 
-Future work is centered on broader robustness and presentation layers rather than on enabling the core Q1/Q2/Q3 product surfaces. Examples include alternate cross-layer aggregation schemes, stronger paradigm-group dashboards, and additional representation-similarity analyses.
+Future work is centered on broader robustness and presentation layers rather than on enabling the core Q1/Q2/Q3 product surfaces. Examples include alternate cross-layer aggregation schemes, stronger paradigm-group dashboards, entropy or representation-similarity diagnostics, and negative-control experiments.
 
 ## Roadmap
 
@@ -100,7 +102,7 @@ Future work is centered on broader robustness and presentation layers rather tha
 |------|--------|-------------|
 | Cross-layer aggregation | Planned | Compare single-layer analysis against alternatives such as max pooling, depth-weighted means, or ALTI-style aggregation |
 | Unimodal vs multimodal dashboard framing | Partial | Paradigm grouping is reflected in analysis and writing; a first-class dashboard split remains optional product polish |
-| Representation-shift diagnostics | Planned | Add deeper representation-similarity or forgetting analyses alongside the current Q2 attention-shift outputs |
+| Representation-shift diagnostics | Planned | Run deeper representation-similarity or forgetting analyses alongside the current Q2 attention-shift outputs |
 
 ## Key References
 

@@ -23,9 +23,9 @@ The core claim: **CLIP/SigLIP needed fine-tuning to develop expert-relevant spat
 
 ---
 
-## Newly Discovered: Per-Style Δ IoU Breakdown
+## Per-Style Δ IoU Breakdown
 
-Computed live from `q2_metrics_analysis.json` per-image deltas, cross-referenced against `building_parts.json` style labels. This breakdown was not in the original analysis output.
+Computed from active-experiment per-image deltas and cross-referenced against `building_parts.json` style labels.
 
 ### Δ IoU (full fine-tuning, IoU p90) by Architectural Style
 
@@ -46,7 +46,7 @@ Computed live from `q2_metrics_analysis.json` per-image deltas, cross-referenced
 
 These are highly salient, spatially compact, and frequently described in English text — consistent with CLIP's language-grounded representations. Fine-tuning appears to "unlock" CLIP's already-text-aligned patch features by teaching the CLS token to aggregate them.
 
-**MAE's Renaissance spike (Δ = +0.108) is the largest single-style shift in the entire dataset.** This is unexpected given MAE's overall modest improvement (+0.029 aggregate). The top Renaissance features are Trefoil Window (19 boxes) and Pediment (15 boxes) — spatially compact, geometrically distinct shapes that MAE's pixel-reconstruction pretraining may have encoded precisely. When fine-tuned on a style task that requires distinguishing Renaissance from the other three styles, MAE redirects attention toward these exact forms.
+**MAE's Renaissance spike (Δ = +0.108) is the largest single-style shift in the entire dataset.** This is unexpected given MAE's overall modest improvement (+0.029 aggregate). The feature-level analysis shows that the gain concentrates on pediment-class features — Triangular Pediment, Broken Pediment, Segmental Pediment, Double Pediment, and Cranked Cornice — rather than Trefoil Window. These spatially compact, geometrically distinct shapes are consistent with MAE's pixel-reconstruction pretraining encoding precise local geometry. When fine-tuned on a style task that requires distinguishing Renaissance from the other three styles, MAE redirects attention toward those discriminative forms.
 
 **DINO shows nothing across all styles**, confirming the ceiling is not style-specific.
 
@@ -202,14 +202,15 @@ MAE (He et al., 2022) is pretrained on ImageNet-1k with an asymmetric encoder–
 
 `analyze_q2_metrics.py` evaluates at `--layer 11`. Re-run for layers 7–11 for CLIP only to test whether the Layer 10 > 11 non-monotonic pattern (observed on one image in `finetuning_results.md`) holds at the population level.
 
-**Command (approximate):**
+**Command:**
 ```bash
 for layer in 7 8 9 10 11; do
-    python experiments/scripts/analyze_q2_metrics.py \
+    uv run python experiments/scripts/analyze_q2_metrics.py \
         --experiment-id fine_tuning_primary_20260327 \
         --models clip \
+        --strategies linear_probe lora full \
         --layer $layer \
-        --output-suffix layer_sweep_$layer
+        --output outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_clip_layer_${layer}.json
 done
 ```
 
@@ -320,7 +321,7 @@ Compute IoU between thresholded patch similarity heatmap and the corresponding b
 
 | Step | Data Needed | Compute Cost | Confidence Value | Status |
 |------|-------------|-------------|-----------------|--------|
-| 1. Style breakdown script | existing JSON | none | high — formalizes new finding | ✅ Done |
+| 1. Style breakdown script | existing JSON | none | high — formalizes current finding | ✅ Done |
 | 2. Cross-model correlation | existing JSON | none | moderate — characterizes mechanism | ✅ Done |
 | 3. MAE Renaissance investigation | existing JSON | none | high — explains biggest surprise (+ MAE paper geometry check) | ✅ Done |
 | 4. CLIP layer sweep | re-run script | ~30 min | moderate — may reframe CLIP numbers | ⬜ Pending |

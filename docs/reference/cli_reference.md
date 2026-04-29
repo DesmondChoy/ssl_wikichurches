@@ -485,6 +485,125 @@ Options:
 
 Classification: compatibility path
 
+### `experiments/scripts/analyze_style_breakdown.py`
+
+Command:
+
+```bash
+uv run python experiments/scripts/analyze_style_breakdown.py [options]
+```
+
+Purpose:
+
+- summarize Q2 fine-tuned-minus-frozen metric deltas by architectural style from the active experiment
+- generate the per-style Q2 figure used in research and report drafts
+
+Primary outputs:
+
+- `outputs/results/experiments/<experiment_id>/style_breakdown.json`
+- `outputs/results/experiments/<experiment_id>/style_breakdown.png`
+
+Canonical examples:
+
+```bash
+uv run python experiments/scripts/analyze_style_breakdown.py --experiment-id fine_tuning_primary_20260327 --strategy full
+uv run python experiments/scripts/analyze_style_breakdown.py --experiment-id fine_tuning_primary_20260327 --strategy lora --metric iou --percentile 90
+```
+
+Options:
+
+| Flag | Meaning |
+|------|---------|
+| `--experiment-id <id>` | Experiment batch to analyze. Defaults to the active experiment. |
+| `--strategy <name>` | Strategy to report. Choices: `linear_probe`, `lora`, `full`. Defaults to `full`. |
+| `--metric <name>` | Metric to break down by style. Choices: `iou`, `coverage`, `mse`, `kl`, `emd`. Defaults to `iou`. |
+| `--percentile <int>` | IoU percentile threshold. Ignored for non-IoU metrics. Defaults to `90`. |
+| `--output-json <path>` | Custom JSON output path. Defaults to `<experiment_dir>/style_breakdown.json`. |
+| `--output-figure <path>` | Custom figure output path. Defaults to `<experiment_dir>/style_breakdown.png`. |
+
+Classification: analysis workflow
+
+### `experiments/scripts/analyze_model_correlation.py`
+
+Command:
+
+```bash
+uv run python experiments/scripts/analyze_model_correlation.py [options]
+```
+
+Purpose:
+
+- compare per-image Q2 Δ IoU vectors across model families
+- generate scatter and heatmap artifacts for the shared-easy-images / complementarity analysis
+
+Primary outputs:
+
+- `outputs/results/experiments/<experiment_id>/model_correlation.json`
+- `outputs/results/experiments/<experiment_id>/model_correlation_scatter.png`
+- `outputs/results/experiments/<experiment_id>/model_correlation_heatmap.png`
+
+Canonical examples:
+
+```bash
+uv run python experiments/scripts/analyze_model_correlation.py --experiment-id fine_tuning_primary_20260327 --strategy full
+uv run python experiments/scripts/analyze_model_correlation.py --experiment-id fine_tuning_primary_20260327 --strategy lora --percentile 90 --layer 11
+```
+
+Options:
+
+| Flag | Meaning |
+|------|---------|
+| `--experiment-id <id>` | Experiment batch to analyze. Defaults to the active experiment. |
+| `--strategy <name>` | Strategy for Δ IoU vectors. Choices: `linear_probe`, `lora`, `full`. Defaults to `full`. |
+| `--percentile <int>` | IoU percentile threshold. Defaults to `90`. |
+| `--layer <int>` | Layer for frozen IoU lookup in `metrics.db`. Defaults to `11`. |
+| `--output-json <path>` | Custom JSON output path. Defaults to `<experiment_dir>/model_correlation.json`. |
+| `--output-scatter <path>` | Custom scatter figure path. Defaults to `<experiment_dir>/model_correlation_scatter.png`. |
+| `--output-heatmap <path>` | Custom heatmap figure path. Defaults to `<experiment_dir>/model_correlation_heatmap.png`. |
+
+Classification: analysis workflow
+
+### `experiments/scripts/analyze_feature_delta_iou.py`
+
+Command:
+
+```bash
+uv run python experiments/scripts/analyze_feature_delta_iou.py [options]
+```
+
+Purpose:
+
+- compute per-feature Q2 Δ IoU for one model/strategy slice
+- optionally restrict the analysis to one architectural style, such as the MAE Renaissance investigation
+
+Primary outputs:
+
+- JSON summary at the requested path or an experiment-scoped default
+- optional figure at the requested path or an experiment-scoped default
+
+Canonical examples:
+
+```bash
+uv run python experiments/scripts/analyze_feature_delta_iou.py --experiment-id fine_tuning_primary_20260327 --model mae --strategy full --style Renaissance
+uv run python experiments/scripts/analyze_feature_delta_iou.py --experiment-id fine_tuning_primary_20260327 --model mae --strategy lora --style Renaissance --min-boxes 2
+```
+
+Options:
+
+| Flag | Meaning |
+|------|---------|
+| `--model <name>` | Model name. Defaults to `mae`. |
+| `--strategy <name>` | Fine-tuning strategy. Choices: `full`, `lora`, `linear_probe`. Defaults to `full`. |
+| `--experiment-id <id>` | Experiment batch to analyze. Defaults to the active experiment. |
+| `--layer <int>` | Attention layer. Defaults to `11`. |
+| `--percentile <int>` | IoU percentile threshold. Defaults to `90`. |
+| `--style <name>` | Optional architectural style restriction. Choices are the configured style names. |
+| `--min-boxes <int>` | Minimum total bbox count for a feature to appear in output. Defaults to `2`. |
+| `--output-json <path>` | Custom JSON output path. |
+| `--output-figure <path>` | Custom figure output path. |
+
+Classification: analysis workflow
+
 ## Reporting and Presentation Scripts
 
 ### `experiments/scripts/generate_run_matrix_figures.py`

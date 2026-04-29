@@ -50,6 +50,7 @@ Research context, novelty framing, and supporting analysis notes.
 |----------|-------------|
 | [attention_methods.md](research/attention_methods.md) | Attention visualization methods, interpretation, and model-specific caveats |
 | [finetuning_results.md](research/finetuning_results.md) | Research notes on fine-tuning outcomes and interpretation |
+| [q2_results_analysis.md](research/q2_results_analysis.md) | Q2 fine-tuning findings, per-style analysis, cross-model correlations, and mechanism hypotheses |
 | [claude_novelty_check.md](research/claude_novelty_check.md) | Novelty and related-work notes across the project questions |
 
 ### [`enhancements/`](enhancements/) — Scoped Feature Notes
@@ -59,6 +60,7 @@ Current implementation notes and follow-up directions for larger feature areas.
 |----------|-------------|
 | [per_attention_head.md](enhancements/per_attention_head.md) | Q3 product framing, scope, and study guidance for per-head analysis |
 | [fine_tuning_methods.md](enhancements/fine_tuning_methods.md) | Fine-tuning strategy rationale, methodology, and interpretation notes |
+| [q2_investigation_roadmap.md](enhancements/q2_investigation_roadmap.md) | Q2 validation workflow, completed investigation scripts, and remaining robustness checks |
 | [sparse_annotation_bias.md](enhancements/sparse_annotation_bias.md) | Annotation sparsity limitations and mitigation guidance |
 
 ## Placement Guide

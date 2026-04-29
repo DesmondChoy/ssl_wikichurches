@@ -23,6 +23,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/attention/{image_id}/layers` | All layer overlay URLs for a model |
 | POST | `/api/attention/{image_id}/similarity` | Bbox cosine similarity across patches |
 | GET | `/api/metrics/q2_summary` | Strategy-aware fine-tuning metric summary with experiment provenance |
+| GET | `/api/metrics/q2_image_deltas` | Top image-level Q2 IoU gains and regressions for one model/strategy |
 | GET | `/api/metrics/leaderboard` | Model rankings by the selected aggregate metric |
 | GET | `/api/metrics/summary` | Pre-computed metrics summary |
 | GET | `/api/metrics/{image_id}` | Per-image alignment metrics |
@@ -40,6 +41,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
 | GET | `/api/compare/models` | Side-by-side model comparison |
 | GET | `/api/compare/variants` | Generalized variant comparison for frozen and fine-tuned model variants |
+| GET | `/api/compare/variants/shift` | Numeric frozen-vs-adapted attention-shift map |
 | GET | `/api/compare/frozen_vs_finetuned` | Frozen vs fine-tuned comparison |
 | GET | `/api/compare/finetuned_vs_finetuned` | Legacy strategy-only variant comparison |
 | GET | `/api/compare/layers` | Layer comparison with heatmap URLs |
@@ -518,10 +520,10 @@ Compute cosine similarity between a bounding box region and all image patches. E
 ## Metrics (`/api/metrics`)
 
 Most metrics endpoints require the pre-computed metrics database (`metrics.db`).
-Two exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
-and `/api/metrics/q2_summary`, which resolves the active experiment's
-`q2_metrics_analysis.json` and falls back to the legacy top-level path when
-needed.
+The exceptions are `/api/metrics/summary`, which reads `metrics_summary.json`,
+`/api/metrics/q2_summary`, which resolves the active experiment's
+`q2_metrics_analysis.json`, and `/api/metrics/q2_image_deltas`, which resolves
+the active experiment's Q2 delta artifact.
 
 ### `GET /api/metrics/leaderboard`
 
@@ -664,6 +666,55 @@ Get the strategy-aware fine-tuning attention-analysis summary exported by
 |--------|-----------|
 | 400 | Invalid model name |
 | 503 | Q2 summary JSON not available (run `analyze_q2_metrics.py` first) |
+
+---
+
+### `GET /api/metrics/q2_image_deltas`
+
+Get the strongest image-level IoU gains and regressions for one Q2 model/strategy/percentile slice. This endpoint reads the active experiment's Q2 delta artifact and is useful for selecting concrete examples that explain aggregate `/q2` rows.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Constraints | Description |
+|-----------|------|----------|---------|-------------|-------------|
+| `model` | string | **Yes** | — | See [Common Parameters](#common-parameters) | Base model name |
+| `strategy` | string | **Yes** | — | `linear_probe`, `lora`, `full` | Fine-tuning strategy |
+| `percentile` | int | No | `90` | 50–95 | IoU percentile bucket |
+| `top_k` | int | No | `12` | 3–30 | Number of positive and negative examples to return |
+
+**Response**: `Q2ImageDeltasResponse`
+
+```json
+{
+  "model_name": "clip",
+  "strategy_id": "full",
+  "percentile": 90,
+  "method": "cls",
+  "mean_delta_iou": 0.0564,
+  "num_images": 139,
+  "top_positive": [
+    {
+      "image_id": "Q2270_0.jpg",
+      "delta_iou": 0.244,
+      "style_names": ["Gothic"]
+    }
+  ],
+  "top_negative": [
+    {
+      "image_id": "Q18785543_wd0.jpg",
+      "delta_iou": -0.071,
+      "style_names": ["Romanesque"]
+    }
+  ]
+}
+```
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid model name, strategy, percentile, or `top_k` |
+| 404 | Q2 image deltas not available for the selected model/strategy/percentile |
 
 ---
 
@@ -1958,6 +2009,27 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `best_layer` | string | Layer key with best score |
 | `best_score` | float | Best metric value |
 
+### `Q2ImageDeltaEntrySchema` / `Q2ImageDeltaEntry`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `image_id` | string | Image filename |
+| `delta_iou` | float | Fine-tuned minus frozen IoU for the selected strategy and percentile |
+| `style_names` | list[string] | Human-readable style labels for the image |
+
+### `Q2ImageDeltasResponse`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `model_name` | string | Base model name |
+| `strategy_id` | string | Fine-tuning strategy (`linear_probe`, `lora`, or `full`) |
+| `percentile` | int | IoU percentile bucket |
+| `method` | string \| null | Attention method used for the Q2 row |
+| `mean_delta_iou` | float \| null | Mean fine-tuned minus frozen IoU across the evaluation images |
+| `num_images` | int \| null | Number of images represented in the delta artifact |
+| `top_positive` | list[Q2ImageDeltaEntrySchema] | Highest positive image-level deltas |
+| `top_negative` | list[Q2ImageDeltaEntrySchema] | Most negative image-level deltas |
+
 ### `StyleBreakdownSchema`
 
 | Field | Type | Description |
@@ -2004,6 +2076,50 @@ All schemas are defined as Pydantic models in `app/backend/schemas/models.py`.
 | `results` | list[IoUResultSchema] | Per-model alignment results |
 | `heatmap_urls` | dict[string, string] | Model name → heatmap overlay URL |
 | `unavailable_models` | dict[string, string] | Per-model reasons why scoped bbox metrics are unavailable |
+
+### `ComparisonVariantSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `model_key` | string | Cache/API model key for this variant |
+| `strategy` | string \| null | Fine-tuning strategy when the variant is adapted |
+| `label` | string | Human-readable variant label |
+| `available` | bool | Whether the overlay exists for this image/layer |
+| `url` | string \| null | Overlay URL when available |
+
+### `VariantComparisonSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `image_id` | string | Image filename |
+| `model` | string | Base model being compared |
+| `layer` | string | Layer key |
+| `method` | string | Default attention method for the base model |
+| `show_bboxes` | bool | Whether overlay URLs include annotation boxes |
+| `left` | ComparisonVariantSchema | Left-hand variant descriptor |
+| `right` | ComparisonVariantSchema | Right-hand variant descriptor |
+| `note` | string | Cache-availability guidance shown when one or both overlays are missing |
+
+### `VariantShiftMapSchema`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `image_id` | string | Image filename |
+| `model` | string | Base model name |
+| `layer` | string | Layer key |
+| `method` | string | Default attention method used to compute both maps |
+| `available` | bool | Whether both frozen and compared attention maps were available |
+| `reason` | string \| null | Human-readable reason when `available` is false |
+| `baseline_variant` | string | Always `frozen` |
+| `compared_variant` | string | Adapted variant (`linear_probe`, `lora`, or `full`) |
+| `baseline_model_key` | string | Cache key for the frozen model |
+| `compared_model_key` | string | Cache key for the adapted model |
+| `operation` | string | Numeric operation, `compared_variant_attention - frozen_attention` |
+| `shape` | list[int] | Heatmap shape used to render the shift map |
+| `shift` | list[float] | Flattened numeric shift values |
+| `min_value` | float \| null | Minimum shift value |
+| `max_value` | float \| null | Maximum shift value |
+| `max_abs_value` | float \| null | Symmetric scale bound for diverging rendering |
 
 ### `BboxInput`
 
@@ -2054,7 +2170,7 @@ Several endpoints require offline pre-computation before they can serve data:
 | Script | Generates | Required By |
 |--------|-----------|-------------|
 | `generate_heatmap_images.py` | PNG heatmaps/overlays | `/attention/{id}/heatmap`, `/attention/{id}/overlay`, `/attention/{id}/layers`, `/images/{id}/with_bboxes` |
-| `generate_attention_cache.py` | HDF5 attention cache | `/attention/{id}/raw` |
+| `generate_attention_cache.py` | HDF5 attention cache | `/attention/{id}/raw`, `/compare/variants/shift` |
 | `generate_feature_cache.py` | HDF5 feature cache | `/attention/{id}/similarity` |
 | `generate_metrics_cache.py` | SQLite metrics DB + `metrics_summary.json` | Union-metric `/metrics/*` endpoints plus `/compare/models`, `/compare/layers`, and `/compare/all_models_summary` |
-| `analyze_q2_metrics.py` | Active experiment `q2_metrics_analysis.json` plus compatibility `q2_delta_iou_analysis.json` | `/metrics/q2_summary` |
+| `analyze_q2_metrics.py` | Active experiment `q2_metrics_analysis.json` plus `q2_delta_iou_analysis.json` with per-image deltas | `/metrics/q2_summary`, `/metrics/q2_image_deltas` |

@@ -8,10 +8,10 @@
 | Phase 2 | Data Pipeline | ✅ Complete |
 | Phase 3 | Metrics & Evaluation | ✅ Complete |
 | Phase 4 | Visualization & Analysis | ✅ Complete |
-| Phase 5 | Fine-Tuning Analysis | 🟡 Core complete, polish pending |
+| Phase 5 | Fine-Tuning Analysis | ✅ Implemented, robustness polish optional |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-04-12
+**Last Updated:** 2026-04-29
 
 ---
 
@@ -98,7 +98,10 @@ ssl_wikichurches/
 │   └── scripts/
 │       ├── fine_tune_models.py   # Fine-tuning script
 │       ├── analyze_q2_metrics.py # Canonical multi-metric Q2 analysis
-│       └── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
+│       ├── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
+│       ├── analyze_style_breakdown.py
+│       ├── analyze_model_correlation.py
+│       └── analyze_feature_delta_iou.py
 │
 ├── outputs/                     # Tracked results plus git-ignored caches/checkpoints
 │   ├── cache/
@@ -144,7 +147,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 ### Phase 1: Core Infrastructure ✅ COMPLETE
 
-1. **Update `pyproject.toml`** ✅
+1. **Dependency surface** (`pyproject.toml`) ✅
    ```toml
    dependencies = [
        "torch>=2.1.0",
@@ -162,7 +165,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    ]
    ```
 
-2. **Create protocols** (`src/ssl_attention/models/protocols.py`) ✅
+2. **Protocols** (`src/ssl_attention/models/protocols.py`) ✅
    ```python
    @dataclass
    class ModelOutput:
@@ -178,7 +181,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
        def forward(self, images: Tensor) -> ModelOutput: ...
    ```
 
-3. **Implement model wrappers** (separate files): ✅
+3. **Model wrappers** (separate files): ✅
    - `dinov2.py` - Handle registers, patch size 14 ✅
    - `dinov3.py` - Handle RoPE, registers, patch size 16 ✅
    - `mae.py` - Disable masking with `mask_ratio=0.0` ✅
@@ -186,7 +189,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - `siglip.py` - Vision encoder only (SigLIP) ✅
    - `siglip2.py` - Vision encoder only (SigLIP 2) ✅
 
-4. **Implement attention extractors**: ✅
+4. **Attention extractors**: ✅
    - `cls_attention.py` - CLS to patch attention with head fusion ✅
    - `rollout.py` - Attention rollout through layers ✅
    - Grad-CAM (in `models/resnet50.py`) - Gradient-based baseline ✅
@@ -257,7 +260,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Style breakdown charts
    - Scatter plots for coverage vs IoU
 
-### Phase 5: Fine-Tuning Analysis 🟡 CORE COMPLETE, POLISH PENDING
+### Phase 5: Fine-Tuning Analysis ✅ IMPLEMENTED
 
 1. **Fine-tuning implementation** (`evaluation/fine_tuning.py`) ✅
    - `FineTuningConfig` dataclass for hyperparameters
@@ -295,19 +298,22 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Paired t-test / Wilcoxon (auto-selected based on normality)
    - Holm correction for multiple comparisons across models, with explicit correction-family metadata in the saved artifact
    - JSON export of experiment-scoped full results consumed by `/api/metrics/q2_summary` and the `/q2` page via `outputs/results/active_experiment.json`
+   - Image-level delta access through `/api/metrics/q2_image_deltas`
+   - Supplemental Q2 scripts for per-style deltas, cross-model image-level correlations, and feature-level MAE Renaissance analysis
 
 4. **Visualization** ✅
    - Side-by-side heatmaps integrated across precompute/API/frontend for both `Frozen vs Fine-tuned` and `Variant vs Variant`
    - Q2 summary page ships strategy-aware multi-metric attention-shift tables and cross-strategy paired comparisons
    - Compare page ships a frozen-vs-variant `Shift map` view that renders `compared_variant_attention - frozen_attention` from cached numeric heatmaps with a diverging color scale
+   - Gallery and Compare support direct filename lookup for moving between dataset examples and image-level inspection
 
 5. **Q2 Primary Results** (`fine_tuning_primary_20260327`) ✅
    - Full experiment completed 2026-03-27; analysis committed 2026-03-28
    - Key finding: CLIP (d=1.005) and SigLIP family (d=0.6–0.8) show significant positive Δ IoU; DINOv2/v3 show Δ ≈ 0
    - DINOv3 frozen IoU (0.133 at p90) is the highest of all models — beats CLIP post-FT (0.075)
-   - See `docs/enhancements/clip_siglip_vs_dino_finetuning.md` for deep analysis and hypotheses
+   - See `docs/research/q2_results_analysis.md` and `docs/enhancements/q2_investigation_roadmap.md` for deep analysis and hypotheses
 
-> **Note:** The core Q2 pipeline is implemented and the active experiment artifacts are wired through the app. Remaining Phase 5 work now centers on (a) first-class fine-tuned leaderboard/dashboard support, (b) attention shift visualization (issue #474), (c) layer-sweep IoU post-FT, and (d) per-feature-type Δ IoU breakdowns. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2`, the Dashboard Q2 tab, and the compare flows.
+> **Note:** The Q2 pipeline, active experiment artifacts, strategy-aware app summaries, frozen-vs-variant shift maps, per-style analysis, cross-model correlation analysis, and MAE Renaissance feature analysis are current project surfaces. Optional polish centers on first-class fine-tuned leaderboard/dashboard support, broader layer-sweep analysis, entropy/representation diagnostics, and additional robustness controls. Base-model dashboard views remain centered on the `AVAILABLE_MODELS` set, while strategy-aware fine-tuning analysis and frozen-vs-variant shift inspection live in `/q2`, the Dashboard Q2 tab, and the compare flows.
 
 ### Phase 6: Interactive Analysis Tool ✅ COMPLETE
 
@@ -320,9 +326,9 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 2. **Frontend** (`app/frontend/`) ✅
    - React + TypeScript + Vite
-   - Image browser with style filtering
+   - Image browser with style and filename filtering
    - Attention viewer with model/layer selection
-   - Model comparison views
+   - Model and variant comparison views
 
 3. **Pre-computation Pipeline** ✅
    - `generate_attention_cache.py` - Extract attention to HDF5
@@ -332,8 +338,8 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 4. **API Endpoints** ✅
    - `/api/images` - Image listing, filtering, serving
    - `/api/attention` - Heatmap and overlay serving
-   - `/api/metrics` - IoU metrics, leaderboard, layer progression, and Q2 strategy summary
-   - `/api/compare` - Model comparison, Frozen vs Fine-tuned, and Variant vs Variant flows
+   - `/api/metrics` - IoU metrics, leaderboard, layer progression, Q2 strategy summaries, Q2 image deltas, and Q3 head metrics
+   - `/api/compare` - Model comparison, Frozen vs Fine-tuned, Variant vs Variant, and frozen-vs-adapted shift-map flows
 
 5. **Representation Similarity Exploration (Utility Feature)** ✅
    - Click on bounding box to compute cosine similarity with all image patches
@@ -347,13 +353,13 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
      - `app/frontend/src/utils/renderHeatmap.ts` - Client-side viridis heatmap rendering
 
 6. **Attention Method Selection** ✅
-   - Update precompute to generate CLS, rollout, and GradCAM heatmaps
-   - Add method parameter to `/api/attention` endpoints
-   - Add method selector dropdown to ControlPanel.tsx
+   - Precompute generates CLS, rollout, and GradCAM heatmaps
+   - `/api/attention` endpoints accept a method parameter
+   - `ControlPanel.tsx` includes method selection
 
 7. **Per-Feature-Type Breakdown** ✅
-   - Add `/api/metrics/model/{model}/feature_breakdown` endpoint
-   - Create FeatureBreakdown.tsx component
+   - `/api/metrics/model/{model}/feature_breakdown` endpoint
+   - `FeatureBreakdown.tsx` component
    - Display IoU by 106 architectural feature types
 
 8. **Per-Model Layer Counts** ✅
@@ -377,7 +383,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
     - `keepPreviousData` on React Query hooks prevents UI flash during layer animation
 
 12. **Interactive Bbox Similarity Comparison** ✅
-   - Add clickable bounding boxes to Model Comparison page (`/compare?type=models`)
+   - Clickable bounding boxes on the Model Comparison page (`/compare?type=models`)
    - Clicking a bbox shows similarity heatmaps for both models simultaneously
    - Synchronized selection across both panels for direct comparison
    - **Key files:**
@@ -387,7 +393,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 ---
 
-## Critical Files to Create
+## Core Files
 
 | Priority | File | Purpose | Status |
 |----------|------|---------|--------|
@@ -414,7 +420,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | 19 | `app/backend/main.py` | Interactive analysis tool backend | ✅ Done |
 | 20 | `app/frontend/` | Interactive analysis tool frontend | ✅ Done |
 
-### Additional Phase 1 Files Created
+### Additional Phase 1 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
@@ -425,21 +431,21 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `src/ssl_attention/config.py` | Centralized configuration | ✅ Done |
 | `src/ssl_attention/utils/device.py` | MPS/CUDA/CPU handling | ✅ Done |
 
-### Additional Phase 2 Files Created
+### Additional Phase 2 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
 | `src/ssl_attention/data/__init__.py` | Data module exports | ✅ Done |
 | `src/ssl_attention/cache/__init__.py` | Cache module exports | ✅ Done |
 
-### Additional Phase 3 Files Created
+### Additional Phase 3 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
 | `src/ssl_attention/metrics/__init__.py` | Metrics module exports | ✅ Done |
 | `src/ssl_attention/evaluation/__init__.py` | Evaluation module exports | ✅ Done |
 
-### Additional Phase 4 Files Created
+### Additional Phase 4 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
@@ -449,14 +455,14 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | `src/ssl_attention/visualization/plots.py` | Statistical plots | ✅ Done |
 | `notebooks/01_data_exploration.ipynb` | Dataset exploration with Polars | ✅ Done |
 
-### Phase 5 Files Created
+### Phase 5 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
 | `src/ssl_attention/evaluation/fine_tuning.py` | Fine-tuning wrapper with FineTunableModel | ✅ Done |
 | `experiments/scripts/fine_tune_models.py` | CLI training script | ✅ Done |
 
-### Phase 6 Files Created
+### Phase 6 Files
 
 | File | Purpose | Status |
 |------|---------|--------|
