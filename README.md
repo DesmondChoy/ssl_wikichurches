@@ -138,12 +138,14 @@ The current UI surface is organized around these routes:
 
 | Route | Primary role |
 |------|--------------|
-| `/` | Gallery for browsing annotated images and styles |
+| `/` | Gallery for browsing annotated images by style and filename |
 | `/image/:imageId` | Image Detail with overlay inspection, metrics progression, and Q3 drill-down |
-| `/compare` | Model vs Model and variant comparison workflows on one image |
+| `/compare` | Model vs Model and Variant vs Variant workflows on one typed or selected image |
 | `/dashboard` | Q1 overview analysis plus the main Q3 discovery surface |
 | `/q2` | Strategy-aware fine-tuning summary sourced from the active experiment |
 | `/q3` | Advanced side-by-side Q3 workspace for aligned model comparisons |
+
+The Gallery combines architectural-style filtering with filename search. The Compare page accepts a typed filename or datalist selection, stores the selected image in the canonical `image` URL parameter, and supports both frozen Model vs Model comparisons and Variant vs Variant comparisons across `Frozen`, `Linear Probe`, `LoRA`, and `Full Fine-tune`. The Compare shift-map view is a frozen-vs-adapted inspection mode computed from cached numeric heatmaps as `adapted - frozen`.
 
 ## Model Surface
 
@@ -196,11 +198,29 @@ This writes the canonical active-experiment artifact:
 
 - `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`
 
-The compatibility export remains available at:
+The image-level Q2 delta export is available at:
 
 - `outputs/results/experiments/<experiment_id>/q2_delta_iou_analysis.json`
 
 `outputs/results/active_experiment.json` selects which experiment batch the app, figure scripts, and reporting utilities read by default.
+
+Q2 image-level and mechanism-focused analysis scripts read the same active experiment and write supplemental artifacts next to the batch:
+
+```bash
+uv run python experiments/scripts/analyze_style_breakdown.py --experiment-id "$EXPERIMENT_ID" --strategy full
+uv run python experiments/scripts/analyze_model_correlation.py --experiment-id "$EXPERIMENT_ID" --strategy full
+uv run python experiments/scripts/analyze_feature_delta_iou.py --experiment-id "$EXPERIMENT_ID" --model mae --strategy full --style Renaissance
+```
+
+Primary Q2 investigation outputs include:
+
+- `outputs/results/experiments/<experiment_id>/style_breakdown.json`
+- `outputs/results/experiments/<experiment_id>/style_breakdown.png`
+- `outputs/results/experiments/<experiment_id>/model_correlation.json`
+- `outputs/results/experiments/<experiment_id>/model_correlation_scatter.png`
+- `outputs/results/experiments/<experiment_id>/model_correlation_heatmap.png`
+- `outputs/results/experiments/<experiment_id>/feature_delta_iou_mae_full_renaissance.json`
+- `outputs/results/experiments/<experiment_id>/feature_delta_iou_mae_full_renaissance.png`
 
 ### 3. Refresh Q1 baseline reports
 
@@ -231,7 +251,7 @@ See [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_ma
 
 ## Reporting Utilities
 
-The reporting pipeline reads the active experiment and cache outputs to generate figure and slide assets:
+The reporting pipeline reads the active experiment, cache outputs, Q1 baseline reports, and Q2 investigation artifacts to generate narrative, figure, and slide assets:
 
 - `uv run python experiments/scripts/generate_run_matrix_figures.py`
 - `uv run python experiments/scripts/generate_slide_images.py`
@@ -242,6 +262,15 @@ Primary generated locations:
 - `outputs/figures/`
 - `outputs/slides/`
 
+Current report-facing source documents and artifacts include:
+
+- `docs/core/project_report_final.md`
+- `outputs/results/q1_continuous_baseline_summary.md`
+- `outputs/results/q1_continuous_baseline_comparison.json`
+- `outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.json`
+- `outputs/results/experiments/fine_tuning_primary_20260327/model_correlation.json`
+- `outputs/results/experiments/fine_tuning_primary_20260327/feature_delta_iou_mae_full_renaissance.json`
+
 ## Documentation Map
 
 | Document | Use it for |
@@ -251,6 +280,9 @@ Primary generated locations:
 | [docs/reference/cli_reference.md](docs/reference/cli_reference.md) | Complete command and flag reference |
 | [docs/reference/api_reference.md](docs/reference/api_reference.md) | Backend routes, query parameters, and response contracts |
 | [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md) | Experiment-scoped artifact layout and active-experiment workflow |
+| [docs/research/q2_results_analysis.md](docs/research/q2_results_analysis.md) | Q2 interpretation, mechanism analysis, and active investigation findings |
+| [docs/enhancements/q2_investigation_roadmap.md](docs/enhancements/q2_investigation_roadmap.md) | Q2 validation steps, completed analysis scripts, and remaining robustness checks |
+| [docs/core/project_report_final.md](docs/core/project_report_final.md) | Working academic report draft grounded in current artifacts |
 
 ## Project Layout
 

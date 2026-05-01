@@ -45,6 +45,7 @@ The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q
 Use the Gallery when you want to start from the dataset itself.
 
 - Filter images by architectural style.
+- Search image filenames directly.
 - Each card shows the image, image ID, style tags, and bounding-box count.
 - Clicking a card opens **Image Detail** for that image.
 
@@ -89,7 +90,7 @@ Important behavior:
 
 ### Compare (`/compare`)
 
-Pick an image first. After that, the page supports a frozen-model comparison flow and a generalized variant-comparison flow.
+Type an image filename, pick one from the image list, or open a URL with the canonical `image` query parameter. Older links that use `image_id` are normalized to `image`. After the image is selected, the page supports a frozen-model comparison flow and a generalized variant-comparison flow.
 
 #### Model vs Model
 
@@ -125,6 +126,7 @@ This is the most common variant comparison preset.
 Important behavior:
 
 - The page supports **any pairwise variant comparison**, and Frozen vs Fine-tuned is one focused case of that broader flow.
+- **Side by side** and **Slider** support the broader Variant vs Variant workflow. **Shift map** is only defined for frozen-vs-adapted pairs because it computes a signed change from the frozen baseline.
 - When Q2 summary data is available for the selected model and metric, the page can show an **experiment summary** card sourced from the active Q2 analysis.
 - The shift-map view is always computed from cached numeric heatmaps, so the selected metric and percentile do not change its colors. They still affect the summary tables and feature-local metrics below the main image.
 - A sparse or faint shift map is still a real result. It usually means the adapted model stayed close to the frozen baseline for that image and layer, not that the viewer failed.
@@ -266,6 +268,9 @@ Useful provenance files for this flow are:
 
 - `outputs/results/active_experiment.json`
 - `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`
+- `outputs/results/experiments/<experiment_id>/q2_delta_iou_analysis.json`
+
+The image-level Q2 delta endpoint used for focused examples is `GET /api/metrics/q2_image_deltas?model=<model>&strategy=<strategy>&percentile=<p>&top_k=<n>`.
 
 ### Q3 Workflow
 

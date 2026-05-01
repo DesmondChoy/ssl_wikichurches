@@ -427,14 +427,14 @@ Potential report wording if this angle becomes part of the final narrative:
 
 The discussion should explain why the results are intuitive or surprising, not repeat the tables. The current repo evidence already supports several useful interpretations, though some of them remain provisional until the final figure set is frozen.
 
-> TODO: Keep the final insights non-surface-level. The discussion and headline findings should connect observed patterns back to dataset properties, fine-tuning method, model architecture, or an interaction among those factors, rather than stopping at leaderboard-style description. Where relevant, tie those interpretations to related academic literature already cited in the repo or newly added formal references.
+> TODO: Keep the final insights non-surface-level. The discussion and headline findings should connect observed patterns back to dataset properties, fine-tuning method, model architecture, or an interaction among those factors, rather than stopping at leaderboard-style description. Where relevant, tie those interpretations to related academic literature already cited in the repo or additional formal references.
 
 Working rubric for final insights:
 
 1. Start from a concrete result, not a vibe. Name the model, condition, metric, or comparison that actually changed.
 2. Move from observation to explanation. Ask what likely accounts for that pattern in terms of dataset properties, fine-tuning strategy, model architecture, or a specific interaction among them.
 3. Do not force every insight to cover all three axes at once. A well-supported dataset-plus-architecture claim or architecture-plus-fine-tuning claim is better than a broad but weak three-way story.
-4. Use literature to deepen the interpretation, not decorate it. When possible, state whether the result is consistent with, extends, or complicates related academic work already cited in the repo or added later.
+4. Use literature to deepen the interpretation, not decorate it. When possible, state whether the result is consistent with, extends, or complicates related academic work already cited in the repo or additional sources.
 5. End with the substantive takeaway. Explain why the finding matters for expert-alignment, trustworthy interpretation, adaptation strategy, or the broader research question instead of stopping at score differences.
 
 ### 10.1 Intuitive vs Surprising Findings
@@ -493,7 +493,7 @@ Potential appendix content already has clear repo anchors:
 - experiment artifact layout and provenance: `docs/reference/fine_tuning_run_matrix.md`, `outputs/results/active_experiment.json`, `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`
 - continuous-metric calibration details: `docs/reference/metrics_methodology.md`, `outputs/results/q1_continuous_baseline_comparison.json`
 - supplementary Q2 figures: `outputs/figures/01_val_accuracy_by_model_strategy.png`, `outputs/figures/04_iou_delta_by_percentile.png`, `outputs/figures/05_iou_coverage_mse_kl_emd_radar.png`, `outputs/figures/06_val_accuracy_vs_iou90_delta.png`, and `outputs/figures/09_per_image_delta_strips.png`
-- Q2 per-style and cross-model artifacts: `outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png` and `style_breakdown.json`; `model_correlation_scatter.png`, `model_correlation_heatmap.png`, and `model_correlation.json`; `feature_delta_iou_mae_full_renaissance.png` and `feature_delta_iou_mae_full_renaissance.json`
+- Q2 image-level, per-style, feature-level, and cross-model artifacts: `outputs/results/experiments/fine_tuning_primary_20260327/q2_delta_iou_analysis.json`; `style_breakdown.png` and `style_breakdown.json`; `model_correlation_scatter.png`, `model_correlation_heatmap.png`, and `model_correlation.json`; `feature_delta_iou_mae_full_renaissance.png` and `feature_delta_iou_mae_full_renaissance.json`
 - Q3 technical caveats and data layout: `docs/reference/per_head_methodology.md`, `outputs/cache/metrics.db`
 
 > TODO: Insert appendix table for experiment artifact provenance. Candidate inputs: `outputs/results/active_experiment.json` and `outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json`.

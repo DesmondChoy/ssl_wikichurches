@@ -3,7 +3,7 @@
 > **Active analysis — April 2026**
 > **Status:** Core findings confirmed. Per-style breakdown, cross-model correlation, and MAE Renaissance spike investigation complete. Whitepaper evidence consolidated (Part 8). Steps 4–9 pending.
 > **Experiment:** `fine_tuning_primary_20260327`, layer 11, IoU p90.
-> **Scripts:** `experiments/scripts/analyze_style_breakdown.py`, `experiments/scripts/analyze_model_correlation.py`
+> **Scripts:** `experiments/scripts/analyze_style_breakdown.py`, `experiments/scripts/analyze_model_correlation.py`, `experiments/scripts/analyze_feature_delta_iou.py`
 
 ---
 
@@ -116,7 +116,7 @@ DINOv3 shows a significant *decrease* in Coverage after full fine-tuning (Δ = -
 
 **Key findings:**
 - **CLIP's improvement is entirely carried by Romanesque and Gothic.** Renaissance and Baroque show near-zero Δ. These two styles feature spatially compact, frequently captioned English features (round arch portals, pointed arch portals, rose windows) — consistent with CLIP's language-grounded representations.
-- **MAE's Renaissance spike (+0.108) is the largest single-style shift in the entire dataset.** MAE's aggregate improvement is modest (+0.029), yet Renaissance shows 3× higher Δ than any other model/style combination. Investigation (Step 3) confirmed the spike is robust across both full FT and LoRA (LoRA mean +0.142 > full FT +0.108). The dominant features in high-Δ images are **pediment variants** — Triangular Pediment, Broken Pediment, Segmental Pediment, Double Pediment, Cranked Cornice — spatially compact, geometrically structured forms consistent with MAE's pixel-reconstruction pretraining encoding precise local geometry. The originally hypothesized Trefoil Window does not appear in these images.
+- **MAE's Renaissance spike (+0.108) is the largest single-style shift in the entire dataset.** MAE's aggregate improvement is modest (+0.029), yet Renaissance shows 3× higher Δ than any other model/style combination. Investigation (Step 3) confirmed the spike is robust across both full FT and LoRA (LoRA mean +0.142 > full FT +0.108). The dominant features in high-Δ images are **pediment variants** — Triangular Pediment, Broken Pediment, Segmental Pediment, Double Pediment, Cranked Cornice — spatially compact, geometrically structured forms consistent with MAE's pixel-reconstruction pretraining encoding precise local geometry. Trefoil Window does not appear in the high-Δ image set.
 - **DINO shows nothing across all styles**, confirming the ceiling is not style-specific.
 
 Box density per style: Romanesque 4.4/image, Gothic 5.9/image, Renaissance 4.2/image, Baroque **1.8/image** — Baroque's sparse annotations weaken the evaluation signal.
@@ -168,7 +168,7 @@ From `finetuning_results.md`: for a single image (Columned Portal feature), CLIP
 |---------|-------------------|
 | CLIP improves with FT | CLIP's global objective provides no spatial pressure; FT adds it |
 | Linear probe shows Δ = 0 exactly | Frozen backbone = no attention change; confirms experimental control |
-| MAE LP Δ = 0 across all 139 images | Expected for frozen backbone | Confirmed — but uniquely telling for MAE: the frozen CLS token is not linearly separable for the style task, so the LP head cannot redirect patch attention at all. Only gradient flow into the backbone (full FT or LoRA) reorganizes MAE spatial attention. |
+| MAE LP Δ = 0 across all 139 images | Expected for a frozen backbone, and uniquely telling for MAE: the frozen CLS token is not linearly separable for the style task, so the LP head cannot redirect patch attention at all. Only gradient flow into the backbone (full FT or LoRA) reorganizes MAE spatial attention. |
 | DINOv3 > DINOv2 frozen | DINOv3 adds Gram anchoring which improves dense feature structure |
 | CLIP needs full FT more than LoRA | Global attention restructuring requires more parameter updates |
 | MAE improves significantly | Reconstruction objective is spatially agnostic; FT adds localization |
@@ -237,13 +237,18 @@ SigLIP 2 adds **self-distillation and masked prediction** (in the DINO / SILC / 
 
 ### 6.1 Image-Level Δ IoU Explorer
 
-A sortable gallery view filtered by model showing each image with its per-image Δ IoU. Users could:
+A sortable gallery or panel filtered by model showing each image with its per-image Δ IoU. Users can build this from the current image-level Q2 endpoint:
+
+`GET /api/metrics/q2_image_deltas?model=clip&strategy=full&percentile=90&top_k=12`
+
+The endpoint returns the largest positive and negative examples for one model/strategy/percentile slice. A fuller explorer can use the same artifact contract to:
+
 - Sort by highest/lowest Δ IoU for any model
 - Filter by architectural style to test H3
 - Click through to the full attention comparison for extreme cases
 - See a scatter plot: frozen IoU (x) vs. Δ IoU (y) per image
 
-**Backend needed:** The per-image deltas are already in `q2_metrics_analysis.json`. A new API endpoint `GET /api/metrics/q2/per_image?model=clip&strategy=full&metric=iou&percentile=90` would return them. The frontend needs a new page or panel.
+**Backend surface:** The per-image deltas are exported in the active experiment's Q2 delta artifact and exposed through `/api/metrics/q2_image_deltas`. A first-class sortable explorer remains an optional frontend surface.
 
 ### 6.2 Attention Entropy Visualization
 
@@ -275,7 +280,7 @@ This would directly test H1: if CLIP frozen patch features already align with th
 
 Extend the existing `FeatureBreakdown.tsx` component (which shows frozen IoU per feature type) to also show a frozen vs. fine-tuned comparison bar. Highlight feature types where Δ IoU is largest/smallest. Sort by Δ IoU.
 
-**Backend:** `GET /api/metrics/{model}/feature_breakdown?strategy=full` — already returns per-feature data; add Δ metrics.
+**Backend:** `GET /api/metrics/model/{model}/feature_breakdown` already returns frozen per-feature data; Δ metrics would extend that contract for strategy-aware comparison.
 
 ---
 
@@ -285,7 +290,7 @@ Extend the existing `FeatureBreakdown.tsx` component (which shows frozen IoU per
 |------|-------------|--------|----------------|
 | 1 | Per-style Δ IoU breakdown | ✅ Done | CLIP: Gothic/Romanesque only. MAE: Renaissance spike +0.108. DINO: flat across all styles. |
 | 2 | Cross-model correlation | ✅ Done | DINOv3 frozen → CLIP Δ: r=+0.677. Language cluster (CLIP/SigLIP) correlated. MAE anti-correlated with all. |
-| 3 | MAE Renaissance spike investigation | ✅ Done | Spike is real and robust (LoRA +0.142 > full FT +0.108). Driven by images with dense pediment-class features (Triangular/Broken/Segmental/Double Pediments, Cranked Cornice) — not Trefoil Window as originally hypothesized. MAE LP Δ=0 across all 139 images; only backbone fine-tuning reorganizes attention. Frozen patch geometry check still open (needs HDF5 cache). |
+| 3 | MAE Renaissance spike investigation | ✅ Done | Spike is real and robust (LoRA +0.142 > full FT +0.108). Driven by images with dense pediment-class features (Triangular/Broken/Segmental/Double Pediments, Cranked Cornice), not Trefoil Window. MAE LP Δ=0 across all 139 images; only backbone fine-tuning reorganizes attention. Frozen patch geometry check still open (needs HDF5 cache). |
 | 4 | CLIP layer sweep (layers 7–11) | ⬜ Pending | Does peak IoU post-FT occur at Layer 10, not 11? |
 | 5 | Attention entropy measurement | ⬜ Pending | Does FT compress CLIP entropy? Is DINO already low? |
 | 6 | Country classification negative control | ⬜ Pending | Critical: proves improvement is task-driven, not parameter-update-driven |
@@ -320,7 +325,7 @@ Local copies: [`docs/whitepapers/`](../whitepapers/). This section ties each mod
 
 - **Objective:** Mask ~**75%** of patches; encoder on visible patches only; **decode pixels** (MSE on masked patches). Forces holistic, non-trivial reconstruction — not class labels.
 - **Linear vs. fine-tune:** Paper shows **linear probing and fine-tuning accuracy are poorly correlated**; partial fine-tuning of few blocks can match much of full FT — consistent with **LoRA ≥ full FT** for Δ IoU in our table. Our data confirms this strongly: MAE LP Δ = 0.000 across all 139 images (the LP head cannot redirect attention without backbone gradient flow), while LoRA achieves +0.031 aggregate and +0.142 on Renaissance images — exceeding full FT (+0.029 / +0.108).
-- **Renaissance spike (Step 3 ✅):** Pixel reconstruction favors **sharp local geometry** (edges, shapes). Investigation confirmed the spike is driven by images dense in **pediment-class features** — Triangular Pediment, Broken Pediment, Segmental Pediment, Double Pediment, Cranked Cornice. These are compact, geometrically structured forms whose precise spatial boundaries MAE's pixel-reconstruction pretraining likely encodes with high fidelity. Fine-tuning on style labels that require distinguishing Renaissance from the other three styles redirects this pre-existing geometric sensitivity toward the discriminative pediment regions. The originally hypothesized Trefoil Window is absent from the high-Δ images. Whether MAE's *frozen* patch embeddings already emphasize pediment regions (amplification vs. creation from scratch) remains open and requires frozen patch geometry analysis from the HDF5 cache.
+- **Renaissance spike (Step 3 ✅):** Pixel reconstruction favors **sharp local geometry** (edges, shapes). Investigation confirmed the spike is driven by images dense in **pediment-class features** — Triangular Pediment, Broken Pediment, Segmental Pediment, Double Pediment, Cranked Cornice. These are compact, geometrically structured forms whose precise spatial boundaries MAE's pixel-reconstruction pretraining likely encodes with high fidelity. Fine-tuning on style labels that require distinguishing Renaissance from the other three styles redirects this pre-existing geometric sensitivity toward the discriminative pediment regions. Trefoil Window is absent from the high-Δ images. Whether MAE's *frozen* patch embeddings already emphasize pediment regions (amplification vs. creation from scratch) remains open and requires frozen patch geometry analysis from the HDF5 cache.
 
 ### DINOv2 (Oquab et al., 2024)
 
