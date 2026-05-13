@@ -128,6 +128,16 @@ evidence is central~\cite{Hu25ASCENT}.
 \section{Proposed Approach}
 \label{sec:approach}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{pipeline.png}
+\caption{End-to-end pipeline. The 139-image expert-annotated evaluation set is disjoint from the fine-tuning pool. Linear Probe is a zero-$\Delta$ control (backbone frozen); ResNet-50 is excluded from Q2. Attention extraction depends on model family; Q3 is restricted to native CLS-token models. Five alignment metrics are computed against expert boxes ($M$ binary, $G$ Gaussian) and calibrated against four naive baselines. Cached artefacts feed the Q1, Q2, and Q3 analyses.}
+\label{fig:pipeline}
+\end{figure*}
+
+Figure~\ref{fig:pipeline} summarises the end-to-end pipeline. The remainder of
+this section walks through each stage in turn.
+
 \subsection{Dataset and Problem Setup}
 
 The primary dataset is WikiChurches~\cite{Barz21WikiChurches}, a fine-grained
