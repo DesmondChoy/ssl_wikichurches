@@ -23,13 +23,21 @@ Use the Appendix A easy/hard image pairs from the report as anchor examples thro
 
 ## Segment-by-Segment Structure
 
-### Segment 1 — Hook & Problem Framing (1.5 min)
+### Segment 1 — Hook, Problem Framing & Results Summary (2 min)
 
-Open with: *"A model predicts 'Gothic' correctly — but is it looking at the right thing?"*
+Structure this like an academic abstract: open with the motivating question, then immediately deliver the headline findings for all three questions before going into methodology.
+
+**Hook**: *"A model predicts 'Gothic' correctly — but is it looking at the right thing?"*
 
 - Show a church image with expert bounding boxes vs. a raw attention heatmap side by side
 - Establish the core tension: accuracy ≠ expert-aligned evidence use
 - One-sentence dataset overview: 139 images, 631 expert boxes, 7 models, 3 research questions
+
+**Headline results (deliver before methodology — tell the viewer what they're about to see):**
+
+- **Q1**: Frozen expert-aligned attention exists but is model-family dependent. DINOv3 leads the benchmark across IoU, Coverage, KL, and EMD, and is the only frozen model to clear all four naive calibration baselines on all three continuous metrics. The SigLIP family illustrates the danger of single-metric reading: best frozen MSE, but EMD worse than random attention.
+- **Q2**: Fine-tuning's effect is mediated by three factors — spatial prior, linguistic coverage, and geometric discriminability. CLIP gains the most (IoU 0.018 → 0.074, Cohen's d ≈ 1.0) but only on Gothic and Romanesque, the styles most densely described in English web text. MAE's largest gain is on Renaissance pediment geometry specifically. DINO stays flat — its strong frozen prior resists reorganisation, and that's a feature. Critically, models converge on the same structurally easy images (DINOv3 frozen IoU predicts CLIP Δ at r = +0.677), so ensembling the language cluster adds no coverage on hard images.
+- **Q3**: Individual attention heads show descriptive specialisation for different architectural features, and the dominant head set shifts under adaptation — though this is a descriptive finding, not a causal one.
 
 ---
 
@@ -104,13 +112,13 @@ Practical implication: *model selection for domain adaptation shouldn't be guide
 
 | Segment | Time |
 |---|---|
-| 1. Hook & framing | 1.5 min |
-| 2. Dataset & methodology | 2.5 min |
+| 1. Hook, framing & results summary | 2.0 min |
+| 2. Dataset & methodology | 2.0 min |
 | 3. Q1 results + demo | 2.5 min |
 | 4. Q2 results + demo | 4.0 min |
-| 5. Q3 results | 2.0 min |
+| 5. Q3 results | 1.5 min |
 | 6. Live app demo | 1.5 min |
-| 7. Conclusion | 1.0 min |
+| 7. Conclusion | 1.5 min |
 | **Total** | **15 min** |
 
 ---
