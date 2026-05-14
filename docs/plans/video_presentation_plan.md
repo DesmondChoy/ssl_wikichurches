@@ -62,8 +62,6 @@ Structure this like an academic abstract: open with the motivating question, the
 
 ### Segment 4 — Q2: Fine-Tuning Effects on Attention (4 min)
 
-*This is the richest finding — give it the most time.*
-
 - Linear Probe = zero attention change by construction (backbone stays frozen — useful sanity check)
 - Show the multi-metric improvement heatmap: CLIP and MAE gain most; DINO stays flat
 - **CLIP story**: IoU 0.018 → 0.074 (Cohen's d ≈ 1.0), but gains concentrate on Gothic/Romanesque only — linguistic grounding hypothesis (these styles have features densely described in English web text)
