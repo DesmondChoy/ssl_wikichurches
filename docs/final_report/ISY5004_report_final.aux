@@ -1,0 +1,118 @@
+\relax 
+\citation{Barz21WikiChurches}
+\citation{Caron21DINO}
+\citation{Abnar20Rollout}
+\citation{Chefer21Interp}
+\citation{Zhou16CAM}
+\citation{Zhang16Excitation}
+\citation{Choe20Localization}
+\citation{Chung25MedViT}
+\citation{Kumar22Distort}
+\citation{Biderman24LoRA}
+\citation{Park23SSLViT}
+\citation{Li24AttnTransfer}
+\@writefile{toc}{\contentsline {section}{\numberline {1} Introduction}{1}{}\protected@file@percent }
+\newlabel{sec:intro}{{1}{1}{}{section.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2} Literature Review}{1}{}\protected@file@percent }
+\newlabel{sec:lit}{{2}{1}{}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1} Attention Interpretability in Vision Transformers}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2} Evaluation Against Expert Annotations}{1}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3} Fine-Tuning, Representation Shift, and Attention Drift}{1}{}\protected@file@percent }
+\citation{Voita19Heads}
+\citation{Li23HeadDist}
+\citation{Walmer23Teaching}
+\citation{Raghu21ViTvsCNN}
+\citation{Caron21DINO}
+\citation{Oquab24DINOv2}
+\citation{Simeoni25DINOv3}
+\citation{He22MAE}
+\citation{Radford21CLIP}
+\citation{Zhai23SigLIP}
+\citation{Tschannen25SigLIP2}
+\citation{Hu25ASCENT}
+\citation{Barz21WikiChurches}
+\citation{Oquab24DINOv2}
+\citation{Simeoni25DINOv3}
+\citation{He22MAE}
+\citation{Radford21CLIP}
+\citation{Zhai23SigLIP}
+\citation{Tschannen25SigLIP2}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4} Attention-Head Specialisation}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5} Cultural Heritage and Architectural Recognition}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3} Proposed Approach}{2}{}\protected@file@percent }
+\newlabel{sec:approach}{{3}{2}{}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1} Dataset and Problem Setup}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2} Models and Attention Extraction}{2}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Attention extraction methods by model family.}}{2}{}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:extraction}{{1}{2}{}{table.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3} Alignment Metrics}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4} Baselines and Calibration}{2}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Dataset-level naive baseline scores (lower is better).}}{2}{}\protected@file@percent }
+\newlabel{tab:baselines}{{2}{2}{}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.5} Fine-Tuning Protocol}{3}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Fine-tuning strategies compared in Q2.}}{3}{}\protected@file@percent }
+\newlabel{tab:strategies}{{3}{3}{}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.6} Per-Head Scope (Q3)}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.7} Statistical Analysis}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4} Experimental Results}{3}{}\protected@file@percent }
+\newlabel{sec:results}{{4}{3}{}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1} Dataset}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2} Implementation Details}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3} Performance Metrics}{3}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4} Q1: Frozen-Model Attention Alignment}{3}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow $ higher is better; $\downarrow $ lower is better.}}{3}{}\protected@file@percent }
+\newlabel{tab:q1}{{4}{3}{}{table.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Q2 multi-metric improvement heatmap. Each cell shows whether LoRA or Full fine-tuning enhances, preserves, or degrades alignment relative to the frozen model.}}{4}{}\protected@file@percent }
+\newlabel{fig:heatmap}{{1}{4}{}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5} Q2: Fine-Tuning Effects on Attention}{4}{}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Per-style $\Delta $IoU@90 under Full fine-tuning (frozen~$\to $~fine-tuned).}}{4}{}\protected@file@percent }
+\newlabel{tab:perstyle}{{5}{4}{}{table.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Preserve/enhance/destroy classification across 72 non-LP combinations. Fine-tuning dominantly enhances alignment, with concentrated regression risk.}}{4}{}\protected@file@percent }
+\newlabel{fig:ped}{{2}{4}{}{figure.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Per-feature $\Delta $IoU for MAE (Full fine-tuning, Renaissance images).}}{4}{}\protected@file@percent }
+\newlabel{tab:mae_renaissance}{{6}{4}{}{table.6}{}}
+\citation{Radford21CLIP}
+\citation{He22MAE}
+\citation{Simeoni25DINOv3}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Forest plot of $\Delta $IoU@90 with 95\% bootstrap confidence intervals per model and strategy.}}{5}{}\protected@file@percent }
+\newlabel{fig:forest}{{3}{5}{}{figure.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces DINOv3 frozen IoU@90 vs.\ CLIP $\Delta $IoU@90 per image ($r\!=\!+0.677$). Structural image difficulty, not model family, determines what is ``easy''.}}{5}{}\protected@file@percent }
+\newlabel{fig:scatter}{{4}{5}{}{figure.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6} Q3: Per-Head Specialisation}{5}{}\protected@file@percent }
+\newlabel{sec:q3}{{4.6}{5}{}{subsection.4.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.7} Ablation Study: Preserve / Enhance / Destroy}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.8} Discussion and Limitations}{5}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5} Conclusions and Future Work}{5}{}\protected@file@percent }
+\newlabel{sec:conc}{{5}{5}{}{section.5}{}}
+\bibstyle{IEEEbib}
+\bibdata{references}
+\bibcite{Barz21WikiChurches}{1}
+\bibcite{Caron21DINO}{2}
+\bibcite{Abnar20Rollout}{3}
+\bibcite{Chefer21Interp}{4}
+\bibcite{Zhou16CAM}{5}
+\bibcite{Zhang16Excitation}{6}
+\bibcite{Choe20Localization}{7}
+\bibcite{Chung25MedViT}{8}
+\bibcite{Kumar22Distort}{9}
+\bibcite{Biderman24LoRA}{10}
+\bibcite{Park23SSLViT}{11}
+\bibcite{Li24AttnTransfer}{12}
+\bibcite{Voita19Heads}{13}
+\@writefile{toc}{\contentsline {section}{\numberline {6} Author Contributions}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7} AI Tool Declaration}{6}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8} References}{6}{}\protected@file@percent }
+\bibcite{Li23HeadDist}{14}
+\bibcite{Walmer23Teaching}{15}
+\bibcite{Raghu21ViTvsCNN}{16}
+\bibcite{Oquab24DINOv2}{17}
+\bibcite{Simeoni25DINOv3}{18}
+\bibcite{He22MAE}{19}
+\bibcite{Radford21CLIP}{20}
+\bibcite{Zhai23SigLIP}{21}
+\bibcite{Tschannen25SigLIP2}{22}
+\bibcite{Hu25ASCENT}{23}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Appendix A: Structurally easy (top) and hard (bottom) church images. The $r\!=\!+0.677$ correlation between DINOv3 frozen IoU and CLIP $\Delta $IoU shows that image structure, not model family, determines alignment difficulty.}}{8}{}\protected@file@percent }
+\newlabel{fig:appendix_a}{{5}{8}{}{figure.5}{}}
+\gdef \@abspage@last{8}

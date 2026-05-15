@@ -1,0 +1,164 @@
+# 15-Minute Video Presentation Plan
+
+## Submission Requirements
+
+- **Format**: One MP4 file per team
+- **Length**: 15 minutes
+- **No in-person presentation** — the recorded video is the final submission
+- Submitted as part of the final zip (alongside source code, report PDF, and LaTeX source files)
+
+---
+
+## Overall Approach
+
+Screen-recorded presentation with voiceover, ending with a live app demo. The app demo is a strong differentiator — use it to ground abstract findings in concrete visuals.
+
+Use the Appendix A easy/hard image pairs from the report as anchor examples throughout:
+- **Easy (Gothic)**: Q1710328 — DINOv3 frozen IoU = 0.438, CLIP Δ IoU = +0.207
+- **Easy (Romanesque)**: Q2034923 — DINOv3 frozen IoU = 0.403, CLIP Δ IoU = +0.135
+- **Hard (Baroque)**: Q694252 — DINOv3 frozen IoU = 0.000, CLIP Δ IoU = −0.005
+- **Hard (Renaissance)**: Q1424095 — DINOv3 frozen IoU = 0.002, CLIP Δ IoU = +0.002
+
+---
+
+## Segment-by-Segment Structure
+
+### Segment 1 — Hook, Problem Framing & Results Summary (2 min)
+
+Structure this like an academic abstract: open with the motivating question, then immediately deliver the headline findings for all three questions before going into methodology.
+
+**Hook**: *"A model predicts 'Gothic' correctly — but is it looking at the right thing?"*
+
+- Show a church image with expert bounding boxes vs. a raw attention heatmap side by side
+- Establish the core tension: accuracy ≠ expert-aligned evidence use
+- One-sentence dataset overview: 139 images, 631 expert boxes, 7 models, 3 research questions
+
+**Headline results (deliver before methodology — tell the viewer what they're about to see):**
+
+- **Q1**: Frozen expert-aligned attention exists but is model-family dependent. DINOv3 leads the benchmark across IoU, Coverage, KL, and EMD, and is the only frozen model to clear all four naive calibration baselines on all three continuous metrics. The SigLIP family illustrates the danger of single-metric reading: best frozen MSE, but EMD worse than random attention.
+- **Q2**: Fine-tuning's effect is mediated by three factors — spatial prior, linguistic coverage, and geometric discriminability. CLIP gains the most (IoU 0.018 → 0.074, Cohen's d ≈ 1.0) but only on Gothic and Romanesque, the styles most densely described in English web text. MAE's largest gain is on Renaissance pediment geometry specifically. DINO stays flat — its strong frozen prior resists reorganisation, and that's a feature. Critically, models converge on the same structurally easy images (DINOv3 frozen IoU predicts CLIP Δ at r = +0.677), so ensembling the language cluster adds no coverage on hard images.
+- **Q3**: Individual attention heads show descriptive specialisation for different architectural features, and the dominant head set shifts under adaptation — though this is a descriptive finding, not a causal one.
+
+---
+
+### Segment 2 — Dataset & Methodology (2.0 min)
+
+**Research gap framing** (briefly — 2–3 sentences max): existing SSL benchmarks focus on classification accuracy, neglecting *which* image regions drive predictions. Tools like BertViz and Captum visualise attention but don't quantitatively align model attention against human expert diagnoses. This project introduces a multi-metric quantitative benchmark to close that gap.
+
+**Also worth noting**: the professor's mid-term feedback directly shaped methodology — continuous metrics (MSE, KL, EMD) were added alongside IoU following the suggestion to apply Gaussian filtering to bounding boxes; the Preserve/Enhance/Destroy taxonomy came from feedback to study whether fine-tuning preserves or destroys attention consistency. Mentioning this briefly shows methodological responsiveness.
+
+**Dataset**: WikiChurches (Barz & Denzler, NeurIPS 2021) — 9,485 images total, 4,588 used for fine-tuning, 139 expert-annotated images with 631 bounding boxes held out for evaluation. Four architectural styles: Romanesque, Gothic, Renaissance, Baroque. Show the **architecture pipeline diagram** from the mid-term deck (6-box flow: Dataset → 7 Vision Models → Attention Extraction → Alignment Metrics → Fine-Tuning → Analysis).
+
+**Models**: All ViT-B architecture (12 layers, 768 dim, 12 heads, ~86–93M params) except ResNet-50. Use the **model table** from the mid-term deck. Key differentiator per model: DINOv2 (4 register tokens), DINOv3 (Gram anchoring), MAE (pixel reconstruction), CLIP (language-image align), SigLIP/SigLIP2 (no CLS token → Mean attention only), ResNet-50 (Grad-CAM).
+
+**Metrics**: Frame as two ground truth types (from mid-term deck):
+- *Binary Ground Truth*: IoU (spatial overlap, threshold-dependent), Coverage (fraction of attention energy inside boxes, threshold-free)
+- *Soft Gaussian Ground Truth*: MSE, KL Divergence, EMD — all lower-is-better, compared against a Gaussian heatmap derived from bounding boxes
+- Calibrated against 4 naive baselines: random, center Gaussian, saliency prior, Sobel edge — raw scores are meaningless without reference points
+
+---
+
+### Segment 3 — Q1: Frozen Model Benchmark (2.5 min)
+
+- Show the leaderboard: **Self-distillation > Supervised > Reconstruction > Multimodal contrastive** (paradigm ordering from mid-term deck is still valid as a headline, but go deeper than this in narration)
+- DINOv3 leads on IoU (0.133), Coverage, KL, EMD. ResNet-50 is second on overlap metrics — the supervised CNN baseline beats all multimodal contrastive models in the frozen setting.
+- **Calibrated baseline story** (this is the key upgrade from mid-term): DINOv3 is the only frozen model to clear all 4 naive baselines on all 3 continuous metrics. Beating random is weak evidence; beating center Gaussian and saliency prior is stronger; beating Sobel edge on MSE is the strongest bar.
+- SigLIP family: best frozen MSE (0.0175) but EMD worse than random attention baseline (0.3538 vs 0.3468) — illustrates why single-metric reading misleads. Do not over-interpret SigLIP2 as better than SigLIP in the frozen setting.
+- DINOv3's likely advantage: Gram anchoring explicitly penalises drift in patch-patch feature structure during long SSL training — a natural fit for tasks that reward spatial correspondence to expert boxes.
+- **App demo (~30 sec)**: live Dashboard showing the KL leaderboard with baseline overlays (Metric=KL, Ranking=Default method)
+
+---
+
+### Segment 4 — Q2: Fine-Tuning Effects on Attention (4 min)
+
+- Linear Probe = zero attention change by construction (backbone stays frozen — useful sanity check)
+- Show the multi-metric improvement heatmap: CLIP and MAE gain most; DINO stays flat
+- **CLIP story**: IoU 0.018 → 0.074 (Cohen's d ≈ 1.0), but gains concentrate on Gothic/Romanesque only — linguistic grounding hypothesis (these styles have features densely described in English web text)
+- **MAE story**: Renaissance pediment specialization — gains driven by compact, style-exclusive geometry (Triangular Pediment +0.080, Broken Pediment +0.055); most common Renaissance features (Pilaster, Belt Course) show *negative* Δ
+- **DINO story**: near-zero Δ across all styles is a *feature*, not a failure — strong frozen spatial prior resists reorganization
+- **Surprise cross-model finding**: DINOv3 frozen IoU predicts CLIP Δ IoU at Pearson r = +0.677 — models converge on the same structurally easy images; language-cluster ensemble adds no coverage on hard images; MAE is the only anti-correlated model (natural complementary partner)
+- **App demo (~30 sec)**: Compare view showing a frozen vs. fine-tuned CLIP shift map on Q1710328 (Gothic portal)
+
+---
+
+### Segment 5 — Q3: Per-Head Specialization (2 min)
+
+- Scope clearly: DINOv2, DINOv3, MAE, CLIP only (CLS-token models); SigLIP/SigLIP2 excluded (mean-attention proxy); ResNet-50 excluded (no attention heads)
+- Language: *descriptive* analysis, not causal proof
+- Do some heads align better with specific feature types (portals, windows, towers)?
+- Does fine-tuning shift the dominant head set?
+- Show Q3 dashboard or head-feature heatmap from the app
+
+---
+
+### Segment 6 — Live App Demo (1.5 min)
+
+Walk through the app:
+1. **Gallery** → click into an image detail
+2. **Dashboard** → KL leaderboard with baseline overlays
+3. **Compare** → frozen vs. fine-tuned shift map (use Q1710328 Gothic portal)
+4. **Q2 tab** → improvement heatmap + preserve/enhance/destroy summary
+
+Narration hook: *"All of this is backed by precomputed HDF5/SQLite cache — sub-second queries across 139 images × 7 models × 12 layers."*
+
+---
+
+### Segment 7 — Conclusions & Takeaways (1 min)
+
+Three sentences, one per question:
+
+- **Q1**: Frozen expert alignment exists but is model-family dependent — DINOv3 is uniquely compatible with expert-marked architectural evidence
+- **Q2**: Fine-tuning's effect is mediated by three factors: spatial prior (DINO vs. rest), linguistic coverage (CLIP), and geometric discriminability (MAE)
+- **Q3**: Some heads show descriptive specialization; dominant heads shift under adaptation
+
+Practical implication: *model selection for domain adaptation shouldn't be guided by accuracy alone — match the pretraining prior to what the task's diagnostic evidence requires.*
+
+---
+
+## Time Budget
+
+| Segment | Time |
+|---|---|
+| 1. Hook, framing & results summary | 2.0 min |
+| 2. Dataset & methodology | 2.0 min |
+| 3. Q1 results + demo | 2.5 min |
+| 4. Q2 results + demo | 4.0 min |
+| 5. Q3 results | 1.5 min |
+| 6. Live app demo | 1.5 min |
+| 7. Conclusion | 1.5 min |
+| **Total** | **15 min** |
+
+---
+
+## Key Visual Assets to Prepare
+
+| Asset | Source |
+|---|---|
+| Church image + expert boxes vs. attention heatmap | App image detail view |
+| Q1 leaderboard table | `outputs/cache/metrics_summary.json` |
+| Q1 KL dashboard screenshot | App Dashboard (Metric=KL, Ranking=Default method) |
+| Q2 multi-metric improvement heatmap | `outputs/figures/02_all_metrics_improvement_heatmap.png` |
+| Q2 preserve/enhance/destroy summary | `outputs/figures/07_preserve_enhance_destroy.png` |
+| Q2 forest plot with CIs | `outputs/figures/08_forest_plot_ci.png` |
+| Q2 per-style Δ IoU breakdown | `outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png` |
+| Q2 MAE per-feature Renaissance table | `outputs/results/experiments/fine_tuning_primary_20260327/feature_delta_iou_mae_full_renaissance.png` |
+| Q2 cross-model correlation scatter | `outputs/results/experiments/fine_tuning_primary_20260327/model_correlation_scatter.png` |
+| Q2 shift map example (app Compare view) | Q1710328 (Gothic, easy) |
+| Q2 ΔIoU across percentile thresholds | `outputs/figures/04_iou_delta_by_percentile.png` |
+| Q3 head-feature heatmap | App Q3 dashboard |
+| Hard image examples | Q694252 (Baroque), Q1424095 (Renaissance) |
+| Architecture pipeline diagram | Mid-term deck slide 7 (recreate or screenshot) |
+| Model specs table | Mid-term deck slide 8 (ViT-B specs per model) |
+| Metrics split diagram | Mid-term deck slide 10 (Binary vs. Soft Gaussian ground truth) |
+
+---
+
+## What Changed from Mid-Term Deck (Do Not Revert)
+
+| Mid-term framing | Final video framing |
+|---|---|
+| "No single strategy wins everywhere" (tentative) | Specific mechanistic claims: CLIP gains explained by linguistic coverage, MAE by pediment geometry |
+| Q1 headline: paradigm ordering only | Paradigm ordering + calibrated baseline clearance story (DINOv3 clears all 4 baselines on all 3 metrics) |
+| Q2 results were preliminary | Full per-style breakdown, r=+0.677 cross-model correlation, and easy/hard image framing |
+| "Next Steps: complete Q3, cross-layer aggregation" | These are done — conclusion should not repeat mid-term next-steps framing |
+| SigLIP2 as improvement over SigLIP | No meaningful frozen difference — treat as same family, warn against over-interpreting |

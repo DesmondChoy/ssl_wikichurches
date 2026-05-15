@@ -149,7 +149,11 @@ The most important dataset caveat is sparse annotation bias. WikiChurches annota
 
 ## 7. Methodology
 
-The methodology is designed to support a comparative evaluation study rather than a single-model demo. It therefore has to define model coverage, attention extraction rules, metric interpretation, experimental splits, statistical comparisons, and reproducibility safeguards in a way that remains coherent across Q1, Q2, and Q3.
+![End-to-end pipeline](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/pipeline.png)
+
+*Figure. End-to-end pipeline. The 139-image expert-annotated evaluation set is disjoint from the fine-tuning pool. Linear Probe is a zero-Δ control (backbone frozen); ResNet-50 is excluded from Q2. Attention extraction depends on model family; Q3 is restricted to native CLS-token models. Five alignment metrics are computed against expert boxes (M binary union, G Gaussian) and calibrated against four naive baselines. Cached artefacts feed the Q1, Q2, and Q3 analyses.*
+
+The methodology is designed to support a comparative evaluation study rather than a single-model demo. The figure above summarises the end-to-end pipeline; the subsections that follow walk through each stage. It therefore has to define model coverage, attention extraction rules, metric interpretation, experimental splits, statistical comparisons, and reproducibility safeguards in a way that remains coherent across Q1, Q2, and Q3.
 
 ### 7.1 Models and Attention Extraction
 
@@ -541,7 +545,7 @@ The Baroque church has a single annotated expert box — a Broken Pediment tucke
 **Q1424095 — Renaissance** · DINOv3 frozen IoU = 0.002 · CLIP Δ IoU = +0.002 (Triangular Pediment feature)
 
 | DINOv3 frozen attention (layer 11) | CLIP shift map (frozen → full FT) | Shift map with feature box |
-|---|---|---|
+****|---|---|---|
 | ![Q1424095 DINOv3 frozen attention](../../outputs/screenshots/Q1424095_DINO__HARD(renaissance).png) | ![Q1424095 CLIP delta](../../outputs/screenshots/Q1424095_CLIP_DELTA__HARD(renaissance).png) | ![Q1424095 CLIP delta with image](../../outputs/screenshots/Q1424095_CLIP_DELTA_IMG__HARD(renaissance).png) |
 
 The Renaissance church facade has three spread annotation boxes (Triangular Pediment, Volute, Pilaster). DINOv3's frozen attention scatters across multiple structural elements without concentrating on any annotated region (IoU = 0.002). CLIP's fine-tuning likewise fails to improve alignment (Δ IoU = 0.000 on the Triangular Pediment). The annotations cover spatially diffuse decorative elements that span much of the facade width, making the easy-image condition — compact, prominent, single-region — absent here. This image is representative of the Renaissance subset that CLIP and the language cluster cannot improve on, in contrast to MAE's pediment-geometry specialization described in §9.2.1.
