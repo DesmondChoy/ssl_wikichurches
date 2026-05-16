@@ -403,7 +403,7 @@ The head-ranking view shows that expert-aligned attention is concentrated in a s
 - **DINOv3**: The cleanest case - the same `layer10/head8` head remains best across Frozen, LoRA, and Full variants, and it appears in the top three on more than 110 of 139 images in every condition
 - **DINOv2**: Shows the same preserved-head pattern at lower absolute alignment
 - **MAE**: Shifts from `layer10/head5` to `layer11/head7` under LoRA, then returns to `layer10/head5` under Full fine-tuning
-- **CLIP**: The clearest reorganization case, moving from an earlier frozen head (`layer4/head5`) to late-layer adapted heads under both LoRA and Full fine-tuning.
+- **CLIP**: The clearest reorganization case. Frozen CLIP's best heads sit in early layers (`layer4/head5` leads at mean `IoU@90 = 0.067`). The selected late layer used in the delta view is weak before adaptation (`layer11` max `IoU@90 = 0.034`), then becomes the strongest adapted layer: the best `layer11` head reaches `0.084` under LoRA and `0.105` under Full fine-tuning, while `layer4/head5` stays near its frozen score (`0.067` → `0.067` LoRA, `0.069` Full).
 
 Coverage and EMD support the same high-level reading, with one important caveat: DINO-family stability is cross-metric, while MAE and CLIP are metric-sensitive. In other words, DINOv3 and DINOv2 preserve the same dominant heads no matter how alignment is measured; MAE and CLIP preserve the broader adaptation pattern, but not the exact winning head.
 
@@ -413,19 +413,19 @@ The dashboard screenshot below keeps the result inspectable by showing the under
 
 *Figure. DINOv3 frozen head-ranking drill-down at `layer10` using `IoU@90`. `Head 8` leads with mean `IoU@90 = 0.160`, mean rank `2.40`, and top-3 placement on `114/139` images. This supports the sparsity claim behind the transition map: the strongest expert-aligned signal is concentrated in a small number of heads rather than evenly distributed across all heads.*
 
-This pattern connects directly to Q2. DINO-family models already have strong frozen spatial alignment, so fine-tuning mostly preserves the dominant expert-aligned head. CLIP and MAE gain more from adaptation, which means the task objective is doing more than improving scores: it is changing where expert-aligned evidence appears inside the network. CLIP is retargeted from weaker frozen spatial attention toward late-layer adapted heads, while MAE is selectively reshaped toward discriminative geometric forms. Q3 therefore gives a head-level explanation for the Q2 result: stable frozen priors lead to stable heads; larger fine-tuning gains come with head reorganization.
+The same concentration pattern holds across the full 12 × 12 grid of `(layer, head)` pairs. In each frozen scoped model, the top-ranked pair's mean `IoU@90` lands `2.7×`–`3.5×` above the median pair's (DINOv3 `3.45×`, CLIP `3.22×`, MAE `2.92×`, DINOv2 `2.69×`). The five best pairs together account for `7.3%`–`9.0%` of total mean `IoU@90` across all `144` pairs, roughly `2×` the `3.5%` they would hold if alignment were uniform. This is the quantitative content of "sparse": expert-aligned signal is not spread evenly across heads, it concentrates in a small minority.
+
+This pattern connects directly to Q2. DINO-family models already have strong frozen spatial alignment, so fine-tuning mostly preserves the dominant expert-aligned head. CLIP and MAE gain more from adaptation, and Q3 shows that those gains can come from different heads becoming best aligned after fine-tuning. CLIP's `layer11` alignment is newly strengthened by adaptation rather than inherited from an already strong frozen `layer11` head, while MAE is selectively reshaped toward discriminative geometric forms.
 
 #### View: Head-Feature Matrix
 
 Head Ranking identifies a dominant head, but what architectural evidence does that head align with? We use the Head-Feature Matrix to surface the results - the observation is that the strongest heads mostly align with larger, coherent structural features.
 
+To keep this visual check disciplined, for each scoped Q3 model we take its frozen `IoU@90` dominant head from the ranking view, then sort the architectural feature labels supported by at least three annotated bounding boxes in the 139-image evaluation set for that head. The first figure below shows the matrix view for the DINOv3 case; the second figure shows the three strongest and three weakest architectural features for each model's selected dominant head.
+
 ![DINOv3 frozen Q3 head-feature matrix report view showing head8 and Columned Portal](assets/q3_head_feature_matrix_report_view.png)
 
 *Figure. Head-Feature Matrix report view for DINOv3 frozen attention (`layer = 10`, `IoU@90`). The same `head8` that leads the ranking view also carries the selected `Columned Portal` cell, with `IoU@90 = 0.215` across `15` annotations. This links the ranking evidence to the feature evidence: the dominant head is not only strong overall, it is strongest on portal-scale structure.*
-
-Methodology: to keep this visual check disciplined, for each scoped Q3 model, take its frozen `IoU@90` dominant head from the ranking view, then sort architectural features for that head with at least three annotations.
-
-The figure below shows the three strongest and three weakest architectural features for each model's selected dominant head.
 
 ![Q3 dominant-head top and weak feature crops across DINOv3, DINOv2, MAE, and CLIP](assets/q3_head_feature_top_bottom_contact_sheet.png)
 
@@ -439,23 +439,31 @@ The figure below shows the three strongest and three weakest architectural featu
 
 The strongest heads are not exact part detectors, and they do not solve fine ornamentation. They are better described as heads whose spatial patterns are more compatible with expert-marked **structural architectural parts**. Failure cases are not random - across model families, the weak architectural features tend to be small, thin, repeated, or visually entangled with surrounding masonry.
 
+One caveat moderates the weak-feature reading. `IoU@90` keeps a fixed-size top-`10%` attention region and scores it against a variable-size expert mask, so for thin or repeated ornamentation (`Crocket`, `Fleuron`, `Blind Tracery`) the mask is small and the achievable `IoU@90` is mechanically capped regardless of where attention falls. Part of the weak-feature shortfall is therefore metric geometry rather than head-attribution; a robustness check using threshold-free Coverage would help separate the two effects.
+
 Together, the ranking and matrix views support the Q3 hypothesis: per-head specialization is **sparse and family-shaped**:
 - Sparse, because a small number of heads account for a disproportionate share of the strongest alignment results.
 - Family-shaped, because the dominant head pattern differs across self-distillation, reconstruction, and language-image contrastive pretraining.
 
 #### View: Frozen-to-Adapted Delta
 
-The third result is that adaptation is family-specific rather than uniform. DINOv3 is the cleanest stability case: `layer10/head8` is the best frozen head not only for `IoU@90`, but also for Coverage and EMD, and it remains the best head for all three metrics under both LoRA and Full fine-tuning. DINOv2 shows the same broad stability pattern. This fits the Q1 and Q2 interpretation: the DINO family already has a stronger frozen spatial prior, so adaptation mostly preserves the dominant expert-aligned head instead of reorganizing it.
+Head Ranking shows whether the winning head changes across variants. Frozen-to-Adapted Delta asks the sharper follow-up: when adaptation changes the dominant head, does the strongest expert-aligned signal stay in the same head or move to a different one?
 
-CLIP behaves differently. Its strongest frozen `IoU@90` head appears earlier, at `layer4/head5`, but its strongest adapted heads move to late layers under LoRA and Full fine-tuning. Coverage and EMD agree with the broad movement from early frozen evidence to late adapted evidence, even though they choose different top heads within `layer11`. That movement fits the Q2 story that CLIP is retargeted by downstream supervision: adaptation does not merely raise the aggregate score, it changes where the model's most expert-aligned head-level evidence appears. MAE sits between these two cases. Full fine-tuning preserves and strengthens `layer10/head5` under `IoU@90`, while LoRA shifts the strongest `IoU@90` head to `layer11/head7`; the Coverage and EMD checks support the broader "partial reshaping" interpretation without requiring the same head to win every metric.
+Here, expert-aligned signal means the selected head's normalized CLS-to-patch heatmap scored against expert boxes. For `IoU@90`, the pipeline keeps the top 10% of heatmap pixels and compares that binary mask with the expert-box union; the head with the highest mean `IoU@90` across the 139 annotated images is treated as the strongest expert-aligned head for that layer, variant, and metric.
 
-The frozen-to-adapted delta view makes the CLIP reorganization concrete inside the late layer where adapted CLIP becomes strongest. This view is layer-specific, so the cross-layer movement from `layer4` to `layer11` still comes from the ranking table above. What it shows directly is the within-layer reordering at `layer11`: the top frozen head is `H4`, LoRA promotes `H11`, and Full promotes `H3`.
+The answer is family-specific. DINO-family heads are mostly preserved, MAE is partially reshaped, and CLIP shows the clearest reorganization. The delta view below makes the CLIP case concrete inside `layer11`, the late layer where adapted CLIP becomes strongest. The cross-layer change is that frozen CLIP's best alignment lives in early layers (`layer4` max `IoU@90 = 0.067`), while `layer11` is weak before adaptation (`0.034` max). Adaptation strengthens `layer11` (`0.084` LoRA and `0.105` Full) without substantially changing `layer4/head5`, which stays near its frozen value. This view then zooms into `layer11` to show which adapted heads pick up the new signal: frozen `H4` gives way to LoRA `H11` and Full `H3`.
 
 ![CLIP Q3 frozen-to-adapted delta report view showing late-layer head reorganization](assets/q3_frozen_adapted_delta_report_view.png)
 
-*Figure. Frozen-to-Adapted Delta report view for CLIP (`layer = 11`, `IoU@90`). The red callouts mark the two top-head movement statements and the adapted top-head summaries. Within the same late layer, the LoRA comparison moves the top head from `H4` to `H11`, while the Full comparison moves it from `H4` to `H3`. This supports the Q3 adaptation claim: CLIP's head-level evidence is reorganized by fine-tuning rather than simply preserving the frozen head ranking.*
+*Figure. Frozen-to-Adapted Delta report view for CLIP (`layer = 11`, `IoU@90`). Within this late layer, LoRA changes the top head from `H4` to `H11`, while Full fine-tuning changes it from `H4` to `H3`. This supports the Q3 adaptation claim: CLIP's expert-aligned evidence is reorganized by fine-tuning rather than simply preserving the frozen head ranking.*
 
-Taken together, Q3 extends the Q1 and Q2 story rather than standing apart from it. Q1 showed that DINOv3 has the strongest frozen expert-aligned spatial prior. Q2 showed that adaptation helps most when the frozen model has room to redirect attention. Q3 shows where that behavior appears inside the transformer: DINO-style models preserve stable dominant heads, MAE is partially reshaped, and CLIP reorganizes from an earlier frozen head toward later adapted heads. The final claim is therefore deliberately descriptive but still useful: individual attention heads do exhibit specialization patterns, but those patterns are sparse, shaped by pretraining objective, and most convincing for larger architectural structures rather than fine ornamentation.
+**Analysis**:
+- DINOv3 is the clean stability case: `layer10/head8` remains the strongest `IoU@90` head in Frozen, LoRA, and Full, with top-three support above `110/139` images in every condition. DINOv2 shows the same preserved-head pattern with `layer11/head11`, but at lower absolute alignment.
+- MAE is the intermediate case. Frozen and Full both favor `layer10/head5`, while LoRA shifts the strongest `IoU@90` head to `layer11/head7`. That is not a full CLIP-style rewrite, but it does show that parameter-efficient adaptation can move MAE's dominant expert-aligned signal.
+- CLIP is the clearest reorganization case, which is why it is the screenshot example. In `layer11`, LoRA promotes `H11` from rank `#6` to `#1`, while frozen-best `H4` only falls to `#3` and remains close in score (`0.080` versus `0.084`). LoRA therefore promotes a new top head without completely erasing the frozen late-layer pattern.
+- Full fine-tuning reorganizes CLIP more strongly: `H3` moves from rank `#8` to `#1`, `H8` moves from `#7` to `#2`, and frozen-best `H4` drops to `#4`. Read together with Head Ranking, this gives the CLIP-specific claim: adaptation strengthens expert alignment in `layer11`, where frozen CLIP is weak (`0.034` max), and reorganizes the within-layer ranking of those newly strengthened heads (`H4` to `H11` under LoRA or `H3` under Full).
+
+DINO-style models already align well with expert regions before fine-tuning, so adaptation leaves their strongest heads mostly unchanged. CLIP and MAE have more room to move: after adaptation, the best-aligned attention comes from different heads, not just from the same head with a higher score.
 
 ## 10. Discussion
 
