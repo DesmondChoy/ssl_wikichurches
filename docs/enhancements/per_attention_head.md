@@ -14,7 +14,7 @@ The Q3 surface combines three connected views:
 
 - **Dashboard Q3** for dataset-level discovery through head rankings, head-by-feature heatmaps, inline exemplars, and frozen-to-adapted deltas
 - **Image Detail Q3** for single-image drill-down with variant-aware top-head ranking, expandable head gallery, and `Head Attention` vs `Feature Similarity` modes
-- **Advanced `/q3`** for side-by-side comparison of two primary-study models under shared Q3 context
+- **Q3 Report `/q3-report`** for report-facing head ranking, head-feature matrix, and frozen-to-adapted delta layouts
 
 The supporting backend and cache surface includes:
 
@@ -100,12 +100,12 @@ On the dashboard Q3 panel:
 - Do different architectural feature types prefer different heads?
 - Which head-feature cells stay dark in the heatmap and still look plausible on exemplar images?
 - Does the dominant head set change when moving from `frozen` to `lora` or `full`?
-- Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns before opening the advanced comparison workspace?
+- Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns before moving into report or image-level inspection?
 
-On the advanced `/q3` workspace:
+On `/q3-report`:
 
-- How do two primary-study models compare when the variant, layer, metric, and percentile are held constant?
-- Does the same head or head-feature context look meaningfully different across supervision families?
+- Which head-ranking, feature-matrix, or frozen-to-adapted delta view best supports the report narrative?
+- Does the selected report view preserve model, variant, layer, metric, percentile, head, and feature context in the URL?
 
 On the image-level attention view:
 
@@ -114,7 +114,6 @@ On the image-level attention view:
 
 ### What this phase does not require
 
-- no attempt to replace the Dashboard-first workflow with `/q3` as the default Q3 home
 - no attempt to make every current model and every variant fully populated
 - no claim that raw per-head attention is a full causal explanation method
 
@@ -167,7 +166,7 @@ The storage and API layout that supports this direction includes:
   - `/api/metrics/model/{model}/head_feature_matrix`
   - `/api/metrics/model/{model}/head_exemplars`
 
-Dashboard Q3 uses an interactive heatmap plus an inline exemplar panel instead of a numeric feature matrix. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
+Dashboard Q3 uses an interactive heatmap plus an inline exemplar panel. `/q3-report` uses a cleaner report-facing matrix view. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
 
 This keeps the main operational task focused on **population and interpretation**.
 
@@ -188,4 +187,3 @@ The most useful next steps stay inside the current Q3 framing:
 - keep the primary-study cache set populated for `dinov2`, `dinov3`, `mae`, and `clip`
 - treat `linear_probe` as an explicit control rather than a headline condition
 - keep headline conclusions scoped to descriptive head-specialization analysis rather than causal attribution
-- use the advanced `/q3` workspace for pairwise supervision-family comparisons after Dashboard Q3 has already narrowed the question

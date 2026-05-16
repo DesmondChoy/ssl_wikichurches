@@ -18,7 +18,7 @@ This repository answers that question with a quantitative benchmark over expert 
 |---|----------|------------------------|
 | **Q1** | Do SSL models attend to expert-identified diagnostic features? | IoU, Coverage, MSE, KL, and EMD across 7 models and 12 layers, with dashboard summaries and image-level drill-down |
 | **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Frozen-vs-fine-tuned deltas across Linear Probe, LoRA, and Full fine-tuning, summarized through the active experiment |
-| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head rankings, head-by-feature heatmaps, exemplars, Image Detail Q3 drill-down, and the advanced `/q3` workspace |
+| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head rankings, head-by-feature heatmaps, exemplars, Image Detail Q3 drill-down, and `/q3-report` |
 
 ## Approach
 
@@ -57,7 +57,7 @@ This repository answers that question with a quantitative benchmark over expert 
 
 - **Dashboard Q3** is the main discovery surface for per-head specialization.
 - **Image Detail Q3** is the single-image drill-down surface for inspecting one selected head or head-feature context.
-- **`/q3`** is the aligned side-by-side workspace for shared-context comparisons across two primary-study models.
+- **`/q3-report`** is the report-facing surface for head rankings, head-feature matrices, and frozen-to-adapted delta views.
 
 ## Novelty
 
@@ -80,7 +80,7 @@ This repository answers that question with a quantitative benchmark over expert 
 
 **What does the app cover?**
 
-The app covers Gallery browsing, Image Detail inspection, model and variant comparison, Dashboard Q1 summaries, the active-experiment-backed Q2 page, and the Q3 per-head workflow across Dashboard, Image Detail, and `/q3`.
+The app covers Gallery browsing, Image Detail inspection, model and variant comparison, Dashboard Q1 summaries, the active-experiment-backed Q2 page, and the Q3 per-head workflow across Dashboard, Image Detail, and `/q3-report`.
 
 **Which artifacts are primary?**
 

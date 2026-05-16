@@ -6,17 +6,21 @@ Use the root [`README.md`](../../README.md) for setup, app startup, and project-
 
 ## Current Pages
 
-The primary page components live under `src/pages/`:
+The current documented page components live under `src/pages/`:
 
 - `Home` for the Gallery route (`/`)
 - `ImageDetail` for `/image/:imageId`
 - `Compare` for `/compare`
 - `Dashboard` for `/dashboard`
 - `Q2` for `/q2`
-- `Q3` for `/q3`
 - `Q3Report` for `/q3-report`
 
-Q3 follows a Dashboard-first flow: discover dataset-level patterns on `Dashboard`, inspect one image on `ImageDetail`, use `/q3-report` for the report-focused head ranking, head-feature matrix, and frozen-to-adapted delta views, and use `/q3` for aligned side-by-side model comparisons.
+Q3 follows a Dashboard-first flow: discover dataset-level patterns on `Dashboard`, inspect one image on `ImageDetail`, and use `/q3-report` for the report-focused head ranking, head-feature matrix, and frozen-to-adapted delta views.
+
+`src/constants/q3Routing.ts` owns the shared URL-state contract for Q3:
+
+- `/image/:imageId?tab=q3...` preserves the image-level Q3 drill-down state.
+- `/q3-report?...` preserves `view`, model, variant, layer, metric, percentile, optional head, and optional feature focus.
 
 ## Frontend Scripts
 

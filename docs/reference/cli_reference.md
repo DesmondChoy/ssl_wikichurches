@@ -306,6 +306,8 @@ uv run python -m app.precompute.generate_metrics_cache --models dinov2 clip --la
 uv run python -m app.precompute.generate_metrics_cache --percentiles 90 80 70 60 50
 uv run python -m app.precompute.generate_metrics_cache --models dinov2 dinov3 mae clip --per-head
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
+uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
+uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies linear_probe --per-head
 ```
 
 Options:
@@ -324,6 +326,10 @@ Options:
 | `--per-head` | Also compute Q3 per-head metrics from per-head attention variants. |
 
 Classification: primary workflow
+
+Q3 per-head metrics require matching per-head attention cache entries. Run
+`generate_attention_cache --per-head` for the same model, strategy, and variant
+scope before this command.
 
 ## Fine-Tuning and Analysis Scripts
 
@@ -634,6 +640,10 @@ CLI flags:
 
 Classification: primary workflow
 
+The script reads the active experiment pointer and writes the report-facing Q2
+figure set used by the Markdown report, LaTeX report, slide outline, and video
+plan.
+
 ### `experiments/scripts/generate_slide_images.py`
 
 Command:
@@ -663,6 +673,8 @@ CLI flags:
 
 Classification: primary workflow
 
+The generated slide PNGs are intermediate assets for the presentation deck.
+
 ### `experiments/scripts/create_presentation.js`
 
 Command:
@@ -691,6 +703,9 @@ CLI flags:
 - none
 
 Classification: primary workflow
+
+The checked-in presentation package lives under `docs/plans/video/`; generated
+working assets remain under `outputs/slides/`.
 
 ## Developer Quality Commands
 

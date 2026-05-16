@@ -11,7 +11,7 @@
 | Phase 5 | Fine-Tuning Analysis | ✅ Implemented, robustness polish optional |
 | Phase 6 | Interactive Analysis Tool | ✅ Complete |
 
-**Last Updated:** 2026-04-29
+**Last Updated:** 2026-05-16
 
 ---
 
@@ -20,7 +20,7 @@
 Build a system to compare SSL model attention patterns against 631 expert-annotated bounding boxes on 139 WikiChurches images, measuring whether models attend to the same features human experts consider diagnostic.
 
 **Models:** DINOv2, DINOv3, MAE, CLIP, SigLIP, SigLIP 2 (all ViT-B, evaluated frozen and fine-tuned)
-**Research Design:** Two-pass analysis comparing attention patterns before and after task-specific fine-tuning
+**Research Design:** Frozen-model benchmark, fine-tuning shift analysis, and scoped per-head Q3 study
 **Primary Metrics:** IoU plus threshold-free Coverage, MSE, KL, and EMD
 **Platform:** M4 Pro with MPS backend
 
@@ -101,7 +101,10 @@ ssl_wikichurches/
 │       ├── analyze_delta_iou.py  # Compatibility wrapper for legacy consumers
 │       ├── analyze_style_breakdown.py
 │       ├── analyze_model_correlation.py
-│       └── analyze_feature_delta_iou.py
+│       ├── analyze_feature_delta_iou.py
+│       ├── generate_run_matrix_figures.py
+│       ├── generate_slide_images.py
+│       └── create_presentation.js
 │
 ├── outputs/                     # Tracked results plus git-ignored caches/checkpoints
 │   ├── cache/
@@ -332,13 +335,14 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 
 3. **Pre-computation Pipeline** ✅
    - `generate_attention_cache.py` - Extract attention to HDF5
+   - `generate_feature_cache.py` - Extract patch features to HDF5 for similarity workflows
    - `generate_heatmap_images.py` - Render heatmap overlays as PNGs
-   - `generate_metrics_cache.py` - Compute base-model analytics to SQLite
+   - `generate_metrics_cache.py` - Compute base-model, fine-tuned, and Q3 per-head analytics to SQLite
 
 4. **API Endpoints** ✅
    - `/api/images` - Image listing, filtering, serving
-   - `/api/attention` - Heatmap and overlay serving
-   - `/api/metrics` - IoU metrics, leaderboard, layer progression, Q2 strategy summaries, Q2 image deltas, and Q3 head metrics
+   - `/api/attention` - Heatmap, overlay, raw attention, per-head raw attention, model metadata, and similarity serving
+   - `/api/metrics` - IoU, Coverage, MSE, KL, EMD metrics; leaderboard; layer progression; Q2 strategy summaries; Q2 image deltas; and Q3 head metrics
    - `/api/compare` - Model comparison, Frozen vs Fine-tuned, Variant vs Variant, and frozen-vs-adapted shift-map flows
 
 5. **Representation Similarity Exploration (Utility Feature)** ✅
@@ -390,6 +394,12 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
      - `app/frontend/src/components/comparison/SimilarityViewer.tsx` - Bbox overlay + similarity heatmap viewer
      - `app/frontend/src/components/comparison/ModelCompare.tsx` - Updated with synchronized selection
      - Selection info bar, clear button, and colormap legend
+
+13. **Q3 Per-Head Workflow** ✅
+   - Dashboard Q3 for dataset-level head rankings, head-by-feature heatmaps, inline exemplars, and frozen-to-adapted deltas
+   - Image Detail Q3 for single-image head attention and feature similarity drill-down
+   - `/q3-report` for report-facing head ranking, head-feature matrix, and frozen-to-adapted delta layouts
+   - Q3 URL state is centralized in `app/frontend/src/constants/q3Routing.ts`
 
 ---
 
@@ -480,7 +490,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 |------|---------|--------|
 | `app/precompute/generate_feature_cache.py` | Cache CLS + patch tokens to HDF5 | ✅ Done |
 | `app/backend/services/similarity_service.py` | Bbox-to-patch cosine similarity | ✅ Done |
-| `app/backend/schemas/models.py` | Added BboxInput, SimilarityResponse | ✅ Done |
+| `app/backend/schemas/models.py` | BboxInput and SimilarityResponse schemas | ✅ Done |
 | `app/frontend/src/components/attention/InteractiveBboxOverlay.tsx` | Clickable bbox SVG overlay | ✅ Done |
 | `app/frontend/src/utils/renderHeatmap.ts` | Client-side viridis heatmap | ✅ Done |
 
@@ -498,6 +508,20 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 |------|---------|--------|
 | `app/frontend/src/components/comparison/SimilarityViewer.tsx` | Bbox overlay + similarity heatmap viewer | ✅ Done |
 | `app/frontend/src/components/comparison/ModelCompare.tsx` | Synchronized bbox selection across panels | ✅ Done |
+
+### Phase 6 Enhancement: Q3 Per-Head and Report Views
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `app/frontend/src/pages/Q3Report.tsx` | Report-focused Q3 head ranking, matrix, and delta views | ✅ Done |
+| `app/frontend/src/components/metrics/Q3HeadAnalysis.tsx` | Dashboard Q3 ranking and matrix surface | ✅ Done |
+| `app/frontend/src/components/metrics/Q3DeltaPanel.tsx` | Frozen-to-adapted Q3 ranking shifts | ✅ Done |
+| `app/frontend/src/components/metrics/Q3ExemplarPicker.tsx` | Q3 exemplar selection and drill-down links | ✅ Done |
+| `app/frontend/src/components/image-detail/Q3ImageDetailControls.tsx` | Image-level Q3 controls | ✅ Done |
+| `app/frontend/src/constants/q3Routing.ts` | Shared Q3 URL-state parsing and link builders | ✅ Done |
+| `app/backend/services/metrics_service.py` | Q3 head-ranking, matrix, exemplar, and delta data access | ✅ Done |
+| `app/precompute/generate_attention_cache.py` | Per-head attention cache variants | ✅ Done |
+| `app/precompute/generate_metrics_cache.py` | Q3 per-head metrics tables | ✅ Done |
 
 ---
 
@@ -538,6 +562,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
    - Comparison view synchronizes properly
    - Metrics dashboard displays correct values
    - Responsive on target browsers
+   - Q3 Dashboard, Image Detail Q3, and `/q3-report` preserve state through URLs and surface supported-cache empty states cleanly
 
 ---
 
@@ -550,6 +575,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 5. **Percentile thresholding** - More robust than fixed thresholds
 6. **Registers-aware extraction** - Skip register tokens for DINOv2/v3
 7. **Two-pass evaluation** - Compare frozen and fine-tuned attention to isolate effect of task-specific training
+8. **Descriptive Q3 scope** - Keep primary per-head claims on CLS-token models (`dinov2`, `dinov3`, `mae`, `clip`) and treat `linear_probe` as a control
 
 ---
 

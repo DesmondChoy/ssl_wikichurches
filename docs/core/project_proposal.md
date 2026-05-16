@@ -12,7 +12,7 @@
 
 Self-supervised learning (SSL) models like DINOv2, DINOv3, MAE, CLIP, SigLIP, and SigLIP 2 learn visual representations without labels and achieve strong performance on downstream tasks. However, a fundamental question remains: **do these models attend to the same visual features that human experts consider diagnostic, or do they exploit statistical shortcuts invisible to humans?** Furthermore, when models are fine-tuned for a specific task, **does their attention shift toward expert-identified features, or do they discover alternative discriminative regions?**
 
-Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features" using both threshold-dependent (IoU) and threshold-free (MSE, KL divergence, EMD) metrics.
+Existing SSL benchmarks measure classification accuracy but do not explain *which* image regions drive predictions. This matters for trust and deployment: a model that correctly classifies Gothic architecture by attending to flying buttresses is qualitatively different from one that exploits dataset-specific background correlations. This project addresses that gap by quantitatively measuring alignment between SSL attention patterns and expert-annotated "characteristic architectural features" using both threshold-dependent IoU and threshold-free Coverage, MSE, KL divergence, and EMD.
 
 Existing interpretability tools address parts of this problem but leave a critical gap. Visualization tools like BertViz (Vig, ACL 2019) render attention weights interactively but provide no quantitative metrics. Attribution frameworks like Captum measure whether explanations are faithful to the model's own decisions (infidelity, sensitivity) but not whether the model attends to features that domain experts consider diagnostic. Recent work in medical imaging has begun evaluating attention against radiologist annotations (Komorowski et al., CVPR 2023), but no existing benchmark compares multiple SSL paradigms on the same expert-annotated dataset, uses both discrete and continuous alignment metrics, or measures how fine-tuning shifts attention alignment. We address this gap with a multi-metric quantitative benchmark and an interactive analysis tool.
 
@@ -22,7 +22,7 @@ Existing interpretability tools address parts of this problem but leave a critic
 |-------------------|----------|-------------|
 | **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU, Coverage, MSE, KL divergence, and EMD between attention maps and expert bounding boxes across 7 models and 12 layers | Attention heatmap overlay, multi-metric dashboard, model leaderboard |
 | **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare frozen-vs-fine-tuned attention-shift deltas across IoU, Coverage, MSE, KL, and EMD on the same images; retain Preserve / Enhance / Destroy as the IoU-centered interpretation layer; compare strategies with paired Wilcoxon tests, Holm correction, and Cohen's d effect sizes | Frozen vs fine-tuned comparison view, Variant vs Variant comparison view, and strategy-aware Q2 metric tables |
-| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU separately for each of the 12 attention heads; identify heads with consistently highest alignment using rank-based analysis | Dashboard Q3 ranking and head-feature heatmap, Image Detail Q3 drill-down, and the advanced `/q3` comparison workspace |
+| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU, Coverage, MSE, KL, and EMD for each head; rank heads metric-by-metric and inspect head-feature patterns without collapsing them into one composite score | Dashboard Q3 ranking and head-feature heatmap, Image Detail Q3 drill-down, and `/q3-report` |
 
 > **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
 
@@ -154,6 +154,7 @@ Web-based dashboard (FastAPI backend + React frontend) for exploring attention-a
 - **Fine-tuning comparison:** Side-by-side frozen vs fine-tuned attention with multi-metric deltas
 - **Variant comparison:** Variant vs Variant comparison across strategies for the same base model
 - **Per-bbox drill-down:** Select individual bounding boxes to see per-feature metrics computed on-the-fly
+- **Q3 report view:** Head ranking, head-feature matrix, and frozen-to-adapted delta layouts for report inspection and presentation walkthroughs
 
 ---
 
@@ -178,7 +179,7 @@ To verify findings are robust to methodological choices:
 |:---|:---------------|:-----------------|:--------------|
 | Q1 | IoU (at 90th percentile), MSE, KL divergence, EMD, Coverage | Paired t-test and Wilcoxon signed-rank across models; bootstrap CIs; Holm-Bonferroni correction for pairwise comparisons | Attention heatmaps with bbox overlay; model leaderboard |
 | Q2 | Δ IoU, Δ Coverage, Δ MSE, Δ KL, Δ EMD (fine-tuned − frozen); Preserve/Enhance/Destroy classification | Paired Wilcoxon tests on same 139 images; Holm correction within each metric bucket across all discovered model-strategy rows (linear probe, LoRA, and full corrected together); Cohen's d effect sizes | Side-by-side frozen vs fine-tuned; Δ metric bar charts by method and model |
-| Q3 | Per-head IoU; head specialization index | Rank correlation across heads | Head × feature-type heatmap |
+| Q3 | Per-head IoU, Coverage, MSE, KL, and EMD, with IoU@90 as the main overlap lens and Coverage/EMD as robustness checks | Rank-based head summaries within each metric and descriptive cross-variant comparison | Dashboard Q3 ranking, head-feature heatmap, exemplar drill-down, and `/q3-report` |
 
 ### Baselines
 
@@ -319,7 +320,7 @@ STYLE_MAPPING: dict[str, int] = {
     "Q176483": 1,  # Gothic
     "Q236122": 2,  # Renaissance
     "Q840829": 3,  # Baroque
-    "Q186363": 4,  # Neoclassical (NEW)
+    "Q186363": 4,  # Neoclassical
 }
 
 STYLE_NAMES: tuple[str, ...] = ("Romanesque", "Gothic", "Renaissance", "Baroque", "Neoclassical")

@@ -17,10 +17,9 @@ It is written as an app guide, not a results report. For setup, cache generation
 | Compare | `/compare` | Compare frozen models or model variants on one image | Top navigation or quick links |
 | Dashboard | `/dashboard` | Overview analysis for Q1 and the main discovery surface for Q3 | Top navigation |
 | Q2 | `/q2` | Strategy-aware fine-tuning summary | Dashboard quick action or direct URL |
-| Q3 Advanced | `/q3` | Side-by-side comparison of two primary-study Q3 models | Dashboard Q3 action or direct URL |
-| Q3 Report | `/q3-report` | Report-focused Q3 head ranking, feature matrix, and delta views | Q3 page action or direct URL |
+| Q3 Report | `/q3-report` | Report-focused Q3 head ranking, feature matrix, and frozen-to-adapted delta views | Direct URL |
 
-The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q2`, `Q3 Advanced`, `Q3 Report`, and `Image Detail` are drill-down pages.
+The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q2`, `Q3 Report`, and `Image Detail` are drill-down pages.
 
 ## Shared Concepts
 
@@ -171,15 +170,13 @@ This is the main discovery surface for **Q3**.
   Compares how head rankings shift from Frozen to LoRA and Full.
 - **Single-variant explorer**
   Includes the ranked-head table, head-by-feature heatmap, and inline exemplar loading.
-- **Open advanced workspace**
-  Sends the current model, variant, layer, metric, percentile, and optional focus into `/q3`.
-- **Open report view**
-  Sends the current Q3 context into `/q3-report` for the cleaner report-facing layouts.
+- **Report view selector**
+  Switches between Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta layouts inside Dashboard Q3.
 
 Important behavior:
 
-- Start here first for Q3. `/q3` is the advanced comparison workspace, not the main entry point.
-- Use `/q3-report` when you want the focused report views used for screenshots and video walkthroughs.
+- Start here first for Q3.
+- Use `/q3-report` when you want a shareable URL for focused report views used in screenshots and video walkthroughs.
 - The inline exemplar flow is part of Dashboard Q3, so you can validate a head-feature pattern before leaving the page.
 
 ### Q3 Report (`/q3-report`)
@@ -190,17 +187,15 @@ Use this page when you want the Q3 evidence in the same focused format used by t
 - **Head-Feature Matrix** connects a selected head to architectural feature labels.
 - **Frozen-to-Adapted Delta** shows how the dominant head ranking changes from Frozen to LoRA and Full Fine-tune.
 
-This page is intentionally narrower than Dashboard Q3 and `/q3`. It is built for explanation, screenshots, and reproducible report inspection.
+This page is intentionally narrower than Dashboard Q3. It is built for explanation, screenshots, and reproducible report inspection.
 
-### Q3 Advanced (`/q3`)
+The route preserves its state through query parameters:
 
-Use this page when you want to compare **two primary-study Q3 models side by side** under the same shared context.
-
-- Shared controls keep the two panes aligned on model pair, variant, layer, metric, and percentile.
-- Selecting a ranking row or heatmap cell syncs the same head or head-feature focus across both panes.
-- A supporting adaptation panel below the two panes reuses the delta view for the primary model.
-
-This page is especially useful once Dashboard Q3 has already narrowed the question to a specific head or feature.
+- `view`: `head-ranking`, `head-feature-matrix`, or `frozen-delta`
+- `model`: one of the primary Q3 models, usually `dinov2`, `dinov3`, `mae`, or `clip`
+- `variant`: `frozen`, `linear_probe`, `lora`, or `full`
+- `layer`, `metric`, and `percentile`: the same Q3 controls used by Dashboard Q3
+- `head` and `feature_label`: optional focus state for the matrix and drill-down views
 
 ### Q2 (`/q2`)
 
@@ -295,7 +290,7 @@ Use this path when the question is about head specialization.
 3. Use the ranked-head table and head-by-feature heatmap to pick a candidate head or head-feature pair.
 4. Open an inline exemplar, then move into **Image Detail Q3** for a closer qualitative check.
 5. Switch between **Head Attention** and **Feature Similarity** to test whether the same head-feature story still holds visually.
-6. Open **Q3 Advanced** only when you need the same Q3 focus state on two models at once.
+6. Open **Q3 Report** when you need the cleaner report-facing layout.
 
 ## Tips
 

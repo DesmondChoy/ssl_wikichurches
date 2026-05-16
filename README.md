@@ -45,13 +45,20 @@ uv run python -m app.precompute.generate_heatmap_images --colormap viridis
 uv run python -m app.precompute.generate_metrics_cache
 ```
 
-Add the Q3 per-head cache scope:
+Generate the Q3 per-head cache scope:
 
 ```bash
 uv run python -m app.precompute.generate_attention_cache --models dinov2 dinov3 mae clip --per-head
 uv run python -m app.precompute.generate_metrics_cache --models dinov2 dinov3 mae clip --per-head
 uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
+```
+
+Optional Q3 frozen-backbone control:
+
+```bash
+uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip --strategies linear_probe --per-head
+uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies linear_probe --per-head
 ```
 
 Run the app:
@@ -69,6 +76,8 @@ Start here if you are reviewing the academic submission:
 - Final PDF: [docs/final_report/ISY5004_report_final.pdf](docs/final_report/ISY5004_report_final.pdf)
 - Report Markdown source: [docs/core/project_report_final.md](docs/core/project_report_final.md)
 - Report figures: [docs/final_report/figures/](docs/final_report/figures/)
+- Q3 report-view source figures: [docs/core/assets/](docs/core/assets/)
+- Video plan, slide outline, script, PDF, and PPTX: [docs/plans/video/](docs/plans/video/)
 - Active experiment pointer: [outputs/results/active_experiment.json](outputs/results/active_experiment.json)
 - Q2 run matrix: [outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json](outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json)
 - Q2 analysis: [outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json](outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json)
@@ -91,8 +100,7 @@ For full app-level reproduction of Q1 and Q3, regenerate `outputs/cache/metrics.
 | `/compare` | Frozen model and variant comparisons |
 | `/dashboard` | Q1 overview and main Q3 discovery surface |
 | `/q2` | Fine-tuning summary from the active experiment |
-| `/q3` | Advanced Q3 side-by-side workspace |
-| `/q3-report` | Report-focused Q3 head ranking, feature matrix, and delta views |
+| `/q3-report` | Report-focused Q3 head ranking, feature matrix, and frozen-to-adapted delta views |
 
 ## Q2 Reproduction
 
@@ -120,6 +128,22 @@ uv run python experiments/scripts/analyze_model_correlation.py --experiment-id "
 uv run python experiments/scripts/analyze_feature_delta_iou.py --experiment-id "$EXPERIMENT_ID" --model mae --strategy full --style Renaissance
 uv run python experiments/scripts/analyze_q1_continuous_baselines.py
 ```
+
+## Report and Presentation Outputs
+
+Generate the current report-facing figures and presentation assets:
+
+```bash
+uv run python experiments/scripts/generate_run_matrix_figures.py
+uv run python experiments/scripts/generate_slide_images.py
+cd experiments/scripts && npm install && node create_presentation.js
+```
+
+The Q3 report route supplies the screenshot-friendly views used by the report and video plan:
+
+- `view=head-ranking` for ranked heads by model, variant, layer, metric, and percentile
+- `view=head-feature-matrix` for head-by-feature evidence
+- `view=frozen-delta` for frozen-to-LoRA and frozen-to-Full ranking shifts
 
 The full command surface is in [docs/reference/cli_reference.md](docs/reference/cli_reference.md). The experiment artifact contract is in [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md).
 

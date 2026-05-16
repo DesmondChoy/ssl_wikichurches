@@ -5,8 +5,9 @@ This directory complements the root [`README.md`](../README.md) with current wor
 The current public surface covers:
 
 - seven model keys: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`
-- app routes: `/`, `/image/:imageId`, `/compare`, `/dashboard`, `/q2`, `/q3`, `/q3-report`
+- app routes: `/`, `/image/:imageId`, `/compare`, `/dashboard`, `/q2`, `/q3-report`
 - experiment-scoped Q2 artifacts selected through `outputs/results/active_experiment.json`
+- report and video artifacts under `core/`, `final_report/`, and `plans/video/`
 
 `docs/archive/` contains historical material and is not part of the current-state navigation below.
 
@@ -20,6 +21,7 @@ The current public surface covers:
 | [reference/api_reference.md](reference/api_reference.md) | Backend endpoints, query parameters, and response contracts |
 | [core/project_report_final.md](core/project_report_final.md) | Markdown source for the academic report and its reproducibility anchors |
 | [final_report/ISY5004_report_final.pdf](final_report/ISY5004_report_final.pdf) | Compiled submission report with checked-in figures |
+| [plans/video/video_presentation_plan.md](plans/video/video_presentation_plan.md) | Presentation flow, demo sequence, and asset map |
 
 ## Structure
 
@@ -42,6 +44,17 @@ Compiled report assets prepared for academic submission.
 | [ISY5004_report_final.pdf](final_report/ISY5004_report_final.pdf) | Compiled final report |
 | [ISY5004_report_final.tex](final_report/ISY5004_report_final.tex) | LaTeX source for the compiled report |
 | [figures/](final_report/figures/) | Checked-in figures referenced by the report |
+
+### [`plans/video/`](plans/video/) — Presentation Package
+Narrative and deck artifacts for the recorded presentation.
+
+| Document | Description |
+|----------|-------------|
+| [video_presentation_plan.md](plans/video/video_presentation_plan.md) | End-to-end presentation plan, demo flow, and asset map |
+| [slides_content.md](plans/video/slides_content.md) | Slide-by-slide content outline |
+| [video_script.md](plans/video/video_script.md) | Narration script aligned to the final report |
+| [Do-Self-Supervised-Vision-Models-Learn-What-Experts-See.pdf](plans/video/Do-Self-Supervised-Vision-Models-Learn-What-Experts-See.pdf) | Exported presentation PDF |
+| [Do-Self-Supervised-Vision-Models-Learn-What-Experts-See.pptx](plans/video/Do-Self-Supervised-Vision-Models-Learn-What-Experts-See.pptx) | Presentation deck |
 
 ### [`reference/`](reference/) — Operational Reference
 Current command surfaces, APIs, artifacts, and methodology contracts.
@@ -81,3 +94,4 @@ Current implementation notes and follow-up directions for larger feature areas.
 - Stable workflow, API, artifact, or methodology contracts belong in `reference/`.
 - High-level project framing and milestone-oriented documents belong in `core/`.
 - Larger feature notes and scoped follow-up directions belong in `enhancements/`.
+- Presentation and narrated-demo planning belongs in `plans/video/`.
