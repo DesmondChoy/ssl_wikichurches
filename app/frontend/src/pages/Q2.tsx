@@ -104,7 +104,17 @@ export function Q2Page() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Q2 Strategy-Aware Attention Shift</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Q2 Strategy-Aware Attention Shift</h1>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-sm font-bold uppercase tracking-[0.14em] text-slate-600">
+            Question it answers for Q2
+          </div>
+          <p className="mt-2 max-w-5xl text-base font-semibold leading-7 text-slate-900">
+            How does attention change after adaptation to the style-classification task, and does the strategy matter?
+          </p>
+        </div>
+      </div>
 
       <Card>
         <CardContent>

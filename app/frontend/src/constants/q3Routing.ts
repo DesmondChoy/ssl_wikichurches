@@ -3,6 +3,8 @@ import { parseImageDetailMode } from './imageDetailModes';
 import { Q3_DEFAULTS, Q3_PRIMARY_MODELS } from './q3Scope';
 import type { AnalysisMetric, CompareVariantId, ImageDetailMode } from '../types';
 
+export type Q3ReportView = 'head-ranking' | 'head-feature-matrix' | 'frozen-delta';
+
 export interface ImageDetailQ3State {
   model: string;
   variant: CompareVariantId;
@@ -26,6 +28,28 @@ export interface AdvancedQ3WorkspaceState {
   head: number | null;
   featureLabel: number | null;
 }
+
+export interface Q3ReportState {
+  view: Q3ReportView;
+  model: string;
+  variant: CompareVariantId;
+  layer: number;
+  metric: AnalysisMetric;
+  percentile: number;
+  head: number | null;
+  featureLabel: number | null;
+}
+
+const Q3_REPORT_DEFAULTS: Q3ReportState = {
+  view: 'head-ranking',
+  model: 'dinov3',
+  variant: 'frozen',
+  layer: 10,
+  metric: 'iou',
+  percentile: 90,
+  head: null,
+  featureLabel: null,
+};
 
 export function parseImageDetailQ3State(
   searchParams: URLSearchParams,
@@ -113,6 +137,56 @@ export function parseAdvancedQ3WorkspaceState(
   };
 }
 
+export function parseQ3ReportState(
+  searchParams: URLSearchParams,
+  options?: {
+    availableModels?: readonly string[];
+    maxLayer?: number;
+    numHeads?: number;
+  },
+): Q3ReportState {
+  const availableModels = options?.availableModels ?? Q3_PRIMARY_MODELS;
+  const maxLayer = options?.maxLayer ?? Q3_REPORT_DEFAULTS.layer;
+  const numHeads = options?.numHeads ?? 12;
+
+  return {
+    view: parseQ3ReportView(searchParams.get('view')),
+    model: parseWorkspaceModel(searchParams.get('model'), availableModels, Q3_REPORT_DEFAULTS.model),
+    variant: parseQ3Variant(searchParams.get('variant')),
+    layer: clampNumber(parseOptionalNumber(searchParams.get('layer')) ?? Q3_REPORT_DEFAULTS.layer, 0, maxLayer),
+    metric: parseQ3Metric(searchParams.get('metric')),
+    percentile: clampNumber(parseOptionalNumber(searchParams.get('percentile')) ?? Q3_REPORT_DEFAULTS.percentile, 0, 100),
+    head: parseHeadParam(searchParams.get('head'), numHeads),
+    featureLabel: parseOptionalNumber(searchParams.get('feature_label')),
+  };
+}
+
+export function createQ3ReportSearchParams(
+  state: Q3ReportState,
+  existing?: URLSearchParams,
+): URLSearchParams {
+  const next = new URLSearchParams(existing);
+  next.set('view', state.view);
+  next.set('model', state.model);
+  next.set('variant', state.variant);
+  next.set('layer', String(state.layer));
+  next.set('metric', state.metric);
+  next.set('percentile', String(state.percentile));
+
+  setOptionalNumberParam(next, 'head', state.head);
+  setOptionalNumberParam(next, 'feature_label', state.featureLabel);
+
+  return next;
+}
+
+export function buildQ3ReportHref(state?: Partial<Q3ReportState>): string {
+  const params = createQ3ReportSearchParams({
+    ...Q3_REPORT_DEFAULTS,
+    ...state,
+  });
+  return `/q3-report?${params.toString()}`;
+}
+
 export function createAdvancedQ3WorkspaceSearchParams(
   state: AdvancedQ3WorkspaceState,
   existing?: URLSearchParams,
@@ -149,13 +223,21 @@ function parseQ3Model(value: string | null): string {
     : Q3_DEFAULTS.model;
 }
 
-function parseWorkspaceModel(value: string | null, availableModels: readonly string[]): string {
+function parseWorkspaceModel(value: string | null, availableModels: readonly string[]): string;
+function parseWorkspaceModel(
+  value: string | null,
+  availableModels: readonly string[],
+  fallbackModel: string,
+): string;
+
+function parseWorkspaceModel(value: string | null, availableModels: readonly string[], fallbackModel?: string): string {
   if (value && availableModels.includes(value)) {
     return value;
   }
 
-  const defaultModel = availableModels.includes(Q3_DEFAULTS.model) ? Q3_DEFAULTS.model : availableModels[0];
-  return defaultModel ?? Q3_DEFAULTS.model;
+  const preferredModel = fallbackModel ?? Q3_DEFAULTS.model;
+  const defaultModel = availableModels.includes(preferredModel) ? preferredModel : availableModels[0];
+  return defaultModel ?? preferredModel;
 }
 
 function parseWorkspaceSecondaryModel(
@@ -176,6 +258,13 @@ function parseQ3Variant(value: string | null): CompareVariantId {
 
 function parseQ3Metric(value: string | null): AnalysisMetric {
   return isAnalysisMetric(value) ? value : Q3_DEFAULTS.metric;
+}
+
+function parseQ3ReportView(value: string | null): Q3ReportView {
+  if (value === 'head-feature-matrix' || value === 'frozen-delta' || value === 'head-ranking') {
+    return value;
+  }
+  return Q3_REPORT_DEFAULTS.view;
 }
 
 function parseBooleanParam(value: string | null, fallback: boolean): boolean {

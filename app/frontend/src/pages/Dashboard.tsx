@@ -218,18 +218,18 @@ export function DashboardPage() {
             dataTestId: 'dashboard-page-tab-main',
           },
           {
-            value: 'q3',
-            label: 'Q3',
-            id: 'dashboard-page-tab-q3',
-            panelId: 'dashboard-q3-panel',
-            dataTestId: 'dashboard-page-tab-q3',
-          },
-          {
             value: 'q2',
             label: 'Q2',
             id: 'dashboard-page-tab-q2',
             panelId: 'dashboard-q2-panel',
             dataTestId: 'dashboard-page-tab-q2',
+          },
+          {
+            value: 'q3',
+            label: 'Q3',
+            id: 'dashboard-page-tab-q3',
+            panelId: 'dashboard-q3-panel',
+            dataTestId: 'dashboard-page-tab-q3',
           },
         ]}
       />
@@ -242,6 +242,15 @@ export function DashboardPage() {
         className={`space-y-6 ${isMainTab ? '' : 'hidden'}`}
         data-testid="dashboard-main-panel"
       >
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="text-sm font-bold uppercase tracking-[0.14em] text-slate-600">
+            Question it answers for Q1
+          </div>
+          <p className="mt-2 max-w-5xl text-base font-semibold leading-7 text-slate-900">
+            Do frozen SSL and baseline vision models attend to the same architectural regions that human experts mark as diagnostically important?
+          </p>
+        </div>
+
         {metricMetadata.thresholdFree && metricMetadata.infoBanner && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
             {metricMetadata.infoBanner}

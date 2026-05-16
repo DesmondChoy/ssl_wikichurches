@@ -2,6 +2,7 @@
  * Select dropdown component.
  */
 
+import { useId } from 'react';
 import { Tooltip } from './Tooltip';
 
 interface SelectProps {
@@ -23,15 +24,19 @@ export function Select({
   className = '',
   disabled = false,
 }: SelectProps) {
+  const generatedId = useId();
+  const selectId = label ? `select-${generatedId}` : undefined;
+
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
       {label && (
         <div className="flex items-center">
-          <label className="text-sm font-medium text-gray-700">{label}</label>
+          <label htmlFor={selectId} className="text-sm font-medium text-gray-700">{label}</label>
           {tooltip && <Tooltip content={tooltip} />}
         </div>
       )}
       <select
+        id={selectId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}

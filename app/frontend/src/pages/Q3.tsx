@@ -11,6 +11,7 @@ import { ANALYSIS_METRIC_OPTIONS } from '../constants/metricMetadata';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 import {
   createAdvancedQ3WorkspaceSearchParams,
+  buildQ3ReportHref,
   parseAdvancedQ3WorkspaceState,
 } from '../constants/q3Routing';
 import {
@@ -129,6 +130,23 @@ export function Q3Page() {
             Shared controls keep both panes in the same layer, metric, and variant context so H2 differences are easier to inspect.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => navigate(buildQ3ReportHref({
+            view: 'head-ranking',
+            model: workspaceState.primaryModel,
+            variant: workspaceState.variant,
+            layer: workspaceState.layer,
+            metric: workspaceState.metric,
+            percentile: workspaceState.percentile,
+            head: workspaceState.head,
+            featureLabel: workspaceState.featureLabel,
+          }))}
+          className="rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 transition-colors hover:bg-primary-100"
+          data-testid="advanced-q3-open-report-view"
+        >
+          Open report view
+        </button>
       </div>
 
       <Q3StudyScopeCallout
