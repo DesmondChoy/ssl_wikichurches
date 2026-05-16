@@ -62,6 +62,18 @@ Alexander~C. Li et~al.,
 \newblock ``On the surprising effectiveness of attention transfer for vision
   transformers,'' 2024.
 
+\bibitem{Walmer23Teaching}
+Matthew Walmer, Soheil Suri, Kartik Gupta, and Abhinav Shrivastava,
+\newblock ``Teaching matters: Investigating the role of supervision in vision
+  transformers,''
+\newblock in {\em IEEE/CVF Conf. on Computer Vision and Pattern Recognition},
+  2023, pp. 7486--7496.
+
+\bibitem{Park23SSLViT}
+Namuk Park, Wonjae Kim, Byeongho Heo, Taekyung Kim, and Sangdoo Yun,
+\newblock ``What do self-supervised vision transformers learn?,''
+\newblock in {\em Int. Conf. on Learning Representations}, 2023.
+
 \bibitem{Voita19Heads}
 Elena Voita, David Talbot, Fedor Moiseev, Rico Sennrich, and Ivan Titov,
 \newblock ``Analyzing multi-head self-attention: Specialized heads do the heavy

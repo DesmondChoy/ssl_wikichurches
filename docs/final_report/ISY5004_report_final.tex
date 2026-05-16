@@ -39,14 +39,18 @@ The study is organised around three linked questions:
 different architectural features.
 
 For Q1, frozen expert-aligned attention is present but highly model-family
-dependent: DINOv3 is the only model with consistently strong cross-metric
-alignment, leading on IoU@90, Coverage, KL, and EMD, and uniquely clearing all
-calibrated continuous baselines, while other frozen models show more partial or
-metric-specific alignment. For Q2, fine-tuning moves attention unevenly across
-families: CLIP gains the most (IoU $0.0181\!\to\!0.0745$, Cohen's
-$d\!\approx\!1.0$) with gains concentrated on Gothic and Romanesque features;
-MAE's largest single-style gain is on Renaissance, driven by pediment geometry;
-and the DINO family preserves its already-strong frozen alignment. Models with
+dependent: DINOv3 leads the default-method benchmark on IoU@90, Coverage, KL,
+and EMD, and uniquely clears all calibrated continuous baselines across MSE,
+KL, and EMD. Base SigLIP is a competitive overlap result at its best
+mean-attention layer (IoU@90~$=$~0.074 at \texttt{layer8}, ahead of MAE and
+CLIP), but SigLIP2 remains weaker on overlap despite the lowest MSE; the two
+should not be collapsed into one family-level frozen result. For Q2,
+fine-tuning moves attention unevenly across families: CLIP gains the most
+(IoU $0.0181\!\to\!0.0745$, Cohen's $d\!\approx\!1.0$) with gains concentrated
+on Gothic and Romanesque features; MAE's largest single-style gain is on
+Renaissance, driven by pediment geometry; the SigLIP variants improve from
+weaker \texttt{layer11} baselines; and the DINO family preserves its
+already-strong frozen alignment. Models with
 different pretraining objectives converge on the same structurally easy images
 rather than complementary subsets, with DINOv3 frozen IoU predicting per-image
 CLIP $\Delta$ at Pearson $r\!=\!+0.677$. For Q3, per-head specialisation is
@@ -131,6 +135,17 @@ motivate the LoRA middle case: parameter-efficient adaptation can learn less and
 forget less than full fine-tuning. Li et al.~\cite{Li24AttnTransfer} argue that
 attention patterns carry transfer signal; this repo asks the stricter question of
 whether those changed patterns move toward expert architectural evidence.
+Two further papers shape the expectation that different pretraining regimes do
+not respond to adaptation in the same way. Walmer et
+al.~\cite{Walmer23Teaching} compare supervised, image-text contrastive,
+masked-autoencoding, and self-distillation training and show that supervision
+choice produces qualitatively different ViT attention, motivating per-family
+Q2 reporting rather than pooled deltas. Park et al.~\cite{Park23SSLViT}
+compare contrastive learning with masked image modelling and find that the two
+objectives induce different attention patterns --- contrastive features
+capturing longer-range global structure while masked-image-modelling features
+remain more local --- a distinction that informs the Q2 reading that
+CLIP-family and MAE improvements concentrate on different image subsets.
 
 \subsection{Per-Head Specialisation}
 
@@ -339,12 +354,17 @@ mass in the wrong location.
 Under this benchmark, DINOv3 is the cleanest Q1 result (Table~\ref{tab:q1}).
 It leads on IoU@90, Coverage, KL, and EMD, and is the only model that clears
 all four naive baselines on all three continuous metrics. It does not win MSE,
-where the SigLIP family scores lowest --- which is exactly why the benchmark
-cannot collapse to one number. SigLIP achieves MSE~0.0175 but EMD~0.3538,
-worse than the random baseline of~0.3468: smooth local maps can still misplace
-attention mass at a distributional level. CLIP's best frozen IoU occurs at
-layer~0 rather than in a late-layer regime, consistent with its global
-contrastive objective applying no patch-level spatial pressure.
+where the extra displayed precision shows SigLIP2 marginally lower than base
+SigLIP (0.01745 vs.\ 0.01755) --- exactly why the benchmark cannot collapse
+to one number. The SigLIP rows also show that \texttt{siglip} and
+\texttt{siglip2} should not be treated as interchangeable: base SigLIP
+reaches a competitive IoU@90 peak of 0.0739 at \texttt{layer8}, ahead of MAE
+and CLIP, while SigLIP2 remains weaker on sharp overlap despite its slightly
+lower MSE. SigLIP and SigLIP2 also pair good MSE with EMD~$\approx$~0.35,
+worse than the random baseline of 0.3468: smooth local maps can still
+misplace attention mass at a distributional level. CLIP's best frozen IoU
+occurs at layer~0 rather than in a late-layer regime, consistent with its
+global contrastive objective applying no patch-level spatial pressure.
 
 \begin{table}[h]
 \caption{Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow$ higher is better; $\downarrow$ lower is better.}
@@ -354,13 +374,13 @@ contrastive objective applying no patch-level spatial pressure.
 \toprule
 Model & Paradigm & IoU$\uparrow$ & Cov$\uparrow$ & MSE$\downarrow$ & KL$\downarrow$ & EMD$\downarrow$ \\
 \midrule
-DINOv3   & Self-distil.   & \textbf{0.133} & \textbf{0.137} & 0.0270 & \textbf{2.325} & \textbf{0.260} \\
-ResNet-50 & Supervised    & 0.090 & 0.104 & 0.0242 & 2.692 & 0.303 \\
-DINOv2   & Self-distil.   & 0.082 & 0.100 & 0.0209 & 2.684 & 0.298 \\
-MAE      & Masked recon.  & 0.070 & 0.090 & 0.0483 & 2.756 & 0.318 \\
-CLIP     & Lang.-image    & 0.049 & 0.085 & 0.0211 & 2.912 & 0.326 \\
-SigLIP   & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.0175} & 3.071 & 0.354 \\
-SigLIP2  & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.0175} & 3.071 & 0.354 \\
+DINOv3    & Self-distil.   & \textbf{0.133} & \textbf{0.137} & 0.0270 & \textbf{2.325} & \textbf{0.260} \\
+ResNet-50 & Supervised     & 0.090 & 0.104 & 0.0242 & 2.692 & 0.303 \\
+DINOv2    & Self-distil.   & 0.082 & 0.100 & 0.0209 & 2.684 & 0.298 \\
+SigLIP    & Sigmoid CL     & 0.074 & 0.076 & 0.01755 & 3.002 & 0.348 \\
+MAE       & Masked recon.  & 0.070 & 0.090 & 0.0483 & 2.756 & 0.318 \\
+CLIP      & Lang.-image    & 0.049 & 0.085 & 0.0211 & 2.912 & 0.326 \\
+SigLIP2   & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.01745} & 3.071 & 0.354 \\
 \bottomrule
 \end{tabular}
 }
@@ -369,7 +389,7 @@ SigLIP2  & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.0175} & 3.071 & 0.354 \\
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{q1_dinov3_react_dashboard_iou_best_available.png}
-  \caption{React dashboard screenshot (\texttt{/dashboard}, IoU@90, Best available ranking). DINOv3 ranks first at layer~11 with IoU~$=$~0.133 using CLS attention. The layer-progression panel shows DINOv3's late-layer jump relative to other models.}
+  \caption{React dashboard screenshot (\texttt{/dashboard}, IoU@90, Best available ranking). DINOv3 ranks first at layer~11 with IoU~$=$~0.133 using CLS attention. The leaderboard also shows base SigLIP at rank~4 with IoU~$=$~0.074 at \texttt{layer8}, separated from SigLIP2 at rank~7. The layer-progression panel shows DINOv3's late-layer jump relative to other models.}
   \label{fig:dashboard_q1}
 \end{figure}
 
@@ -489,7 +509,19 @@ Belt Course         & 0.031 & 0.015 & $-$0.016 \\
 }
 \end{table}
 
-\textbf{DINO family:} Both DINOv2 and DINOv3 show near-zero $\Delta$ across all
+\textbf{SigLIP variants.} The Q2 analysed layer is \texttt{layer11}, where
+both SigLIP and SigLIP2 start from weaker frozen IoU@90 baselines than the
+DINO family (\texttt{siglip} 0.0364, \texttt{siglip2} 0.0220). This is not
+the Q1 best-layer story --- base SigLIP's stronger peak sits at \texttt{layer8}
+--- so Q2 is sharpening a relatively weak late-layer signal rather than
+improving each model's best frozen layer. Under Full fine-tuning, base SigLIP
+remains higher in absolute IoU@90 (0.0618 vs.\ SigLIP2 0.0519), but SigLIP2
+moves further in standardised-effect terms ($\Delta\!=\!0.0299$, Cohen's
+$d\!=\!0.781$, vs.\ SigLIP's $\Delta\!=\!0.0254$, $d\!=\!0.604$), consistent
+with more late-layer adaptation headroom from a weaker starting point and the
+denser grounding components of SigLIP2.
+
+\textbf{DINO family.} Both DINOv2 and DINOv3 show near-zero $\Delta$ across all
 styles and strategies. $\Delta\!\approx\!0$ is a positive generalisation result:
 expert-aligned spatial structure is already encoded by pretraining, and the
 style-classification gradient is absorbed by the classification head rather than
@@ -783,9 +815,11 @@ strategies.
 For \textbf{Q1}, frozen expert-aligned attention exists but is not evenly
 distributed. DINOv3 provides the strongest evidence, leading the default-method
 benchmark on IoU, Coverage, KL, and EMD and clearing all calibrated baselines.
-The safest interpretation is not that all SSL models attend like experts, but
-that DINOv3's spatial prior is unusually compatible with expert-marked
-architectural evidence in WikiChurches.
+Base SigLIP is a stronger frozen overlap result than SigLIP2 at its best
+mean-attention layer, but both variants still have late-layer adaptation
+headroom. The safest interpretation is not that all SSL models attend like
+experts, but that DINOv3's spatial prior is unusually compatible with
+expert-marked architectural evidence in WikiChurches.
 
 For \textbf{Q2}, fine-tuning's effect is mediated by three interacting factors:
 the pretraining objective's spatial prior (DINO preserves strong frozen
