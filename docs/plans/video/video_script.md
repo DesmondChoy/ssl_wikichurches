@@ -31,7 +31,7 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 3 — What We Studied
 *[~25 seconds]*
 
-> So we built a benchmark around that question. 139 annotated church images with 631 expert bounding boxes, seven vision models across four self-supervised learning paradigms, and five alignment metrics. We organised the study around three linked research questions: Q1 — how well do frozen models align with expert-marked regions? Q2 — does fine-tuning move that alignment, and does the strategy matter? Q3 — do individual attention heads specialise for different architectural feature types?
+> So we built a benchmark around that question. We used 139 annotated church images with 631 expert bounding boxes, compared seven vision models across four self-supervised learning paradigms, and measured alignment using five metrics: IoU, Coverage, MSE, KL divergence, and EMD. We organised the study around three linked research questions: Q1 — which frozen models already look in the right places? Q2 — does fine-tuning change where the models look? And Q3 — inside the transformer models, do some attention heads consistently line up with particular architectural features?
 
 ---
 
@@ -40,11 +40,11 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 
 > Before we go into the methodology and evidence, let me tell you what we found — because it will help you read everything that follows.
 
-> For Q1: frozen expert-aligned attention does exist, but it is model-family dependent. DINOv3 leads the default-method benchmark on IoU, Coverage, KL, and EMD, and it is the only frozen model to clear all four naive baselines across MSE, KL, and EMD. It does not win MSE — SigLIP 2 is marginally lowest there, while base SigLIP is actually a competitive overlap result at its best mean-attention layer. That split is the warning: don't collapse SigLIP and SigLIP 2 into one family result, and don't trust a single metric just because it flatters the model.
+> For Q1: frozen expert-aligned attention does exist, but it is model-family dependent. DINOv3 leads the benchmark on IoU, Coverage, KL, and EMD, and it is the only frozen model to clear all four naive baselines across MSE, KL, and EMD. It does not win MSE — SigLIP 2 is marginally lowest there — while base SigLIP is actually stronger on direct IoU overlap. That split is the warning: a single metric can make the wrong model look best.
 
-> For Q2: fine-tuning moves attention unevenly. CLIP gains the most — IoU goes from 0.018 to 0.074, a Cohen's d of approximately 1.0 — but those gains concentrate only on Gothic and Romanesque. MAE's biggest gain is on Renaissance pediment geometry. DINO stays flat, and that near-zero delta is a feature, not a failure. And across all models, the images that are easy for DINOv3 frozen are the same images where CLIP's fine-tuning succeeds — the cross-model correlation there is r equals plus 0.677.
+> For Q2: fine-tuning moves attention unevenly. CLIP improves the most — IoU rises from 0.018 to 0.074, with Cohen's d around 1.0 — but those gains concentrate mainly on Gothic and Romanesque churches. MAE's largest gain is on Renaissance pediment geometry. DINOv3 stays near zero delta, which is not a failure: it was already good at preserving the relevant spatial layout before fine-tuning. And the images that are easy for frozen DINOv3 are also the images where CLIP improves most after fine-tuning, with r equals plus 0.677.
 
-> For Q3: per-head specialisation is sparse and family-shaped. DINOv3's layer 10 head 8 stays dominant across frozen, LoRA, and full fine-tuning. CLIP reorganises substantially from early to late layers. The strongest alignments concentrate on portals, arches, and rose windows — not fine ornamentation.
+> For Q3: per-head specialisation is sparse and family-shaped. By sparse, we mean the expert-aligned signal is not spread evenly across all attention heads; a small number of heads carry much more of it. By family-shaped, we mean the pattern differs by model family: DINOv3 keeps the same strongest head before and after fine-tuning, while CLIP shifts its strongest signal from earlier layers to later layers. Across models, the clearest matches are on large structures like portals, arches, and rose windows, not tiny decorative details.
 
 ---
 
@@ -70,21 +70,21 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 7 — Pipeline Overview
 *[~35 seconds]*
 
-> Here's the end-to-end pipeline. We start with WikiChurches and our 139 annotated evaluation images. We pass those through seven vision models. From each model we extract attention heatmaps — using CLS attention, rollout, mean attention, or Grad-CAM depending on the model architecture. We then compute five alignment metrics comparing those heatmaps against the expert bounding boxes. In the Q2 branch, we fine-tune each model under three strategies and remeasure alignment. In Q3, we go deeper into the per-head structure of the four native CLS-token models.
+> Here's the end-to-end pipeline. We start with WikiChurches and our 139 annotated evaluation images. We pass those through seven vision models. From each model we extract attention heatmaps — using CLS attention, attention rollout, mean attention, or Grad-CAM depending on the model architecture. We then compute five alignment metrics against the expert boxes. For Q2, we fine-tune the models and remeasure the same metrics. For Q3, we inspect individual attention heads, but only for the transformer models where that head-by-head comparison is valid.
 
 ---
 
 ### Slide 8 — 7 Models Across Paradigms
 *[~30 seconds]*
 
-> We evaluated seven models. Six are ViT-Base transformers — DINOv2, DINOv3, MAE, CLIP, SigLIP, and SigLIP 2 — plus ResNet-50 as a supervised CNN baseline. The key architectural distinctions matter here: DINOv2 has four register tokens; DINOv3 adds Gram anchoring; MAE does pixel reconstruction with 75% masking; CLIP uses a global language-image contrastive loss; SigLIP and SigLIP 2 use a sigmoid variant with no CLS token, so they get a mean-attention proxy rather than native per-head attention. ResNet-50 uses Grad-CAM.
+> We evaluated seven models. Six are ViT-Base transformers — DINOv2, DINOv3, MAE, CLIP, SigLIP, and SigLIP 2 — plus ResNet-50 as a supervised CNN baseline. The paradigms matter here: DINO models learn through self-distillation, MAE learns by reconstructing masked image patches, and CLIP and SigLIP learn from image-text contrastive training. That training history matters because a model trained to preserve dense spatial structure may produce very different attention maps from a model trained to match a whole image with a caption.
 
 ---
 
 ### Slide 9 — Metrics Used to Measure Alignment
 *[~35 seconds]*
 
-> We use five complementary metrics across two ground truth types. For binary ground truth — the hard bounding box mask — we compute IoU, which is the spatial overlap of the model's top-attended pixels versus the expert boxes, and Coverage, which is the fraction of total attention energy inside the boxes without any threshold. For soft Gaussian ground truth — a smooth distribution derived from the boxes — we compute MSE, KL divergence, and EMD, or Earth Mover's Distance. That last one is especially useful because it captures how far the attention mass needs to travel to match the expert target, distinguishing near-misses from far-misses. All continuous metrics are calibrated against four naive baselines: random, center Gaussian, saliency prior, and Sobel edge. Raw scores without these reference points are essentially uninterpretable.
+> We use five complementary metrics because "looking in the right place" has more than one meaning. For binary ground truth, IoU asks whether the model's top-attended pixels overlap with the expert boxes, and Coverage asks how much total attention energy falls inside those boxes. For soft Gaussian ground truth, MSE and KL divergence compare the overall heatmap distribution to a smooth expert target. EMD, or Earth Mover's Distance, measures how far the attention mass would need to move to match that target. We also calibrate these continuous metrics against four naive baselines — random, center Gaussian, saliency prior, and Sobel edge — so raw scores are not interpreted in isolation.
 
 ---
 
@@ -103,42 +103,42 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 11 — Q1: Frozen Model Benchmark (Overview)
 *[~30 seconds]*
 
-> For Q1, the headline story has three parts: DINOv3 is the cleanest frozen alignment result; the leaderboard does not reduce to a tidy paradigm ranking, because ResNet-50 and base SigLIP both sit ahead of MAE and CLIP on sharp overlap; and the SigLIP versus SigLIP 2 split is the best reason to keep the benchmark multi-metric. Let me unpack each of these.
+> For Q1, the headline story has three parts. First, DINOv3 is the cleanest frozen alignment result. Second, the ranking is not a tidy paradigm ranking, because ResNet-50 and base SigLIP both sit ahead of MAE and CLIP on strict IoU overlap. Third, the SigLIP versus SigLIP 2 split is the best reason to keep the benchmark multi-metric. Let me unpack each of these.
 
 ---
 
 ### Slide 12 — Why a Multi-Metric Benchmark?
 *[~35 seconds]*
 
-> The reason we need five metrics is that attention alignment is not one thing. IoU and Coverage ask whether the model's attention overlaps with the right region. MSE and KL ask whether the overall attention distribution matches a smooth expert-derived target. EMD asks how far the attention mass needs to travel to reach that target — it distinguishes a model that's in the right general area from one that's completely off. And here's the concrete payoff: SigLIP 2 has the lowest MSE, and base SigLIP is almost tied with it, which sounds excellent. But both variants fail the EMD baseline check, and base SigLIP's stronger overlap result does not transfer to SigLIP 2. If we used MSE alone, we would tell the wrong story. All five metrics are necessary.
+> The reason we need five metrics is that attention alignment is not one thing. A heatmap can overlap the expert box, spread attention energy over the right facade area, or match the smooth Gaussian target while still putting mass too far away. That is exactly what the SigLIP results show. SigLIP 2 has the best MSE, and base SigLIP is almost tied with it, so the MSE story looks excellent. But both variants fail the distance-based EMD baseline check, meaning the attention mass is still too far from the expert regions. If we used MSE alone, we would tell the wrong story.
 
 ---
 
 ### Slide 13 — Q1: Frozen Leaderboard
 *[~30 seconds]*
 
-> Here's the leaderboard. DINOv3 leads on IoU, Coverage, KL, and EMD. ResNet-50 — the supervised CNN baseline — comes second by IoU, and DINOv2 comes third. Then comes the important update: base SigLIP is fourth on IoU at layer 8, ahead of MAE and CLIP, while SigLIP 2 is seventh despite having the lowest MSE. So the correct reading is not "the contrastive family is bad." The correct reading is sharper: DINOv3 is strongest overall, and base SigLIP and SigLIP 2 behave differently enough that we have to report them separately.
+> Here's the leaderboard using IoU@90, our strict top-10-percent overlap score. DINOv3 is first, ResNet-50 is second, and DINOv2 is third. Then comes the important detail: base SigLIP is fourth, ahead of MAE and CLIP, while SigLIP 2 is seventh even though it has the lowest MSE. So the right conclusion is not "all contrastive models are weak." The right conclusion is sharper: DINOv3 is strongest overall, and base SigLIP and SigLIP 2 behave differently enough that we should not merge them into one family result.
 
 ---
 
 ### Slide 14 — Q1: Why Raw Scores Aren't Enough
 *[~30 seconds]*
 
-> This slide makes the calibration argument concrete. The four naive baselines give us reference points: random attention, a center Gaussian, a saliency prior, and a Sobel edge map. DINOv3 is the only frozen model that beats all four baselines on all three continuous metrics — MSE, KL, and EMD. Beating random only is weak; beating Sobel edge, which has some structural signal, is the strongest bar. The SigLIP rows are the cautionary example: SigLIP 2's MSE of 0.01745 and base SigLIP's 0.01755 look impressive, but their EMD scores fail against random. Local smoothness does not equal correct spatial placement of attention mass.
+> This slide shows why raw scores need reference points. We compare each model against random attention, a center Gaussian, a saliency prior, and a Sobel edge map. DINOv3 is the only frozen model that beats all four baselines on all three continuous metrics — MSE, KL, and EMD. The SigLIP rows are the cautionary example: SigLIP 2's MSE of 0.01745 and base SigLIP's 0.01755 look impressive, but their EMD scores fail against random. In plain language, a heatmap can look smooth and still be in the wrong place.
 
 ---
 
 ### Slide 15 — Why DINOv3 Leads — Gram Anchoring Hypothesis
 *[~35 seconds]*
 
-> Why does DINOv3 perform so differently? Our hypothesis is Gram anchoring. DINOv3 extends DINOv2's self-distillation recipe with a Gram-matrix regulariser that explicitly penalises drift in patch-level feature statistics during long SSL training. This is designed to preserve dense spatial structure — exactly the property our alignment metrics reward. Two checks support this: statistically, paired gaps to the next-best model hold at Holm-adjusted p less than 1.31 times ten to the minus seven. Spatially, DINOv3 aligns best with large, coherent architectural parts — Ornate Portal at 0.214, Tracery Rose Window at 0.164 — and worst on small ornamentation like crockets and fleurons. That pattern is exactly what you'd predict from a model with a better dense spatial prior. I want to be clear: this remains a hypothesis — we don't ablate model scale, data scale, and Gram anchoring separately — but the evidence is consistent.
+> Why does DINOv3 perform so differently? Our hypothesis is Gram anchoring. In simple terms, DINOv3's training includes a mechanism that helps preserve patch-level spatial structure during long self-supervised training. That is exactly the kind of property our task rewards, because expert boxes mark where architectural parts are in the image. Two checks support this. Statistically, DINOv3 stays clearly ahead of the next-best model after Holm correction. Visually, it works best on large, coherent parts like ornate portals and rose windows, and worst on tiny decorations like crockets and fleurons. This is not a proof that Gram anchoring alone caused the result, but it is a plausible explanation for the pattern.
 
 ---
 
 ### Slide 16 — Q1: Dashboard View
 *[~15 seconds]*
 
-> And here's what DINOv3's performance looks like in the app's dashboard. IoU@90 peaks at 0.133 at layer 11 — you can see that distinctive late-layer jump where alignment crystallises in the final transformer blocks. No other frozen model shows this concentration.
+> And here's what DINOv3's performance looks like in the app's dashboard. IoU@90 peaks at 0.133 at layer 11. The important visual pattern is the late-layer jump: the strongest alignment appears in the final transformer blocks, where the model has built a more structured view of the image.
 
 ---
 
@@ -150,56 +150,56 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 17 — Q1: Why DINOv3 Leads (additional)
 *[~20 seconds]*
 
-> One more anchor before we move to Q2. The Gram anchoring claim here is not a magic explanation; it is a project-level hypothesis supported by the pattern we actually measured. DINOv3 stays separated from the next-best model in paired image-level checks, and it wins most clearly on large, coherent structures like ornate portals and rose windows. That is exactly where a better dense spatial prior should help.
+> One more anchor before we move to Q2. The Gram anchoring claim here is not a magic explanation; it is a project-level hypothesis supported by the pattern we actually measured. DINOv3 stays ahead in paired image-level checks, and it wins most clearly on large, coherent structures like ornate portals and rose windows. That is exactly where a model with a stronger dense spatial prior should help.
 
 ---
 
 ### Slide 18 — Q2: Experiment Design
 *[~35 seconds]*
 
-> For Q2, we used three fine-tuning strategies: Linear Probe, LoRA, and Full fine-tuning. Linear Probe keeps the backbone frozen and only trains a classification head — it is our control, and it produces exactly zero delta in alignment across all models and metrics. That's an important sanity check: if alignment moved under Linear Probe, we'd have a reporting artefact. LoRA adapts roughly 300K parameters through low-rank attention projections. Full fine-tuning updates all 86 to 93 million backbone parameters. All three are trained on the same 4,588-image style classification pool, with the 139 annotated images held out throughout. We measure delta as fine-tuned minus frozen, and test significance with paired Wilcoxon tests, Holm correction, and bootstrap confidence intervals.
+> For Q2, we used three fine-tuning strategies: Linear Probe, LoRA, and Full fine-tuning. Linear Probe trains only the final classifier, so the visual backbone stays frozen; it is our zero-delta control. LoRA makes a small targeted update through low-rank attention adapters. Full fine-tuning updates the whole visual backbone. All three use the same 4,588-image style classification pool, while the 139 annotated images stay held out. We measure delta as fine-tuned minus frozen, and test significance with paired Wilcoxon tests, Holm correction, and bootstrap confidence intervals.
 
 ---
 
 ### Slide 19 — Q2: Overview Heatmap
 *[~35 seconds]*
 
-> Here's the overall picture from the multi-metric improvement heatmap. Blue cells are improvements, red are degradations, and asterisks mark statistical significance. The strongest positive clusters appear in CLIP, MAE, and the SigLIP variants. The DINO family is near-zero by comparison, and Linear Probe is all zero by construction. The within-cluster language model correlations are r approximately 0.43 to 0.58. MAE is anti-correlated with the language cluster at r approximately negative 0.22 to negative 0.31 — it improves on a different subset of images, which matters for ensembling. One caveat: this is a Q2 layer-11 adaptation story, not a claim that base SigLIP and SigLIP 2 are equivalent in the frozen Q1 benchmark.
+> Here's the overall picture from the multi-metric improvement heatmap. Blue cells mean the fine-tuned model moved closer to the expert boxes; red cells mean it moved away; asterisks mark statistically significant shifts. The strongest improvements appear in CLIP, MAE, and the SigLIP variants. The DINO models change very little, and Linear Probe is zero because the visual backbone never changed. The useful comparison is where the improvements happen: CLIP and the SigLIP variants have within-cluster correlations around r = 0.43 to 0.58, while MAE is anti-correlated with that cluster. In other words, MAE improves on a different subset of images, which matters if we want complementary models.
 
 ---
 
 ### Slide 20 — Q2: The CLIP Story
 *[~40 seconds]*
 
-> CLIP shows the largest gain in the study. Full fine-tuning takes IoU from 0.018 to 0.074, a Cohen's d of approximately 1.0. LoRA also improves, though less so. But here's the key insight: the gain is not uniform across styles. Gothic images gain plus 0.079, Romanesque plus 0.066. Renaissance and Baroque gain only about 0.013 to 0.014. Why? CLIP was pretrained on 400 million web image-text pairs with a global contrastive loss — there was no patch-level spatial pressure at all. Fine-tuning is the first time CLIP receives a spatial signal. And when it does, the gains concentrate on Gothic and Romanesque because those styles' diagnostic features — pointed arch portals, round arch portals, tracery, bull's-eye windows — are densely described in English-language text about churches. CLIP's attention follows its linguistic grounding.
+> CLIP shows the largest gain in the study. Full fine-tuning raises IoU from 0.018 to 0.074, with Cohen's d around 1.0. LoRA also improves CLIP, though less strongly. But the key point is that the gain is not uniform across styles: Gothic images gain about +0.079, Romanesque +0.066, while Renaissance and Baroque are close to zero. A plausible reason is CLIP's pretraining: it learns from image-text pairs, so it may already carry useful language-linked concepts for features like pointed arch portals, round arch portals, tracery, and bull's-eye windows. Fine-tuning then redirects that weak frozen attention toward those named architectural structures.
 
 ---
 
 ### Slide 21 — Q2: The MAE Story
 *[~35 seconds]*
 
-> MAE tells a completely different story. Its largest single-style gain is on Renaissance at plus 0.108 — more than double any of CLIP's per-style gains. And if you look at which features drive that, it's pediment geometry: triangular pediment plus 0.080, cranked cornice plus 0.062, broken pediment plus 0.055. Meanwhile, the two most common Renaissance features — Pilaster and Belt Course — both go negative. The style-classification gradient is routing attention toward the most geometrically discriminative forms and away from the ones that appear across multiple styles. This makes sense for MAE: 75% pixel masking forces precise local geometry encoding, so when fine-tuning arrives, it can redirect that geometric precision toward the most diagnostic shapes.
+> MAE tells a different story. Its largest style-specific gain is on Renaissance, at about +0.108 IoU, and the features driving that gain are pediment shapes: triangular pediment, cranked cornice, and broken pediment. At the same time, common features like pilasters and belt courses do not improve. So MAE is not simply learning "more Renaissance." It is shifting attention toward geometric shapes that are more distinctive for the style. That fits MAE's pretraining, where the model learns by reconstructing missing image patches and therefore has a strong bias toward local geometry.
 
 ---
 
 ### Slide 22 — Q2: The DINO Story
 *[~25 seconds]*
 
-> DINO is the near-zero case across styles and strategies. The report's reading is simple: DINOv3 already has the strongest frozen spatial alignment, so fine-tuning has much less useful work to do. That near-zero delta is not a failure — it is evidence that the useful spatial prior is already there. It is also a warning that more adaptation is not automatically better, because an already strong representation can be disturbed rather than improved.
+> DINO is the near-zero delta case across styles and strategies. The reading is simple: DINOv3 already has the strongest frozen spatial alignment, so fine-tuning has much less useful work to do. The lack of movement is not a failure. It suggests that the useful spatial prior was already there before fine-tuning. It is also a warning that more adaptation is not automatically better, because an already strong representation can be disturbed rather than improved.
 
 ---
 
 ### Slide 23 — Q2: The Surprise — Models Converge on Same Images
 *[~35 seconds]*
 
-> Now here's the finding that came as a pleasant surprise. DINOv3's frozen IoU predicts CLIP's per-image delta IoU at Pearson r equals plus 0.677. The images where DINOv3 already attends correctly are the same images where CLIP's fine-tuning succeeds. The structural barrier is often the image, not just the model family. In practice, that means a cluster of language-image models — CLIP, SigLIP, and SigLIP 2 — tends to improve on overlapping image subsets. MAE is the anti-correlated case, which makes it the more interesting complementary partner if you want broader coverage.
+> Now here's the finding that came as a pleasant surprise. DINOv3's frozen IoU predicts CLIP's per-image delta IoU at Pearson r equals +0.677. The images where frozen DINOv3 already looks in the right place are also the images where CLIP improves most after fine-tuning. This tells us that some images are structurally easy — large portals, clear arches, coherent facades — and several model families succeed on those same images. MAE is the interesting exception because it improves on a more different subset, especially Renaissance geometry.
 
 ---
 
 ### Slide 24 — Q2: Statistical Confidence
 *[~20 seconds]*
 
-> Finally, the forest plot confirms that these gains are not anecdotal. This shows the mean delta with 95% bootstrap confidence intervals across the reported metric views for LoRA and Full fine-tuning. The asterisks show significance after Holm correction. Several CLIP, MAE, and SigLIP-family gains remain statistically supported over the paired 139-image evaluation set.
+> Finally, the forest plot checks that these gains are not just a few lucky examples. Each point shows the mean delta with a 95% bootstrap confidence interval. The asterisks mark results that remain statistically significant after Holm correction. Several CLIP, MAE, and SigLIP-family gains remain supported over the paired 139-image evaluation set.
 
 ---
 
@@ -211,35 +211,35 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 25 — Q3: Scope and Approach
 *[~15 seconds]*
 
-> For Q3, we scope to the four native CLS-token ViTs: DINOv2, DINOv3, MAE, and CLIP. SigLIP and ResNet-50 are excluded because their per-head proxies aren't comparable. We're looking at descriptive specialisation — not causal attribution. IoU@90 is the primary head-ranking lens; Coverage and EMD act as robustness checks rather than a forced composite score. Three views make that inspectable: head ranking, a head-feature matrix, and frozen-to-adapted deltas.
+> For Q3, we look inside the transformer models. Each transformer layer has multiple attention heads; you can think of a head as one small component that decides how image patches relate to each other. We only analyze DINOv2, DINOv3, MAE, and CLIP here, because they expose comparable CLS-token attention heads. The question is intentionally modest: which heads line up most strongly with expert boxes? This is descriptive specialisation, not causal attribution. We use IoU@90 as the main ranking, then check the pattern with Coverage and EMD.
 
 ---
 
 ### Slide 26 — Q3 View 1: Head Ranking
 *[~20 seconds]*
 
-> Expert-aligned attention concentrates in a small number of heads. DINOv3's layer 10 head 8 stays top across frozen, LoRA, and full, and appears in the top three on more than 110 of 139 images in every condition. CLIP is the clearest reorganisation: frozen best heads sit in early layers, layer 4 head 5 at 0.067, while layer 11 is weak frozen at 0.034 max but becomes the strongest adapted layer at 0.084 under LoRA and 0.105 under Full. Quantitatively, the top-5 pairs hold about 7 to 9 percent of total mean IoU across all 144 layer-head pairs — roughly 2 times what you'd expect under uniform spread.
+> The first result is sparse specialisation: not all heads matter equally. Out of 144 possible layer-and-head pairs, a small number carry much more of the expert-aligned signal. In DINOv3, the same head — layer 10, head 8 — remains the strongest before and after fine-tuning, and it is among the top three heads on more than 110 of the 139 images. CLIP behaves differently. Before fine-tuning, its strongest heads are earlier in the network. After fine-tuning, the strongest signal shifts to a later layer. So DINOv3 mostly preserves its internal attention pattern, while CLIP reorganizes.
 
 ---
 
 ### Slide 27 — Q3 View 2a: Head-Feature Matrix
 *[~10 seconds]*
 
-> The head-feature matrix links the ranking to specific architectural evidence. DINOv3's layer 10 head 8 scores 0.215 on Columned Portal, 0.204 on Round Arch Portal, and 0.181 on Ornate Portal. The dominant head is strongest on portal-scale structure.
+> The head-feature matrix connects those head rankings to actual architectural labels. For DINOv3's strongest head, the best-matching features are all portal-scale structures: columned portals, round arch portals, and ornate portals. So the head is not just strong in the abstract; it lines up with large architectural parts that experts actually marked.
 
 ---
 
 ### Slide 28 — Q3 View 2b: Top vs. Bottom Features Across Models
 *[~15 seconds]*
 
-> The pattern holds across all four models. Strongest features are consistently portal-scale or large facade structures. Weakest features — blind tracery, crocket, tabernacle, fleuron — are thin, small, repeated, or visually entangled with masonry. Part of that weakness is also metric geometry: IoU at a fixed 10% threshold mechanically caps the achievable score for small annotation boxes regardless of where attention falls. The safe claim is that dominant heads expose spatial patterns compatible with structural parts — not exact ornament detectors.
+> The same pattern appears across the four Q3 models. The strongest matches are usually large facade structures: portals, arches, belt courses, and rose-window-scale features. The weakest matches are fine decorations such as blind tracery, crockets, tabernacles, and fleurons. Part of that weakness is real model difficulty, but part of it is also metric geometry: under IoU@90, tiny boxes are harder to reward because the predicted attention region has a fixed top-10-percent size. So the safe claim is not that these heads are exact ornament detectors. The safer claim is that the strongest heads line up better with large structural parts.
 
 ---
 
 ### Slide 29 — Q3 View 3: Frozen-to-Adapted Delta
 *[~15 seconds]*
 
-> The frozen-to-adapted delta shows what happens to the dominant head across variants. DINOv3 is stable — layer 10 head 8 stays top across all three. MAE is intermediate — LoRA shifts the dominant head, Full brings it back. CLIP is the clearest reorganisation: within layer 11, LoRA promotes H11 from rank 6 to rank 1 without erasing the frozen pattern; Full fine-tuning is a stronger rewrite, H3 moves from rank 8 to rank 1. This is the head-level explanation for the Q2 CLIP story: adaptation doesn't just raise scores in layer 11, it reorganises which heads carry the expert-aligned signal.
+> The frozen-to-adapted delta view shows what fine-tuning does to the strongest head. DINOv3 is stable: the same head remains strongest. MAE is partly reshaped: LoRA shifts the strongest head, while full fine-tuning brings it back. CLIP changes the most. In layer 11, LoRA promotes a different head to rank 1, and full fine-tuning promotes another. This gives a more concrete explanation for Q2: CLIP improves because fine-tuning changes which internal components carry the expert-aligned signal.
 
 ---
 
@@ -258,14 +258,14 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ### Slide 31 — What We Found
 *[~35 seconds]*
 
-> Three questions, three answers. For Q1: DINOv3 provides the strongest frozen alignment evidence, leading four of five metrics and uniquely clearing the calibrated continuous baselines. Base SigLIP is a stronger frozen overlap result than SigLIP 2, but both still have late-layer adaptation headroom. For Q2: fine-tuning's effect is mediated by three interacting factors — the pretraining objective's spatial prior, dataset linguistic coverage, and geometric discriminability. No single strategy wins everywhere. For Q3: per-head specialisation is sparse, descriptive, and family-shaped. DINO preserves dominant heads, MAE is partly reshaped, and CLIP reorganises from early frozen to late adapted heads. Strongest alignment concentrates on structural parts, not fine ornamentation.
+> Three questions, three answers. For Q1: DINOv3 gives the strongest evidence that a model can already look near expert-marked regions before fine-tuning, leading on IoU, Coverage, KL, and EMD. Base SigLIP and SigLIP 2 also show why the benchmark must stay multi-metric, because one looks better on overlap and the other looks better on MSE. For Q2: fine-tuning helps most when the model does not already preserve the relevant spatial layout, and the gains depend on which architectural features the model can learn from the style labels. For Q3: per-head specialisation is sparse: the expert-aligned signal is concentrated in a few internal attention heads, not spread evenly everywhere. DINO mostly preserves those heads, MAE is partly reshaped, and CLIP reorganizes after fine-tuning. Across all three questions, the clearest alignments are on large structural parts, not fine ornamentation.
 
 ---
 
 ### Slide 32 — Practical Implication
 *[~20 seconds]*
 
-> The practical upshot: model selection for domain adaptation should not be guided by accuracy alone. If your task's diagnostic evidence is spatially coherent, DINOv3 frozen may already be sufficient. If it's linguistically described in web text, CLIP with full fine-tuning gives the largest gain. If it's geometrically compact and style-exclusive, MAE covers a complementary image subset. And if you want coverage on hard images, MAE plus a language-cluster model — not the language cluster alone.
+> The practical upshot is that model selection for domain adaptation should not be guided by accuracy alone. If the diagnostic evidence is spatially coherent, DINOv3 may already be a strong frozen choice. If the evidence is commonly described in text, CLIP can gain a lot from full fine-tuning. If the evidence is compact geometry, MAE can cover cases that the text-trained models miss. So if we want broader coverage on hard images, the better pairing is MAE plus a text-trained model, not several text-trained models that tend to improve on the same examples.
 
 ---
 
@@ -314,10 +314,10 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ## Delivery Notes
 
 - **Slide 4** (headline findings): This is the hardest slide to pace. The three Q findings together run about 55 seconds — practice this one until it flows naturally.
-- **Number precision**: The key numbers to say correctly on air: CLIP IoU 0.018 → 0.074, Cohen's d ≈ 1.0, r = +0.677, p < 1.31 × 10⁻⁷, base SigLIP IoU 0.0739, SigLIP 2 MSE 0.01745, layer 10 head 8, 139 images, 631 boxes.
-- **The SigLIP/SigLIP 2 warning** (Slides 12–14): Make sure the audience hears the updated version: base SigLIP is competitive on overlap, SigLIP 2 is best on MSE, and both fail the EMD baseline check. That is the clearest demonstration that the methodology is necessary.
+- **Number precision**: The key numbers to say correctly on air: CLIP IoU 0.018 → 0.074, Cohen's d ≈ 1.0, r = +0.677, base SigLIP IoU 0.0739, SigLIP 2 MSE 0.01745, layer 10 head 8, 139 images, 631 boxes.
+- **The SigLIP/SigLIP 2 warning** (Slides 12–14): Say the warning plainly: base SigLIP is stronger on direct IoU overlap, SigLIP 2 is stronger on MSE, and both fail the distance-based EMD baseline check. That is the clearest demonstration that the methodology is necessary.
 - **Caveats to flag aloud** (don't skip these):
-  - Slide 15: Gram anchoring is a hypothesis, not an ablated causal result
-  - Slide 28: IoU@90's fixed-mask geometry caps achievable scores for thin annotations
-  - Slide 29: Q3 is descriptive specialisation, not causal attribution
+  - Slide 15: Gram anchoring is a hypothesis, not an isolated causal proof
+  - Slide 28: IoU@90's fixed top-10-percent geometry makes tiny annotation boxes harder to reward
+  - Slide 29: Q3 describes where heads align; it does not prove that one head caused the prediction
 - **Pace check points**: You should be approximately at Slide 10 at 4:00, Slide 18 at 6:30, Slide 25 at 10:00, Slide 33 at 12:00.
