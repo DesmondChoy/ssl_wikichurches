@@ -88,7 +88,7 @@ Two further papers shape the Q2 expectation that different pretraining regimes w
 
 ### 5.3 Per-Head Specialization
 
-Q3 remains descriptive. [Voita et al.](https://arxiv.org/abs/1905.09418) are the useful precedent for the idea that a small subset of attention heads can carry interpretable, task-relevant behavior. [Li et al.'s TVCG visual analytics paper](https://doi.org/10.1109/TVCG.2023.3261935) is the vision-specific counterpart because it analyzes head importance, head attention strength, and head attention patterns in ViTs. This report uses those papers to justify a narrower question: whether individual heads in DINOv2, DINOv3, MAE, and CLIP align more strongly with particular expert-marked architectural features. It does not claim that a high-ranking head causally explains the model's final prediction.
+Q3 remains descriptive. [Voita et al.](https://arxiv.org/abs/1905.09418) are the useful precedent for the idea that a small subset of attention heads can carry interpretable, task-relevant behavior. [Li et al.'s TVCG visual analytics paper](https://arxiv.org/abs/2303.13731) is the vision-specific counterpart because it analyzes head importance, head attention strength, and head attention patterns in ViTs. This report uses those papers to justify a narrower question: whether individual heads in DINOv2, DINOv3, MAE, and CLIP align more strongly with particular expert-marked architectural features. It does not claim that a high-ranking head causally explains the model's final prediction.
 
 ## 6. Dataset and Problem Setup
 
@@ -237,7 +237,7 @@ The DINOv3 technical report identifies dense-feature degradation as a failure mo
 
 The dashboard view below shows the same headline pattern in the app's best-available `IoU@90` ranking mode.
 
-![Local React dashboard screenshot showing DINOv3 ranked first on the IoU best-available leaderboard](assets/q1_dinov3_react_dashboard_iou_best_available.png)
+![Local React dashboard screenshot showing DINOv3 ranked first on the IoU best-available leaderboard](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q1_dinov3_react_dashboard_iou_best_available.png)
 
 *Figure. Local React app screenshot from `/dashboard` Overview for the `IoU@90` leaderboard. With `Metric = IoU`, `Threshold = Top 10%`, and `Ranking = Best available`, DINOv3 ranks first with IoU = 0.133 at layer11 using CLS attention. The leaderboard also shows base SigLIP at rank 4 with IoU = 0.074 at layer8, separated from SigLIP2 at rank 7. The layer-progression panel shows DINOv3's late-layer jump relative to the other models, while the leaderboard ranks each model by its strongest available attention method.*
 
@@ -261,7 +261,7 @@ The Q2 results support a clear storyline: Linear Probe acts as a near-zero contr
 
 The multi-metric improvement heatmap compresses the full strategy comparison into one view and makes the zero-shift Linear Probe control immediately visible.
 
-![Q2 multi-metric improvement heatmap](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/figures/02_all_metrics_improvement_heatmap.png)
+![Q2 multi-metric improvement heatmap](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/02_all_metrics_improvement_heatmap.png)
 
 *Figure. Sign-normalized Q2 metric deltas for each model and strategy. Blue denotes improvement, red denotes degradation, and asterisks denote significance. The strongest positive clusters appear in CLIP, MAE, and the SigLIP variants, while Linear Probe remains at zero by construction.*
 
@@ -275,19 +275,19 @@ The preserve/enhance/destroy framing is useful but must be reported carefully. A
 
 The preserve/enhance/destroy figure simplifies that result into a scannable classification layer that exposes both the dominant improvement pattern and the remaining regression risk.
 
-![Q2 preserve-enhance-destroy summary](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/figures/07_preserve_enhance_destroy.png)
+![Q2 preserve-enhance-destroy summary](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/07_preserve_enhance_destroy.png)
 
 *Figure. Each cell classifies a model-strategy-metric-view outcome as Enhance, Preserve, or Destroy using the run-matrix logic. The six displayed views are `IoU@90`, `IoU@50`, Coverage, MSE, KL, and EMD. Enhancement is the dominant outcome, but the remaining destroy cells show that adaptation can still move attention in the wrong direction.*
 
 The forest-plot visualization adds the statistical layer that the heatmap and categorical summary cannot show on their own, making it easier to distinguish robust movement from small, noisy shifts.
 
-![Q2 forest plot with bootstrap confidence intervals](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/figures/08_forest_plot_ci.png)
+![Q2 forest plot with bootstrap confidence intervals](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/08_forest_plot_ci.png)
 
 *Figure. Mean Q2 deltas with 95% bootstrap confidence intervals for LoRA and Full fine-tuning across six metric views (`IoU@90`, `IoU@50`, Coverage, MSE, KL, and EMD), sign-normalized so rightward always means improvement. Several CLIP, MAE, and SigLIP-family gains are statistically robust rather than anecdotal.*
 
 A qualitative shift-map example complements the aggregate summaries by showing what a localized redistribution of attention looks like on the architectural facade itself.
 
-![Q2 qualitative attention-shift example](assets/q2_shift_map_issue_focused.png)
+![Q2 qualitative attention-shift example](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q2_shift_map_issue_focused.png)
 
 *Figure. Example shift map for a LoRA-adapted model relative to the frozen baseline. Blue indicates regions that gained attention after adaptation and red indicates regions that lost attention. This is a supporting figure rather than a headline claim, but it gives the reader a concrete visual intuition for the type of change quantified by the aggregate metrics.*
 
@@ -306,7 +306,7 @@ The aggregate deltas above mask a sharp asymmetry in where each model's improvem
 
 *Δ IoU (full fine-tuning, IoU p90, layer 11) by architectural style.*
 
-![Per-style Δ IoU breakdown](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.png)
+![Per-style Δ IoU breakdown](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/style_breakdown.png)
 
 *Figure. Per-style Δ IoU for each fine-tuned model relative to its frozen baseline. CLIP's improvement is entirely carried by Romanesque and Gothic; MAE's largest single-style gain is on Renaissance; DINOv2 and DINOv3 are flat across all four styles.*
 
@@ -326,7 +326,7 @@ MAE's Renaissance Δ of +0.108 is the largest single-style shift observed in the
 
 *Per-feature Δ IoU for MAE under full fine-tuning, on Renaissance images.*
 
-![MAE per-feature Δ IoU on Renaissance images](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/feature_delta_iou_mae_full_renaissance.png)
+![MAE per-feature Δ IoU on Renaissance images](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/feature_delta_iou_mae_full_renaissance.png)
 
 *Figure. Per-feature Δ IoU for MAE, full fine-tuning, on the 22 Renaissance images. Pediment-class features dominate the positive tail; Pilaster and Belt Course show negative Δ.*
 
@@ -338,7 +338,7 @@ A caveat applies to the Baroque column. The annotated Baroque subset has only 1.
 
 The per-style table invites a second question: are different models improving on the same images through different mechanisms, or are they finding complementary subsets that ensemble well? A per-image correlation analysis points clearly to the first answer.
 
-![DINOv3 frozen IoU vs. CLIP Δ IoU scatter](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/results/experiments/fine_tuning_primary_20260327/model_correlation_scatter.png)
+![DINOv3 frozen IoU vs. CLIP Δ IoU scatter](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/model_correlation_scatter.png)
 
 *Figure. Per-image scatter of CLIP Δ IoU (y-axis) against each other model's frozen IoU (x-axis), across the 139 annotated images. CLIP is the reference because its Δ is both the largest and the most interpretable. The DINOv3 panel shows the central finding: images where DINOv3's pretraining already produces expert-aligned attention are the same images where CLIP's fine-tuning succeeds.*
 
@@ -372,7 +372,7 @@ We rank individual layer/head pairs primarily by `IoU@90`, because specializatio
 
 The head-ranking view shows that expert-aligned attention is concentrated in a small number of heads, not evenly spread across the transformer. The main distinction is whether adaptation preserves the same dominant head or reorganizes the head ranking. DINOv3 and DINOv2 are stable, MAE is mixed, and CLIP reorganizes most clearly.
 
-![Q3 head ranking transition map](assets/q3_head_ranking_transition_map.png)
+![Q3 head ranking transition map](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q3_head_ranking_transition_map.png)
 
 *Figure. Q3 head-ranking transition map. Each node shows the best `IoU@90` head for a model variant, with mean `IoU@90` and top-3 frequency across the 139 annotated images. DINO-family models preserve their dominant heads across adaptation, MAE shows a mixed pattern, and CLIP shifts from an early frozen head to late-layer adapted heads.*
 
@@ -385,7 +385,7 @@ Coverage and EMD support the same high-level reading, with one important caveat:
 
 The dashboard screenshot below keeps the result inspectable by showing the underlying head-ranking table for the cleanest case in the transition map. For DINOv3 frozen attention at `layer10`, `head8` is not just a marginal winner: it leads by mean `IoU@90`, has mean rank `2.40`, and appears in the top three on `114/139` images.
 
-![DINOv3 frozen Q3 head ranking report view showing head8 as the dominant head](assets/q3_head_ranking_report_view.png)
+![DINOv3 frozen Q3 head ranking report view showing head8 as the dominant head](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q3_head_ranking_report_view.png)
 
 *Figure. DINOv3 frozen head-ranking drill-down at `layer10` using `IoU@90`. `Head 8` leads with mean `IoU@90 = 0.160`, mean rank `2.40`, and top-3 placement on `114/139` images. This supports the sparsity claim behind the transition map: the strongest expert-aligned signal is concentrated in a small number of heads rather than evenly distributed across all heads.*
 
@@ -399,11 +399,11 @@ Head Ranking identifies a dominant head, but what architectural evidence does th
 
 To keep this visual check disciplined, for each scoped Q3 model we take its frozen `IoU@90` dominant head from the ranking view, then sort the architectural feature labels supported by at least three annotated bounding boxes in the 139-image evaluation set for that head. The first figure below shows the matrix view for the DINOv3 case; the second figure shows the three strongest and three weakest architectural features for each model's selected dominant head.
 
-![DINOv3 frozen Q3 head-feature matrix report view showing head8 and Columned Portal](assets/q3_head_feature_matrix_report_view.png)
+![DINOv3 frozen Q3 head-feature matrix report view showing head8 and Columned Portal](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q3_head_feature_matrix_report_view.png)
 
 *Figure. Head-Feature Matrix report view for DINOv3 frozen attention (`layer = 10`, `IoU@90`). The same `head8` that leads the ranking view also carries the selected `Columned Portal` cell, with `IoU@90 = 0.215` across `15` annotations. This links the ranking evidence to the feature evidence: the dominant head is not only strong overall, it is strongest on portal-scale structure.*
 
-![Q3 dominant-head top and weak feature crops across DINOv3, DINOv2, MAE, and CLIP](assets/q3_head_feature_top_bottom_contact_sheet.png)
+![Q3 dominant-head top and weak feature crops across DINOv3, DINOv2, MAE, and CLIP](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q3_head_feature_top_bottom_contact_sheet.png)
 
 *Figure. Bbox-only frontend Image Detail Q3 crops for the frozen dominant `IoU@90` head in each scoped model: DINOv3 `layer10/head8`, DINOv2 `layer11/head11`, MAE `layer10/head5`, and CLIP `layer4/head5`. The strongest architectural features are dominated by portal-scale or facade-structure parts: `Columned Portal`, `Round Arch Portal`, `Ornate Portal`, `Wimperg`, and `Belt Course`. The weakest architectural features are thin or decorative labels such as `Blind Tracery`, `Crocket`, `Tabernacle`, `Fleuron`, `Coupled Twin Window with Discharging Arch`, and `Projecting Cornice`.*
 
@@ -429,7 +429,7 @@ Here, expert-aligned signal means the selected head's normalized CLS-to-patch he
 
 The answer is family-specific. DINO-family heads are mostly preserved, MAE is partially reshaped, and CLIP shows the clearest reorganization. The delta view below makes the CLIP case concrete inside `layer11`, the late layer where adapted CLIP becomes strongest. The cross-layer change is that frozen CLIP's best alignment lives in early layers (`layer4` max `IoU@90 = 0.067`), while `layer11` is weak before adaptation (`0.034` max). Adaptation strengthens `layer11` (`0.084` LoRA and `0.105` Full) without substantially changing `layer4/head5`, which stays near its frozen value. This view then zooms into `layer11` to show which adapted heads pick up the new signal: frozen `H4` gives way to LoRA `H11` and Full `H3`.
 
-![CLIP Q3 frozen-to-adapted delta report view showing late-layer head reorganization](assets/q3_frozen_adapted_delta_report_view.png)
+![CLIP Q3 frozen-to-adapted delta report view showing late-layer head reorganization](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/q3_frozen_adapted_delta_report_view.png)
 
 *Figure. Frozen-to-Adapted Delta report view for CLIP (`layer = 11`, `IoU@90`). Within this late layer, LoRA changes the top head from `H4` to `H11`, while Full fine-tuning changes it from `H4` to `H3`. This supports the Q3 adaptation claim: CLIP's expert-aligned evidence is reorganized by fine-tuning rather than simply preserving the frozen head ranking.*
 
@@ -495,7 +495,7 @@ Kumar, A., Raghunathan, A., Jones, R., Ma, T., & Liang, P. (2022). Fine-Tuning c
 
 Li, A. C., Tian, Y., Chen, B., Pathak, D., & Chen, X. (2024). On the Surprising Effectiveness of Attention Transfer for Vision Transformers. *Proceedings of the 38th Conference on Neural Information Processing Systems (NeurIPS)*. [arXiv:2411.09702](https://arxiv.org/abs/2411.09702)
 
-Li, Y., Wang, J., Dai, X., Wang, L., Yeh, C.-C. M., Zheng, Y., Zhang, W., & Ma, K.-L. (2023). How Does Attention Work in Vision Transformers? A Visual Analytics Attempt. *IEEE Transactions on Visualization and Computer Graphics (TVCG)*. [doi:10.1109/TVCG.2023.3261935](https://doi.org/10.1109/TVCG.2023.3261935)
+Li, Y., Wang, J., Dai, X., Wang, L., Yeh, C.-C. M., Zheng, Y., Zhang, W., & Ma, K.-L. (2023). How Does Attention Work in Vision Transformers? A Visual Analytics Attempt. *IEEE Transactions on Visualization and Computer Graphics (TVCG)*. doi:10.1109/TVCG.2023.3261935. [arXiv:2303.13731](https://arxiv.org/abs/2303.13731)
 
 Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., Assran, M., Ballas, N., Galuba, W., Howes, R., Huang, P.-Y., Li, S.-W., Misra, I., Rabbat, M., Sharma, V., Synnaeve, G., Xu, H., Jegou, H., Mairal, J., Labatut, P., Joulin, A., & Bojanowski, P. (2024). DINOv2: Learning Robust Visual Features without Supervision. *Transactions on Machine Learning Research (TMLR)*. [arXiv:2304.07193](https://arxiv.org/abs/2304.07193)
 
@@ -534,7 +534,7 @@ Each row below shows one representative church from the annotated evaluation set
 
 | DINOv3 frozen attention (layer 11) | CLIP shift map (frozen → full FT) | Shift map with feature box |
 |---|---|---|
-| ![Q1710328 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1710328_DINO__EASY(gothic).png) | ![Q1710328 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1710328_CLIP_DELTA__EASY(gothic).png) | ![Q1710328 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1710328_CLIP_DELTA_IMG__EASY(gothic).png) |
+| ![Q1710328 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1710328_DINO__EASY%28gothic%29.png) | ![Q1710328 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1710328_CLIP_DELTA__EASY%28gothic%29.png) | ![Q1710328 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1710328_CLIP_DELTA_IMG__EASY%28gothic%29.png) |
 
 DINOv3's frozen attention concentrates on the central Ornate Portal — a tall, spatially compact Gothic arch filling the lower third of the facade. That same region gains the most CLIP attention after fine-tuning (+0.249 IoU on the Ornate Portal feature alone), confirming that structural compactness, not model family, determines what is easy.
 
@@ -544,7 +544,7 @@ DINOv3's frozen attention concentrates on the central Ornate Portal — a tall, 
 
 | DINOv3 frozen attention (layer 11) | CLIP shift map (frozen → full FT) | Shift map with feature box |
 |---|---|---|
-| ![Q2034923 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q2034923_DINO__EASY(romanesque).png) | ![Q2034923 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q2034923_CLIP_DELTA__EASY(romanesque).png) | ![Q2034923 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q2034923_CLIP_DELTA_IMG__EASY(romanesque).png) |
+| ![Q2034923 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q2034923_DINO__EASY%28romanesque%29.png) | ![Q2034923 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q2034923_CLIP_DELTA__EASY%28romanesque%29.png) | ![Q2034923 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q2034923_CLIP_DELTA_IMG__EASY%28romanesque%29.png) |
 
 The Romanesque church has a clearly delineated Ornate Portal at the base of the central facade. DINOv3's frozen attention peaks at this region (IoU = 0.403), and CLIP's fine-tuning redirects attention toward the same portal (+0.157 IoU on the feature). The consistent convergence on architecturally prominent portal structures across both easy examples is consistent with the r=+0.677 correlation: what DINOv3 already attends to is what CLIP learns to attend to.
 
@@ -556,7 +556,7 @@ The Romanesque church has a clearly delineated Ornate Portal at the base of the 
 
 | DINOv3 frozen attention (layer 11) | CLIP shift map (frozen → full FT) | Shift map with feature box |
 |---|---|---|
-| ![Q694252 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q694252_DINO__HARD(baroque).png) | ![Q694252 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q694252_CLIP_DELTA__HARD(baroque).png) | ![Q694252 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q694252_CLIP_DELTA_IMG__HARD(baroque).png) |
+| ![Q694252 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q694252_DINO__HARD%28baroque%29.png) | ![Q694252 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q694252_CLIP_DELTA__HARD%28baroque%29.png) | ![Q694252 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q694252_CLIP_DELTA_IMG__HARD%28baroque%29.png) |
 
 The Baroque church has a single annotated expert box — a Broken Pediment tucked in the upper corner of the right tower. DINOv3's frozen attention is broadly distributed across sky and facade surfaces, missing the annotation entirely (IoU = 0.000). CLIP's fine-tuning produces no improvement (Δ IoU = −0.005): the feature is too small, peripherally placed, and not visually prominent enough for the style-classification gradient to locate it. This example also illustrates the annotation sparsity caveat for the Baroque subset (1.8 boxes per image on average), where evaluation signal is weakest.
 
@@ -566,6 +566,6 @@ The Baroque church has a single annotated expert box — a Broken Pediment tucke
 
 | DINOv3 frozen attention (layer 11) | CLIP shift map (frozen → full FT) | Shift map with feature box |
 |---|---|---|
-| ![Q1424095 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1424095_DINO__HARD(renaissance).png) | ![Q1424095 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1424095_CLIP_DELTA__HARD(renaissance).png) | ![Q1424095 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/outputs/screenshots/Q1424095_CLIP_DELTA_IMG__HARD(renaissance).png) |
+| ![Q1424095 DINOv3 frozen attention](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1424095_DINO__HARD%28renaissance%29.png) | ![Q1424095 CLIP delta](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1424095_CLIP_DELTA__HARD%28renaissance%29.png) | ![Q1424095 CLIP delta with image](https://raw.githubusercontent.com/DesmondChoy/ssl_wikichurches/main/docs/final_report/figures/Q1424095_CLIP_DELTA_IMG__HARD%28renaissance%29.png) |
 
 The Renaissance church facade has three spread annotation boxes (Triangular Pediment, Volute, Pilaster). DINOv3's frozen attention scatters across multiple structural elements without concentrating on any annotated region (IoU = 0.002). CLIP's fine-tuning likewise fails to improve alignment (Δ IoU = 0.000 on the Triangular Pediment). The annotations cover spatially diffuse decorative elements that span much of the facade width, making the easy-image condition — compact, prominent, single-region — absent here. This image is representative of the Renaissance subset that CLIP and the language cluster cannot improve on, in contrast to MAE's pediment-geometry specialization described in §9.2.1.
