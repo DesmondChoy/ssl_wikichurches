@@ -16,7 +16,53 @@ Requirements: Python 3.12+, [uv](https://github.com/astral-sh/uv), Node.js 18+.
 uv sync
 ```
 
-Download one dataset path:
+### Use the precomputed submission artifacts
+
+For review, use the precomputed artifact folder instead of rerunning fine-tuning
+or cache generation:
+
+1. Download the [Google Drive artifact folder](https://drive.google.com/drive/folders/1pT8VrK6d9h-sZzAr6qhPxvNrVrRi-8Cd?usp=sharing).
+2. Copy `dataset/` and `outputs/` from that folder into the repository root.
+
+Expected local structure:
+
+```text
+ssl_wikichurches/
+├── dataset/
+└── outputs/
+    ├── cache/
+    │   ├── attention_viz.h5
+    │   ├── features.h5
+    │   ├── metrics.db
+    │   ├── metrics_summary.json
+    │   └── heatmaps/
+    └── checkpoints/
+        └── fine_tuning_primary_20260327/
+```
+
+On macOS or Linux, from inside the downloaded artifact folder:
+
+```bash
+rsync -av dataset outputs /path/to/ssl_wikichurches/
+```
+
+Replace `/path/to/ssl_wikichurches/` with the local path to this cloned repo.
+
+With these artifacts in place, the app can run without rerunning
+`fine_tune_models.py`, `generate_attention_cache`, `generate_feature_cache`,
+`generate_heatmap_images`, or `generate_metrics_cache`.
+
+Run the app:
+
+```bash
+./dev.sh
+```
+
+This starts the backend at `http://127.0.0.1:8000` and frontend at `http://127.0.0.1:5173`.
+
+### Regenerate artifacts from scratch
+
+If the precomputed artifact folder is unavailable, download one dataset path:
 
 - **Annotated subset:** [Google Drive package](https://drive.google.com/drive/folders/1fsf0k71ADeYCBAwo-dIPntUmpibaoGBr) with 139 images plus `building_parts.json`. Use this for the app, Q1/Q3 cache generation, and expert-alignment evaluation.
 - **Official WikiChurches files:** use the downloader when you need `churches.json`, metadata, the full image archive, or the official annotation file.
@@ -26,7 +72,7 @@ uv run python scripts/download_wikichurches.py --list
 uv run python scripts/download_wikichurches.py --files churches.json image_meta.json building_parts.json
 ```
 
-Expected local structure:
+Expected dataset structure:
 
 ```text
 dataset/
