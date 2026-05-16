@@ -73,19 +73,19 @@
       "type": "mse_vs_distribution_gap"
     }
   ],
-  "generated_at": "2026-04-08T15:24:46.366038+00:00",
+  "generated_at": "2026-05-16T09:04:10.972716+00:00",
   "headline_findings": [
     {
       "metric": "mse",
       "models": [
-        "siglip",
         "siglip2",
+        "siglip",
         "dinov2",
         "clip",
         "resnet50",
         "dinov3"
       ],
-      "summary": "MSE: siglip, siglip2, dinov2, clip, resnet50, dinov3 beat all four baselines.",
+      "summary": "MSE: siglip2, siglip, dinov2, clip, resnet50, dinov3 beat all four baselines.",
       "type": "metric_clearance"
     },
     {
@@ -500,7 +500,7 @@
             "sobel_edge": false
           },
           "rank": 6,
-          "score": 0.3538258373737335,
+          "score": 0.3476214110851288,
           "surprises": [
             "worse_than_random"
           ]
@@ -521,7 +521,7 @@
             "sobel_edge": true
           },
           "rank": 6,
-          "score": 3.071042776107788,
+          "score": 3.002044916152954,
           "surprises": [
             "beats_random_but_not_stronger_priors"
           ]
@@ -543,8 +543,8 @@
             "saliency_prior": true,
             "sobel_edge": true
           },
-          "rank": 1,
-          "score": 0.017452022060751915,
+          "rank": 2,
+          "score": 0.017548121511936188,
           "surprises": [
             "beats_all_baselines"
           ]
@@ -610,7 +610,7 @@
             "saliency_prior": true,
             "sobel_edge": true
           },
-          "rank": 2,
+          "rank": 1,
           "score": 0.017452022060751915,
           "surprises": [
             "beats_all_baselines"

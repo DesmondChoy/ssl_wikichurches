@@ -6,7 +6,7 @@ Baseline source: documented constants from `docs/reference/metrics_methodology.m
 
 ## Headline Findings
 
-- MSE: siglip, siglip2, dinov2, clip, resnet50, dinov3 beat all four baselines.
+- MSE: siglip2, siglip, dinov2, clip, resnet50, dinov3 beat all four baselines.
 - MSE: no models score worse than the random baseline.
 - KL: dinov3 beat all four baselines.
 - KL: no models score worse than the random baseline.
@@ -34,8 +34,8 @@ Baseline references: Random 0.3192, Center Gaussian 0.1770, Saliency Prior 0.095
 
 | Rank | Model | Score | Best layer | Method | Beats |
 | --- | --- | --- | --- | --- | --- |
-| 1 | siglip | 0.0175 | layer6 | mean | Random, Center Gaussian, Saliency Prior, Sobel Edge |
-| 2 | siglip2 | 0.0175 | layer6 | mean | Random, Center Gaussian, Saliency Prior, Sobel Edge |
+| 1 | siglip2 | 0.0175 | layer6 | mean | Random, Center Gaussian, Saliency Prior, Sobel Edge |
+| 2 | siglip | 0.0175 | layer6 | mean | Random, Center Gaussian, Saliency Prior, Sobel Edge |
 | 3 | dinov2 | 0.0209 | layer0 | cls | Random, Center Gaussian, Saliency Prior, Sobel Edge |
 | 4 | clip | 0.0211 | layer6 | cls | Random, Center Gaussian, Saliency Prior, Sobel Edge |
 | 5 | resnet50 | 0.0242 | layer2 | gradcam | Random, Center Gaussian, Saliency Prior, Sobel Edge |
@@ -53,7 +53,7 @@ Baseline references: Random 3.3627, Center Gaussian 2.6317, Saliency Prior 2.611
 | 3 | resnet50 | 2.6917 | layer3 | gradcam | Random, Sobel Edge |
 | 4 | mae | 2.7562 | layer10 | cls | Random, Sobel Edge |
 | 5 | clip | 2.9122 | layer0 | cls | Random, Sobel Edge |
-| 6 | siglip | 3.0710 | layer4 | mean | Random, Sobel Edge |
+| 6 | siglip | 3.0020 | layer4 | mean | Random, Sobel Edge |
 | 7 | siglip2 | 3.0710 | layer4 | mean | Random, Sobel Edge |
 
 ### EMD
@@ -67,7 +67,7 @@ Baseline references: Random 0.3468, Center Gaussian 0.2836, Saliency Prior 0.265
 | 3 | resnet50 | 0.3025 | layer3 | gradcam | Random, Sobel Edge |
 | 4 | mae | 0.3177 | layer10 | cls | Random |
 | 5 | clip | 0.3261 | layer0 | cls | Random |
-| 6 | siglip | 0.3538 | layer4 | mean | None |
+| 6 | siglip | 0.3476 | layer4 | mean | None |
 | 7 | siglip2 | 0.3538 | layer4 | mean | None |
 
 ## Per-model Wrap-up
