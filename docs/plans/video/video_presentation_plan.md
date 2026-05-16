@@ -39,8 +39,8 @@ Structure this like the updated abstract: open with the motivating question, bre
 
 **Headline results (deliver before methodology — tell the viewer what they're about to see):**
 
-- **Q1**: Frozen expert-aligned attention exists but is highly model-family dependent. DINOv3 is the only model with consistently strong cross-metric alignment — leading on IoU@90, Coverage, KL, and EMD, and uniquely clearing all calibrated continuous baselines. The SigLIP family illustrates the danger of single-metric reading: best frozen MSE, but EMD worse than random attention.
-- **Q2**: Fine-tuning moves attention unevenly. CLIP gains the most (IoU 0.018 → 0.074, Cohen's d ≈ 1.0) but only on Gothic and Romanesque — the styles most densely described in English web text. MAE's largest gain is on Renaissance pediment geometry specifically. DINO stays flat — its strong frozen prior resists reorganisation, and that's a feature. Models converge on the same structurally easy images (DINOv3 frozen IoU predicts CLIP Δ at r = +0.677), so ensembling the language cluster adds no coverage on hard images.
+- **Q1**: Frozen expert-aligned attention exists but is highly model-family dependent. DINOv3 leads the default-method benchmark on IoU@90, Coverage, KL, and EMD, and uniquely clears all calibrated continuous baselines. Base SigLIP is a competitive overlap result at its best mean-attention layer (IoU@90 = 0.074 at `layer8`, ahead of MAE and CLIP), but SigLIP2 remains weaker on overlap despite the lowest MSE — the two should not be collapsed into one family-level frozen result. The SigLIP family also illustrates the danger of single-metric reading: best frozen MSE, but EMD worse than random.
+- **Q2**: Fine-tuning moves attention unevenly. CLIP gains the most (IoU 0.018 → 0.074, Cohen's d ≈ 1.0) but only on Gothic and Romanesque — the styles most densely described in English web text. MAE's largest gain is on Renaissance pediment geometry specifically. The SigLIP variants improve from weaker `layer11` baselines (`siglip` 0.036, `siglip2` 0.022 frozen); base SigLIP stays absolutely higher post-FT (0.062 vs. 0.052) but SigLIP2 moves further in standardised-effect terms (Cohen's d = 0.78 vs. 0.60). DINO stays flat — its strong frozen prior resists reorganisation, and that's a feature. Models converge on the same structurally easy images (DINOv3 frozen IoU predicts CLIP Δ at r = +0.677), so ensembling the language cluster adds no coverage on hard images.
 - **Q3**: Per-head specialisation is sparse, descriptive, and family-shaped. DINO-family dominant heads remain stable across adaptation (DINOv3 `layer10/head8` stays top across frozen, LoRA, and Full). MAE is partly reshaped. CLIP reorganises from an earlier frozen head to late-layer adapted heads — head reorganisation tracks the Q2 attention gain story. The strongest head-feature cells cluster on larger structural parts (portals, arches, rose windows); small ornamentation remains hard.
 
 ---
@@ -69,10 +69,11 @@ Structure this like the updated abstract: open with the motivating question, bre
 - Coverage: what fraction of total attention energy falls inside annotated regions?
 - MSE, KL, EMD: does the full heatmap distribution match the Gaussian soft-union target?
 
-- Show the leaderboard: **Self-distillation > Supervised > Reconstruction > Multimodal contrastive** (paradigm ordering still valid as headline, but go deeper in narration)
-- DINOv3 leads on IoU (0.133), Coverage, KL, EMD. ResNet-50 is second on overlap metrics — the supervised CNN baseline beats all multimodal contrastive models in the frozen setting.
+- Show the leaderboard ranked by IoU@90: **DINOv3 (0.133) > ResNet-50 (0.090) > DINOv2 (0.082) > SigLIP (0.074 at `layer8`) > MAE (0.070) > CLIP (0.049) > SigLIP2 (0.047)**. The headline paradigm story still holds (self-distillation strongest), but the SigLIP rows force a narration point — `siglip` and `siglip2` are *not* interchangeable.
+- DINOv3 leads on IoU@90, Coverage, KL, and EMD. ResNet-50 is second on overlap metrics — the supervised CNN baseline beats CLIP, MAE, and SigLIP2 in the frozen setting.
+- **Base SigLIP vs. SigLIP2 distinction**: base SigLIP reaches IoU@90 = 0.074 at `layer8`, ahead of MAE and CLIP; SigLIP2 stays weaker on sharp overlap (0.047) despite holding the marginal MSE win (0.01745 vs. 0.01755). The two variants are not the same frozen result — do not collapse them.
 - **Calibrated baseline story**: DINOv3 is the only frozen model to clear all 4 naive baselines on all 3 continuous metrics. Beating random is weak evidence; beating center Gaussian and saliency prior is stronger; beating Sobel edge is the strongest bar.
-- SigLIP family: best frozen MSE (0.0175) but EMD worse than random baseline (0.3538 vs 0.3468) — illustrates why single-metric reading misleads. Do not over-interpret SigLIP2 as better than SigLIP.
+- SigLIP/SigLIP2 also pair good MSE with EMD ≈ 0.35, *worse than random* (0.3468) — illustrates why single-metric reading misleads.
 - **Gram anchoring story**: DINOv3's advantage is hypothesised to come from Gram anchoring, which penalises drift in patch-level feature structure during long SSL training. Two supporting checks: (1) paired gaps are statistically robust (Holm-adjusted p < 1.31×10⁻⁷); (2) DINOv3 aligns best with large coherent parts (Ornate Portal 0.214, Tracery Rose Window 0.164) and worst on small ornamentation (Crocket, Fleuron) — consistent with a model that has a better dense spatial prior for prominent structure, not a complete understanding of every fine-grained cue.
 - Show the IoU best-available dashboard screenshot as visual evidence of DINOv3's late-layer jump.
 
@@ -82,8 +83,9 @@ Structure this like the updated abstract: open with the motivating question, bre
 
 - Linear Probe = zero attention change by construction (backbone stays frozen — useful sanity check)
 - Show the multi-metric improvement heatmap: CLIP and MAE gain most; DINO stays flat
-- **CLIP story**: IoU 0.018 → 0.074 (Cohen's d ≈ 1.0), but gains concentrate on Gothic/Romanesque only — linguistic grounding hypothesis (these styles have features densely described in English web text)
+- **CLIP story**: IoU 0.018 → 0.074 (Cohen's d ≈ 1.0), but gains concentrate on Gothic/Romanesque only — linguistic grounding hypothesis (these styles have features densely described in English web text). Walmer et al. and Park et al. support reporting Q2 per family because supervision regime changes how attention is distributed.
 - **MAE story**: Renaissance pediment specialization — gains driven by compact, style-exclusive geometry (Triangular Pediment +0.080, Broken Pediment +0.055); most common Renaissance features (Pilaster, Belt Course) show *negative* Δ
+- **SigLIP variants story**: Q2 is measured at `layer11`, where both start weaker than the DINO family (`siglip` 0.0364, `siglip2` 0.0220 frozen). Post-Full-FT, base SigLIP stays higher in absolute IoU@90 (0.0618 vs. 0.0519), but SigLIP2 moves further in standardised-effect terms (Δ = 0.0299, d = 0.781 vs. SigLIP's Δ = 0.0254, d = 0.604) — consistent with more late-layer adaptation headroom from SigLIP2's weaker starting point and denser grounding components. Q2 here is sharpening a relatively weak `layer11` signal, *not* improving each model's best frozen layer (that's the Q1 best-layer story).
 - **DINO story**: near-zero Δ across all styles is a *feature*, not a failure — strong frozen spatial prior resists reorganization
 - **Surprise cross-model finding**: DINOv3 frozen IoU predicts CLIP Δ IoU at Pearson r = +0.677 — models converge on the same structurally easy images; language-cluster ensemble adds no coverage on hard images; MAE is the only anti-correlated model (natural complementary partner)
 
@@ -146,7 +148,7 @@ End: *"The app lets us move fluidly between the aggregate benchmark and individu
 
 Three sentences, one per question:
 
-- **Q1**: Frozen expert alignment exists but is model-family dependent — DINOv3 is uniquely compatible with expert-marked architectural evidence
+- **Q1**: Frozen expert alignment exists but is model-family dependent — DINOv3 is uniquely compatible with expert-marked architectural evidence; base SigLIP is a stronger frozen overlap result than SigLIP2 at its best mean-attention layer, but both still have late-layer adaptation headroom
 - **Q2**: Fine-tuning's effect is mediated by three factors: spatial prior (DINO vs. rest), linguistic coverage (CLIP), and geometric discriminability (MAE)
 - **Q3**: Specialisation is sparse and family-shaped — DINO preserves dominant heads, MAE is partly reshaped, CLIP reorganises from early frozen to late adapted heads; strongest alignment concentrates on structural parts, not fine ornamentation
 

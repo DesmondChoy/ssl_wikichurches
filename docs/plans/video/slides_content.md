@@ -48,8 +48,8 @@ Three linked research questions:
 
 | | Finding |
 |---|---|
-| **Q1** | Frozen expert-aligned attention exists, but is model-family dependent. **DINOv3 leads** on IoU@90, Coverage, KL, and EMD, and is the only frozen model to clear all calibrated continuous baselines. SigLIP has the best MSE but worse-than-random EMD — a warning against single-metric reading. |
-| **Q2** | Fine-tuning moves attention unevenly. **CLIP** gains the most (IoU 0.018 → 0.074, *d* ≈ 1.0) but only on Gothic/Romanesque. **MAE** gains on Renaissance pediment geometry. **DINO** stays flat — its strong frozen prior resists reorganisation. Models converge on the same easy images (r = +0.677). |
+| **Q1** | Frozen expert-aligned attention exists, but is model-family dependent. **DINOv3 leads** on IoU@90, Coverage, KL, and EMD, and is the only frozen model to clear all calibrated continuous baselines. **Base SigLIP** is a competitive overlap result at its best layer (IoU = 0.074 at `layer8`, ahead of MAE and CLIP) — *not the same as SigLIP2* (0.047). SigLIP family also has worse-than-random EMD: a warning against single-metric reading. |
+| **Q2** | Fine-tuning moves attention unevenly. **CLIP** gains the most (IoU 0.018 → 0.074, *d* ≈ 1.0) but only on Gothic/Romanesque. **MAE** gains on Renaissance pediment geometry. **SigLIP variants** improve from weaker `layer11` baselines — base SigLIP higher in absolute IoU post-FT, SigLIP2 larger in effect size. **DINO** stays flat — its strong frozen prior resists reorganisation. Models converge on the same easy images (r = +0.677). |
 | **Q3** | Per-head specialisation is **sparse and family-shaped**. DINOv3 `layer10/head8` stays dominant across Frozen, LoRA, Full. MAE is partly reshaped. CLIP reorganises from an early frozen head to late adapted heads. Strongest head-feature alignment concentrates on portals, arches, and rose windows. |
 
 ---
@@ -161,19 +161,19 @@ A model can place its strongest attention inside the expert boxes, spread attent
 
 **Q1: Expert-Attention Alignment — Frozen Models**
 
-Paradigm ordering: **Self-distillation > Supervised > Reconstruction > Multimodal Contrastive**
+Headline ordering: **Self-distillation leads, but SigLIP/SigLIP2 split sharply — they are not the same frozen result**
 
-| Rank | Model | IoU@90 | Coverage | KL | EMD |
-|---|---|---|---|---|---|
-| 1 | **DINOv3** | **0.133** | **0.137** | **2.325** | **0.260** |
-| 2 | ResNet-50 | 0.090 | 0.104 | 2.692 | 0.303 |
-| 3 | DINOv2 | 0.082 | 0.100 | 2.684 | 0.298 |
-| 4 | MAE | 0.070 | 0.090 | 2.756 | 0.318 |
-| 5 | CLIP | 0.049 | 0.085 | 2.912 | 0.326 |
-| 6 | SigLIP | 0.047 | 0.071 | 3.071 | 0.354 |
-| 7 | SigLIP 2 | 0.047 | 0.071 | 3.071 | 0.354 |
+| Rank | Model | IoU@90 | Coverage | MSE | KL | EMD |
+|---|---|---|---|---|---|---|
+| 1 | **DINOv3** | **0.133** (L11) | **0.137** | 0.0270 | **2.325** | **0.260** |
+| 2 | ResNet-50 | 0.090 (L3) | 0.104 | 0.0242 | 2.692 | 0.303 |
+| 3 | DINOv2 | 0.082 (L11) | 0.100 | 0.0209 | 2.684 | 0.298 |
+| 4 | **SigLIP** | **0.074** (L8) | 0.076 | 0.01755 | 3.002 | 0.348 |
+| 5 | MAE | 0.070 (L11) | 0.090 | 0.0483 | 2.756 | 0.318 |
+| 6 | CLIP | 0.049 (L0) | 0.085 | 0.0211 | 2.912 | 0.326 |
+| 7 | SigLIP 2 | 0.047 (L4) | 0.071 | **0.01745** | 3.071 | 0.354 |
 
-*Ranked by IoU@90 (best default-method layer per model, 139 annotated images). ResNet-50 (supervised CNN) beats all multimodal contrastive models in the frozen setting.*
+*Ranked by IoU@90 (best default-method layer per model, 139 annotated images). Base **SigLIP** reaches its peak at `layer8` (0.074) — ahead of MAE and CLIP. **SigLIP 2** stays weaker on overlap (0.047) despite the marginal MSE win.*
 
 ---
 
@@ -190,8 +190,9 @@ Paradigm ordering: **Self-distillation > Supervised > Reconstruction > Multimoda
 
 **DINOv3** is the only frozen model to beat all 4 naive baselines on all 3 continuous metrics.
 
-**SigLIP / SigLIP 2** have the best MSE (0.0175) — but EMD of 0.354 is *worse than random* (0.347).
-→ Local smoothness ≠ correct spatial placement of attention mass. Do not over-interpret SigLIP 2 as better than SigLIP.
+**SigLIP / SigLIP 2** have the best MSE (≈0.0175) — but EMD of 0.348–0.354 is *worse than random* (0.347).
+→ Local smoothness ≠ correct spatial placement of attention mass.
+→ And while SigLIP2 has the marginal MSE win, **base SigLIP holds the overlap result** (IoU@90 = 0.074 at `layer8`). Do not collapse the two variants into one family-level frozen claim.
 
 ---
 
@@ -300,7 +301,24 @@ MAE's largest single-style gain: Renaissance **Δ IoU = +0.108** (vs. +0.029 agg
 
 ---
 
-### Slide 19 — Q2: The DINO Story
+### Slide 19 — Q2: The SigLIP Variants
+
+**Weak `layer11` frozen baselines → adaptation sharpens, but variants differ**
+
+Q2 is measured at `layer11` (not each model's Q1 best layer):
+
+| | Frozen IoU@90 (L11) | Full FT IoU@90 (L11) | Δ | Cohen's *d* |
+|---|---|---|---|---|
+| SigLIP | 0.0364 | **0.0618** | +0.0254 | 0.604 |
+| SigLIP 2 | 0.0220 | 0.0519 | **+0.0299** | **0.781** |
+
+- Base SigLIP stays higher in **absolute** IoU@90 post-FT (0.062 vs. 0.052)
+- SigLIP 2 moves further in **standardised-effect** terms — consistent with more late-layer adaptation headroom from a weaker starting point and SigLIP 2's denser grounding components
+- Q2 is sharpening a weak `layer11` signal, *not* improving each model's best frozen layer (that's the Q1 best-layer story — base SigLIP peaks at `layer8`)
+
+---
+
+### Slide 20 — Q2: The DINO Story
 
 **DINO: Near-zero Δ is a feature, not a failure**
 
@@ -317,7 +335,7 @@ The style-classification gradient is absorbed by the classification head rather 
 
 ---
 
-### Slide 20 — Q2: The Surprise — Models Converge on the Same Images
+### Slide 21 — Q2: The Surprise — Models Converge on the Same Images
 
 **DINOv3 frozen IoU predicts CLIP Δ IoU at r = +0.677**
 
@@ -336,7 +354,7 @@ Three clusters in the pairwise Δ correlation matrix:
 
 ---
 
-### Slide 21 — Q2: Statistical Confidence
+### Slide 22 — Q2: Statistical Confidence
 
 **Forest plot — are the gains real?**
 
@@ -352,7 +370,7 @@ Key takeaway: CLIP and MAE gains are not anecdotal — they hold under paired Wi
 
 ---
 
-### Slide 22 — Q3: Scope and Approach
+### Slide 23 — Q3: Scope and Approach
 
 **Q3: Do individual attention heads specialise for different architectural features?**
 
@@ -366,7 +384,7 @@ Key takeaway: CLIP and MAE gains are not anecdotal — they hold under paired Wi
 
 ---
 
-### Slide 23 — Q3 View 1: Head Ranking
+### Slide 24 — Q3 View 1: Head Ranking
 
 **Expert-aligned attention is concentrated in a small number of heads**
 
@@ -390,7 +408,7 @@ Top-5 pairs together hold **7.3%–9.0%** of total mean IoU@90 across all 144 pa
 
 ---
 
-### Slide 24 — Q3 View 2a: Head-Feature Matrix (DINOv3 anchor)
+### Slide 25 — Q3 View 2a: Head-Feature Matrix (DINOv3 anchor)
 
 **Linking the ranking head to its strongest feature**
 
@@ -405,7 +423,7 @@ This links the ranking evidence to the feature evidence: the dominant head is no
 
 ---
 
-### Slide 25 — Q3 View 2b: Top vs. Bottom Features Across Models
+### Slide 26 — Q3 View 2b: Top vs. Bottom Features Across Models
 
 **Strongest features are structural; failures are consistent**
 
@@ -430,7 +448,7 @@ For each scoped model's frozen IoU@90 dominant head, top-3 and bottom-3 features
 
 ---
 
-### Slide 26 — Q3 View 3: Frozen-to-Adapted Delta
+### Slide 27 — Q3 View 3: Frozen-to-Adapted Delta
 
 **Sharper follow-up: when adaptation changes the dominant head, does the strongest signal stay or move?**
 
@@ -456,7 +474,7 @@ For each scoped model's frozen IoU@90 dominant head, top-3 and bottom-3 features
 
 ---
 
-### Slide 27 — App Demo Intro
+### Slide 28 — App Demo Intro
 
 **Interactive Analysis Interface**
 
@@ -485,7 +503,7 @@ End: *"The app lets us move fluidly between the aggregate benchmark and individu
 
 ---
 
-### Slide 28 — What We Found
+### Slide 29 — What We Found
 
 **Three questions, three answers**
 
@@ -500,7 +518,7 @@ DINO preserves dominant heads, MAE is partly reshaped, CLIP reorganises from ear
 
 ---
 
-### Slide 29 — Practical Implication
+### Slide 30 — Practical Implication
 
 **Model selection for domain adaptation should not be guided by accuracy alone.**
 
@@ -513,7 +531,7 @@ Match the pretraining prior to what the task's diagnostic evidence requires:
 
 ---
 
-### Slide 30 — Thank You
+### Slide 31 — Thank You
 
 **Do Self-Supervised Vision Models Learn What Experts See?**
 
@@ -531,8 +549,8 @@ ISY5004 Intelligent Sensing Systems Practice Project
 | 1. Hook & results summary | 1–4 (4 slides) | 2.0 min |
 | 2. Dataset & methodology | 5–9 (5 slides) | 2.0 min |
 | 3. Q1 results | 10–14 (5 slides) | 2.5 min |
-| 4. Q2 results | 15–21 (7 slides) | 3.5 min |
-| 5. Q3 results | 22–26 (5 slides) | 1.0 min |
-| 6. App demo | 27 + demo clip (1 slide) | 3.0 min |
-| 7. Conclusion | 28–30 (3 slides) | 1.0 min |
-| **Total** | **30 slides + 1 demo clip** | **15 min** |
+| 4. Q2 results | 15–22 (8 slides) | 3.5 min |
+| 5. Q3 results | 23–27 (5 slides) | 1.0 min |
+| 6. App demo | 28 + demo clip (1 slide) | 3.0 min |
+| 7. Conclusion | 29–31 (3 slides) | 1.0 min |
+| **Total** | **31 slides + 1 demo clip** | **15 min** |

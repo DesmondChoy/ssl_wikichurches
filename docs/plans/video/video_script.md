@@ -1,8 +1,8 @@
 # Video Script — 12-Minute Narration (Slides Only)
 # Do Self-Supervised Vision Models Learn What Experts See?
 
-**Total narrated time**: 12 minutes (Slides 1–33, excluding 3-min demo clip)
-**Demo clip**: Slides 34–36 are a separate screen recording (~3 min) — no narration script needed here
+**Total narrated time**: 12 minutes (Slides 1–34, excluding 3-min demo clip)
+**Demo clip**: Slides 35–37 are a separate screen recording (~3 min) — no narration script needed here
 **Format**: Screen-recorded voiceover. Read at a measured pace — aim for clarity over speed.
 
 Timing notes per segment are indicative. The 12 minutes is the constraint; adjust pacing within segments to land on time.
@@ -182,21 +182,28 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 
 ---
 
-### Slide 22 — Q2: The DINO Story
+### Slide 22 — Q2: The SigLIP Variants
+*[~25 seconds]*
+
+> SigLIP and SigLIP 2 are worth separating. In Q1, base SigLIP outranks SigLIP 2 on IoU — it peaks at layer 8 with IoU of 0.074, versus SigLIP 2's 0.047 at layer 4. In Q2, the story flips slightly: SigLIP 2 shows a larger standardised effect under full fine-tuning, with Cohen's d of 0.781 versus 0.604 for base SigLIP. A plausible reason is that SigLIP 2 starts from a weaker layer-11 frozen baseline of 0.022, giving adaptation more room to move. Base SigLIP's layer-11 frozen value of 0.036 leaves less headroom. Either way, Q2 for both variants is sharpening a weak late-layer signal, not improving on each model's Q1 best layer.
+
+---
+
+### Slide 23 — Q2: The DINO Story
 *[~25 seconds]*
 
 > DINO is the near-zero delta case across styles and strategies. The reading is simple: DINOv3 already has the strongest frozen spatial alignment, so fine-tuning has much less useful work to do. The lack of movement is not a failure. It suggests that the useful spatial prior was already there before fine-tuning. It is also a warning that more adaptation is not automatically better, because an already strong representation can be disturbed rather than improved.
 
 ---
 
-### Slide 23 — Q2: The Surprise — Models Converge on Same Images
+### Slide 24 — Q2: The Surprise — Models Converge on Same Images
 *[~35 seconds]*
 
 > Now here's the finding that came as a pleasant surprise. DINOv3's frozen IoU predicts CLIP's per-image delta IoU at Pearson r equals +0.677. The images where frozen DINOv3 already looks in the right place are also the images where CLIP improves most after fine-tuning. This tells us that some images are structurally easy — large portals, clear arches, coherent facades — and several model families succeed on those same images. MAE is the interesting exception because it improves on a more different subset, especially Renaissance geometry.
 
 ---
 
-### Slide 24 — Q2: Statistical Confidence
+### Slide 25 — Q2: Statistical Confidence
 *[~20 seconds]*
 
 > Finally, the forest plot checks that these gains are not just a few lucky examples. Each point shows the mean delta with a 95% bootstrap confidence interval. The asterisks mark results that remain statistically significant after Holm correction. Several CLIP, MAE, and SigLIP-family gains remain supported over the paired 139-image evaluation set.
@@ -204,39 +211,39 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ---
 
 ## Segment 5 — Q3: Per-Head Specialisation
-**Target: ~1 minute | Slides 25–29**
+**Target: ~1 minute | Slides 26–30**
 
 ---
 
-### Slide 25 — Q3: Scope and Approach
+### Slide 26 — Q3: Scope and Approach
 *[~15 seconds]*
 
 > For Q3, we look inside the transformer models. Each transformer layer has multiple attention heads; you can think of a head as one small component that decides how image patches relate to each other. We only analyze DINOv2, DINOv3, MAE, and CLIP here, because they expose comparable CLS-token attention heads. The question is intentionally modest: which heads line up most strongly with expert boxes? This is descriptive specialisation, not causal attribution. We use IoU@90 as the main ranking, then check the pattern with Coverage and EMD.
 
 ---
 
-### Slide 26 — Q3 View 1: Head Ranking
+### Slide 27 — Q3 View 1: Head Ranking
 *[~20 seconds]*
 
 > The first result is sparse specialisation: not all heads matter equally. Out of 144 possible layer-and-head pairs, a small number carry much more of the expert-aligned signal. In DINOv3, the same head — layer 10, head 8 — remains the strongest before and after fine-tuning, and it is among the top three heads on more than 110 of the 139 images. CLIP behaves differently. Before fine-tuning, its strongest heads are earlier in the network. After fine-tuning, the strongest signal shifts to a later layer. So DINOv3 mostly preserves its internal attention pattern, while CLIP reorganizes.
 
 ---
 
-### Slide 27 — Q3 View 2a: Head-Feature Matrix
+### Slide 28 — Q3 View 2a: Head-Feature Matrix
 *[~10 seconds]*
 
 > The head-feature matrix connects those head rankings to actual architectural labels. For DINOv3's strongest head, the best-matching features are all portal-scale structures: columned portals, round arch portals, and ornate portals. So the head is not just strong in the abstract; it lines up with large architectural parts that experts actually marked.
 
 ---
 
-### Slide 28 — Q3 View 2b: Top vs. Bottom Features Across Models
+### Slide 29 — Q3 View 2b: Top vs. Bottom Features Across Models
 *[~15 seconds]*
 
 > The same pattern appears across the four Q3 models. The strongest matches are usually large facade structures: portals, arches, belt courses, and rose-window-scale features. The weakest matches are fine decorations such as blind tracery, crockets, tabernacles, and fleurons. Part of that weakness is real model difficulty, but part of it is also metric geometry: under IoU@90, tiny boxes are harder to reward because the predicted attention region has a fixed top-10-percent size. So the safe claim is not that these heads are exact ornament detectors. The safer claim is that the strongest heads line up better with large structural parts.
 
 ---
 
-### Slide 29 — Q3 View 3: Frozen-to-Adapted Delta
+### Slide 30 — Q3 View 3: Frozen-to-Adapted Delta
 *[~15 seconds]*
 
 > The frozen-to-adapted delta view shows what fine-tuning does to the strongest head. DINOv3 is stable: the same head remains strongest. MAE is partly reshaped: LoRA shifts the strongest head, while full fine-tuning brings it back. CLIP changes the most. In layer 11, LoRA promotes a different head to rank 1, and full fine-tuning promotes another. This gives a more concrete explanation for Q2: CLIP improves because fine-tuning changes which internal components carry the expert-aligned signal.
@@ -244,25 +251,25 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ---
 
 ## Segment 6 — Conclusions & Takeaways
-**Target: ~1 minute | Slides 30–32**
+**Target: ~1 minute | Slides 31–33**
 
 ---
 
-### Slide 30 — Conclusions Section Divider
+### Slide 31 — Conclusions Section Divider
 *[~5 seconds]*
 
 > So, to bring it all together.
 
 ---
 
-### Slide 31 — What We Found
+### Slide 32 — What We Found
 *[~35 seconds]*
 
 > Three questions, three answers. For Q1: DINOv3 gives the strongest evidence that a model can already look near expert-marked regions before fine-tuning, leading on IoU, Coverage, KL, and EMD. Base SigLIP and SigLIP 2 also show why the benchmark must stay multi-metric, because one looks better on overlap and the other looks better on MSE. For Q2: fine-tuning helps most when the model does not already preserve the relevant spatial layout, and the gains depend on which architectural features the model can learn from the style labels. For Q3: per-head specialisation is sparse: the expert-aligned signal is concentrated in a few internal attention heads, not spread evenly everywhere. DINO mostly preserves those heads, MAE is partly reshaped, and CLIP reorganizes after fine-tuning. Across all three questions, the clearest alignments are on large structural parts, not fine ornamentation.
 
 ---
 
-### Slide 32 — Practical Implication
+### Slide 33 — Practical Implication
 *[~20 seconds]*
 
 > The practical upshot is that model selection for domain adaptation should not be guided by accuracy alone. If the diagnostic evidence is spatially coherent, DINOv3 may already be a strong frozen choice. If the evidence is commonly described in text, CLIP can gain a lot from full fine-tuning. If the evidence is compact geometry, MAE can cover cases that the text-trained models miss. So if we want broader coverage on hard images, the better pairing is MAE plus a text-trained model, not several text-trained models that tend to improve on the same examples.
@@ -270,11 +277,11 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 ---
 
 ## Segment 7 — App Demo Lead-In
-**Target: ~5 seconds | Slide 33**
+**Target: ~5 seconds | Slide 34**
 
 ---
 
-### Slide 33 — Demo Section Divider
+### Slide 34 — Demo Section Divider
 *[~5 seconds]*
 
 > Let me now show you all of this in the app.
@@ -289,7 +296,7 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 
 ---
 
-### Slides 34–36 — App Views (shown during demo recording)
+### Slides 35–37 — App Views (shown during demo recording)
 *[These slides appear during the demo clip — no separate narration needed]*
 
 ---
@@ -301,12 +308,12 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 | 1. Hook & results summary | 1–4 | 2:00 | Slide 4 is dense — budget ~55 sec |
 | 2. Dataset & methodology | 5–9 | 2:00 | Slide 9 metrics is important — don't rush |
 | 3. Q1 results | 10–16 | 2:30 | Slide 15 Gram anchoring takes time |
-| 4. Q2 results | 17–24 | 3:30 | CLIP and MAE stories are the centrepiece |
-| 5. Q3 results | 25–29 | 1:00 | Fast but precise — don't drop the caveats |
-| 6. Conclusions | 30–32 | 1:00 | Measured pace, land the key phrases |
-| Demo lead-in | 33 | 0:05 | One sentence |
-| **Narrated total** | **1–33** | **12:05** | ~5 seconds of buffer |
-| Demo clip | 34–36 + recording | 3:00 | Separate file |
+| 4. Q2 results | 17–25 | 3:30 | CLIP, MAE, and SigLIP stories; new slide 22 is ~25 sec |
+| 5. Q3 results | 26–30 | 1:00 | Fast but precise — don't drop the caveats |
+| 6. Conclusions | 31–33 | 1:00 | Measured pace, land the key phrases |
+| Demo lead-in | 34 | 0:05 | One sentence |
+| **Narrated total** | **1–34** | **12:05** | ~5 seconds of buffer |
+| Demo clip | 35–37 + recording | 3:00 | Separate file |
 | **Grand total** | | **15:05** | |
 
 ---
@@ -320,4 +327,4 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
   - Slide 15: Gram anchoring is a hypothesis, not an isolated causal proof
   - Slide 28: IoU@90's fixed top-10-percent geometry makes tiny annotation boxes harder to reward
   - Slide 29: Q3 describes where heads align; it does not prove that one head caused the prediction
-- **Pace check points**: You should be approximately at Slide 10 at 4:00, Slide 18 at 6:30, Slide 25 at 10:00, Slide 33 at 12:00.
+- **Pace check points**: You should be approximately at Slide 10 at 4:00, Slide 18 at 6:30, Slide 26 at 10:00, Slide 34 at 12:00.
