@@ -24,7 +24,32 @@ kill_existing() {
     fi
 }
 
+wait_for_backend() {
+    local url="http://127.0.0.1:8000/health"
+    local attempts=20
+
+    for ((i = 1; i <= attempts; i++)); do
+        if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+            echo -e "${RED}[Backend]${NC} FastAPI process exited before becoming ready."
+            return 1
+        fi
+
+        if curl -fsS "$url" >/dev/null 2>&1; then
+            echo -e "${GREEN}[Backend]${NC} Ready at $url"
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    echo -e "${RED}[Backend]${NC} Timed out waiting for $url"
+    return 1
+}
+
 cleanup() {
+    local status=$?
+    trap - SIGINT SIGTERM EXIT
+
     echo -e "\n${RED}Shutting down...${NC}"
 
     if [ -n "$FRONTEND_PID" ] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
@@ -39,7 +64,7 @@ cleanup() {
 
     wait 2>/dev/null
     echo -e "${GREEN}Shutdown complete${NC}"
-    exit 0
+    exit "$status"
 }
 
 trap cleanup SIGINT SIGTERM EXIT
@@ -55,8 +80,9 @@ echo -e "${GREEN}[Backend]${NC} Starting FastAPI on http://127.0.0.1:8000"
 uv run uvicorn app.backend.main:app --reload --port 8000 &
 BACKEND_PID=$!
 
-# Give backend a moment to start
-sleep 2
+if ! wait_for_backend; then
+    exit 1
+fi
 
 # Start frontend
 echo -e "${GREEN}[Frontend]${NC} Starting Vite on http://127.0.0.1:5173"
