@@ -417,15 +417,31 @@ This pattern connects directly to Q2. DINO-family models already have strong fro
 
 #### View: Head-Feature Matrix
 
-The second result is that the dominant heads are not just numerically stronger; their strongest cells concentrate on recognizable architectural structures. The focused DINOv3 result panel below links the ranking and matrix evidence: the ranking table identifies `head8` as the leading DINOv3 frozen head at this layer, while the selected matrix cell shows that the same head aligns strongly with `Columned Portal`.
+Head Ranking identifies a dominant head, but what architectural evidence does that head align with? We use the Head-Feature Matrix to surface the results - the observation is that the strongest heads mostly align with larger, coherent structural features.
 
 ![DINOv3 frozen Q3 head-feature matrix report view showing head8 and Columned Portal](assets/q3_head_feature_matrix_report_view.png)
 
-*Figure. Head-Feature Matrix report view for DINOv3 frozen attention (`layer = 10`, `IoU@90`). The red callouts mark the selected-cell summary and the matching `Columned Portal × H8` matrix cell. The selected cell reports `Columned Portal · layer10/head8 · IoU@90 = 0.215` across `15` annotations, supporting the feature-specific part of Q3: the dominant head is not only strong overall, it also shows a visible association with larger architectural structures.*
+*Figure. Head-Feature Matrix report view for DINOv3 frozen attention (`layer = 10`, `IoU@90`). The same `head8` that leads the ranking view also carries the selected `Columned Portal` cell, with `IoU@90 = 0.215` across `15` annotations. This links the ranking evidence to the feature evidence: the dominant head is not only strong overall, it is strongest on portal-scale structure.*
 
-The same matrix view gives the feature-specific caveat. The strongest head-feature cells are not evenly distributed across all labels. They repeatedly favor larger, coherent architectural structures such as `Columned Portal`, `Round Arch Portal`, `Ornate Portal`, `Archivolted Portal`, `Tracery Rose Window`, and `Wimperg`. For example, DINOv3's frozen `layer10/head8` reaches mean feature-level `IoU@90` of `0.2151` on `Columned Portal`, `0.2037` on `Round Arch Portal`, and `0.1809` on `Ornate Portal`. DINOv2, MAE, and full-fine-tuned CLIP show the same broad tendency toward portals, arches, and rose-window-scale structures. This means the safest substantive claim is not that individual heads are tiny ornament detectors. The better claim is that certain heads become more compatible with expert-marked **structural architectural parts**, while small decorative features remain much harder to isolate.
+Methodology: to keep this visual check disciplined, for each scoped Q3 model, take its frozen `IoU@90` dominant head from the ranking view, then sort architectural features for that head with at least three annotations.
 
-These two views support the working hypothesis: Q3 is showing **sparse, family-shaped descriptive specialization**. Sparse, because a small number of heads account for a disproportionate share of the strongest alignment results. Family-shaped, because the dominant head pattern differs across self-distillation, reconstruction, and language-image contrastive pretraining.
+The figure below shows the three strongest and three weakest architectural features for each model's selected dominant head.
+
+![Q3 dominant-head top and weak feature crops across DINOv3, DINOv2, MAE, and CLIP](assets/q3_head_feature_top_bottom_contact_sheet.png)
+
+*Figure. Bbox-only frontend Image Detail Q3 crops for the frozen dominant `IoU@90` head in each scoped model: DINOv3 `layer10/head8`, DINOv2 `layer11/head11`, MAE `layer10/head5`, and CLIP `layer4/head5`. The strongest architectural features are dominated by portal-scale or facade-structure parts: `Columned Portal`, `Round Arch Portal`, `Ornate Portal`, `Wimperg`, and `Belt Course`. The weakest architectural features are thin or decorative labels such as `Blind Tracery`, `Crocket`, `Tabernacle`, `Fleuron`, `Coupled Twin Window with Discharging Arch`, and `Projecting Cornice`.*
+
+**Analysis**:
+- DINOv3's frozen `layer10/head8` reaches mean feature-level `IoU@90` of `0.2151` on `Columned Portal`, `0.2037` on `Round Arch Portal`, and `0.1809` on `Ornate Portal`, while its weakest supported architectural features are essentially zero on `Blind Tracery`, `Crocket`, and `Tabernacle`.
+- DINOv2 shows the same portal-heavy top end and the same small-detail failure boundary.
+- MAE also favors large facade parts, but its third strongest architectural feature is `Wimperg`, which fits the Q2 observation that MAE is more responsive to compact geometric forms.
+- CLIP's inclusion of `Belt Course` is useful rather than awkward: it suggests that feature extent and clean geometry matter, not only semantic category names.
+
+The strongest heads are not exact part detectors, and they do not solve fine ornamentation. They are better described as heads whose spatial patterns are more compatible with expert-marked **structural architectural parts**. Failure cases are not random - across model families, the weak architectural features tend to be small, thin, repeated, or visually entangled with surrounding masonry.
+
+Together, the ranking and matrix views support the Q3 hypothesis: per-head specialization is **sparse and family-shaped**:
+- Sparse, because a small number of heads account for a disproportionate share of the strongest alignment results.
+- Family-shaped, because the dominant head pattern differs across self-distillation, reconstruction, and language-image contrastive pretraining.
 
 #### View: Frozen-to-Adapted Delta
 
@@ -500,7 +516,7 @@ For Q2, the headline synthesis is that fine-tuning's effect on expert alignment 
 
 For Q1, the headline synthesis is that frozen expert-aligned attention exists, but it is not evenly distributed across pretraining families. DINOv3 provides the strongest evidence because it leads the default-method benchmark on `IoU@90`, Coverage, KL, and EMD, clears all calibrated continuous baselines across MSE, KL, and EMD, and remains statistically separated from the next-best model on the headline metrics. The safest interpretation is therefore not that all SSL models attend like experts, but that DINOv3's spatial prior is unusually compatible with the expert-marked architectural evidence in WikiChurches.
 
-For Q3, the headline synthesis is that per-head specialization is sparse, descriptive, and family-shaped. DINOv3's `layer10/head8` and DINOv2's `layer11/head11` remain dominant across frozen, LoRA, and Full variants, which is consistent with the DINO family's already-strong spatial prior. MAE is partly reshaped by adaptation, while CLIP shows the clearest reorganization from an earlier frozen head to later adapted heads. The strongest head-feature cells cluster around larger structural parts such as portals, arches, and rose-window-scale features, so the safest claim is not that heads are exact architectural part detectors, but that some heads expose spatial patterns more compatible with expert-marked structure than others.
+For Q3, the headline synthesis is that per-head specialization is sparse, descriptive, and family-shaped. DINOv3's `layer10/head8` and DINOv2's `layer11/head11` remain dominant across frozen, LoRA, and Full variants, which is consistent with the DINO family's already-strong spatial prior. MAE is partly reshaped by adaptation, while CLIP shows the clearest reorganization from an earlier frozen head to later adapted heads. The strongest head-linked architectural features cluster around larger structural parts such as portals, arches, and rose-window-scale features, so the safest claim is not that heads are exact architectural part detectors, but that some heads expose spatial patterns more compatible with expert-marked structure than others.
 
 ## 12. Appendix
 
