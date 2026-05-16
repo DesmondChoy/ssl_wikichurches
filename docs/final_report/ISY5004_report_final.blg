@@ -3,44 +3,44 @@ Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: ISY5004_report_final.aux
 The style file: IEEEbib.bst
 Database file #1: references.bib
-You've used 23 entries,
+You've used 16 entries,
             1838 wiz_defined-function locations,
-            580 strings with 8900 characters,
-and the built_in function-call counts, 7822 in all, are:
-= -- 631
-> -- 469
-< -- 14
-+ -- 164
-- -- 141
-* -- 550
-:= -- 1124
-add.period$ -- 23
-call.type$ -- 23
-change.case$ -- 23
+            540 strings with 7480 characters,
+and the built_in function-call counts, 5173 in all, are:
+= -- 394
+> -- 359
+< -- 7
++ -- 125
+- -- 109
+* -- 375
+:= -- 780
+add.period$ -- 16
+call.type$ -- 16
+change.case$ -- 16
 chr.to.int$ -- 0
-cite$ -- 23
-duplicate$ -- 363
-empty$ -- 710
-format.name$ -- 141
-if$ -- 1818
+cite$ -- 16
+duplicate$ -- 219
+empty$ -- 452
+format.name$ -- 109
+if$ -- 1176
 int.to.chr$ -- 0
-int.to.str$ -- 23
-missing$ -- 17
-newline$ -- 112
-num.names$ -- 23
-pop$ -- 138
+int.to.str$ -- 16
+missing$ -- 10
+newline$ -- 77
+num.names$ -- 16
+pop$ -- 95
 preamble$ -- 1
 purify$ -- 0
 quote$ -- 0
-skip$ -- 282
+skip$ -- 173
 stack$ -- 0
-substring$ -- 492
-swap$ -- 178
-text.length$ -- 14
+substring$ -- 288
+swap$ -- 103
+text.length$ -- 7
 text.prefix$ -- 0
 top$ -- 0
 type$ -- 0
 warning$ -- 0
-while$ -- 60
-width$ -- 25
-write$ -- 240
+while$ -- 37
+width$ -- 18
+write$ -- 163

@@ -244,10 +244,10 @@ all four baselines is stronger support for non-trivial semantic alignment.
 \toprule
 Baseline & MSE & KL & EMD \\
 \midrule
-Random         & 0.0223 & 3.9182 & 0.3468 \\
-Center Gaussian & 0.0193 & 3.7124 & 0.3312 \\
-Saliency Prior & 0.0189 & 3.6841 & 0.3298 \\
-Sobel Edge     & 0.0201 & 3.8003 & 0.3401 \\
+Random         & 0.3192 & 3.3627 & 0.3468 \\
+Center Gaussian & 0.1770 & 2.6317 & 0.2836 \\
+Saliency Prior & 0.0957 & 2.6111 & 0.2654 \\
+Sobel Edge     & 0.0376 & 3.2237 & 0.3137 \\
 \bottomrule
 \end{tabular}
 }
@@ -354,13 +354,13 @@ contrastive objective applying no patch-level spatial pressure.
 \toprule
 Model & Paradigm & IoU$\uparrow$ & Cov$\uparrow$ & MSE$\downarrow$ & KL$\downarrow$ & EMD$\downarrow$ \\
 \midrule
-DINOv3   & Self-distil. & \textbf{0.104} & \textbf{0.241} & 0.0182 & \textbf{3.412} & \textbf{0.318} \\
-ResNet-50 & Supervised  & 0.089 & 0.198 & 0.0195 & 3.701 & 0.334 \\
-DINOv2   & Self-distil. & 0.078 & 0.183 & 0.0188 & 3.524 & 0.321 \\
-MAE      & Masked recon. & 0.061 & 0.159 & 0.0194 & 3.682 & 0.341 \\
-CLIP     & Lang.-image  & 0.031 & 0.092 & 0.0209 & 3.687 & 0.410 \\
-SigLIP   & Sigmoid CL   & 0.024 & 0.071 & \textbf{0.0175} & 3.651 & 0.354 \\
-SigLIP2  & Sigmoid CL   & 0.023 & 0.069 & \textbf{0.0175} & 3.638 & 0.354 \\
+DINOv3   & Self-distil.   & \textbf{0.133} & \textbf{0.137} & 0.0270 & \textbf{2.325} & \textbf{0.260} \\
+ResNet-50 & Supervised    & 0.090 & 0.104 & 0.0242 & 2.692 & 0.303 \\
+DINOv2   & Self-distil.   & 0.082 & 0.100 & 0.0209 & 2.684 & 0.298 \\
+MAE      & Masked recon.  & 0.070 & 0.090 & 0.0483 & 2.756 & 0.318 \\
+CLIP     & Lang.-image    & 0.049 & 0.085 & 0.0211 & 2.912 & 0.326 \\
+SigLIP   & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.0175} & 3.071 & 0.354 \\
+SigLIP2  & Sigmoid CL     & 0.047 & 0.071 & \textbf{0.0175} & 3.071 & 0.354 \\
 \bottomrule
 \end{tabular}
 }
@@ -400,7 +400,7 @@ still struggle on small ornamentation --- and that is what we observe.
 \toprule
 Check & Result & Why it matters \\
 \midrule
-Paired gap & $+$0.043 IoU, $+$0.033 Cov, $+$0.360 KL, $+$0.038 EMD & Lead is not a leaderboard artifact \\
+Paired gap & $+$0.0425 IoU, $+$0.0330 Cov, $+$0.3595 KL, $+$0.0378 EMD & Lead is not a leaderboard artifact \\
 Strongest styles & Gothic 0.169, Romanesque 0.160 & Highest where structure is visually prominent \\
 Strongest features & Ornate Portal 0.214, Tracery Rose 0.164 & Aligns with large coherent parts \\
 Weakest features & Crocket, Fleuron, Pinnacle & Small ornamentation remains hard \\
@@ -446,11 +446,11 @@ Renaissance (+0.014) and Baroque (+0.013) show near-zero gain.
 Model & Roman. & Gothic & Renaiss. & Baroque \\
 \midrule
 CLIP    & +0.066 & +0.079 & +0.014 & +0.013 \\
-MAE     & +0.014 & +0.011 & +0.108 & +0.001 \\
-SigLIP2 & +0.038 & +0.041 & +0.022 & +0.009 \\
-SigLIP  & +0.031 & +0.035 & +0.018 & +0.007 \\
-DINOv2  & +0.002 & +0.001 & $-$0.003 & $-$0.001 \\
-DINOv3  & +0.001 & $-$0.002 & $-$0.005 & $-$0.003 \\
+MAE     & +0.007 & +0.009 & +0.108 & +0.045 \\
+SigLIP2 & +0.034 & +0.044 & +0.007 & +0.007 \\
+SigLIP  & +0.029 & +0.039 & $-$0.006 & +0.005 \\
+DINOv2  & $-$0.010 & +0.001 & $-$0.004 & $-$0.011 \\
+DINOv3  & $-$0.001 & +0.006 & $-$0.004 & $-$0.009 \\
 \bottomrule
 \end{tabular}
 }
@@ -477,13 +477,13 @@ routes attention toward the most discriminative geometric forms.
 \toprule
 Feature & Froz.\ IoU & FT IoU & $\Delta$IoU \\
 \midrule
-Triangular Pediment & 0.003 & 0.083 & +0.080 \\
-Cranked Cornice     & 0.002 & 0.064 & +0.062 \\
-Broken Pediment     & 0.001 & 0.056 & +0.055 \\
-Volute              & 0.004 & 0.047 & +0.043 \\
-Segmental Pediment  & 0.002 & 0.044 & +0.042 \\
-Pilaster            & 0.031 & 0.019 & $-$0.012 \\
-Belt Course         & 0.027 & 0.011 & $-$0.016 \\
+Triangular Pediment & 0.036 & 0.116 & +0.080 \\
+Cranked Cornice     & 0.005 & 0.067 & +0.062 \\
+Broken Pediment     & 0.005 & 0.060 & +0.055 \\
+Volute              & 0.009 & 0.052 & +0.043 \\
+Segmental Pediment  & 0.013 & 0.054 & +0.042 \\
+Pilaster            & 0.023 & 0.011 & $-$0.012 \\
+Belt Course         & 0.031 & 0.015 & $-$0.016 \\
 \bottomrule
 \end{tabular}
 }
@@ -550,12 +550,15 @@ spreading uniformly across the transformer
 the top three on more than 110 of 139 images in every condition. DINOv2 shows
 the same preserved-head pattern at lower absolute alignment. MAE shifts from
 \texttt{layer10/head5} to \texttt{layer11/head7} under LoRA, then returns to
-\texttt{layer10/head5} under Full. CLIP is the clearest reorganisation case,
-moving from an earlier frozen head (\texttt{layer4/head5}) to late-layer
-adapted heads under both LoRA and Full. Coverage and EMD agree on the
-high-level reading, with DINO-family stability being cross-metric while MAE and
-CLIP preserve only the broader adaptation pattern rather than the exact
-winning head.
+\texttt{layer10/head5} under Full. CLIP is the clearest reorganisation case:
+frozen CLIP's best heads sit in early layers (\texttt{layer4/head5} leads at
+mean IoU@90~$=$~0.067), while the selected late layer used in the delta view
+is weak before adaptation (\texttt{layer11} max IoU@90~$=$~0.034) and then
+becomes the strongest adapted layer (best \texttt{layer11} head reaches 0.084
+under LoRA and 0.105 under Full), with \texttt{layer4/head5} staying near its
+frozen score. Coverage and EMD agree on the high-level reading, with
+DINO-family stability being cross-metric while MAE and CLIP preserve only the
+broader adaptation pattern rather than the exact winning head.
 
 \begin{figure}[h]
   \centering
@@ -577,6 +580,24 @@ winning head.
   transition map.}
   \label{fig:q3_ranking_dinov3}
 \end{figure}
+
+The same concentration pattern holds across the full $12 \times 12$ grid of
+(layer, head) pairs. In each frozen scoped model, the top-ranked pair's mean
+IoU@90 lands $2.7\times$--$3.5\times$ above the median pair's (DINOv3
+$3.45\times$, CLIP $3.22\times$, MAE $2.92\times$, DINOv2 $2.69\times$). The
+five best pairs together account for $7.3\%$--$9.0\%$ of total mean IoU@90
+across all 144 pairs, roughly $2\times$ the $3.5\%$ they would hold if
+alignment were uniform. This is the quantitative content of ``sparse'':
+expert-aligned signal concentrates in a small minority of heads rather than
+spreading evenly.
+
+This connects to Q2. DINO-family models already have strong frozen spatial
+alignment, so fine-tuning mostly preserves the dominant expert-aligned head.
+CLIP and MAE gain more from adaptation, and Q3 shows that those gains can
+come from \emph{different heads} becoming best aligned after fine-tuning.
+CLIP's \texttt{layer11} alignment is newly strengthened by adaptation rather
+than inherited from an already strong frozen \texttt{layer11} head, while MAE
+is selectively reshaped toward discriminative geometric forms.
 
 \subsubsection*{Head-Feature Matrix.}
 Head Ranking identifies a dominant head; the Head-Feature Matrix asks what
@@ -636,17 +657,37 @@ than as exact part detectors, and the failure cases are not random: across
 families, the weak features tend to be small, thin, repeated, or visually
 entangled with surrounding masonry.
 
+One caveat moderates the weak-feature reading. IoU@90 keeps a fixed-size
+top-10\% attention region and scores it against a variable-size expert mask,
+so for thin or repeated ornamentation (\emph{Crocket}, \emph{Fleuron},
+\emph{Blind Tracery}) the mask is small and the achievable IoU@90 is
+mechanically capped regardless of where attention falls. Part of the
+weak-feature shortfall is therefore metric geometry rather than
+head-attribution; a threshold-free Coverage check would help separate the two
+effects.
+
 \subsubsection*{Frozen-to-Adapted Delta.}
-Adaptation is family-specific rather than uniform. DINOv3's
-\texttt{layer10/head8} is the best frozen head not only for IoU@90 but also
-for Coverage and EMD, and it remains the best head for all three metrics under
-both LoRA and Full. CLIP behaves differently: its strongest frozen IoU@90 head
-sits at \texttt{layer4/head5}, but its strongest adapted heads move to
-\texttt{layer11}. Within \texttt{layer11}, the top frozen head is \texttt{H4};
-LoRA promotes \texttt{H11}; Full promotes \texttt{H3}
-(Figure~\ref{fig:q3_delta}). MAE sits between: Full preserves and strengthens
-\texttt{layer10/head5} under IoU@90, while LoRA shifts the strongest IoU@90
-head to \texttt{layer11/head7}.
+Head Ranking shows whether the winning head changes across variants. The
+Frozen-to-Adapted Delta view asks the sharper follow-up: when adaptation
+changes the dominant head, does the strongest expert-aligned signal stay in
+the same head or move to a different one? Here, \emph{expert-aligned signal}
+means the selected head's normalised CLS-to-patch heatmap scored against
+expert boxes; for IoU@90 the pipeline keeps the top 10\% of heatmap pixels
+and compares that binary mask with the expert-box union, and the head with the
+highest mean IoU@90 across the 139 images is treated as the strongest
+expert-aligned head for that layer, variant, and metric.
+
+The answer is family-specific: DINO-family heads are mostly preserved, MAE is
+partially reshaped, and CLIP shows the clearest reorganisation. The delta
+view makes the CLIP case concrete inside \texttt{layer11}, the late layer
+where adapted CLIP becomes strongest. The cross-layer change is that frozen
+CLIP's best alignment lives in early layers (\texttt{layer4} max IoU@90~$=$~
+0.067), while \texttt{layer11} is weak before adaptation (0.034 max).
+Adaptation strengthens \texttt{layer11} (0.084 LoRA, 0.105 Full) without
+substantially changing \texttt{layer4/head5}; this view then zooms into
+\texttt{layer11} to show which adapted heads pick up the new signal: frozen
+\texttt{H4} gives way to LoRA \texttt{H11} and Full \texttt{H3}
+(Figure~\ref{fig:q3_delta}).
 
 \begin{figure}[h]
   \centering
@@ -658,14 +699,29 @@ head to \texttt{layer11/head7}.
   \label{fig:q3_delta}
 \end{figure}
 
-Taken together, Q3 extends rather than stands apart from Q1 and Q2. Q1 showed
-DINOv3 has the strongest frozen expert-aligned prior; Q2 showed adaptation
-helps most when the frozen model has room to redirect attention; Q3 shows
-where that behaviour appears inside the transformer. DINO-style models
-preserve stable dominant heads, MAE is partially reshaped, and CLIP
-reorganises from an earlier frozen head toward later adapted heads. The
-specialisation is sparse, shaped by pretraining objective, and most convincing
-for larger architectural structures rather than fine ornamentation.
+Reading the four scoped models together: DINOv3 is the clean stability case,
+with \texttt{layer10/head8} remaining the strongest IoU@90 head in Frozen,
+LoRA, and Full and top-3 support above 110/139 images in every condition;
+DINOv2 shows the same preserved-head pattern at lower absolute alignment with
+\texttt{layer11/head11}. MAE is the intermediate case --- Frozen and Full
+both favour \texttt{layer10/head5}, while LoRA shifts the strongest IoU@90
+head to \texttt{layer11/head7}: not a full CLIP-style rewrite, but evidence
+that parameter-efficient adaptation can move MAE's dominant signal. CLIP is
+the clearest reorganisation case: in \texttt{layer11}, LoRA promotes
+\texttt{H11} from rank \#6 to \#1, with frozen-best \texttt{H4} only falling
+to \#3 and remaining close in score (0.080 vs.\ 0.084), so LoRA promotes a
+new top head without erasing the frozen late-layer pattern. Full
+fine-tuning reorganises CLIP more strongly --- \texttt{H3} moves from \#8 to
+\#1, \texttt{H8} moves from \#7 to \#2, and frozen-best \texttt{H4} drops to
+\#4. Read with Head Ranking, this gives the CLIP-specific claim: adaptation
+strengthens expert alignment in \texttt{layer11} (where frozen CLIP is weak,
+0.034 max) and reorganises the within-layer ranking of those newly
+strengthened heads.
+
+DINO-style models already align well with expert regions before fine-tuning,
+so adaptation leaves their strongest heads mostly unchanged. CLIP and MAE
+have more room to move: after adaptation, the best-aligned attention comes
+from \emph{different heads}, not just from the same head with a higher score.
 
 \subsection{Ablation Study: Preserve / Enhance / Destroy}
 

@@ -1,14 +1,14 @@
 \relax 
 \citation{Barz21WikiChurches}
 \citation{Barz21WikiChurches}
-\citation{Caron21DINO}
-\citation{Oquab24DINOv2}
-\citation{Simeoni25DINOv3}
 \@writefile{toc}{\contentsline {section}{\numberline {1} Introduction}{1}{}\protected@file@percent }
 \newlabel{sec:intro}{{1}{1}{}{section.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {2} Literature Review}{1}{}\protected@file@percent }
 \newlabel{sec:lit}{{2}{1}{}{section.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1} Attention Alignment and WikiChurches}{1}{}\protected@file@percent }
+\citation{Caron21DINO}
+\citation{Oquab24DINOv2}
+\citation{Simeoni25DINOv3}
 \citation{Chung25MedViT}
 \citation{Abnar20Rollout}
 \citation{Chefer21Interp}
@@ -50,9 +50,9 @@
 \citation{Simeoni25DINOv3}
 \@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow $ higher is better; $\downarrow $ lower is better.}}{4}{}\protected@file@percent }
 \newlabel{tab:q1}{{4}{4}{}{table.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.5} Q2: Fine-Tuning Effects on Attention}{4}{}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Q1 robustness and spatial checks for DINOv3.}}{4}{}\protected@file@percent }
 \newlabel{tab:q1checks}{{5}{4}{}{table.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5} Q2: Fine-Tuning Effects on Attention}{4}{}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Per-style $\Delta $IoU@90 under Full fine-tuning (frozen~$\to $~fine-tuned).}}{4}{}\protected@file@percent }
 \newlabel{tab:perstyle}{{6}{4}{}{table.6}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Per-feature $\Delta $IoU for MAE (Full fine-tuning, Renaissance images).}}{5}{}\protected@file@percent }
@@ -64,36 +64,29 @@
 \citation{Simeoni25DINOv3}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.7} Ablation Study: Preserve / Enhance / Destroy}{6}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.8} Discussion and Limitations}{6}{}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5} Conclusions and Future Work}{6}{}\protected@file@percent }
-\newlabel{sec:conc}{{5}{6}{}{section.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6} Author Contributions}{6}{}\protected@file@percent }
 \bibstyle{IEEEbib}
 \bibdata{references}
 \bibcite{Barz21WikiChurches}{1}
 \bibcite{Caron21DINO}{2}
-\bibcite{Abnar20Rollout}{3}
-\bibcite{Chefer21Interp}{4}
-\bibcite{Zhou16CAM}{5}
-\bibcite{Zhang16Excitation}{6}
-\bibcite{Choe20Localization}{7}
-\bibcite{Chung25MedViT}{8}
-\bibcite{Kumar22Distort}{9}
-\bibcite{Biderman24LoRA}{10}
-\bibcite{Park23SSLViT}{11}
-\bibcite{Li24AttnTransfer}{12}
-\bibcite{Voita19Heads}{13}
-\bibcite{Li23HeadDist}{14}
-\bibcite{Walmer23Teaching}{15}
-\bibcite{Raghu21ViTvsCNN}{16}
-\bibcite{Oquab24DINOv2}{17}
-\bibcite{Simeoni25DINOv3}{18}
-\bibcite{He22MAE}{19}
-\bibcite{Radford21CLIP}{20}
+\bibcite{Oquab24DINOv2}{3}
+\@writefile{toc}{\contentsline {section}{\numberline {5} Conclusions and Future Work}{7}{}\protected@file@percent }
+\newlabel{sec:conc}{{5}{7}{}{section.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6} Author Contributions}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {7} AI Tool Declaration}{7}{}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {8} References}{7}{}\protected@file@percent }
-\bibcite{Zhai23SigLIP}{21}
-\bibcite{Tschannen25SigLIP2}{22}
-\bibcite{Hu25ASCENT}{23}
+\bibcite{Simeoni25DINOv3}{4}
+\bibcite{Chung25MedViT}{5}
+\bibcite{Abnar20Rollout}{6}
+\bibcite{Chefer21Interp}{7}
+\bibcite{Kumar22Distort}{8}
+\bibcite{Biderman24LoRA}{9}
+\bibcite{Li24AttnTransfer}{10}
+\bibcite{Voita19Heads}{11}
+\bibcite{Li23HeadDist}{12}
+\bibcite{He22MAE}{13}
+\bibcite{Radford21CLIP}{14}
+\bibcite{Zhai23SigLIP}{15}
+\bibcite{Tschannen25SigLIP2}{16}
 \@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces End-to-end pipeline. The 139-image expert-annotated evaluation set is disjoint from the fine-tuning pool. Linear Probe is a zero-$\Delta $ control (backbone frozen); ResNet-50 is excluded from Q2. Attention extraction depends on model family; Q3 is restricted to native CLS-token models. Five alignment metrics are computed against expert boxes ($M$ binary, $G$ Gaussian) and calibrated against four naive baselines. Cached artefacts feed the Q1, Q2, and Q3 analyses.}}{9}{}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
 \newlabel{fig:pipeline}{{1}{9}{}{figure.1}{}}
