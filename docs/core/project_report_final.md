@@ -33,7 +33,7 @@ For Q1, frozen expert-aligned attention is present but highly model-family depen
 
 The Q2 findings are that fine-tuning moves attention unevenly across families: CLIP gains the most (IoU 0.0181→0.0745, Cohen's d≈1.0) but its gains concentrate on Gothic and Romanesque features that are densely described in English-language web text; MAE's largest single-style gain is on Renaissance, driven specifically by pediment geometry; and the DINO family preserves its already-strong frozen alignment. Models with different pretraining objectives converge on the same structurally easy images rather than covering complementary subsets, with DINOv3 frozen IoU predicting per-image CLIP Δ at Pearson r=+0.677.
 
-> TODO: Add the final abstract findings sentence for the headline Q3 claim once that section locks.
+For Q3, the per-head analysis suggests sparse descriptive specialization rather than uniform head behavior: DINO-family dominant heads remain stable across adaptation, MAE is partly reshaped, and CLIP reorganizes from earlier frozen attention toward later adapted heads, with the clearest feature alignment appearing on larger architectural structures such as portals, arches, and rose windows.
 
 ## 2. Project-At-A-Glance Overview
 
@@ -222,7 +222,7 @@ The third layer is the analysis interface itself: a FastAPI backend plus a React
 
 ## 9. Results
 
-The current repo already contains enough checked-in artifacts to support a substantive draft narrative for Q1 and Q2, while Q3 remains appropriately more placeholder-heavy. Because the report is still a mixed draft, the sections below treat the existing artifacts as current evidence rather than as permanently frozen final tables.
+The current repo already contains enough checked-in artifacts to support a substantive draft narrative for Q1, Q2, and the scoped Q3 per-head study. Because the report is still a mixed draft, the sections below treat the existing artifacts as current evidence rather than as permanently frozen final tables.
 
 ### 9.1 Q1 Results: Frozen-Model Attention Alignment
 
@@ -372,47 +372,74 @@ The substantive reading is that models with different pretraining objectives con
 
 ### 9.3 Q3 Results: Per-Head Specialization
 
-The current repository already supports Q3 data extraction, storage, ranking, and inspection, but the report should keep the findings section narrower and more conservative than Q1 and Q2. The most defensible headline scope is the set of architecture-native CLS-token models: `dinov2`, `dinov3`, `mae`, and `clip`, with `frozen`, `lora`, and `full` as the primary variants. Within that scope, the available pipeline can rank heads by metric, build head-by-feature matrices, store per-image head-feature exemplar rows, and expose them through Dashboard Q3, Image Detail Q3, and the advanced `/q3` workspace.
+To answer Q3, we define **descriptive specialization** to mean a head's attention heatmap that consistently aligns better than other heads with certain expert-marked architectural regions or feature labels. It does not mean that the head is a causal detector for that feature, or that the head alone explains the final prediction. Q3 is therefore a head-level alignment study, not a causal attribution study.
 
-At the same time, the report should resist the temptation to overstate what Q3 currently proves. The Q3 methodology note is explicit that raw post-softmax self-attention provides a descriptive head-specialization analysis, not a full causal attribution method. It is also explicit that `siglip` and `siglip2` should stay out of the primary headline scope because their per-head analysis uses a mean-attention proxy rather than the models' learned pooling heads.
+To keep the comparison clean, Q3 is scoped to the architecture-native CLS-token vision models: `dinov2`, `dinov3`, `mae`, and ViT-based `clip`. These models all support the same extraction path:
 
-The most appropriate Q3 result framing in this mixed draft is therefore that the repo already supports the intended head-ranking and head-feature workflow, the primary study scope is defined, and the final narrative should focus on whether late-layer head dominance appears sparse, whether supervision family changes the dominant head set, and whether `lora` or `full` shifts those dominant heads relative to `frozen`. Until the final Q3 figures and aggregated claims are frozen, this section should remain descriptive and explicitly placeholder-heavy.
+> layer -> head -> CLS-to-patch attention map -> alignment score
 
-> TODO: Insert final Q3 head-ranking or head-feature figure. Candidate inputs: `outputs/cache/metrics.db`, `outputs/cache/attention_viz.h5`, and the Q3-specific cache tables documented in `docs/reference/per_head_methodology.md`.
+That common path lets us compare heads across pretraining families without mixing in proxy methods. `siglip` and `siglip2` remain outside the primary Q3 claim because the current per-head implementation uses a mean-attention proxy rather than their learned pooling head. `resnet50` is also excluded because it has no transformer attention heads, and `rollout` is excluded because it aggregates across layers rather than preserving a single-head unit of analysis.
 
-> TODO: Add the finalized Q3 narrative once the team confirms which scoped head-specialization claims are mature enough for the main report.
+We have built three views in the frontend to answer Q3:
 
-### 9.4 Investigation Note: CNN Feature-Map Analogy
+| Frontend view | What it answers |
+| --- | --- |
+| Head ranking view | Do certain heads consistently align better than others for a selected model, variant, layer, and metric? |
+| Head-feature matrix view | Do the stronger heads align with particular architectural feature labels? |
+| Frozen-to-adapted delta view | Does fine-tuning preserve, sharpen, or reorganize the dominant head set? |
 
-> Investigation note: Explore whether the layer-wise Q3 pattern in ViTs partly mirrors the hierarchical progression often described for CNN feature maps. Treat this as a hypothesis to test, not as an equivalence to assume.
+Within the scoped CLS-token ViT models defined in Section 7.5 (`dinov2`, `dinov3`, `mae`, and ViT-`clip`), the headline Q3 result is sparse, family-shaped specialization: DINO-family models preserve stable dominant heads, MAE is partly reshaped by adaptation, and CLIP reorganizes from earlier frozen heads toward later adapted heads.
 
-In a CNN, a feature map is an activation map for a learned filter. Early CNN layers often respond to local primitives such as edges, color transitions, or repeated textures, while deeper layers respond to larger compositions such as corners, object parts, or whole objects. In a vision transformer, an attention map is not the same thing. It is a patch-to-patch weighting pattern that describes how information is routed, not a direct activation map of a detector. The closer transformer analogue to a CNN feature map is the evolving patch-token representation at each layer. Even so, the analogy remains useful at a higher level because both architectures may build progressively more structured and semantically meaningful spatial organization with depth.
+We rank individual layer/head pairs primarily by `IoU@90`, because specialization is easiest to interpret as localized overlap with expert boxes. Coverage and EMD serve as robustness checks: Coverage removes the thresholding choice, while EMD tests whether the full attention map stays spatially close to the soft target. We therefore report rankings metric-by-metric rather than forcing a composite "best head" score.
 
-For the report, describe this angle carefully. The claim should not be that attention heads are just feature maps, or that one head is equivalent to one CNN channel. The safer claim is that later transformer layers may show more expert-aligned spatial patterns in the same broad sense that deeper CNN layers show more abstract visual structure. The parallel is therefore about hierarchical abstraction, not about architectural identity. That wording also fits the repo's current guardrail that Q3 is descriptive rather than causal.
+#### View: Head Ranking
 
-A defensible way to study this angle in the current repo is to separate three questions:
+The head-ranking view shows that expert-aligned attention is concentrated in a small number of heads, not evenly spread across the transformer. The main distinction is whether adaptation preserves the same dominant head or reorganizes the head ranking. DINOv3 and DINOv2 are stable, MAE is mixed, and CLIP reorganizes most clearly.
 
-1. Layer progression: do fused or aggregate attention metrics improve from early to late layers for the architecture-native Q3 models?
-2. Head specialization: within each layer, do a small number of heads dominate the alignment ranking, and does that sparsity increase in later layers?
-3. Feature specificity: do certain late heads align repeatedly with certain architectural feature labels, such as arches, towers, or windows, across many images?
+![Q3 head ranking transition map](assets/q3_head_ranking_transition_map.png)
 
-Then compare those patterns across `frozen`, `lora`, and `full`. If `lora` or `full` improves alignment, the useful follow-up question is whether adaptation sharpens an existing layer hierarchy, shifts the dominant heads to different layers, or reorganizes which feature types each head best aligns with. This gives the report a more precise claim than simply saying that fine-tuning changed attention.
+*Figure. Q3 head-ranking transition map. Each node shows the best `IoU@90` head for a model variant, with mean `IoU@90` and top-3 frequency across the 139 annotated images. DINO-family models preserve their dominant heads across adaptation, MAE shows a mixed pattern, and CLIP shifts from an early frozen head to late-layer adapted heads.*
 
-This angle should be described with two explicit caveats. First, strong late-layer alignment does not prove that the model has learned human-like part detectors. It only shows that its spatial weighting patterns are becoming more compatible with expert annotations. Second, because raw attention is only one interpretability signal, the strongest version of the claim should be that expert-aligned structure emerges with depth in a descriptive sense, not that the measured heads are the sole causal mechanism behind the prediction.
+- **DINOv3**: The cleanest case - the same `layer10/head8` head remains best across Frozen, LoRA, and Full variants, and it appears in the top three on more than 110 of 139 images in every condition
+- **DINOv2**: Shows the same preserved-head pattern at lower absolute alignment
+- **MAE**: Shifts from `layer10/head5` to `layer11/head7` under LoRA, then returns to `layer10/head5` under Full fine-tuning
+- **CLIP**: The clearest reorganization case, moving from an earlier frozen head (`layer4/head5`) to late-layer adapted heads under both LoRA and Full fine-tuning.
 
-Most useful repo entry points for a deeper dive:
+Coverage and EMD support the same high-level reading, with one important caveat: DINO-family stability is cross-metric, while MAE and CLIP are metric-sensitive. In other words, DINOv3 and DINOv2 preserve the same dominant heads no matter how alignment is measured; MAE and CLIP preserve the broader adaptation pattern, but not the exact winning head.
 
-- `docs/research/attention_methods.md` for the current layer-by-layer interpretation language
-- `docs/reference/metrics_methodology.md` for layer progression expectations, metric behavior, and threshold caveats
-- `docs/reference/per_head_methodology.md` for Q3 scope, head-level caveats, and wording guardrails
-- `app/backend/services/metrics_service.py` for layer progression, head ranking, head-feature matrix, and exemplar queries
-- `src/ssl_attention/attention/cls_attention.py` and `src/ssl_attention/attention/rollout.py` for how the attention maps are extracted
-- `app/precompute/generate_attention_cache.py` and `app/precompute/generate_metrics_cache.py` for how per-layer and per-head artifacts are generated
-- `outputs/cache/metrics.db` and `outputs/cache/attention_viz.h5` for the main cached Q1, Q2, and Q3 analysis artifacts
+The dashboard screenshot below keeps the result inspectable by showing the underlying head-ranking table for the cleanest case in the transition map. For DINOv3 frozen attention at `layer10`, `head8` is not just a marginal winner: it leads by mean `IoU@90`, has mean rank `2.40`, and appears in the top three on `114/139` images.
 
-Potential report wording if this angle becomes part of the final narrative:
+![DINOv3 frozen Q3 head ranking report view showing head8 as the dominant head](assets/q3_head_ranking_report_view.png)
 
-> Although transformer attention maps are not equivalent to CNN feature maps, both architectures may exhibit a depth-wise progression from lower-level spatial organization toward more semantically meaningful structure. We therefore treat increasing late-layer head alignment as a testable descriptive pattern rather than assuming that individual heads are fixed feature detectors.
+*Figure. DINOv3 frozen head-ranking drill-down at `layer10` using `IoU@90`. `Head 8` leads with mean `IoU@90 = 0.160`, mean rank `2.40`, and top-3 placement on `114/139` images. This supports the sparsity claim behind the transition map: the strongest expert-aligned signal is concentrated in a small number of heads rather than evenly distributed across all heads.*
+
+This pattern connects directly to Q2. DINO-family models already have strong frozen spatial alignment, so fine-tuning mostly preserves the dominant expert-aligned head. CLIP and MAE gain more from adaptation, which means the task objective is doing more than improving scores: it is changing where expert-aligned evidence appears inside the network. CLIP is retargeted from weaker frozen spatial attention toward late-layer adapted heads, while MAE is selectively reshaped toward discriminative geometric forms. Q3 therefore gives a head-level explanation for the Q2 result: stable frozen priors lead to stable heads; larger fine-tuning gains come with head reorganization.
+
+#### View: Head-Feature Matrix
+
+The second result is that the dominant heads are not just numerically stronger; their strongest cells concentrate on recognizable architectural structures. The focused DINOv3 result panel below links the ranking and matrix evidence: the ranking table identifies `head8` as the leading DINOv3 frozen head at this layer, while the selected matrix cell shows that the same head aligns strongly with `Columned Portal`.
+
+![DINOv3 frozen Q3 head-feature matrix report view showing head8 and Columned Portal](assets/q3_head_feature_matrix_report_view.png)
+
+*Figure. Head-Feature Matrix report view for DINOv3 frozen attention (`layer = 10`, `IoU@90`). The red callouts mark the selected-cell summary and the matching `Columned Portal × H8` matrix cell. The selected cell reports `Columned Portal · layer10/head8 · IoU@90 = 0.215` across `15` annotations, supporting the feature-specific part of Q3: the dominant head is not only strong overall, it also shows a visible association with larger architectural structures.*
+
+The same matrix view gives the feature-specific caveat. The strongest head-feature cells are not evenly distributed across all labels. They repeatedly favor larger, coherent architectural structures such as `Columned Portal`, `Round Arch Portal`, `Ornate Portal`, `Archivolted Portal`, `Tracery Rose Window`, and `Wimperg`. For example, DINOv3's frozen `layer10/head8` reaches mean feature-level `IoU@90` of `0.2151` on `Columned Portal`, `0.2037` on `Round Arch Portal`, and `0.1809` on `Ornate Portal`. DINOv2, MAE, and full-fine-tuned CLIP show the same broad tendency toward portals, arches, and rose-window-scale structures. This means the safest substantive claim is not that individual heads are tiny ornament detectors. The better claim is that certain heads become more compatible with expert-marked **structural architectural parts**, while small decorative features remain much harder to isolate.
+
+These two views support the working hypothesis: Q3 is showing **sparse, family-shaped descriptive specialization**. Sparse, because a small number of heads account for a disproportionate share of the strongest alignment results. Family-shaped, because the dominant head pattern differs across self-distillation, reconstruction, and language-image contrastive pretraining.
+
+#### View: Frozen-to-Adapted Delta
+
+The third result is that adaptation is family-specific rather than uniform. DINOv3 is the cleanest stability case: `layer10/head8` is the best frozen head not only for `IoU@90`, but also for Coverage and EMD, and it remains the best head for all three metrics under both LoRA and Full fine-tuning. DINOv2 shows the same broad stability pattern. This fits the Q1 and Q2 interpretation: the DINO family already has a stronger frozen spatial prior, so adaptation mostly preserves the dominant expert-aligned head instead of reorganizing it.
+
+CLIP behaves differently. Its strongest frozen `IoU@90` head appears earlier, at `layer4/head5`, but its strongest adapted heads move to late layers under LoRA and Full fine-tuning. Coverage and EMD agree with the broad movement from early frozen evidence to late adapted evidence, even though they choose different top heads within `layer11`. That movement fits the Q2 story that CLIP is retargeted by downstream supervision: adaptation does not merely raise the aggregate score, it changes where the model's most expert-aligned head-level evidence appears. MAE sits between these two cases. Full fine-tuning preserves and strengthens `layer10/head5` under `IoU@90`, while LoRA shifts the strongest `IoU@90` head to `layer11/head7`; the Coverage and EMD checks support the broader "partial reshaping" interpretation without requiring the same head to win every metric.
+
+The frozen-to-adapted delta view makes the CLIP reorganization concrete inside the late layer where adapted CLIP becomes strongest. This view is layer-specific, so the cross-layer movement from `layer4` to `layer11` still comes from the ranking table above. What it shows directly is the within-layer reordering at `layer11`: the top frozen head is `H4`, LoRA promotes `H11`, and Full promotes `H3`.
+
+![CLIP Q3 frozen-to-adapted delta report view showing late-layer head reorganization](assets/q3_frozen_adapted_delta_report_view.png)
+
+*Figure. Frozen-to-Adapted Delta report view for CLIP (`layer = 11`, `IoU@90`). The red callouts mark the two top-head movement statements and the adapted top-head summaries. Within the same late layer, the LoRA comparison moves the top head from `H4` to `H11`, while the Full comparison moves it from `H4` to `H3`. This supports the Q3 adaptation claim: CLIP's head-level evidence is reorganized by fine-tuning rather than simply preserving the frozen head ranking.*
+
+Taken together, Q3 extends the Q1 and Q2 story rather than standing apart from it. Q1 showed that DINOv3 has the strongest frozen expert-aligned spatial prior. Q2 showed that adaptation helps most when the frozen model has room to redirect attention. Q3 shows where that behavior appears inside the transformer: DINO-style models preserve stable dominant heads, MAE is partially reshaped, and CLIP reorganizes from an earlier frozen head toward later adapted heads. The final claim is therefore deliberately descriptive but still useful: individual attention heads do exhibit specialization patterns, but those patterns are sparse, shaped by pretraining objective, and most convincing for larger architectural structures rather than fine ornamentation.
 
 ## 10. Discussion
 
@@ -447,7 +474,7 @@ MAE (He et al., 2022) is pretrained on ImageNet-1k with an asymmetric encoder-de
 
 The DINO family behaves differently. DINOv2 (Oquab et al., 2024) combines DINO self-distillation, iBOT patch prediction, and KoLeo regularization on the curated LVD-142M, and the whitepaper reports frozen ADE20k mIoU of 75.9 versus OpenCLIP's 63.8 — a 12.1-point gap — with only a ~2-point frozen-to-FT gap on ImageNet-1k. DINOv3 (Siméoni et al., 2025) extends this on LVD-1689M and adds a Gram-anchoring loss that penalizes Frobenius drift between student and early-teacher patch-patch Gram matrices, explicitly preserving second-order spatial structure during long training. DINOv3 reaches frozen ADE20k mIoU of 81.1. In the Q2 artifacts, both DINO variants have near-zero Δ across all four styles and across the preserve/enhance/destroy classification. The most defensible reading is that expert-aligned spatial structure is already baked in by pretraining, the style-classification gradient is absorbed by the classification head rather than propagated to reshape attention, and the small DINOv3 Coverage drop under fine-tuning is consistent with fine-tuning sharpening selectivity while the Gram-anchored patch structure resists reorganization. Δ≈0 is a positive generalization result for DINO, not a failure to learn.
 
-Taken together, the Q2 picture is that pretraining objectives set different spatial priors, and those priors interact with downstream adaptation in different ways depending on whether the target task's diagnostic evidence is localized and whether the pretraining signal already carries spatial structure. The report does not claim that one paradigm is universally preferable; it claims that the compatibility between pretraining objective and downstream adaptation strategy is the right unit of analysis for expert-aligned evidence use.
+Taken together, the Q2 picture is that pretraining objectives set different spatial priors, and those priors interact with downstream adaptation in different ways depending on whether the target task's diagnostic evidence is localized and whether the pretraining signal already carries spatial structure. The report does not claim that one paradigm is universally preferable; it claims that the compatibility between pretraining objective and downstream adaptation strategy is the right unit of analysis for expert-aligned evidence use. A complementary observation across the architecture-native Q3 models is that head-alignment concentrates in later layers, echoing — descriptively, not as architectural equivalence — the depth-wise progression toward more structured spatial response that is often described for deeper CNN feature maps. The pretraining objective therefore shapes not only *how strongly* a model aligns with expert evidence, but *where in the depth hierarchy* that alignment is produced.
 
 ### 10.3 Practical Implications
 
@@ -467,13 +494,13 @@ The metric design adds additional interpretive constraints. IoU depends on the t
 
 This project asks whether self-supervised vision models attend to the same architectural evidence that experts consider diagnostically important. Using WikiChurches, expert bounding boxes, and a multi-metric alignment framework, the report studies three linked questions: how well frozen models align with expert evidence, how fine-tuning changes that alignment, and whether individual attention heads exhibit descriptive specialization.
 
-The current repository already supports a strong draft conclusion. The project has a defensible methodology, a calibrated Q1 benchmark, an experiment-scoped Q2 analysis workflow, and a scoped Q3 study design. The draft evidence suggests that model families differ meaningfully both in their frozen spatial alignment and in how much they change under task-specific adaptation. At the same time, the report should remain careful about metric calibration, sparse annotation bias, and the broader limitation that attention is not identical to causal explanation.
+The current repository already supports a strong draft conclusion. The project has a defensible methodology, a calibrated Q1 benchmark, an experiment-scoped Q2 analysis workflow, and scoped Q3 evidence for descriptive head specialization. The draft evidence suggests that model families differ meaningfully in their frozen spatial alignment, in how much they change under task-specific adaptation, and in which individual heads expose expert-aligned structure. At the same time, the report should remain careful about metric calibration, sparse annotation bias, and the broader limitation that attention is not identical to causal explanation.
 
 For Q2, the headline synthesis is that fine-tuning's effect on expert alignment is mediated by three interacting factors: the pretraining objective's spatial prior (DINO preserves strong frozen alignment; CLIP, MAE, and the SigLIP family gain because they lack that prior); dataset linguistic coverage (CLIP's gain concentrates on Gothic and Romanesque features that are densely described in English web text); and geometric discriminability (MAE redirects attention to Renaissance-exclusive pediment forms that its pixel-reconstruction pretraining already encodes with high local fidelity). Models with different objectives converge on the same structurally easy images rather than specializing on complementary subsets, which has direct implications for ensembling and for interpreting what fine-tuning has actually taught each model to look at.
 
 For Q1, the headline synthesis is that frozen expert-aligned attention exists, but it is not evenly distributed across pretraining families. DINOv3 provides the strongest evidence because it leads the default-method benchmark on `IoU@90`, Coverage, KL, and EMD, clears all calibrated continuous baselines across MSE, KL, and EMD, and remains statistically separated from the next-best model on the headline metrics. The safest interpretation is therefore not that all SSL models attend like experts, but that DINOv3's spatial prior is unusually compatible with the expert-marked architectural evidence in WikiChurches.
 
-> TODO: Add the final synthesis sentence for the Q3 headline finding once that section locks.
+For Q3, the headline synthesis is that per-head specialization is sparse, descriptive, and family-shaped. DINOv3's `layer10/head8` and DINOv2's `layer11/head11` remain dominant across frozen, LoRA, and Full variants, which is consistent with the DINO family's already-strong spatial prior. MAE is partly reshaped by adaptation, while CLIP shows the clearest reorganization from an earlier frozen head to later adapted heads. The strongest head-feature cells cluster around larger structural parts such as portals, arches, and rose-window-scale features, so the safest claim is not that heads are exact architectural part detectors, but that some heads expose spatial patterns more compatible with expert-marked structure than others.
 
 ## 12. Appendix
 
