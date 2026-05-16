@@ -5,7 +5,7 @@ This directory complements the root [`README.md`](../README.md) with current wor
 The current public surface covers:
 
 - seven model keys: `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, `siglip2`, `resnet50`
-- app routes: `/`, `/image/:imageId`, `/compare`, `/dashboard`, `/q2`, `/q3`
+- app routes: `/`, `/image/:imageId`, `/compare`, `/dashboard`, `/q2`, `/q3`, `/q3-report`
 - experiment-scoped Q2 artifacts selected through `outputs/results/active_experiment.json`
 
 `docs/archive/` contains historical material and is not part of the current-state navigation below.
@@ -15,9 +15,11 @@ The current public surface covers:
 | Document | Best for |
 |----------|----------|
 | [../README.md](../README.md) | Setup, dataset paths, app startup, major workflows, and developer commands |
-| [user_guide.md](user_guide.md) | Gallery, Image Detail, Compare, Dashboard, Q2, and Q3 product walkthroughs |
+| [user_guide.md](user_guide.md) | Gallery, Image Detail, Compare, Dashboard, Q2, Q3, and Q3 Report product walkthroughs |
 | [reference/cli_reference.md](reference/cli_reference.md) | Complete command, option, and script reference |
 | [reference/api_reference.md](reference/api_reference.md) | Backend endpoints, query parameters, and response contracts |
+| [core/project_report_final.md](core/project_report_final.md) | Markdown source for the academic report and its reproducibility anchors |
+| [final_report/ISY5004_report_final.pdf](final_report/ISY5004_report_final.pdf) | Compiled submission report with checked-in figures |
 
 ## Structure
 
@@ -30,6 +32,16 @@ Current project framing, scope, and implementation status.
 | [project_proposal.md](core/project_proposal.md) | Current project framing, research questions, methodology, and deliverable surface |
 | [implementation_plan.md](core/implementation_plan.md) | Architecture, phase tracking, and implementation notes |
 | [one_pager_pitch.md](core/one_pager_pitch.md) | Short-form current-state project summary |
+| [project_report_final.md](core/project_report_final.md) | Academic report source describing Q1, Q2, Q3, and Appendix A reproducibility anchors |
+
+### [`final_report/`](final_report/) — Submission Package
+Compiled report assets prepared for academic submission.
+
+| Document | Description |
+|----------|-------------|
+| [ISY5004_report_final.pdf](final_report/ISY5004_report_final.pdf) | Compiled final report |
+| [ISY5004_report_final.tex](final_report/ISY5004_report_final.tex) | LaTeX source for the compiled report |
+| [figures/](final_report/figures/) | Checked-in figures referenced by the report |
 
 ### [`reference/`](reference/) — Operational Reference
 Current command surfaces, APIs, artifacts, and methodology contracts.

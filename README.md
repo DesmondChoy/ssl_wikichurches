@@ -1,58 +1,42 @@
 # Do Self-Supervised Vision Models Learn What Experts See?
 
-This repository evaluates whether SSL vision models attend to the same architectural features that human experts mark as diagnostically important in WikiChurches images.
+This repository evaluates whether self-supervised vision models attend to the same architectural features that WikiChurches experts mark as diagnostically important.
 
-The project centers on three linked questions:
+The project answers three questions:
 
-1. **Q1: Attention alignment**. How well do frozen models align with expert annotations across IoU, Coverage, MSE, KL, and EMD?
-2. **Q2: Fine-tuning effects**. How do Linear Probe, LoRA, and Full fine-tuning change attention alignment on the same evaluation images?
-3. **Q3: Head specialization**. Which individual attention heads align best with specific architectural features, and how does that change across variants?
+1. **Q1: Frozen attention alignment** - how well frozen models align with expert boxes across IoU, Coverage, MSE, KL, and EMD.
+2. **Q2: Fine-tuning effects** - how Linear Probe, LoRA, and Full fine-tuning change that alignment.
+3. **Q3: Head specialization** - which attention heads align best with specific architectural features.
 
-## Start Here
+## Quick Start
 
-**Requirements:** Python 3.12+, [uv](https://github.com/astral-sh/uv), Node.js 18+
-
-### 1. Install dependencies
+Requirements: Python 3.12+, [uv](https://github.com/astral-sh/uv), Node.js 18+.
 
 ```bash
 uv sync
 ```
 
-Frontend dependencies install on first `./dev.sh` run, or manually from `app/frontend`.
+Download one dataset path:
 
-### 2. Choose a dataset path
-
-#### Path A: Annotated subset for the app and evaluation
-
-Use the Google Drive package when you want the 139 annotated images plus `building_parts.json` for the app, cache generation, and the primary attention-alignment workflows.
-
-**[Download annotated subset (Google Drive)](https://drive.google.com/drive/folders/1fsf0k71ADeYCBAwo-dIPntUmpibaoGBr)**
-
-Expected structure:
-
-```text
-dataset/
-├── images/
-│   ├── Q18785543_wd0.jpg
-│   ├── Q2034923_wd0.jpg
-│   └── ...
-└── building_parts.json
-```
-
-#### Path B: Official WikiChurches files from Zenodo
-
-Use the downloader when you want selective files from the official WikiChurches release, such as `churches.json`, metadata, the full image archive, or the official `building_parts.json`.
+- **Annotated subset:** [Google Drive package](https://drive.google.com/drive/folders/1fsf0k71ADeYCBAwo-dIPntUmpibaoGBr) with 139 images plus `building_parts.json`. Use this for the app, Q1/Q3 cache generation, and expert-alignment evaluation.
+- **Official WikiChurches files:** use the downloader when you need `churches.json`, metadata, the full image archive, or the official annotation file.
 
 ```bash
 uv run python scripts/download_wikichurches.py --list
 uv run python scripts/download_wikichurches.py --files churches.json image_meta.json building_parts.json
 ```
 
-The official release contains 9,485 images. The interactive app evaluates the 139-image expert-annotated subset, while fine-tuning draws from the style-labeled pool in `churches.json`.
+Expected local structure:
 
-### 3. Precompute the baseline app artifacts
+```text
+dataset/
+├── images/
+│   ├── Q18785543_wd0.jpg
+│   └── ...
+└── building_parts.json
+```
 
-Generate the frozen-model attention, feature, heatmap, and metrics caches:
+Generate the baseline app caches:
 
 ```bash
 uv run python -m app.precompute.generate_attention_cache --models all
@@ -61,113 +45,59 @@ uv run python -m app.precompute.generate_heatmap_images --colormap viridis
 uv run python -m app.precompute.generate_metrics_cache
 ```
 
-Populate the primary Q3 per-head study scope on Dashboard, Image Detail, and `/q3`:
+Add the Q3 per-head cache scope:
 
 ```bash
-# Frozen Q3 scope
 uv run python -m app.precompute.generate_attention_cache --models dinov2 dinov3 mae clip --per-head
 uv run python -m app.precompute.generate_metrics_cache --models dinov2 dinov3 mae clip --per-head
-
-# Fine-tuned Q3 scope
 uv run python -m app.precompute.generate_attention_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
 uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip --strategies lora full --per-head
 ```
 
-Populate fine-tuned overlays, similarity features, and heatmaps for the Compare flows after checkpoints exist:
-
-```bash
-uv run python -m app.precompute.generate_attention_cache --finetuned --models all --strategies linear_probe lora full
-uv run python -m app.precompute.generate_feature_cache --finetuned --models all --strategies linear_probe lora full
-uv run python -m app.precompute.generate_heatmap_images --finetuned --models all --strategies linear_probe lora full
-uv run python -m app.precompute.generate_metrics_cache --finetuned --models dinov2 dinov3 mae clip siglip siglip2 --strategies linear_probe lora full
-```
-
-The full command surface, flags, and utility scripts are documented in [docs/reference/cli_reference.md](docs/reference/cli_reference.md).
-
-### 4. Run the app
-
-#### One-command local development
+Run the app:
 
 ```bash
 ./dev.sh
 ```
 
-This starts:
+This starts the backend at `http://127.0.0.1:8000` and frontend at `http://127.0.0.1:5173`.
 
-- backend at `http://127.0.0.1:8000`
-- frontend at `http://127.0.0.1:5173`
+## Submission Artifacts
 
-#### Manual startup
+Start here if you are reviewing the academic submission:
 
-Backend:
+- Final PDF: [docs/final_report/ISY5004_report_final.pdf](docs/final_report/ISY5004_report_final.pdf)
+- Report Markdown source: [docs/core/project_report_final.md](docs/core/project_report_final.md)
+- Report figures: [docs/final_report/figures/](docs/final_report/figures/)
+- Active experiment pointer: [outputs/results/active_experiment.json](outputs/results/active_experiment.json)
+- Q2 run matrix: [outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json](outputs/results/experiments/fine_tuning_primary_20260327/run_matrix.json)
+- Q2 analysis: [outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json](outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json)
 
-```bash
-uv run uvicorn app.backend.main:app --reload --port 8000
-```
+Git includes the report, figures, Q2 result JSONs, run manifests, split metadata, and active experiment pointer. Git does not include the large local artifacts:
 
-Frontend:
+- `dataset/`
+- `outputs/cache/`
+- `outputs/checkpoints/`
+- `outputs/slides/`
 
-```bash
-cd app/frontend
-npm install
-npm run dev
-```
-
-#### Docker
-
-Standard compose run:
-
-```bash
-docker compose up
-```
-
-This exposes:
-
-- backend at `http://localhost:8000`
-- frontend at `http://localhost:3000`
-
-Hot-reload backend profile:
-
-```bash
-docker compose --profile dev up backend-dev frontend
-```
+For full app-level reproduction of Q1 and Q3, regenerate `outputs/cache/metrics.db` and `outputs/cache/metrics_summary.json` using the cache commands above. For Q2, rerun the experiment workflow below or inspect the checked-in result artifacts.
 
 ## App Routes
 
-The current UI surface is organized around these routes:
+| Route | Purpose |
+|------|---------|
+| `/` | Gallery of annotated WikiChurches images |
+| `/image/:imageId` | Single-image overlays, annotations, metrics, and Q3 drill-down |
+| `/compare` | Frozen model and variant comparisons |
+| `/dashboard` | Q1 overview and main Q3 discovery surface |
+| `/q2` | Fine-tuning summary from the active experiment |
+| `/q3` | Advanced Q3 side-by-side workspace |
+| `/q3-report` | Report-focused Q3 head ranking, feature matrix, and delta views |
 
-| Route | Primary role |
-|------|--------------|
-| `/` | Gallery for browsing annotated images by style and filename |
-| `/image/:imageId` | Image Detail with overlay inspection, metrics progression, and Q3 drill-down |
-| `/compare` | Model vs Model and Variant vs Variant workflows on one typed or selected image |
-| `/dashboard` | Q1 overview analysis plus the main Q3 discovery surface |
-| `/q2` | Strategy-aware fine-tuning summary sourced from the active experiment |
-| `/q3` | Advanced side-by-side Q3 workspace for aligned model comparisons |
+## Q2 Reproduction
 
-The Gallery combines architectural-style filtering with filename search. The Compare page accepts a typed filename or datalist selection, stores the selected image in the canonical `image` URL parameter, and supports both frozen Model vs Model comparisons and Variant vs Variant comparisons across `Frozen`, `Linear Probe`, `LoRA`, and `Full Fine-tune`. The Compare shift-map view is a frozen-vs-adapted inspection mode computed from cached numeric heatmaps as `adapted - frozen`.
-
-## Model Surface
-
-All transformer models use ViT-Base backbones. `resnet50` is the supervised CNN baseline.
-
-| Model key | Backbone | Default method | Other supported methods |
-|-----------|----------|----------------|-------------------------|
-| `dinov2` | ViT-B/14 | `cls` | `rollout` |
-| `dinov3` | ViT-B/16 | `cls` | `rollout` |
-| `mae` | ViT-B/16 | `cls` | `rollout` |
-| `clip` | ViT-B/16 | `cls` | `rollout` |
-| `siglip` | ViT-B/16 | `mean` | — |
-| `siglip2` | ViT-B/16 | `mean` | — |
-| `resnet50` | CNN | `gradcam` | — |
-
-Fine-tuning is supported for `dinov2`, `dinov3`, `mae`, `clip`, `siglip`, and `siglip2`.
-
-## Fine-Tuning Workflow
-
-Fine-tuning uses the style-labeled pool derived from `churches.json`. The 139 bbox-annotated images stay out of the primary train/validation split and remain the evaluation pool for attention alignment.
-
-### 1. Train one experiment batch
+The primary experiment ID is `fine_tuning_primary_20260327`.
+This path requires the style-labeled pool from `churches.json`, not only the 139-image annotated subset.
 
 ```bash
 EXPERIMENT_ID=fine_tuning_primary_20260327
@@ -175,130 +105,56 @@ EXPERIMENT_ID=fine_tuning_primary_20260327
 uv run python experiments/scripts/fine_tune_models.py --all --freeze-backbone --epochs 3 --experiment-id "$EXPERIMENT_ID"
 uv run python experiments/scripts/fine_tune_models.py --all --lora --epochs 3 --experiment-id "$EXPERIMENT_ID"
 uv run python experiments/scripts/fine_tune_models.py --all --epochs 3 --experiment-id "$EXPERIMENT_ID"
-```
 
-Primary checkpoints are written to:
-
-- `outputs/checkpoints/<experiment_id>/`
-- `outputs/results/experiments/<experiment_id>/fine_tuning_results.json`
-- `outputs/results/experiments/<experiment_id>/run_matrix.json`
-- `outputs/results/experiments/<experiment_id>/manifests/`
-- `outputs/results/experiments/<experiment_id>/splits/`
-
-### 2. Build the Q2 analysis artifact
-
-```bash
 uv run python experiments/scripts/analyze_q2_metrics.py \
   --experiment-id "$EXPERIMENT_ID" \
   --models clip dinov2 dinov3 mae siglip siglip2 \
   --strategies linear_probe lora full
 ```
 
-This writes the canonical active-experiment artifact:
-
-- `outputs/results/experiments/<experiment_id>/q2_metrics_analysis.json`
-
-The image-level Q2 delta export is available at:
-
-- `outputs/results/experiments/<experiment_id>/q2_delta_iou_analysis.json`
-
-`outputs/results/active_experiment.json` selects which experiment batch the app, figure scripts, and reporting utilities read by default.
-
-Q2 image-level and mechanism-focused analysis scripts read the same active experiment and write supplemental artifacts next to the batch:
+Supplementary Q2 analyses:
 
 ```bash
 uv run python experiments/scripts/analyze_style_breakdown.py --experiment-id "$EXPERIMENT_ID" --strategy full
 uv run python experiments/scripts/analyze_model_correlation.py --experiment-id "$EXPERIMENT_ID" --strategy full
 uv run python experiments/scripts/analyze_feature_delta_iou.py --experiment-id "$EXPERIMENT_ID" --model mae --strategy full --style Renaissance
-```
-
-Primary Q2 investigation outputs include:
-
-- `outputs/results/experiments/<experiment_id>/style_breakdown.json`
-- `outputs/results/experiments/<experiment_id>/style_breakdown.png`
-- `outputs/results/experiments/<experiment_id>/model_correlation.json`
-- `outputs/results/experiments/<experiment_id>/model_correlation_scatter.png`
-- `outputs/results/experiments/<experiment_id>/model_correlation_heatmap.png`
-- `outputs/results/experiments/<experiment_id>/feature_delta_iou_mae_full_renaissance.json`
-- `outputs/results/experiments/<experiment_id>/feature_delta_iou_mae_full_renaissance.png`
-
-### 3. Refresh Q1 baseline reports
-
-```bash
 uv run python experiments/scripts/analyze_q1_continuous_baselines.py
 ```
 
-This writes:
+The full command surface is in [docs/reference/cli_reference.md](docs/reference/cli_reference.md). The experiment artifact contract is in [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md).
 
-- `outputs/results/q1_continuous_baseline_comparison.json`
-- `outputs/results/q1_continuous_baseline_summary.md`
+## Developer Checks
 
-See [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md) for the full artifact contract and active-experiment layout.
+```bash
+uv run ruff check .
+uv run mypy
+uv run pytest
+cd app/frontend && npm run lint && npm run build
+```
 
-## Developer Commands
-
-| Area | Command |
-|------|---------|
-| Python tests | `uv run pytest` |
-| Python lint | `uv run ruff check .` |
-| Python typing | `uv run mypy` |
-| Frontend install | `cd app/frontend && npm install` |
-| Frontend lint | `cd app/frontend && npm run lint` |
-| Frontend build | `cd app/frontend && npm run build` |
-| Frontend preview | `cd app/frontend && npm run preview` |
-| Frontend E2E | `cd app/frontend && npm run test:e2e` |
-| Notebook | `uv run jupyter lab notebooks/01_data_exploration.ipynb` |
-
-## Reporting Utilities
-
-The reporting pipeline reads the active experiment, cache outputs, Q1 baseline reports, and Q2 investigation artifacts to generate narrative, figure, and slide assets:
-
-- `uv run python experiments/scripts/generate_run_matrix_figures.py`
-- `uv run python experiments/scripts/generate_slide_images.py`
-- `cd experiments/scripts && npm install && node create_presentation.js`
-
-Primary generated locations:
-
-- `outputs/figures/`
-- `outputs/slides/`
-
-Current report-facing source documents and artifacts include:
-
-- `docs/core/project_report_final.md`
-- `outputs/results/q1_continuous_baseline_summary.md`
-- `outputs/results/q1_continuous_baseline_comparison.json`
-- `outputs/results/experiments/fine_tuning_primary_20260327/style_breakdown.json`
-- `outputs/results/experiments/fine_tuning_primary_20260327/model_correlation.json`
-- `outputs/results/experiments/fine_tuning_primary_20260327/feature_delta_iou_mae_full_renaissance.json`
-
-## Documentation Map
+## Documentation
 
 | Document | Use it for |
 |----------|------------|
-| [docs/README.md](docs/README.md) | Documentation index and navigation |
-| [docs/user_guide.md](docs/user_guide.md) | Product walkthroughs for Gallery, Compare, Dashboard, Q2, Image Detail, and Q3 |
-| [docs/reference/cli_reference.md](docs/reference/cli_reference.md) | Complete command and flag reference |
-| [docs/reference/api_reference.md](docs/reference/api_reference.md) | Backend routes, query parameters, and response contracts |
-| [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md) | Experiment-scoped artifact layout and active-experiment workflow |
-| [docs/research/q2_results_analysis.md](docs/research/q2_results_analysis.md) | Q2 interpretation, mechanism analysis, and active investigation findings |
-| [docs/enhancements/q2_investigation_roadmap.md](docs/enhancements/q2_investigation_roadmap.md) | Q2 validation steps, completed analysis scripts, and remaining robustness checks |
-| [docs/core/project_report_final.md](docs/core/project_report_final.md) | Working academic report draft grounded in current artifacts |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/user_guide.md](docs/user_guide.md) | App walkthroughs |
+| [docs/reference/cli_reference.md](docs/reference/cli_reference.md) | Command and flag reference |
+| [docs/reference/api_reference.md](docs/reference/api_reference.md) | Backend API contracts |
+| [docs/reference/fine_tuning_run_matrix.md](docs/reference/fine_tuning_run_matrix.md) | Q2 artifact layout |
+| [docs/reference/per_head_methodology.md](docs/reference/per_head_methodology.md) | Q3 per-head method |
 
-## Project Layout
+## Layout
 
 ```text
 ssl_wikichurches/
-├── app/
-│   ├── backend/          # FastAPI backend
-│   ├── frontend/         # React + Vite frontend
-│   └── precompute/       # Cache generation scripts
-├── dataset/              # Local WikiChurches data
-├── docs/                 # Current project documentation
-├── experiments/          # Fine-tuning, analysis, and reporting scripts
-├── outputs/              # Generated caches, checkpoints, figures, and results
-├── scripts/              # Dataset and utility scripts
-├── src/ssl_attention/    # Core library code
-└── tests/                # Pytest test suite
+├── app/                 # FastAPI backend, React frontend, cache scripts
+├── dataset/             # Local WikiChurches data, not tracked
+├── docs/                # Report, references, and user docs
+├── experiments/         # Fine-tuning and analysis scripts
+├── outputs/             # Results, figures, local caches, checkpoints
+├── scripts/             # Dataset and utility scripts
+├── src/ssl_attention/   # Core library code
+└── tests/               # Pytest suite
 ```
 
 ## References
@@ -306,4 +162,3 @@ ssl_wikichurches/
 - Barz & Denzler (2021). [WikiChurches](https://arxiv.org/abs/2108.06959)
 - Oquab et al. (2023). [DINOv2](https://arxiv.org/abs/2304.07193)
 - Simeoni et al. (2025). [DINOv3](https://arxiv.org/abs/2508.10104)
-- Zhang et al. (2018). [Top-Down Neural Attention by Excitation Backprop](https://link.springer.com/article/10.1007/s11263-017-1059-x)

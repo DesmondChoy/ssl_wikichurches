@@ -18,8 +18,9 @@ It is written as an app guide, not a results report. For setup, cache generation
 | Dashboard | `/dashboard` | Overview analysis for Q1 and the main discovery surface for Q3 | Top navigation |
 | Q2 | `/q2` | Strategy-aware fine-tuning summary | Dashboard quick action or direct URL |
 | Q3 Advanced | `/q3` | Side-by-side comparison of two primary-study Q3 models | Dashboard Q3 action or direct URL |
+| Q3 Report | `/q3-report` | Report-focused Q3 head ranking, feature matrix, and delta views | Q3 page action or direct URL |
 
-The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q2`, `Q3 Advanced`, and `Image Detail` are drill-down pages.
+The top navigation only links to **Gallery**, **Compare**, and **Dashboard**. `Q2`, `Q3 Advanced`, `Q3 Report`, and `Image Detail` are drill-down pages.
 
 ## Shared Concepts
 
@@ -172,11 +173,24 @@ This is the main discovery surface for **Q3**.
   Includes the ranked-head table, head-by-feature heatmap, and inline exemplar loading.
 - **Open advanced workspace**
   Sends the current model, variant, layer, metric, percentile, and optional focus into `/q3`.
+- **Open report view**
+  Sends the current Q3 context into `/q3-report` for the cleaner report-facing layouts.
 
 Important behavior:
 
 - Start here first for Q3. `/q3` is the advanced comparison workspace, not the main entry point.
+- Use `/q3-report` when you want the focused report views used for screenshots and video walkthroughs.
 - The inline exemplar flow is part of Dashboard Q3, so you can validate a head-feature pattern before leaving the page.
+
+### Q3 Report (`/q3-report`)
+
+Use this page when you want the Q3 evidence in the same focused format used by the academic report figures.
+
+- **Head Ranking** shows the top heads for one model, variant, layer, metric, and percentile.
+- **Head-Feature Matrix** connects a selected head to architectural feature labels.
+- **Frozen-to-Adapted Delta** shows how the dominant head ranking changes from Frozen to LoRA and Full Fine-tune.
+
+This page is intentionally narrower than Dashboard Q3 and `/q3`. It is built for explanation, screenshots, and reproducible report inspection.
 
 ### Q3 Advanced (`/q3`)
 

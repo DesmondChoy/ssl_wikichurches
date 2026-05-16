@@ -14,8 +14,9 @@ The primary page components live under `src/pages/`:
 - `Dashboard` for `/dashboard`
 - `Q2` for `/q2`
 - `Q3` for `/q3`
+- `Q3Report` for `/q3-report`
 
-Q3 follows a Dashboard-first flow: discover dataset-level patterns on `Dashboard`, inspect one image on `ImageDetail`, and use `/q3` for aligned side-by-side model comparisons.
+Q3 follows a Dashboard-first flow: discover dataset-level patterns on `Dashboard`, inspect one image on `ImageDetail`, use `/q3-report` for the report-focused head ranking, head-feature matrix, and frozen-to-adapted delta views, and use `/q3` for aligned side-by-side model comparisons.
 
 ## Frontend Scripts
 
