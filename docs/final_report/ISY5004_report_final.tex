@@ -25,22 +25,37 @@ classification accuracy alone does not reveal whether those models attend to the
 same visual evidence that human experts consider diagnostically important. This
 project studies that question in the WikiChurches setting, where expert bounding
 boxes identify architectural features such as arches, windows, towers, and
-facade elements that matter for style recognition. We evaluate seven vision
-models across self-distillation, masked autoencoding, multimodal contrastive
-pretraining, and a supervised CNN baseline, then measure attention alignment
-against 631 expert boxes on 139 annotated church images using IoU, Coverage,
-MSE, KL divergence, and EMD. The study is organised around three linked
-questions: how well frozen models align with expert-marked regions, how Linear
-Probe, LoRA, and Full fine-tuning change that alignment, and whether individual
-attention heads exhibit descriptive specialisation for different architectural
-features. For Q1, DINOv3 provides the strongest frozen alignment, leading on
-IoU, Coverage, KL, and EMD and clearing all calibrated naive baselines. For Q2,
-fine-tuning effects are model-family dependent: CLIP gains the most
-(IoU $0.0181\!\to\!0.0745$, Cohen's $d\!\approx\!1.0$) with gains concentrated
-on Gothic and Romanesque features, MAE shows a large Renaissance shift driven by
-pediment geometry, and the DINO family largely preserves its strong frozen
-alignment. Models with different pretraining objectives converge on the same
-structurally easy images rather than complementary subsets.
+facade elements that matter for style recognition.
+
+We evaluate seven vision models across self-distillation, masked autoencoding,
+multimodal contrastive pretraining, and a supervised CNN baseline, then measure
+attention alignment against 631 expert boxes on 139 annotated church images
+using IoU, Coverage, MSE, KL divergence, and EMD.
+
+The study is organised around three linked questions:
+(1)~How well frozen models align with expert-marked regions;
+(2)~How Linear Probe, LoRA, and Full fine-tuning change that alignment;
+(3)~Whether individual attention heads exhibit descriptive specialisation for
+different architectural features.
+
+For Q1, frozen expert-aligned attention is present but highly model-family
+dependent: DINOv3 is the only model with consistently strong cross-metric
+alignment, leading on IoU@90, Coverage, KL, and EMD, and uniquely clearing all
+calibrated continuous baselines, while other frozen models show more partial or
+metric-specific alignment. For Q2, fine-tuning moves attention unevenly across
+families: CLIP gains the most (IoU $0.0181\!\to\!0.0745$, Cohen's
+$d\!\approx\!1.0$) with gains concentrated on Gothic and Romanesque features;
+MAE's largest single-style gain is on Renaissance, driven by pediment geometry;
+and the DINO family preserves its already-strong frozen alignment. Models with
+different pretraining objectives converge on the same structurally easy images
+rather than complementary subsets, with DINOv3 frozen IoU predicting per-image
+CLIP $\Delta$ at Pearson $r\!=\!+0.677$. For Q3, per-head specialisation is
+sparse and family-shaped: DINO-family dominant heads stay stable across
+adaptation (DINOv3 \texttt{layer10/head8}, DINOv2 \texttt{layer11/head11}), MAE
+is partly reshaped, and CLIP reorganises from an early frozen head
+(\texttt{layer4/head5}) toward late-layer adapted heads. The clearest
+head-feature alignments concentrate on larger architectural structures such as
+portals, arches, and rose windows.
 \end{abstract}
 
 \textbf{Keywords}: self-supervised learning, attention alignment, vision transformers, architectural recognition
@@ -77,52 +92,56 @@ adaptation choices encourage models to attend to.
 \section{Literature Review}
 \label{sec:lit}
 
-\subsection{Attention Interpretability in Vision Transformers}
+This section cites papers that carry a concrete design choice in this
+repository: the dataset, the evaluated model families, the attention-alignment
+method, the fine-tuning comparison, or the Q3 head-level unit of analysis.
 
-DINO~\cite{Caron21DINO} popularised the observation that late-layer
-self-attention can resemble semantic object masks, while attention
-rollout~\cite{Abnar20Rollout} argued that single-layer raw attention may miss
-cross-layer information flow. Chefer et al.~\cite{Chefer21Interp} further
-demonstrated that attention visualisation alone is not a complete explanation
-method, which is why this project frames outputs as alignment measurements and
-descriptive evidence rather than definitive causal proof.
+\subsection{Attention Alignment and WikiChurches}
 
-\subsection{Evaluation Against Expert Annotations}
+WikiChurches~\cite{Barz21WikiChurches} is the project anchor because it
+provides both architectural style labels and expert bounding boxes for
+characteristic building parts. Those boxes turn the project from a generic
+interpretability demo into a domain-grounded alignment test: do model heatmaps
+land on the same architectural evidence that experts mark?
 
-IoU-style localisation evaluation, pointing-game metrics, and
-plausibility-oriented benchmarks~\cite{Zhou16CAM,Zhang16Excitation,Choe20Localization}
-established the pattern of comparing model-derived maps against annotated
-regions. Recent work in medical imaging~\cite{Chung25MedViT} found that model
-families behave differently when the evaluation target is domain-specific,
-strengthening the framing of this project as a domain-grounded evaluation study.
+Caron et al.~\cite{Caron21DINO} motivate the DINO-family part of the study by
+showing that self-supervised ViT attention can produce object-like masks without
+localisation supervision. Oquab et al.~\cite{Oquab24DINOv2} and Sim\'{e}oni et
+al.~\cite{Simeoni25DINOv3} are direct model sources for DINOv2 and DINOv3,
+which matter because DINOv3 is the strongest frozen model in the Q1 artifacts
+and the DINO family is the main stability case in Q2.
 
-\subsection{Fine-Tuning, Representation Shift, and Attention Drift}
+Chung et al.~\cite{Chung25MedViT} are the closest methodological neighbour:
+they compare ViT attention maps with expert medical annotations rather than
+generic object masks. This report makes the same domain-specific move, but for
+architectural heritage and across a wider model and adaptation matrix.
+Abnar and Zuidema~\cite{Abnar20Rollout} are included because this repo
+implements attention rollout as an alternative to single-layer CLS attention.
+Chefer et al.~\cite{Chefer21Interp} provide the key guardrail: attention
+visualisations support alignment analysis but should not be treated as full
+causal explanations.
 
-Kumar et al.~\cite{Kumar22Distort} showed that fine-tuning can distort
-pretrained features relative to linear-probe controls.
-Biderman et al.~\cite{Biderman24LoRA} argued that LoRA tends to learn less and
-forget less than full fine-tuning. Park et al.~\cite{Park23SSLViT} and
-Li et al.~\cite{Li24AttnTransfer} suggest that attention patterns are not
-incidental to downstream performance and can be transferred usefully.
+\subsection{Fine-Tuning and Attention Shift}
 
-\subsection{Attention-Head Specialisation}
+Q2 asks whether adaptation changes where a model looks. Kumar et
+al.~\cite{Kumar22Distort} justify the Linear Probe vs.\ Full fine-tuning
+contrast by showing that full fine-tuning can distort pretrained features rather
+than merely improving a classifier head. Biderman et al.~\cite{Biderman24LoRA}
+motivate the LoRA middle case: parameter-efficient adaptation can learn less and
+forget less than full fine-tuning. Li et al.~\cite{Li24AttnTransfer} argue that
+attention patterns carry transfer signal; this repo asks the stricter question of
+whether those changed patterns move toward expert architectural evidence.
 
-Voita et al.~\cite{Voita19Heads} established that only a subset of heads carries
-the most interpretable behaviour. Later ViT work~\cite{Li23HeadDist,Walmer23Teaching,Raghu21ViTvsCNN}
-extended that intuition to head-level spatial patterns. Q3 adopts this
-descriptive framing: it asks whether some heads align more strongly with
-architectural features, not whether the full model decision reduces to a single
-head.
+\subsection{Per-Head Specialisation}
 
-\subsection{Cultural Heritage and Architectural Recognition}
-
-Architectural heritage datasets are appropriate for attention-alignment studies
-because diagnostic evidence is structural, expert-defined, and visually
-localised. The project's novelty lies in bringing together
-expert-annotation-grounded evaluation, multiple SSL
-paradigms~\cite{Caron21DINO,Oquab24DINOv2,Simeoni25DINOv3,He22MAE,Radford21CLIP,Zhai23SigLIP,Tschannen25SigLIP2},
-adaptation analysis, and an architecture domain where looking at the right
-evidence is central~\cite{Hu25ASCENT}.
+Q3 should stay descriptive. Voita et al.~\cite{Voita19Heads} are the useful
+precedent for the idea that a small subset of attention heads carries
+interpretable, task-relevant behaviour. Li et al.~\cite{Li23HeadDist} provide
+the vision-specific counterpart by analysing head importance and attention
+patterns in ViTs. This report uses those papers to justify a narrower question:
+whether individual heads in DINOv2, DINOv3, MAE, and CLIP align more strongly
+with particular expert-marked architectural features, without claiming that a
+high-ranking head causally explains the model's final prediction.
 
 % -----------------------------------------------------------------------
 \section{Proposed Approach}
@@ -218,7 +237,7 @@ attention, center Gaussian, saliency prior, and Sobel edge map
 all four baselines is stronger support for non-trivial semantic alignment.
 
 \begin{table}[h]
-\caption{Dataset-level naive baseline scores (lower is better).}
+\caption{Dataset-level mean baseline scores (lower is better).}
 \label{tab:baselines}
 \centerline{
 \begin{tabular}{lccc}
@@ -303,22 +322,29 @@ best default-method layer over the 139 annotated images.
 
 \subsection{Q1: Frozen-Model Attention Alignment}
 
-Table~\ref{tab:q1} ranks seven models by IoU@90 at their best default-method
-layer. DINOv3 leads on IoU@90, Coverage, KL, and EMD, and is the only model
-that clears all four naive baselines on all three continuous metrics. ResNet-50
-ranks second on the two overlap metrics (IoU, Coverage), showing that supervised
-CNN representations carry meaningful localisation behaviour even without
-transformer attention. DINOv2 provides the stronger distributional second-tier
-story among transformers (second on KL and EMD), consistent with
-self-distillation producing more object-like late-layer attention.
+Attention alignment is not one thing. A model can place its strongest attention
+inside the expert boxes, spread attention across the right facade region, or
+match the overall target distribution --- and those are related but not identical
+behaviours. Treating one score as the whole answer would make the result look
+cleaner than it really is. Instead, Q1 uses a multi-metric benchmark: IoU@90,
+Coverage, MSE, KL divergence, and EMD.
 
-CLIP is especially informative as a contrast: its best frozen IoU occurs at
-layer~0 rather than in a late-layer regime, suggesting the language-image
-contrastive objective does not inherently produce expert-aligned spatial
-structure at depth. The SigLIP family achieves the best frozen MSE (0.0175) but
-has EMD~0.3538, worse than the random baseline (0.3468), showing the danger of
-single-metric interpretation: smooth local maps can still misplace attention
-mass at a distributional level.
+Each metric catches a different failure mode: IoU@90 asks whether the model's
+top-attended pixels land inside the expert annotations; Coverage asks what
+fraction of total attention energy falls inside the annotated regions; MSE, KL,
+and EMD compare the full heatmap against a Gaussian soft-union target, exposing
+cases where a model looks reasonable under overlap but still places attention
+mass in the wrong location.
+
+Under this benchmark, DINOv3 is the cleanest Q1 result (Table~\ref{tab:q1}).
+It leads on IoU@90, Coverage, KL, and EMD, and is the only model that clears
+all four naive baselines on all three continuous metrics. It does not win MSE,
+where the SigLIP family scores lowest --- which is exactly why the benchmark
+cannot collapse to one number. SigLIP achieves MSE~0.0175 but EMD~0.3538,
+worse than the random baseline of~0.3468: smooth local maps can still misplace
+attention mass at a distributional level. CLIP's best frozen IoU occurs at
+layer~0 rather than in a late-layer regime, consistent with its global
+contrastive objective applying no patch-level spatial pressure.
 
 \begin{table}[h]
 \caption{Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow$ higher is better; $\downarrow$ lower is better.}
@@ -340,13 +366,54 @@ SigLIP2  & Sigmoid CL   & 0.023 & 0.069 & \textbf{0.0175} & 3.638 & 0.354 \\
 }
 \end{table}
 
-The absolute IoU values should not be read like classification accuracy. Because
-annotations are sparse and often cover much less than 10\% of the image, even
-strong spatial correspondence does not produce IoU near~1.0. The calibrated
-interpretation is that DINOv3 is well ahead of other frozen models on overlap,
-clears the strongest continuous-baseline tests, and remains statistically
-separated from the next-best model (paired Wilcoxon, Holm-corrected $p\!<\!0.01$
-on IoU and EMD).
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q1_dinov3_react_dashboard_iou_best_available.png}
+  \caption{React dashboard screenshot (\texttt{/dashboard}, IoU@90, Best available ranking). DINOv3 ranks first at layer~11 with IoU~$=$~0.133 using CLS attention. The layer-progression panel shows DINOv3's late-layer jump relative to other models.}
+  \label{fig:dashboard_q1}
+\end{figure}
+
+\subsubsection*{Gram Anchoring}
+
+Our hypothesis is that DINOv3 benefits from the combination of scale, curated
+data, and a training recipe designed to preserve dense spatial structure. The
+DINOv3 technical report~\cite{Simeoni25DINOv3} identifies dense-feature
+degradation as a failure mode during long SSL training and introduces
+\textbf{Gram anchoring} to stabilise patch-level feature maps. Given that Q1
+metrics reward spatial correspondence to expert-marked architectural parts, a
+method designed to protect dense features is a natural fit for the observed
+result.
+
+To corroborate DINOv3's lead, we performed two further checks. The first is
+robustness: paired image-level tests (Table~\ref{tab:q1checks}) show DINOv3
+remains separated from the next-best model on all headline metrics, with
+Holm-adjusted $p\!<\!1.31\!\times\!10^{-7}$. The second is where DINOv3 wins.
+If Gram anchoring preserves cleaner patch-level spatial structure, we should
+expect frozen attention to work best on mid-to-large architectural parts and
+still struggle on small ornamentation --- and that is what we observe.
+
+\begin{table}[h]
+\caption{Q1 robustness and spatial checks for DINOv3.}
+\label{tab:q1checks}
+\centerline{\small
+\begin{tabular}{p{2.5cm}p{2.3cm}p{2.7cm}}
+\toprule
+Check & Result & Why it matters \\
+\midrule
+Paired gap & $+$0.043 IoU, $+$0.033 Cov, $+$0.360 KL, $+$0.038 EMD & Lead is not a leaderboard artifact \\
+Strongest styles & Gothic 0.169, Romanesque 0.160 & Highest where structure is visually prominent \\
+Strongest features & Ornate Portal 0.214, Tracery Rose 0.164 & Aligns with large coherent parts \\
+Weakest features & Crocket, Fleuron, Pinnacle & Small ornamentation remains hard \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+This does not prove Gram anchoring is the cause --- the current artifact does
+not ablate model scale, data mixture, and the anchoring loss separately --- but
+it makes the hypothesis plausible: DINOv3 has a better dense spatial prior for
+prominent architectural structure, not a complete understanding of every
+fine-grained architectural cue.
 
 \subsection{Q2: Fine-Tuning Effects on Attention}
 
@@ -466,18 +533,139 @@ easy images rather than specialising on complementary subsets.
 \subsection{Q3: Per-Head Specialisation}
 \label{sec:q3}
 
-Q3 analyses whether individual attention heads in DINOv2, DINOv3, MAE, and CLIP
-exhibit descriptive specialisation for different architectural feature types
-across frozen, LoRA, and Full variants.
+Q3 defines \emph{descriptive specialisation} as a head whose CLS-to-patch
+attention map consistently aligns better than other heads with expert-marked
+regions or feature labels. It is not a causal-attribution claim. The scope is
+the architecture-native CLS-token ViTs: DINOv2, DINOv3, MAE, and CLIP; SigLIP,
+SigLIP2, and ResNet-50 are excluded because their per-head proxies do not use
+native attention heads, and rollout is excluded because it aggregates layers.
+Heads are ranked primarily by IoU@90, with Coverage and EMD as robustness
+checks.
 
-% TODO: Insert final Q3 head-ranking figure (source: outputs/cache/metrics.db, per_head tables).
-% TODO: Insert finalized Q3 narrative once scoped head-specialisation claims are confirmed.
+\subsubsection*{Head Ranking.}
+Expert-aligned attention concentrates in a small number of heads rather than
+spreading uniformly across the transformer
+(Figure~\ref{fig:q3_ranking_map}). DINOv3 is the cleanest case: the same
+\texttt{layer10/head8} remains best across Frozen, LoRA, and Full, appearing in
+the top three on more than 110 of 139 images in every condition. DINOv2 shows
+the same preserved-head pattern at lower absolute alignment. MAE shifts from
+\texttt{layer10/head5} to \texttt{layer11/head7} under LoRA, then returns to
+\texttt{layer10/head5} under Full. CLIP is the clearest reorganisation case,
+moving from an earlier frozen head (\texttt{layer4/head5}) to late-layer
+adapted heads under both LoRA and Full. Coverage and EMD agree on the
+high-level reading, with DINO-family stability being cross-metric while MAE and
+CLIP preserve only the broader adaptation pattern rather than the exact
+winning head.
 
-The current pipeline supports per-head IoU ranking, head-by-feature alignment
-matrices, and per-image exemplar storage. The primary analysis will report
-whether late-layer head dominance is sparse, whether supervision family changes
-the dominant head set, and whether LoRA or Full fine-tuning shifts dominant
-heads relative to frozen.
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q3_head_ranking_transition_map.png}
+  \caption{Q3 head-ranking transition map. Each node is the best IoU@90 head
+  for a model variant, with mean IoU@90 and top-3 frequency across the 139
+  annotated images. DINO-family models preserve their dominant heads across
+  adaptation; MAE shows a mixed pattern; CLIP shifts from an early frozen head
+  to late-layer adapted heads.}
+  \label{fig:q3_ranking_map}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q3_head_ranking_report_view.png}
+  \caption{DINOv3 frozen head-ranking drill-down at \texttt{layer10} using
+  IoU@90. Head~8 leads with mean IoU@90~$=$~0.160, mean rank~2.40, and top-3
+  placement on 114/139 images, supporting the sparsity claim behind the
+  transition map.}
+  \label{fig:q3_ranking_dinov3}
+\end{figure}
+
+\subsubsection*{Head-Feature Matrix.}
+Head Ranking identifies a dominant head; the Head-Feature Matrix asks what
+architectural evidence that head aligns with. The observation is that the
+strongest heads mostly align with larger, coherent structural features
+(Figure~\ref{fig:q3_feature_matrix}). For DINOv3, the same
+\texttt{layer10/head8} that leads the ranking view also carries the selected
+\emph{Columned Portal} cell at IoU@90~$=$~0.215 across 15 annotations, linking
+the ranking evidence to the feature evidence.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q3_head_feature_matrix_report_view.png}
+  \caption{Head-Feature Matrix report view for DINOv3 frozen attention
+  (\texttt{layer = 10}, IoU@90). The same \texttt{head8} that leads the
+  ranking view also carries the selected \emph{Columned Portal} cell at
+  IoU@90~$=$~0.215 across 15 annotations: the dominant head is strongest on
+  portal-scale structure.}
+  \label{fig:q3_feature_matrix}
+\end{figure}
+
+To keep the visual check disciplined, for each scoped Q3 model we take its
+frozen IoU@90 dominant head from the ranking view and sort architectural
+features for that head with at least three annotations.
+Figure~\ref{fig:q3_top_bottom} shows the three strongest and three weakest
+features for each model's dominant head.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q3_head_feature_top_bottom_contact_sheet.png}
+  \caption{Frontend Image Detail Q3 crops for the frozen dominant IoU@90 head
+  in each scoped model: DINOv3 \texttt{layer10/head8}, DINOv2
+  \texttt{layer11/head11}, MAE \texttt{layer10/head5}, CLIP
+  \texttt{layer4/head5}. Strongest features are dominated by portal-scale or
+  facade-structure parts (\emph{Columned Portal}, \emph{Round Arch Portal},
+  \emph{Ornate Portal}, \emph{Wimperg}, \emph{Belt Course}). Weakest features
+  are thin or decorative labels (\emph{Blind Tracery}, \emph{Crocket},
+  \emph{Tabernacle}, \emph{Fleuron}, \emph{Coupled Twin Window with Discharging
+  Arch}, \emph{Projecting Cornice}).}
+  \label{fig:q3_top_bottom}
+\end{figure}
+
+Across the four scoped models the pattern is consistent. DINOv3's
+\texttt{layer10/head8} reaches mean feature-level IoU@90 of 0.215 on
+\emph{Columned Portal}, 0.204 on \emph{Round Arch Portal}, and 0.181 on
+\emph{Ornate Portal}, while its weakest supported features are essentially
+zero on \emph{Blind Tracery}, \emph{Crocket}, and \emph{Tabernacle}. DINOv2
+shows the same portal-heavy top end and the same small-detail failure
+boundary. MAE also favours large facade parts, but its third-strongest feature
+is \emph{Wimperg}, fitting the Q2 observation that MAE is more responsive to
+compact geometric forms. CLIP's inclusion of \emph{Belt Course} suggests
+feature extent and clean geometry matter, not only semantic category names.
+
+The strongest heads are therefore better described as heads whose spatial
+patterns are more compatible with expert-marked \emph{structural} parts rather
+than as exact part detectors, and the failure cases are not random: across
+families, the weak features tend to be small, thin, repeated, or visually
+entangled with surrounding masonry.
+
+\subsubsection*{Frozen-to-Adapted Delta.}
+Adaptation is family-specific rather than uniform. DINOv3's
+\texttt{layer10/head8} is the best frozen head not only for IoU@90 but also
+for Coverage and EMD, and it remains the best head for all three metrics under
+both LoRA and Full. CLIP behaves differently: its strongest frozen IoU@90 head
+sits at \texttt{layer4/head5}, but its strongest adapted heads move to
+\texttt{layer11}. Within \texttt{layer11}, the top frozen head is \texttt{H4};
+LoRA promotes \texttt{H11}; Full promotes \texttt{H3}
+(Figure~\ref{fig:q3_delta}). MAE sits between: Full preserves and strengthens
+\texttt{layer10/head5} under IoU@90, while LoRA shifts the strongest IoU@90
+head to \texttt{layer11/head7}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{q3_frozen_adapted_delta_report_view.png}
+  \caption{Frozen-to-Adapted Delta report view for CLIP (\texttt{layer = 11},
+  IoU@90). Within the same late layer, the LoRA comparison moves the top head
+  from \texttt{H4} to \texttt{H11}, while the Full comparison moves it from
+  \texttt{H4} to \texttt{H3}.}
+  \label{fig:q3_delta}
+\end{figure}
+
+Taken together, Q3 extends rather than stands apart from Q1 and Q2. Q1 showed
+DINOv3 has the strongest frozen expert-aligned prior; Q2 showed adaptation
+helps most when the frozen model has room to redirect attention; Q3 shows
+where that behaviour appears inside the transformer. DINO-style models
+preserve stable dominant heads, MAE is partially reshaped, and CLIP
+reorganises from an earlier frozen head toward later adapted heads. The
+specialisation is sparse, shaped by pretraining objective, and most convincing
+for larger architectural structures rather than fine ornamentation.
 
 \subsection{Ablation Study: Preserve / Enhance / Destroy}
 
@@ -553,9 +741,17 @@ reconstruction already encodes with high local fidelity). Models with different
 objectives converge on the same structurally easy images rather than
 complementary subsets, with implications for ensembling strategies.
 
-For \textbf{Q3}, the per-head specialisation pipeline is in place and the
-analysis scope is defined. Final findings will be reported once the per-head
-claim set is confirmed.
+For \textbf{Q3}, per-head specialisation is sparse, descriptive, and
+family-shaped. DINOv3's \texttt{layer10/head8} and DINOv2's
+\texttt{layer11/head11} remain dominant across Frozen, LoRA, and Full,
+consistent with the DINO family's already-strong spatial prior. MAE is partly
+reshaped by adaptation, while CLIP shows the clearest reorganisation from an
+earlier frozen head to later adapted heads. The strongest head-linked
+architectural features cluster on portals, arches, and rose-window-scale
+structures, so the safest
+claim is not that heads are exact architectural-part detectors, but that some
+heads expose spatial patterns more compatible with expert-marked structure
+than others.
 
 \textbf{Future work.} A patch-level text-similarity probe for CLIP would
 directly test the linguistic-grounding hypothesis. Extending the annotated pool
@@ -566,11 +762,10 @@ prior is driven by data scale, model scale, or the anchoring loss specifically.
 % -----------------------------------------------------------------------
 \section{Author Contributions}
 
-\textbf{Desmond Choy}: project lead, fine-tuning pipeline, Q2 analysis, result
-interpretation, system architecture and backend.
+\textbf{Desmond Choy}: project lead, analysis interface, precompute pipeline,
+metric design and validation, Q1 calibration, Q3 analysis and backend.
 
-\textbf{Leong Kay Mei}: frontend and analysis interface, precompute pipeline,
-metric design and validation, Q1 calibration, documentation.
+\textbf{Leong Kay Mei}: frontend and analysis interface, fine-tuning pipeline, Q2 analysis, result interpretation, and documentation.
 
 Both authors contributed to research design, experiment execution, and report
 writing.
