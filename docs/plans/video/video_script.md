@@ -100,7 +100,7 @@ Timing notes per segment are indicative. The 12 minutes is the constraint; adjus
 
 ---
 
-### Slide 12 — Why a Multi-Metric Benchmark?
+### CUT Slide 12 — Why a Multi-Metric Benchmark?
 *[~35 seconds]*
 
 > The reason we need five metrics is that attention alignment is not one thing. A heatmap can overlap the expert box, spread attention energy over the right facade area, or match the smooth Gaussian target while still putting mass too far away. That is exactly what the SigLIP results show. SigLIP 2 has the best MSE, and base SigLIP is almost tied with it, so the MSE story looks excellent. But both variants fail the distance-based EMD baseline check, meaning the attention mass is still too far from the expert regions. If we used MSE alone, we would tell the wrong story.
