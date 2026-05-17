@@ -2,6 +2,8 @@
 
 This repository evaluates whether self-supervised vision models attend to the same architectural features that WikiChurches experts mark as diagnostically important.
 
+GitHub repo: [DesmondChoy/ssl_wikichurches](https://github.com/DesmondChoy/ssl_wikichurches)
+
 The project answers three questions:
 
 1. **Q1: Frozen attention alignment** - how well frozen models align with expert boxes across IoU, Coverage, MSE, KL, and EMD.
