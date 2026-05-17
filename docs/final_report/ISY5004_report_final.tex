@@ -206,7 +206,7 @@ in Q3, which is restricted to architecture-native CLS-token models.
 \begin{table}[h]
 \caption{Attention extraction methods by model family.}
 \label{tab:extraction}
-\centerline{
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lll}
 \toprule
 Method & Models & Notes \\
@@ -216,7 +216,7 @@ Rollout & DINOv2, DINOv3, MAE, CLIP & Cross-layer composition \\
 Mean attention & SigLIP, SigLIP2 & Proxy (no CLS token) \\
 Grad-CAM & ResNet-50 & CNN baseline \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
 }
 \end{table}
 
@@ -254,7 +254,7 @@ all four baselines is stronger support for non-trivial semantic alignment.
 \begin{table}[h]
 \caption{Dataset-level mean baseline scores (lower is better).}
 \label{tab:baselines}
-\centerline{
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 Baseline & MSE & KL & EMD \\
@@ -264,7 +264,7 @@ Center Gaussian & 0.1770 & 2.6317 & 0.2836 \\
 Saliency Prior & 0.0957 & 2.6111 & 0.2654 \\
 Sobel Edge     & 0.0376 & 3.2237 & 0.3137 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
 }
 \end{table}
 
@@ -280,7 +280,7 @@ excluded from Q2.
 \begin{table}[h]
 \caption{Fine-tuning strategies compared in Q2.}
 \label{tab:strategies}
-\centerline{
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lll}
 \toprule
 Strategy & Backbone & Role \\
@@ -289,7 +289,7 @@ Linear Probe & Frozen & Control (zero attention change) \\
 LoRA         & Mostly frozen & Efficient adapter \\
 Full         & Updated end-to-end & Maximum adaptation \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
 }
 \end{table}
 
@@ -369,7 +369,7 @@ global contrastive objective applying no patch-level spatial pressure.
 \begin{table}[h]
 \caption{Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow$ higher is better; $\downarrow$ lower is better.}
 \label{tab:q1}
-\centerline{\small
+\resizebox{\columnwidth}{!}{\small
 \begin{tabular}{llccccc}
 \toprule
 Model & Paradigm & IoU$\uparrow$ & Cov$\uparrow$ & MSE$\downarrow$ & KL$\downarrow$ & EMD$\downarrow$ \\
@@ -415,7 +415,7 @@ still struggle on small ornamentation --- and that is what we observe.
 \begin{table}[h]
 \caption{Q1 robustness and spatial checks for DINOv3.}
 \label{tab:q1checks}
-\centerline{\small
+\resizebox{\columnwidth}{!}{\small
 \begin{tabular}{p{2.5cm}p{2.3cm}p{2.7cm}}
 \toprule
 Check & Result & Why it matters \\
@@ -460,7 +460,7 @@ Renaissance (+0.014) and Baroque (+0.013) show near-zero gain.
 \begin{table}[h]
 \caption{Per-style $\Delta$IoU@90 under Full fine-tuning (frozen~$\to$~fine-tuned).}
 \label{tab:perstyle}
-\centerline{\small
+\resizebox{\columnwidth}{!}{\small
 \begin{tabular}{lcccc}
 \toprule
 Model & Roman. & Gothic & Renaiss. & Baroque \\
@@ -469,7 +469,7 @@ CLIP    & +0.066 & +0.079 & +0.014 & +0.013 \\
 MAE     & +0.007 & +0.009 & +0.108 & +0.045 \\
 SigLIP2 & +0.034 & +0.044 & +0.007 & +0.007 \\
 SigLIP  & +0.029 & +0.039 & $-$0.006 & +0.005 \\
-DINOv2  & $-$0.010 & +0.001 & $-$0.004 & $-$0.011 \\
+DINOv2  & $-$0.010 & +0.001 & $-$0.004 & $-$0.012 \\
 DINOv3  & $-$0.001 & +0.006 & $-$0.004 & $-$0.009 \\
 \bottomrule
 \end{tabular}
@@ -492,7 +492,7 @@ routes attention toward the most discriminative geometric forms.
 \begin{table}[h]
 \caption{Per-feature $\Delta$IoU for MAE (Full fine-tuning, Renaissance images).}
 \label{tab:mae_renaissance}
-\centerline{\small
+\resizebox{\columnwidth}{!}{\small
 \begin{tabular}{lccc}
 \toprule
 Feature & Froz.\ IoU & FT IoU & $\Delta$IoU \\
@@ -863,10 +863,12 @@ writing.
 % -----------------------------------------------------------------------
 \section{AI Tool Declaration}
 
-The authors used Claude (Anthropic) to [describe specific uses: e.g., assist
-with literature review summaries, improve expression, format LaTeX, generate
-draft text for revision]. The authors are responsible for the content and
-quality of the submitted work.
+The authors used Claude (Anthropic) to assist with literature review
+summarisation, LaTeX formatting and table layout, drafting prose for
+subsequent revision, and code-comment polishing in the analysis pipeline.
+All experimental design, results, and interpretations are the authors' own,
+and the authors are responsible for the content and quality of the submitted
+work.
 
 % -----------------------------------------------------------------------
 \bibliographystyle{IEEEbib}
