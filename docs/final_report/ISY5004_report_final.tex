@@ -6,8 +6,16 @@
 \usepackage{subcaption}
 \usepackage{url}
 \usepackage{array}
+\usepackage{tabularx}
+\usepackage{placeins}
 
 \graphicspath{{figures/}}
+% spconf is two-column; keep resized tables inside one real column.
+\newlength{\reportcolwidth}
+\setlength{\reportcolwidth}{\dimexpr\textwidth-\columnsep\relax}
+\setlength{\reportcolwidth}{0.5\reportcolwidth}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
 % Title
 \title{Do Self-Supervised Vision Models Learn What Experts See?}
@@ -162,15 +170,22 @@ high-ranking head causally explains the model's final prediction.
 \section{Proposed Approach}
 \label{sec:approach}
 
-\begin{figure*}[t]
+\begin{center}
 \centering
-\includegraphics[width=0.95\textwidth]{pipeline.png}
-\caption{End-to-end pipeline. The 139-image expert-annotated evaluation set is disjoint from the fine-tuning pool. Linear Probe is a zero-$\Delta$ control (backbone frozen); ResNet-50 is excluded from Q2. Attention extraction depends on model family; Q3 is restricted to native CLS-token models. Five alignment metrics are computed against expert boxes ($M$ binary, $G$ Gaussian) and calibrated against four naive baselines. Cached artefacts feed the Q1, Q2, and Q3 analyses.}
-\label{fig:pipeline}
-\end{figure*}
+\includegraphics[width=\columnwidth]{pipeline.png}
+\refstepcounter{figure}\label{fig:pipeline}
+\parbox{\columnwidth}{\small \textbf{Fig.~\thefigure:} End-to-end pipeline.
+The 139-image expert-annotated evaluation set is disjoint from the fine-tuning
+pool. Linear Probe is a zero-$\Delta$ control (backbone frozen); ResNet-50 is
+excluded from Q2. Attention extraction depends on model family; Q3 is
+restricted to native CLS-token models. Five alignment metrics are computed
+against expert boxes ($M$ binary, $G$ Gaussian) and calibrated against four
+naive baselines. Cached artefacts feed the Q1, Q2, and Q3 analyses.}
+\end{center}
 
 Figure~\ref{fig:pipeline} summarises the end-to-end pipeline. The remainder of
 this section walks through each stage in turn.
+\FloatBarrier
 
 \subsection{Dataset and Problem Setup}
 
@@ -204,10 +219,12 @@ pathway. ResNet-50 uses Grad-CAM. These distinctions are especially important
 in Q3, which is restricted to architecture-native CLS-token models.
 
 \begin{table}[h]
+\centering
 \caption{Attention extraction methods by model family.}
 \label{tab:extraction}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lll}
+{\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\reportcolwidth}{@{}L{0.25\reportcolwidth}L{0.37\reportcolwidth}Y@{}}
 \toprule
 Method & Models & Notes \\
 \midrule
@@ -216,7 +233,7 @@ Rollout & DINOv2, DINOv3, MAE, CLIP & Cross-layer composition \\
 Mean attention & SigLIP, SigLIP2 & Proxy (no CLS token) \\
 Grad-CAM & ResNet-50 & CNN baseline \\
 \bottomrule
-\end{tabular}%
+\end{tabularx}%
 }
 \end{table}
 
@@ -252,9 +269,10 @@ attention, center Gaussian, saliency prior, and Sobel edge map
 all four baselines is stronger support for non-trivial semantic alignment.
 
 \begin{table}[h]
+\centering
 \caption{Dataset-level mean baseline scores (lower is better).}
 \label{tab:baselines}
-\resizebox{\columnwidth}{!}{%
+\resizebox{\reportcolwidth}{!}{%
 \begin{tabular}{lccc}
 \toprule
 Baseline & MSE & KL & EMD \\
@@ -278,10 +296,12 @@ Three strategies are compared (Table~\ref{tab:strategies}); ResNet-50 is
 excluded from Q2.
 
 \begin{table}[h]
+\centering
 \caption{Fine-tuning strategies compared in Q2.}
 \label{tab:strategies}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lll}
+{\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\reportcolwidth}{@{}L{0.27\reportcolwidth}L{0.34\reportcolwidth}Y@{}}
 \toprule
 Strategy & Backbone & Role \\
 \midrule
@@ -289,7 +309,7 @@ Linear Probe & Frozen & Control (zero attention change) \\
 LoRA         & Mostly frozen & Efficient adapter \\
 Full         & Updated end-to-end & Maximum adaptation \\
 \bottomrule
-\end{tabular}%
+\end{tabularx}%
 }
 \end{table}
 
@@ -367,9 +387,10 @@ occurs at layer~0 rather than in a late-layer regime, consistent with its
 global contrastive objective applying no patch-level spatial pressure.
 
 \begin{table}[h]
+\centering
 \caption{Q1 frozen-model alignment leaderboard (best default-method layer, 139 images). $\uparrow$ higher is better; $\downarrow$ lower is better.}
 \label{tab:q1}
-\resizebox{\columnwidth}{!}{\small
+\resizebox{\reportcolwidth}{!}{\small
 \begin{tabular}{llccccc}
 \toprule
 Model & Paradigm & IoU$\uparrow$ & Cov$\uparrow$ & MSE$\downarrow$ & KL$\downarrow$ & EMD$\downarrow$ \\
@@ -413,9 +434,10 @@ expect frozen attention to work best on mid-to-large architectural parts and
 still struggle on small ornamentation --- and that is what we observe.
 
 \begin{table}[h]
+\centering
 \caption{Q1 robustness and spatial checks for DINOv3.}
 \label{tab:q1checks}
-\resizebox{\columnwidth}{!}{\small
+\resizebox{\reportcolwidth}{!}{\small
 \begin{tabular}{p{2.5cm}p{2.3cm}p{2.7cm}}
 \toprule
 Check & Result & Why it matters \\
@@ -458,9 +480,10 @@ in English-language web text---consistent with CLIP's language-grounded training
 Renaissance (+0.014) and Baroque (+0.013) show near-zero gain.
 
 \begin{table}[h]
+\centering
 \caption{Per-style $\Delta$IoU@90 under Full fine-tuning (frozen~$\to$~fine-tuned).}
 \label{tab:perstyle}
-\resizebox{\columnwidth}{!}{\small
+\resizebox{\reportcolwidth}{!}{\small
 \begin{tabular}{lcccc}
 \toprule
 Model & Roman. & Gothic & Renaiss. & Baroque \\
@@ -490,9 +513,10 @@ Belt Course) show negative $\Delta$, suggesting the style-classification gradien
 routes attention toward the most discriminative geometric forms.
 
 \begin{table}[h]
+\centering
 \caption{Per-feature $\Delta$IoU for MAE (Full fine-tuning, Renaissance images).}
 \label{tab:mae_renaissance}
-\resizebox{\columnwidth}{!}{\small
+\resizebox{\reportcolwidth}{!}{\small
 \begin{tabular}{lccc}
 \toprule
 Feature & Froz.\ IoU & FT IoU & $\Delta$IoU \\
@@ -873,6 +897,8 @@ work.
 % -----------------------------------------------------------------------
 \bibliographystyle{IEEEbib}
 \bibliography{references}
+\clearpage
+\onecolumn
 
 % -----------------------------------------------------------------------
 \appendix
@@ -883,7 +909,7 @@ DINOv3 frozen CLS attention at layer~11 with expert boxes overlaid. Centre: CLIP
 frozen-vs-fine-tuned shift map (blue~=~gained, red~=~lost attention). Right:
 shift map with selected expert feature box highlighted.
 
-\begin{figure*}[t]
+\begin{figure}[!htbp]
   \centering
   % Row 1: Easy -- Gothic
   \begin{subfigure}[t]{0.16\textwidth}
@@ -954,6 +980,6 @@ shift map with selected expert feature box highlighted.
   The $r\!=\!+0.677$ correlation between DINOv3 frozen IoU and CLIP $\Delta$IoU
   shows that image structure, not model family, determines alignment difficulty.}
   \label{fig:appendix_a}
-\end{figure*}
+\end{figure}
 
 \end{document}
