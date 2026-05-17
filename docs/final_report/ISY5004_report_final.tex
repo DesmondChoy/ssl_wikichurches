@@ -150,9 +150,9 @@ masked-autoencoding, and self-distillation training and show that supervision
 choice produces qualitatively different ViT attention, motivating per-family
 Q2 reporting rather than pooled deltas. Park et al.~\cite{Park23SSLViT}
 compare contrastive learning with masked image modelling and find that the two
-objectives induce different attention patterns --- contrastive features
+objectives induce different attention patterns - contrastive features
 capturing longer-range global structure while masked-image-modelling features
-remain more local --- a distinction that informs the Q2 reading that
+remain more local - a distinction that informs the Q2 reading that
 CLIP-family and MAE improvements concentrate on different image subsets.
 
 \subsection{Per-Head Specialisation}
@@ -359,7 +359,7 @@ best default-method layer over the 139 annotated images.
 
 Attention alignment is not one thing. A model can place its strongest attention
 inside the expert boxes, spread attention across the right facade region, or
-match the overall target distribution --- and those are related but not identical
+match the overall target distribution - and those are related but not identical
 behaviours. Treating one score as the whole answer would make the result look
 cleaner than it really is. Instead, Q1 uses a multi-metric benchmark: IoU@90,
 Coverage, MSE, KL divergence, and EMD.
@@ -375,7 +375,7 @@ Under this benchmark, DINOv3 is the cleanest Q1 result (Table~\ref{tab:q1}).
 It leads on IoU@90, Coverage, KL, and EMD, and is the only model that clears
 all four naive baselines on all three continuous metrics. It does not win MSE,
 where the extra displayed precision shows SigLIP2 marginally lower than base
-SigLIP (0.01745 vs.\ 0.01755) --- exactly why the benchmark cannot collapse
+SigLIP (0.01745 vs.\ 0.01755) - exactly why the benchmark cannot collapse
 to one number. The SigLIP rows also show that \texttt{siglip} and
 \texttt{siglip2} should not be treated as interchangeable: base SigLIP
 reaches a competitive IoU@90 peak of 0.0739 at \texttt{layer8}, ahead of MAE
@@ -431,7 +431,7 @@ remains separated from the next-best model on all headline metrics, with
 Holm-adjusted $p\!<\!1.31\!\times\!10^{-7}$. The second is where DINOv3 wins.
 If Gram anchoring preserves cleaner patch-level spatial structure, we should
 expect frozen attention to work best on mid-to-large architectural parts and
-still struggle on small ornamentation --- and that is what we observe.
+still struggle on small ornamentation - and that is what we observe.
 
 \begin{table}[h]
 \centering
@@ -451,8 +451,8 @@ Weakest features & Crocket, Fleuron, Pinnacle & Small ornamentation remains hard
 }
 \end{table}
 
-This does not prove Gram anchoring is the cause --- the current artifact does
-not ablate model scale, data mixture, and the anchoring loss separately --- but
+This does not prove Gram anchoring is the cause - the current artifact does
+not ablate model scale, data mixture, and the anchoring loss separately - but
 it makes the hypothesis plausible: DINOv3 has a better dense spatial prior for
 prominent architectural structure, not a complete understanding of every
 fine-grained architectural cue.
@@ -476,7 +476,7 @@ Coverage $0.051\!\to\!0.105$, Cohen's $d\!\approx\!1.0$). The per-style
 breakdown (Table~\ref{tab:perstyle}) reveals that virtually all of CLIP's gain
 concentrates on Romanesque (+0.066) and Gothic (+0.079) images, whose diagnostic
 features (Round Arch Portals, Pointed Arch Portals, Tracery) appear frequently
-in English-language web text---consistent with CLIP's language-grounded training.
+in English-language web text - consistent with CLIP's language-grounded training.
 Renaissance (+0.014) and Baroque (+0.013) show near-zero gain.
 
 \begin{table}[h]
@@ -536,8 +536,8 @@ Belt Course         & 0.031 & 0.015 & $-$0.016 \\
 \textbf{SigLIP variants.} The Q2 analysed layer is \texttt{layer11}, where
 both SigLIP and SigLIP2 start from weaker frozen IoU@90 baselines than the
 DINO family (\texttt{siglip} 0.0364, \texttt{siglip2} 0.0220). This is not
-the Q1 best-layer story --- base SigLIP's stronger peak sits at \texttt{layer8}
---- so Q2 is sharpening a relatively weak late-layer signal rather than
+the Q1 best-layer story - base SigLIP's stronger peak sits at \texttt{layer8}
+- so Q2 is sharpening a relatively weak late-layer signal rather than
 improving each model's best frozen layer. Under Full fine-tuning, base SigLIP
 remains higher in absolute IoU@90 (0.0618 vs.\ SigLIP2 0.0519), but SigLIP2
 moves further in standardised-effect terms ($\Delta\!=\!0.0299$, Cohen's
@@ -759,7 +759,7 @@ Reading the four scoped models together: DINOv3 is the clean stability case,
 with \texttt{layer10/head8} remaining the strongest IoU@90 head in Frozen,
 LoRA, and Full and top-3 support above 110/139 images in every condition;
 DINOv2 shows the same preserved-head pattern at lower absolute alignment with
-\texttt{layer11/head11}. MAE is the intermediate case --- Frozen and Full
+\texttt{layer11/head11}. MAE is the intermediate case - Frozen and Full
 both favour \texttt{layer10/head5}, while LoRA shifts the strongest IoU@90
 head to \texttt{layer11/head7}: not a full CLIP-style rewrite, but evidence
 that parameter-efficient adaptation can move MAE's dominant signal. CLIP is
@@ -767,7 +767,7 @@ the clearest reorganisation case: in \texttt{layer11}, LoRA promotes
 \texttt{H11} from rank \#6 to \#1, with frozen-best \texttt{H4} only falling
 to \#3 and remaining close in score (0.080 vs.\ 0.084), so LoRA promotes a
 new top head without erasing the frozen late-layer pattern. Full
-fine-tuning reorganises CLIP more strongly --- \texttt{H3} moves from \#8 to
+fine-tuning reorganises CLIP more strongly - \texttt{H3} moves from \#8 to
 \#1, \texttt{H8} moves from \#7 to \#2, and frozen-best \texttt{H4} drops to
 \#4. Read with Head Ranking, this gives the CLIP-specific claim: adaptation
 strengthens expert alignment in \texttt{layer11} (where frozen CLIP is weak,
@@ -794,7 +794,7 @@ for the DINO family.
 \textbf{Intuitive findings.} Linear Probe as a true attention-change control
 validates that Q2 movement reflects representation change, not a reporting
 artefact. Stronger task-conditioned adaptation helps most when the frozen model
-is not yet strongly aligned---CLIP, MAE, and SigLIP-family results fit this
+is not yet strongly aligned - CLIP, MAE, and SigLIP-family results fit this
 pattern.
 
 \textbf{Surprising findings.} The SigLIP family pairs excellent frozen MSE with
