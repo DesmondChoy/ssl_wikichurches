@@ -9,7 +9,6 @@ import { ImageDetailPage } from './pages/ImageDetail';
 import { ComparePage } from './pages/Compare';
 import { DashboardPage } from './pages/Dashboard';
 import { Q2Page } from './pages/Q2';
-import { Q3Page } from './pages/Q3';
 import { Q3ReportPage } from './pages/Q3Report';
 import { NotFoundPage } from './pages/NotFound';
 import { RouteErrorBoundary } from './components/ui/ErrorBoundary';
@@ -37,7 +36,7 @@ function AppShell() {
   const location = useLocation();
   const shellWidthClass = location.pathname.startsWith('/image/')
     ? 'max-w-[96rem]'
-    : location.pathname === '/q3' || location.pathname === '/q3-report'
+    : location.pathname === '/q3-report'
       ? 'max-w-[110rem]'
       : 'max-w-7xl';
 
@@ -103,7 +102,6 @@ function AppShell() {
           <Route path="/compare" element={<RouteErrorBoundary><ComparePage /></RouteErrorBoundary>} />
           <Route path="/dashboard" element={<RouteErrorBoundary><DashboardPage /></RouteErrorBoundary>} />
           <Route path="/q2" element={<RouteErrorBoundary><Q2Page /></RouteErrorBoundary>} />
-          <Route path="/q3" element={<RouteErrorBoundary><Q3Page /></RouteErrorBoundary>} />
           <Route path="/q3-report" element={<RouteErrorBoundary><Q3ReportPage /></RouteErrorBoundary>} />
           <Route path="*" element={<RouteErrorBoundary><NotFoundPage /></RouteErrorBoundary>} />
         </Routes>

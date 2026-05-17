@@ -18,17 +18,6 @@ export interface ImageDetailQ3State {
   featureName: string | null;
 }
 
-export interface AdvancedQ3WorkspaceState {
-  primaryModel: string;
-  secondaryModel: string;
-  variant: CompareVariantId;
-  layer: number;
-  metric: AnalysisMetric;
-  percentile: number;
-  head: number | null;
-  featureLabel: number | null;
-}
-
 export interface Q3ReportState {
   view: Q3ReportView;
   model: string;
@@ -107,36 +96,6 @@ export function buildImageDetailQ3Href(imageId: string, state: ImageDetailQ3Stat
   return `/image/${encodeURIComponent(imageId)}?${params.toString()}`;
 }
 
-export function parseAdvancedQ3WorkspaceState(
-  searchParams: URLSearchParams,
-  options?: {
-    availableModels?: readonly string[];
-    maxLayer?: number;
-    numHeads?: number;
-  },
-): AdvancedQ3WorkspaceState {
-  const availableModels = options?.availableModels ?? Q3_PRIMARY_MODELS;
-  const primaryModel = parseWorkspaceModel(searchParams.get('primary_model'), availableModels);
-  const secondaryModel = parseWorkspaceSecondaryModel(
-    searchParams.get('secondary_model'),
-    primaryModel,
-    availableModels,
-  );
-  const maxLayer = options?.maxLayer ?? Q3_DEFAULTS.layer;
-  const numHeads = options?.numHeads ?? 12;
-
-  return {
-    primaryModel,
-    secondaryModel,
-    variant: parseQ3Variant(searchParams.get('variant')),
-    layer: clampNumber(parseOptionalNumber(searchParams.get('layer')) ?? Q3_DEFAULTS.layer, 0, maxLayer),
-    metric: parseQ3Metric(searchParams.get('metric')),
-    percentile: clampNumber(parseOptionalNumber(searchParams.get('percentile')) ?? Q3_DEFAULTS.percentile, 0, 100),
-    head: parseHeadParam(searchParams.get('head'), numHeads),
-    featureLabel: parseOptionalNumber(searchParams.get('feature_label')),
-  };
-}
-
 export function parseQ3ReportState(
   searchParams: URLSearchParams,
   options?: {
@@ -151,7 +110,7 @@ export function parseQ3ReportState(
 
   return {
     view: parseQ3ReportView(searchParams.get('view')),
-    model: parseWorkspaceModel(searchParams.get('model'), availableModels, Q3_REPORT_DEFAULTS.model),
+    model: parseAvailableQ3Model(searchParams.get('model'), availableModels, Q3_REPORT_DEFAULTS.model),
     variant: parseQ3Variant(searchParams.get('variant')),
     layer: clampNumber(parseOptionalNumber(searchParams.get('layer')) ?? Q3_REPORT_DEFAULTS.layer, 0, maxLayer),
     metric: parseQ3Metric(searchParams.get('metric')),
@@ -187,50 +146,20 @@ export function buildQ3ReportHref(state?: Partial<Q3ReportState>): string {
   return `/q3-report?${params.toString()}`;
 }
 
-export function createAdvancedQ3WorkspaceSearchParams(
-  state: AdvancedQ3WorkspaceState,
-  existing?: URLSearchParams,
-): URLSearchParams {
-  const next = new URLSearchParams(existing);
-  next.set('primary_model', state.primaryModel);
-  next.set('secondary_model', state.secondaryModel);
-  next.set('variant', state.variant);
-  next.set('layer', String(state.layer));
-  next.set('metric', state.metric);
-  next.set('percentile', String(state.percentile));
-
-  setOptionalNumberParam(next, 'head', state.head);
-  setOptionalNumberParam(next, 'feature_label', state.featureLabel);
-
-  return next;
-}
-
-export function buildAdvancedQ3WorkspaceHref(state: AdvancedQ3WorkspaceState): string {
-  const params = createAdvancedQ3WorkspaceSearchParams(state);
-  return `/q3?${params.toString()}`;
-}
-
-export function getDefaultSecondaryQ3Model(
-  primaryModel: string,
-  availableModels: readonly string[] = Q3_PRIMARY_MODELS,
-): string {
-  return availableModels.find((model) => model !== primaryModel) ?? primaryModel;
-}
-
 function parseQ3Model(value: string | null): string {
   return value && Q3_PRIMARY_MODELS.includes(value as (typeof Q3_PRIMARY_MODELS)[number])
     ? value
     : Q3_DEFAULTS.model;
 }
 
-function parseWorkspaceModel(value: string | null, availableModels: readonly string[]): string;
-function parseWorkspaceModel(
+function parseAvailableQ3Model(value: string | null, availableModels: readonly string[]): string;
+function parseAvailableQ3Model(
   value: string | null,
   availableModels: readonly string[],
   fallbackModel: string,
 ): string;
 
-function parseWorkspaceModel(value: string | null, availableModels: readonly string[], fallbackModel?: string): string {
+function parseAvailableQ3Model(value: string | null, availableModels: readonly string[], fallbackModel?: string): string {
   if (value && availableModels.includes(value)) {
     return value;
   }
@@ -238,18 +167,6 @@ function parseWorkspaceModel(value: string | null, availableModels: readonly str
   const preferredModel = fallbackModel ?? Q3_DEFAULTS.model;
   const defaultModel = availableModels.includes(preferredModel) ? preferredModel : availableModels[0];
   return defaultModel ?? preferredModel;
-}
-
-function parseWorkspaceSecondaryModel(
-  value: string | null,
-  primaryModel: string,
-  availableModels: readonly string[],
-): string {
-  if (value && value !== primaryModel && availableModels.includes(value)) {
-    return value;
-  }
-
-  return getDefaultSecondaryQ3Model(primaryModel, availableModels);
 }
 
 function parseQ3Variant(value: string | null): CompareVariantId {

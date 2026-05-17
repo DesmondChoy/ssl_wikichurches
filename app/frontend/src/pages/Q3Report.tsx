@@ -13,9 +13,7 @@ import {
 } from '../constants/metricMetadata';
 import { PERCENTILE_OPTIONS } from '../constants/percentiles';
 import {
-  buildAdvancedQ3WorkspaceHref,
   createQ3ReportSearchParams,
-  getDefaultSecondaryQ3Model,
   parseQ3ReportState,
   type Q3ReportState,
   type Q3ReportView,
@@ -441,19 +439,6 @@ export function Q3ReportPage() {
     setSearchParams(normalized, { replace });
   };
 
-  const openAdvancedWorkspace = () => {
-    navigate(buildAdvancedQ3WorkspaceHref({
-      primaryModel: reportState.model,
-      secondaryModel: getDefaultSecondaryQ3Model(reportState.model, availableQ3Models),
-      variant: reportState.variant,
-      layer: reportState.layer,
-      metric: reportState.metric,
-      percentile: reportState.percentile,
-      head: reportState.head,
-      featureLabel: reportState.featureLabel,
-    }));
-  };
-
   return (
     <div className="space-y-6" data-testid="q3-report-page">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -466,22 +451,13 @@ export function Q3ReportPage() {
             One Q3 question at a time: ranking, feature specialization, or adaptation delta.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard?tab=q3')}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            Dashboard Q3
-          </button>
-          <button
-            type="button"
-            onClick={openAdvancedWorkspace}
-            className="rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-800 transition-colors hover:bg-primary-100"
-          >
-            Advanced Q3
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard?tab=q3')}
+          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          Dashboard Q3
+        </button>
       </div>
 
       <Card>

@@ -23,6 +23,7 @@ Installs the Python environment defined by `pyproject.toml` and `uv.lock`.
 Purpose:
 
 - starts the FastAPI backend on `127.0.0.1:8000`
+- waits for `GET /health` to succeed before starting the frontend
 - starts the Vite frontend on `127.0.0.1:5173`
 - installs frontend dependencies automatically if `app/frontend/node_modules` is missing
 - cleans up any existing processes on ports `8000` and `5173`

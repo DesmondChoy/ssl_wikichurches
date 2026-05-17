@@ -16,7 +16,7 @@ The current public surface covers:
 | Document | Best for |
 |----------|----------|
 | [../README.md](../README.md) | Setup, dataset paths, app startup, major workflows, and developer commands |
-| [user_guide.md](user_guide.md) | Gallery, Image Detail, Compare, Dashboard, Q2, Q3, and Q3 Report product walkthroughs |
+| [user_guide.md](user_guide.md) | Gallery, Image Detail, Compare, Dashboard, Q2, and Q3 Report product walkthroughs |
 | [reference/cli_reference.md](reference/cli_reference.md) | Complete command, option, and script reference |
 | [reference/api_reference.md](reference/api_reference.md) | Backend endpoints, query parameters, and response contracts |
 | [core/project_report_final.md](core/project_report_final.md) | Markdown source for the academic report and its reproducibility anchors |
