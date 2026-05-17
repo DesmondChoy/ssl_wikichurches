@@ -196,6 +196,7 @@ uv run ruff check .
 uv run mypy
 uv run pytest
 cd app/frontend && npm run lint && npm run build
+cd app/frontend && npm run test:e2e
 ```
 
 ## Documentation

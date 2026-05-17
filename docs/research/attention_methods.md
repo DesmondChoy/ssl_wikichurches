@@ -52,7 +52,7 @@ This application helps answer three interconnected questions from our [research 
 |---|-------------------|-------------------|
 | 1 | Do SSL models attend to the same features human experts consider diagnostic? | Attention heatmaps + multi-metric alignment views |
 | 2 | Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Frozen vs. fine-tuned comparison + Variant vs Variant comparison + multi-metric Q2 attention-shift tables |
-| 3 | Do individual attention heads specialize for different architectural features? | Shipped Dashboard Q3 heatmap + ranking workflow with exemplar drill-down into the Image Detail Q3 tab |
+| 3 | Do individual attention heads specialize for different architectural features? | Dashboard Q3 and `/q3-report` views for head ranking, head-feature matrices, and frozen-to-adapted deltas, with Image Detail Q3 for single-image drill-down |
 
 ### Fine-Tuning Strategy Comparison (Research Question 2)
 
@@ -74,13 +74,13 @@ Rather than fusing all 12 attention heads via averaging, Q3 examines each head i
 
 The app exposes Q3 as a two-step workflow:
 
-1. Use the Dashboard `Q3` tab to inspect the head-ranking summary, the head-by-feature heatmap, and the frozen-to-adapted delta view.
-2. Drill into representative exemplar images on the Image Detail `Q3` tab with the selected model, variant, layer, head, and feature context already loaded.
+1. Use the Dashboard `Q3` tab or `/q3-report` to inspect Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta views.
+2. Drill into the Image Detail `Q3` tab with the selected model, variant, layer, head, and feature context already loaded.
 
 **Key analyses:**
 - **Per-head ranking:** Identify which heads consistently score best for the current metric across all images
-- **Head × feature heatmap:** Analyze whether specific heads specialize for specific architectural features
-- **Exemplar drill-down:** Inspect representative images for one selected head or one selected head-feature cell
+- **Head-feature matrix:** Analyze whether specific heads specialize for specific architectural features
+- **Image-level drill-down:** Inspect one image with selected head or head-feature context
 - **Frozen-to-adapted deltas:** Compare how head rankings move from `frozen` into `lora` and `full`
 
 **Academic foundation:**

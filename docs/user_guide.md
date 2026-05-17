@@ -72,7 +72,7 @@ Important behavior:
 
 #### Q3 tab
 
-Use this tab after identifying an interesting head or head-feature pattern in **Dashboard Q3**.
+Use this tab after selecting an interesting head or head-feature context in **Dashboard Q3** or **Q3 Report**.
 
 - **Q3 controls**
   Model, variant, rank-by metric, top-head strip, expandable ranked-head gallery, layer slider, and bounding-box toggle.
@@ -164,20 +164,20 @@ Important behavior:
 
 This is the main discovery surface for **Q3**.
 
-- **Workflow context card**
-  Shows whether the current selection is inside the primary Q3 workflow or a control condition.
-- **Frozen-to-adapted delta panel**
-  Compares how head rankings shift from Frozen to LoRA and Full.
-- **Single-variant explorer**
-  Includes the ranked-head table, head-by-feature heatmap, and inline exemplar loading.
-- **Report view selector**
-  Switches between Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta layouts inside Dashboard Q3.
+- **View selector**
+  Switches between Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta layouts.
+- **Shared Q3 controls**
+  Selects the model, variant, layer, metric, percentile, optional head, and optional feature focus used by the current view.
+- **Workflow context**
+  Shows whether the current model and variant are part of the primary Q3 workflow or a control condition.
 
 Important behavior:
 
 - Start here first for Q3.
-- Use `/q3-report` when you want a shareable URL for focused report views used in screenshots and video walkthroughs.
-- The inline exemplar flow is part of Dashboard Q3, so you can validate a head-feature pattern before leaving the page.
+- Use **Head Ranking** to find dominant heads for one model, variant, layer, metric, and percentile.
+- Use **Head-Feature Matrix** to connect a selected head to architectural feature labels.
+- Use **Frozen-to-Adapted Delta** to compare Frozen against LoRA and Full Fine-tune.
+- Use `/q3-report` when you want the same focused views in a shareable URL for screenshots and video walkthroughs.
 
 ### Q3 Report (`/q3-report`)
 
@@ -187,7 +187,7 @@ Use this page when you want the Q3 evidence in the same focused format used by t
 - **Head-Feature Matrix** connects a selected head to architectural feature labels.
 - **Frozen-to-Adapted Delta** shows how the dominant head ranking changes from Frozen to LoRA and Full Fine-tune.
 
-This page is intentionally narrower than Dashboard Q3. It is built for explanation, screenshots, and reproducible report inspection.
+This page mirrors the Dashboard Q3 view set in a URL-first layout built for explanation, screenshots, and reproducible report inspection.
 
 The route preserves its state through query parameters:
 
@@ -286,11 +286,11 @@ The image-level Q2 delta endpoint used for focused examples is `GET /api/metrics
 Use this path when the question is about head specialization.
 
 1. Start on **Dashboard Q3**.
-2. Use the delta panel to see whether adaptation changes which heads look important.
-3. Use the ranked-head table and head-by-feature heatmap to pick a candidate head or head-feature pair.
-4. Open an inline exemplar, then move into **Image Detail Q3** for a closer qualitative check.
-5. Switch between **Head Attention** and **Feature Similarity** to test whether the same head-feature story still holds visually.
-6. Open **Q3 Report** when you need the cleaner report-facing layout.
+2. Use **Head Ranking** to identify the strongest heads for the current model, variant, layer, metric, and percentile.
+3. Use **Head-Feature Matrix** to test whether the selected head aligns with specific architectural labels.
+4. Use **Frozen-to-Adapted Delta** to see whether adaptation changes which heads look important.
+5. Move into **Image Detail Q3** for a closer qualitative check, then switch between **Head Attention** and **Feature Similarity**.
+6. Open **Q3 Report** when you need a shareable report-facing layout with the same Q3 view state.
 
 ## Tips
 

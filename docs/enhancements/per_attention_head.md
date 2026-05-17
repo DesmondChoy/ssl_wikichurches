@@ -12,7 +12,7 @@ This note describes the current Q3 product surface and the recommended study fra
 
 The Q3 surface combines three connected views:
 
-- **Dashboard Q3** for dataset-level discovery through head rankings, head-by-feature heatmaps, inline exemplars, and frozen-to-adapted deltas
+- **Dashboard Q3** for dataset-level discovery through Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta views
 - **Image Detail Q3** for single-image drill-down with variant-aware top-head ranking, expandable head gallery, and `Head Attention` vs `Feature Similarity` modes
 - **Q3 Report `/q3-report`** for report-facing head ranking, head-feature matrix, and frozen-to-adapted delta layouts
 
@@ -98,7 +98,6 @@ On the dashboard Q3 panel:
 
 - Which heads dominate for a given model, metric, and layer?
 - Do different architectural feature types prefer different heads?
-- Which head-feature cells stay dark in the heatmap and still look plausible on exemplar images?
 - Does the dominant head set change when moving from `frozen` to `lora` or `full`?
 - Do DINOv2, DINOv3, MAE, and CLIP show different head-specialization patterns before moving into report or image-level inspection?
 
@@ -166,7 +165,7 @@ The storage and API layout that supports this direction includes:
   - `/api/metrics/model/{model}/head_feature_matrix`
   - `/api/metrics/model/{model}/head_exemplars`
 
-Dashboard Q3 uses an interactive heatmap plus an inline exemplar panel. `/q3-report` uses a cleaner report-facing matrix view. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows so the selected exemplar images match the chosen heatmap cell rather than only the coarse head ranking.
+Dashboard Q3 and `/q3-report` share the same report-style view set: Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta. Feature-cell drill-down is backed by deterministic per-image-per-head-per-feature cache rows, so selected image-level inspection can preserve the chosen head-feature context rather than only the coarse head ranking.
 
 This keeps the main operational task focused on **population and interpretation**.
 

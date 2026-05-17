@@ -35,7 +35,7 @@ Complete REST API documentation for the SSL Attention Visualization platform. AP
 | GET | `/api/metrics/model/{model}/feature_breakdown` | Metric breakdown by feature type |
 | GET | `/api/metrics/model/{model}/head_ranking` | Q3 aggregate per-head ranking summary for one model/layer/metric |
 | GET | `/api/metrics/{image_id}/head_ranking` | Q3 per-head ranking for one image and optional bbox selection |
-| GET | `/api/metrics/model/{model}/head_feature_matrix` | Q3 head-by-feature heatmap data for one model/layer/metric |
+| GET | `/api/metrics/model/{model}/head_feature_matrix` | Q3 head-feature matrix data for one model/layer/metric |
 | GET | `/api/metrics/model/{model}/head_exemplars` | Q3 representative exemplar images for one selected head or head-feature cell |
 | GET | `/api/metrics/model/{model}/aggregate` | Aggregate stats (mean, std, median) |
 | GET | `/api/metrics/model/{model}/all_images` | All image metrics for a model |
@@ -1229,7 +1229,7 @@ head-ranking endpoint when the selected Q3 context is unavailable.
 
 ### `GET /api/metrics/model/{model}/head_feature_matrix`
 
-Get the Q3 head-by-feature heatmap payload for one model, variant, layer, metric, and percentile.
+Get the Q3 head-feature matrix payload for one model, variant, layer, metric, and percentile.
 
 Each feature row contains one score per head. The Dashboard uses this to render the interactive heatmap and drill-down selection state.
 

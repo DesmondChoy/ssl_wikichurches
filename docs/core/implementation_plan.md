@@ -396,7 +396,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
      - Selection info bar, clear button, and colormap legend
 
 13. **Q3 Per-Head Workflow** ✅
-   - Dashboard Q3 for dataset-level head rankings, head-by-feature heatmaps, inline exemplars, and frozen-to-adapted deltas
+   - Dashboard Q3 for dataset-level Head Ranking, Head-Feature Matrix, and Frozen-to-Adapted Delta views
    - Image Detail Q3 for single-image head attention and feature similarity drill-down
    - `/q3-report` for report-facing head ranking, head-feature matrix, and frozen-to-adapted delta layouts
    - Q3 URL state is centralized in `app/frontend/src/constants/q3Routing.ts`
@@ -514,9 +514,7 @@ model = ViTMAEModel.from_pretrained(model_id, config=config)
 | File | Purpose | Status |
 |------|---------|--------|
 | `app/frontend/src/pages/Q3Report.tsx` | Report-focused Q3 head ranking, matrix, and delta views | ✅ Done |
-| `app/frontend/src/components/metrics/Q3HeadAnalysis.tsx` | Dashboard Q3 ranking and matrix surface | ✅ Done |
-| `app/frontend/src/components/metrics/Q3DeltaPanel.tsx` | Frozen-to-adapted Q3 ranking shifts | ✅ Done |
-| `app/frontend/src/components/metrics/Q3ExemplarPicker.tsx` | Q3 exemplar selection and drill-down links | ✅ Done |
+| `app/frontend/src/components/metrics/Q3HeadAnalysis.tsx` | Dashboard Q3 three-view report-style surface | ✅ Done |
 | `app/frontend/src/components/image-detail/Q3ImageDetailControls.tsx` | Image-level Q3 controls | ✅ Done |
 | `app/frontend/src/constants/q3Routing.ts` | Shared Q3 URL-state parsing and link builders | ✅ Done |
 | `app/backend/services/metrics_service.py` | Q3 head-ranking, matrix, exemplar, and delta data access | ✅ Done |

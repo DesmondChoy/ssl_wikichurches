@@ -18,7 +18,7 @@ This repository answers that question with a quantitative benchmark over expert 
 |---|----------|------------------------|
 | **Q1** | Do SSL models attend to expert-identified diagnostic features? | IoU, Coverage, MSE, KL, and EMD across 7 models and 12 layers, with dashboard summaries and image-level drill-down |
 | **Q2** | Does fine-tuning shift attention toward expert features, and does the strategy matter? | Frozen-vs-fine-tuned deltas across Linear Probe, LoRA, and Full fine-tuning, summarized through the active experiment |
-| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head rankings, head-by-feature heatmaps, exemplars, Image Detail Q3 drill-down, and `/q3-report` |
+| **Q3** | Do individual attention heads specialize for different architectural features? | Per-head rankings, head-feature matrices, frozen-to-adapted deltas, Image Detail Q3 drill-down, and `/q3-report` |
 
 ## Approach
 
@@ -32,7 +32,7 @@ This repository answers that question with a quantitative benchmark over expert 
 2. Measure alignment with expert annotations using IoU, Coverage, MSE, KL, and EMD.
 3. Fine-tune the ViT backbones with Linear Probe, LoRA, and Full strategies while keeping the 139 annotated images out of the primary train/validation split.
 4. Summarize Q2 through experiment-scoped artifacts selected by `outputs/results/active_experiment.json`.
-5. Analyze Q3 through per-head metrics, head-feature heatmaps, representative exemplars, and shared-context image drill-down.
+5. Analyze Q3 through per-head metrics, head-feature matrices, frozen-to-adapted deltas, and shared-context image drill-down.
 
 ## Current Results Surface
 
@@ -64,7 +64,7 @@ This repository answers that question with a quantitative benchmark over expert 
 1. **Multi-paradigm attention benchmark:** one evaluation surface comparing 7 models spanning self-distillation, masked autoencoding, multimodal contrastive training, and a supervised CNN baseline.
 2. **Multi-metric attention alignment:** one methodology combining threshold-dependent overlap with threshold-free distributional metrics.
 3. **Strategy-aware attention-shift analysis:** one Q2 workflow comparing Linear Probe, LoRA, and Full fine-tuning through shared evaluation images and active-experiment provenance.
-4. **Per-head architectural feature analysis:** one Q3 workflow connecting per-head metrics, feature heatmaps, exemplars, and image-level inspection.
+4. **Per-head architectural feature analysis:** one Q3 workflow connecting per-head metrics, head-feature matrices, frozen-to-adapted deltas, and image-level inspection.
 
 ## Alignment with ISY5004
 

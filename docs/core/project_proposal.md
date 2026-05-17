@@ -22,7 +22,7 @@ Existing interpretability tools address parts of this problem but leave a critic
 |-------------------|----------|-------------|
 | **Q1:** Do SSL models attend to the same features human experts consider diagnostic? | Compute IoU, Coverage, MSE, KL divergence, and EMD between attention maps and expert bounding boxes across 7 models and 12 layers | Attention heatmap overlay, multi-metric dashboard, model leaderboard |
 | **Q2:** Does fine-tuning shift attention toward expert-identified features, and does the strategy (Linear Probe vs LoRA vs Full) matter? | Compare frozen-vs-fine-tuned attention-shift deltas across IoU, Coverage, MSE, KL, and EMD on the same images; retain Preserve / Enhance / Destroy as the IoU-centered interpretation layer; compare strategies with paired Wilcoxon tests, Holm correction, and Cohen's d effect sizes | Frozen vs fine-tuned comparison view, Variant vs Variant comparison view, and strategy-aware Q2 metric tables |
-| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU, Coverage, MSE, KL, and EMD for each head; rank heads metric-by-metric and inspect head-feature patterns without collapsing them into one composite score | Dashboard Q3 ranking and head-feature heatmap, Image Detail Q3 drill-down, and `/q3-report` |
+| **Q3:** Do individual attention heads specialize for different architectural features, and which heads best align with expert annotations? | Compute per-head IoU, Coverage, MSE, KL, and EMD for each head; rank heads metric-by-metric and inspect head-feature patterns without collapsing them into one composite score | Dashboard Q3 head ranking, head-feature matrix, frozen-to-adapted delta views, Image Detail Q3 drill-down, and `/q3-report` |
 
 > **Enhancement docs:** Q3 is explored in detail in [Per-Head Attention Visualization](../enhancements/per_attention_head.md). Q2 fine-tuning strategies are detailed in [Fine-Tuning Methods](../enhancements/fine_tuning_methods.md).
 
@@ -179,7 +179,7 @@ To verify findings are robust to methodological choices:
 |:---|:---------------|:-----------------|:--------------|
 | Q1 | IoU (at 90th percentile), MSE, KL divergence, EMD, Coverage | Paired t-test and Wilcoxon signed-rank across models; bootstrap CIs; Holm-Bonferroni correction for pairwise comparisons | Attention heatmaps with bbox overlay; model leaderboard |
 | Q2 | Δ IoU, Δ Coverage, Δ MSE, Δ KL, Δ EMD (fine-tuned − frozen); Preserve/Enhance/Destroy classification | Paired Wilcoxon tests on same 139 images; Holm correction within each metric bucket across all discovered model-strategy rows (linear probe, LoRA, and full corrected together); Cohen's d effect sizes | Side-by-side frozen vs fine-tuned; Δ metric bar charts by method and model |
-| Q3 | Per-head IoU, Coverage, MSE, KL, and EMD, with IoU@90 as the main overlap lens and Coverage/EMD as robustness checks | Rank-based head summaries within each metric and descriptive cross-variant comparison | Dashboard Q3 ranking, head-feature heatmap, exemplar drill-down, and `/q3-report` |
+| Q3 | Per-head IoU, Coverage, MSE, KL, and EMD, with IoU@90 as the main overlap lens and Coverage/EMD as robustness checks | Rank-based head summaries within each metric and descriptive cross-variant comparison | Dashboard Q3 head ranking, head-feature matrix, frozen-to-adapted delta views, Image Detail Q3 drill-down, and `/q3-report` |
 
 ### Baselines
 
