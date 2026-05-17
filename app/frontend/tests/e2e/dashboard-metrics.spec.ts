@@ -836,114 +836,116 @@ test.describe('Dashboard metrics', () => {
 
     await expect(q3Panel).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toBeVisible();
-    await expect(page.getByText('Head Ranking')).toBeVisible();
-    await expect(page.getByText('Head × Feature Heatmap')).toBeVisible();
-    await expect(q3Panel.getByText('Door').first()).toBeVisible();
-    await expect(q3Panel.getByText('Window').first()).toBeVisible();
+    await expect(q3Panel.getByRole('combobox', { name: 'View' })).toHaveValue('head-ranking');
+    await expect(q3Panel.getByRole('combobox', { name: 'Model' })).toHaveValue('dinov3');
+    await expect(q3Panel.getByRole('combobox', { name: 'Variant' })).toHaveValue('frozen');
+    await expect(q3Panel.getByRole('combobox', { name: 'Layer' })).toHaveValue('10');
+    await expect(q3Panel.getByRole('combobox', { name: 'Metric' })).toHaveValue('iou');
+    await expect(q3Panel.getByRole('combobox', { name: 'Percentile' })).toHaveValue('90');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toBeVisible();
+    await expect(q3Panel.getByTestId('q3-report-matrix-view')).toHaveCount(0);
+    await expect(q3Panel.getByTestId('q3-report-delta-view')).toHaveCount(0);
+    await expect(q3Panel.getByText('Head 0').first()).toBeVisible();
 
-    const q3Section = page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first();
-
-    await q3Section.locator('select').nth(3).selectOption('coverage');
-    await expect(page.getByText(/Coverage measures how much attention energy lands inside the annotated regions/)).toBeVisible();
-    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
-    await expect(page.getByText('Representative images for Head 0')).toBeVisible();
-    await expect(page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`)).toBeVisible();
-    await page.getByRole('button', { name: 'Clear selection' }).click();
-    await expect(page.getByTestId('q3-exemplar-panel')).toHaveCount(0);
+    await q3Panel.getByRole('combobox', { name: 'Metric' }).selectOption('coverage');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toContainText('mean Coverage');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toContainText('Coverage 0.440');
+    await expect(q3Panel.getByText(/This selection stays inside the primary Q3 workflow/)).toBeVisible();
 
     await overviewTab.click();
     await expect(overviewTab).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
   });
 
-  test('shows frozen-to-adapted delta cards above the single-variant analysis', async ({ page }) => {
+  test('switches Dashboard Q3 between head ranking, matrix, and frozen-to-adapted delta views', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/dashboard?tab=q3');
 
-    const deltaPanel = page.getByTestId('q3-delta-panel');
-    const loraCard = page.getByTestId('q3-delta-card-lora');
-    const fullCard = page.getByTestId('q3-delta-card-full');
+    const q3Panel = page.getByTestId('dashboard-q3-panel');
+    const viewSelect = q3Panel.getByRole('combobox', { name: 'View' });
+    const variantSelect = q3Panel.getByRole('combobox', { name: 'Variant' });
 
-    await expect(deltaPanel).toBeVisible();
-    await expect(deltaPanel).toContainText('Frozen-to-adapted head delta');
-    await expect(loraCard).toContainText('Frozen -> LoRA');
-    await expect(fullCard).toContainText('Frozen -> Full');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toBeVisible();
+    await expect(q3Panel.getByText('Head Ranking').last()).toBeVisible();
+    await expect(q3Panel.getByText('Head-Feature Matrix')).toHaveCount(0);
 
-    const deltaIsAboveCurrentAnalysis = await page.evaluate(() => {
-      const delta = document.querySelector('[data-testid="q3-delta-panel"]');
-      const currentAnalysis = document.querySelector('[data-testid="q3-single-variant-analysis"]');
-      return Boolean(
-        delta
-        && currentAnalysis
-        && (delta.compareDocumentPosition(currentAnalysis) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-      );
-    });
-    expect(deltaIsAboveCurrentAnalysis).toBe(true);
+    await viewSelect.selectOption('head-feature-matrix');
+    await expect(q3Panel.getByTestId('q3-report-matrix-view')).toBeVisible();
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toHaveCount(0);
+    await expect(q3Panel.getByTestId('q3-report-delta-view')).toHaveCount(0);
+    await expect(q3Panel.getByText('Head-Feature Matrix')).toBeVisible();
+    await expect(q3Panel.getByTestId('q3-report-matrix-cell-7-1')).toBeVisible();
 
-    await expect(page.getByTestId('q3-delta-summary-lora-promoted')).toHaveText('Promoted 1');
-    await expect(page.getByTestId('q3-delta-summary-lora-demoted')).toHaveText('Demoted 1');
-    await expect(page.getByTestId('q3-delta-summary-lora-stable')).toHaveText('Stable 1');
-    await expect(page.getByTestId('q3-delta-summary-full-promoted')).toHaveText('Promoted 1');
-    await expect(page.getByTestId('q3-delta-summary-full-demoted')).toHaveText('Demoted 1');
-    await expect(page.getByTestId('q3-delta-summary-full-stable')).toHaveText('Stable 1');
+    await q3Panel.getByTestId('q3-report-matrix-cell-7-1').click();
+    await expect(q3Panel.getByTestId('q3-report-selected-cell')).toContainText('Door');
+    await expect(q3Panel.getByTestId('q3-report-selected-cell')).toContainText('layer10/head1');
 
-    await expect(loraCard.locator('tbody tr').first()).toContainText('Head 1');
-    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('+1');
-    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('+0.090');
-    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('Promoted');
-    await expect(page.getByTestId('q3-delta-row-lora-0')).toContainText('Demoted');
-    await expect(page.getByTestId('q3-delta-row-lora-2')).toContainText('Stable');
+    await viewSelect.selectOption('frozen-delta');
+    await expect(q3Panel.getByTestId('q3-report-delta-view')).toBeVisible();
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toHaveCount(0);
+    await expect(q3Panel.getByTestId('q3-report-matrix-view')).toHaveCount(0);
+    await expect(variantSelect).toBeDisabled();
+    await expect(q3Panel.getByTestId('q3-selection-helper')).toContainText(
+      'compares Frozen against LoRA and Full'
+    );
 
-    await expect(fullCard.locator('tbody tr').first()).toContainText('Head 2');
-    await expect(page.getByTestId('q3-delta-row-full-2')).toContainText('Promoted');
-    await expect(page.getByTestId('q3-delta-row-full-1')).toContainText('Demoted');
-    await expect(page.getByTestId('q3-delta-row-full-0')).toContainText('Stable');
+    const loraDelta = q3Panel.getByTestId('q3-report-delta-lora');
+    const fullDelta = q3Panel.getByTestId('q3-report-delta-full');
+    await expect(loraDelta).toContainText('Frozen -> LoRA');
+    await expect(loraDelta).toContainText('Promoted');
+    await expect(loraDelta).toContainText('Demoted');
+    await expect(loraDelta).toContainText('Stable');
+    await expect(fullDelta).toContainText('Frozen -> Full');
+
+    await viewSelect.selectOption('head-ranking');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toBeVisible();
+    await expect(variantSelect).toBeEnabled();
   });
 
   test('formats frozen-to-adapted score deltas for lower-is-better metrics', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/dashboard?tab=q3');
 
-    const q3Section = page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first();
+    const q3Panel = page.getByTestId('dashboard-q3-panel');
 
-    await q3Section.locator('select').nth(3).selectOption('mse');
+    await q3Panel.getByRole('combobox', { name: 'View' }).selectOption('frozen-delta');
+    await q3Panel.getByRole('combobox', { name: 'Metric' }).selectOption('mse');
 
-    await expect(page.getByTestId('q3-delta-row-lora-1')).toContainText('-0.0120');
-    await expect(page.getByTestId('q3-delta-row-lora-0')).toContainText('+0.0050');
-    await expect(page.getByTestId('q3-delta-row-full-0')).toContainText('-0.0020');
+    const loraDelta = q3Panel.getByTestId('q3-report-delta-lora');
+    const fullDelta = q3Panel.getByTestId('q3-report-delta-full');
+
+    await expect(loraDelta.getByRole('row', { name: /H1/ })).toContainText('-0.0120');
+    await expect(loraDelta.getByRole('row', { name: /H0/ })).toContainText('+0.0050');
+    await expect(fullDelta.getByRole('row', { name: /H0/ })).toContainText('-0.0020');
   });
 
-  test('keeps frozen-to-adapted delta comparisons visible when the single-variant selector switches to the control', async ({ page }) => {
+  test('keeps the control variant scoped to non-delta views', async ({ page }) => {
     await stubDashboardApis(page);
     await page.goto('/dashboard?tab=q3');
 
-    const q3Section = page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first();
-    const variantSelect = q3Section.locator('select').nth(1);
+    const q3Panel = page.getByTestId('dashboard-q3-panel');
+    const viewSelect = q3Panel.getByRole('combobox', { name: 'View' });
+    const variantSelect = q3Panel.getByRole('combobox', { name: 'Variant' });
 
     await variantSelect.selectOption('linear_probe');
 
-    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Control');
-    await expect(page.getByTestId('q3-selection-helper')).toContainText(
+    await expect(q3Panel.getByTestId('q3-variant-scope-chip')).toHaveText('Control');
+    await expect(q3Panel.getByTestId('q3-selection-helper')).toContainText(
       'Linear Probe remains visible as a control'
     );
-    await expect(page.getByTestId('q3-delta-card-lora')).toBeVisible();
-    await expect(page.getByTestId('q3-delta-card-full')).toBeVisible();
-    await expect(page.getByTestId('q3-delta-helper')).toContainText(
-      'Linear Probe remains a control in the single-variant analysis below'
+
+    await viewSelect.selectOption('head-feature-matrix');
+    await expect(variantSelect).toHaveValue('linear_probe');
+    await expect(q3Panel.getByTestId('q3-report-matrix-view')).toBeVisible();
+
+    await viewSelect.selectOption('frozen-delta');
+    await expect(variantSelect).toBeDisabled();
+    await expect(q3Panel.getByTestId('q3-selection-helper')).toContainText(
+      'compares Frozen against LoRA and Full'
     );
   });
 
-  test('shows adapted delta unavailability without blocking the single-variant Q3 analysis', async ({ page }) => {
+  test('shows adapted delta unavailability without blocking the other Q3 views', async ({ page }) => {
     await stubDashboardApis(page, {
       headRankingOverride: ({ variant }) => {
         if (variant !== 'lora') {
@@ -958,234 +960,21 @@ test.describe('Dashboard metrics', () => {
     });
     await page.goto('/dashboard?tab=q3');
 
-    await expect(page.getByTestId('q3-delta-card-lora-unavailable')).toContainText(
+    const q3Panel = page.getByTestId('dashboard-q3-panel');
+    const viewSelect = q3Panel.getByRole('combobox', { name: 'View' });
+
+    await viewSelect.selectOption('frozen-delta');
+    await expect(q3Panel.getByTestId('q3-report-delta-lora')).toContainText(
       'LoRA delta data is not available for this selection.'
     );
-    await expect(page.getByTestId('q3-delta-card-full')).toBeVisible();
-    await expect(page.getByTestId('q3-single-variant-analysis')).toBeVisible();
-    await expect(page.getByText('Head Ranking')).toBeVisible();
-    await expect(page.getByTestId('q3-heatmap-cell-7-0')).toBeVisible();
-  });
+    await expect(q3Panel.getByTestId('q3-report-delta-full')).toBeVisible();
 
-  test('shows exact hover readouts for heatmap cells and loads inline exemplars from a selected cell', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/dashboard');
+    await viewSelect.selectOption('head-ranking');
+    await expect(q3Panel.getByTestId('q3-report-head-ranking-view')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Q3' }).click();
-    await page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first()
-      .locator('select')
-      .nth(3)
-      .selectOption('coverage');
-
-    const targetCell = page.getByTestId('q3-heatmap-cell-7-1');
-    await targetCell.hover();
-
-    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('Door');
-    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('H1');
-    await expect(page.getByTestId('q3-heatmap-hover-readout')).toContainText('Coverage: 0.330');
-
-    await targetCell.click();
-
-    await expect(page.getByTestId('q3-heatmap-selection-summary')).toContainText('Selected cell: Door · H1 · Coverage 0.330');
-    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
-    await expect(page.getByText('Representative images for the selected heatmap cell')).toBeVisible();
-    await expect(page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`)).toBeVisible();
-  });
-
-  test('highlights the full heatmap column and explains the linked ranking drilldown', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/dashboard?tab=q3');
-
-    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-
-    await expect(page.getByTestId('q3-head-ranking-row-0')).toHaveClass(/bg-primary-50\/50/);
-    await expect(page.getByTestId('q3-heatmap-head-0')).toHaveAttribute('data-selected-column', 'true');
-
-    const selectedColumnCell = page.getByTestId('q3-heatmap-cell-wrapper-7-0');
-    await expect(selectedColumnCell).toHaveAttribute('data-selected-column', 'true');
-    await expect.poll(async () => selectedColumnCell.evaluate((node) => {
-      const style = window.getComputedStyle(node);
-      return style.backgroundColor !== 'rgba(0, 0, 0, 0)' && Number.parseFloat(style.borderLeftWidth) >= 1;
-    })).toBe(true);
-
-    await expect(page.getByTestId('q3-heatmap-selection-summary')).toContainText(
-      'Its heatmap column is highlighted and representative images appear below.'
-    );
-  });
-
-  test('keeps the full selected column visible while emphasizing the exact selected heatmap cell', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/dashboard?tab=q3');
-
-    const targetCell = page.getByTestId('q3-heatmap-cell-7-1');
-    await targetCell.click();
-
-    await expect(page.getByTestId('q3-heatmap-head-1')).toHaveAttribute('data-selected-column', 'true');
-    await expect(page.getByTestId('q3-heatmap-cell-wrapper-42-1')).toHaveAttribute('data-selected-column', 'true');
-    await expect(targetCell).toHaveAttribute('data-selected-cell', 'true');
-    await expect(targetCell).toHaveClass(/ring-2/);
-    await expect(page.getByTestId('q3-heatmap-cell-42-1')).toHaveAttribute('data-selected-cell', 'false');
-    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
-  });
-
-  test('auto-scrolls the heatmap horizontally to the selected head column', async ({ page }) => {
-    const wideHeads = Array.from({ length: 18 }, (_, index) => index);
-    const wideRankingEntries: StubQ3HeadRankingEntry[] = [
-      { head: 17, mean_score: 0.61, std_score: 0.03, mean_rank: 1.0, top1_count: 7, top3_count: 11, image_count: 12 },
-      ...wideHeads.slice(0, -1).map((head, index) => ({
-        head,
-        mean_score: Number((0.58 - (index * 0.01)).toFixed(3)),
-        std_score: 0.03,
-        mean_rank: index + 2,
-        top1_count: Math.max(1, 6 - index),
-        top3_count: 8,
-        image_count: 12,
-      })),
-    ];
-    const buildScores = (base: number) => wideHeads.map((head) => Number((base - (head * 0.005)).toFixed(3)));
-
-    await page.setViewportSize({ width: 1100, height: 800 });
-    await stubDashboardApis(page, {
-      headRankingOverride: ({ variant }) => {
-        if (variant !== 'frozen') {
-          return null;
-        }
-        return {
-          supported: true,
-          reason: null,
-          heads: wideRankingEntries,
-        };
-      },
-      headFeatureMatrixOverride: ({ variant }) => {
-        if (variant !== 'frozen') {
-          return null;
-        }
-        return {
-          supported: true,
-          reason: null,
-          heads: wideHeads,
-          total_feature_types: 2,
-          features: [
-            { feature_label: 7, feature_name: 'Door', bbox_count: 5, scores: buildScores(0.52) },
-            { feature_label: 42, feature_name: 'Window', bbox_count: 9, scores: buildScores(0.61) },
-          ],
-        };
-      },
-    });
-    await page.goto('/dashboard?tab=q3');
-
-    await expect.poll(async () => page.getByTestId('q3-heatmap-scroll-container').evaluate((node) => node.scrollLeft)).toBe(0);
-
-    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-
-    await expect.poll(async () => page.evaluate(() => {
-      const container = document.querySelector('[data-testid="q3-heatmap-scroll-container"]');
-      const header = document.querySelector('[data-testid="q3-heatmap-head-17"]');
-      if (!(container instanceof HTMLElement) || !(header instanceof HTMLElement)) {
-        return false;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const headerRect = header.getBoundingClientRect();
-      return container.scrollLeft > 0 && headerRect.left >= containerRect.left && headerRect.right <= containerRect.right;
-    })).toBe(true);
-  });
-
-  test('scrolls the inline exemplar panel into view for ranking and heatmap drilldowns', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 700 });
-    await stubDashboardApis(page);
-    await page.goto('/dashboard?tab=q3');
-
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.getByRole('button', { name: 'Inspect exemplar' }).first().click();
-
-    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
-    await expect.poll(async () => page.evaluate(() => {
-      const panel = document.querySelector('[data-testid="q3-exemplar-panel"]');
-      if (!(panel instanceof HTMLElement)) {
-        return false;
-      }
-      const rect = panel.getBoundingClientRect();
-      return rect.top >= 0 && rect.top < window.innerHeight;
-    })).toBe(true);
-
-    await page.getByRole('button', { name: 'Clear selection' }).click();
-    await page.evaluate(() => window.scrollTo(0, 0));
-
-    await page.getByTestId('q3-heatmap-cell-7-1').click();
-
-    await expect(page.getByText('Representative images for the selected heatmap cell')).toBeVisible();
-    await expect.poll(async () => page.evaluate(() => {
-      const panel = document.querySelector('[data-testid="q3-exemplar-panel"]');
-      if (!(panel instanceof HTMLElement)) {
-        return false;
-      }
-      const rect = panel.getBoundingClientRect();
-      return rect.top >= 0 && rect.top < window.innerHeight;
-    })).toBe(true);
-  });
-
-  test('applies strict Q3 filtering and routes exemplar drill-down into Image Detail', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/dashboard');
-
-    await page.getByRole('tab', { name: 'Q3' }).click();
-
-    const q3Section = page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first();
-
-    await expect(page.getByTestId('q3-scope-callout')).toContainText('Primary Q3 workflow');
-    await expect(page.getByTestId('q3-scope-callout')).toContainText(
-      'Start on Dashboard Q3 to compare candidate heads'
-    );
-
-    const modelSelect = q3Section.locator('select').nth(0);
-    const variantSelect = q3Section.locator('select').nth(1);
-
-    await expect(modelSelect).toHaveValue('dinov2');
-    await expect(variantSelect).toHaveValue('frozen');
-    await expect(q3Section.locator('select').nth(2)).toHaveValue('11');
-    await expect(q3Section.locator('select').nth(3)).toHaveValue('iou');
-
-    await expect(modelSelect.locator('option')).toHaveText([
-      'dinov2',
-      'dinov3',
-      'mae',
-      'clip',
-    ]);
-    await expect(variantSelect.locator('option')).toHaveText([
-      'Frozen (Primary study)',
-      'LoRA (Primary study)',
-      'Full Fine-tune (Primary study)',
-      'Linear Probe (Control)',
-    ]);
-
-    await expect(page.getByTestId('q3-model-scope-chip')).toHaveText('Primary study');
-    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Primary study');
-
-    await variantSelect.selectOption('linear_probe');
-    await expect(page.getByTestId('q3-variant-scope-chip')).toHaveText('Control');
-    await expect(page.getByTestId('q3-selection-helper')).toContainText(
-      'Linear Probe remains visible as a control'
-    );
-
-    await page.getByTestId('q3-heatmap-cell-7-0').click();
-    await expect(page.getByTestId('q3-exemplar-panel')).toBeVisible();
-    await page.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`).click();
-
-    await expect(page).toHaveURL(new RegExp(`/image/${EXEMPLAR_IMAGE_ID.replace('.', '\\.')}`));
-    await expect(page).toHaveURL(/tab=q3/);
-    await expect(page).toHaveURL(/model=dinov2/);
-    await expect(page).toHaveURL(/variant=linear_probe/);
-    await expect(page).toHaveURL(/layer=11/);
-    await expect(page).toHaveURL(/head=0/);
-    await expect(page).toHaveURL(/feature_label=7/);
-    await expect(page).toHaveURL(/mode=head_attention/);
+    await viewSelect.selectOption('head-feature-matrix');
+    await expect(q3Panel.getByTestId('q3-report-matrix-view')).toBeVisible();
+    await expect(q3Panel.getByTestId('q3-report-matrix-cell-7-0')).toBeVisible();
   });
 
   test('restores the selected dashboard tab from the URL and falls back to Overview for invalid values', async ({ page }) => {
@@ -1209,99 +998,44 @@ test.describe('Dashboard metrics', () => {
     await expect(page.getByRole('heading', { name: 'Q3 Per-Head Specialization' })).toHaveCount(0);
   });
 
-  test('opens the advanced /q3 workspace from Dashboard with the current Q3 context', async ({ page }) => {
+  test('renders the dedicated Q3 report route with the same three current views', async ({ page }) => {
     await stubDashboardApis(page);
-    await page.goto('/dashboard?tab=q3');
+    await page.goto('/q3-report?view=frozen-delta&model=clip&layer=11&metric=coverage&percentile=80');
 
-    const q3Section = page
-      .getByRole('heading', { name: 'Q3 Per-Head Specialization' })
-      .locator('xpath=ancestor::div[contains(@class,"rounded")]')
-      .first();
+    await expect(page.getByRole('heading', { name: 'Q3 Report View' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'View' })).toHaveValue('frozen-delta');
+    await expect(page.getByRole('combobox', { name: 'Model' })).toHaveValue('clip');
+    await expect(page.getByRole('combobox', { name: 'Layer' })).toHaveValue('11');
+    await expect(page.getByRole('combobox', { name: 'Metric' })).toHaveValue('coverage');
+    await expect(page.getByRole('combobox', { name: 'Percentile' })).toHaveValue('80');
+    await expect(page.getByTestId('q3-report-delta-view')).toBeVisible();
+    await expect(page.getByTestId('q3-report-delta-lora')).toBeVisible();
+    await expect(page.getByTestId('q3-report-delta-full')).toBeVisible();
 
-    await q3Section.locator('select').nth(0).selectOption('clip');
-    await q3Section.locator('select').nth(1).selectOption('linear_probe');
-    await q3Section.locator('select').nth(3).selectOption('coverage');
-    await page.getByTestId('q3-heatmap-cell-7-1').click();
-
-    await page.getByTestId('dashboard-q3-open-advanced-workspace').click();
-
-    await expect(page).toHaveURL(/\/q3\?/);
-    await expect(page).toHaveURL(/primary_model=clip/);
-    await expect(page).toHaveURL(/secondary_model=dinov2/);
-    await expect(page).toHaveURL(/variant=linear_probe/);
-    await expect(page).toHaveURL(/metric=coverage/);
-    await expect(page).toHaveURL(/layer=11/);
+    await page.getByRole('combobox', { name: 'View' }).selectOption('head-feature-matrix');
+    await expect(page).toHaveURL(/view=head-feature-matrix/);
+    await expect(page.getByTestId('q3-report-matrix-view')).toBeVisible();
+    await page.getByTestId('q3-report-matrix-cell-7-1').click();
     await expect(page).toHaveURL(/head=1/);
     await expect(page).toHaveURL(/feature_label=7/);
-    await expect(page.getByRole('heading', { name: 'Q3 Advanced Workspace' })).toBeVisible();
-    await expect(page.getByTestId('advanced-q3-pane-primary')).toContainText('clip');
-    await expect(page.getByTestId('advanced-q3-pane-secondary')).toContainText('dinov2');
-  });
-
-  test('restores the advanced /q3 workspace from deep links and preserves it across reloads', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/q3?primary_model=clip&secondary_model=mae&variant=linear_probe&layer=9&metric=coverage&percentile=80&head=1&feature_label=7');
-
-    const controls = page.getByTestId('advanced-q3-controls');
-    await expect(controls.locator('select').nth(0)).toHaveValue('clip');
-    await expect(controls.locator('select').nth(1)).toHaveValue('mae');
-    await expect(controls.locator('select').nth(2)).toHaveValue('linear_probe');
-    await expect(controls.locator('select').nth(3)).toHaveValue('9');
-    await expect(controls.locator('select').nth(4)).toHaveValue('coverage');
-    await expect(controls.locator('select').nth(5)).toHaveValue('80');
-
-    await expect(page.getByTestId('advanced-q3-pane-primary').getByTestId('q3-exemplar-panel')).toBeVisible();
-    await expect(page.getByTestId('advanced-q3-pane-secondary').getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByTestId('q3-report-selected-cell')).toContainText('Door');
 
     await page.reload();
 
-    await expect(page).toHaveURL(/primary_model=clip/);
-    await expect(page).toHaveURL(/secondary_model=mae/);
-    await expect(page).toHaveURL(/variant=linear_probe/);
-    await expect(page).toHaveURL(/metric=coverage/);
-    await expect(page).toHaveURL(/layer=9/);
-    await expect(page).toHaveURL(/percentile=80/);
+    await expect(page).toHaveURL(/view=head-feature-matrix/);
     await expect(page).toHaveURL(/head=1/);
     await expect(page).toHaveURL(/feature_label=7/);
-    await expect(page.getByTestId('advanced-q3-pane-primary').getByTestId('q3-exemplar-panel')).toBeVisible();
-    await expect(page.getByTestId('advanced-q3-pane-secondary').getByTestId('q3-exemplar-panel')).toBeVisible();
+    await expect(page.getByTestId('q3-report-matrix-view')).toBeVisible();
   });
 
-  test('swaps the compared models on /q3 and updates the URL and pane headings together', async ({ page }) => {
+  test('renders /q3 as a removed route', async ({ page }) => {
     await stubDashboardApis(page);
-    await page.goto('/q3?primary_model=clip&secondary_model=mae&variant=linear_probe&layer=9&metric=coverage&percentile=80');
+    await page.goto('/q3?primary_model=clip&secondary_model=mae');
 
-    const primaryPane = page.getByTestId('advanced-q3-pane-primary');
-    const secondaryPane = page.getByTestId('advanced-q3-pane-secondary');
-
-    await expect(primaryPane.getByRole('heading', { name: 'clip' })).toBeVisible();
-    await expect(secondaryPane.getByRole('heading', { name: 'mae' })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Swap models' }).click();
-
-    await expect(page).toHaveURL(/primary_model=mae/);
-    await expect(page).toHaveURL(/secondary_model=clip/);
-    await expect(primaryPane.getByRole('heading', { name: 'mae' })).toBeVisible();
-    await expect(secondaryPane.getByRole('heading', { name: 'clip' })).toBeVisible();
-  });
-
-  test('routes exemplar drill-down from the secondary /q3 pane into Image Detail with that pane model', async ({ page }) => {
-    await stubDashboardApis(page);
-    await page.goto('/q3?primary_model=dinov2&secondary_model=clip&variant=linear_probe&layer=11&metric=iou&percentile=90');
-
-    const secondaryPane = page.getByTestId('advanced-q3-pane-secondary');
-    await secondaryPane.getByTestId('q3-heatmap-cell-7-1').click();
-    await expect(secondaryPane.getByTestId('q3-exemplar-panel')).toBeVisible();
-
-    await secondaryPane.getByTestId(`q3-exemplar-open-${EXEMPLAR_IMAGE_ID}`).click();
-
-    await expect(page).toHaveURL(new RegExp(`/image/${EXEMPLAR_IMAGE_ID.replace('.', '\\.')}`));
-    await expect(page).toHaveURL(/tab=q3/);
-    await expect(page).toHaveURL(/model=clip/);
-    await expect(page).toHaveURL(/variant=linear_probe/);
-    await expect(page).toHaveURL(/layer=11/);
-    await expect(page).toHaveURL(/head=1/);
-    await expect(page).toHaveURL(/feature_label=7/);
+    await expect(page.getByText('404')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open Dashboard' })).toHaveAttribute('href', '/dashboard');
+    await expect(page.getByRole('heading', { name: 'Q3 Advanced Workspace' })).toHaveCount(0);
   });
 
   test('keeps the Q2 quick action context-preserving for direct /q2 navigation', async ({ page }) => {
