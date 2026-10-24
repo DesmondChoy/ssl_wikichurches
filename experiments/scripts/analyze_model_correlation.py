@@ -257,6 +257,86 @@ def save_json(payload: dict[str, Any], output_path: Path) -> None:
     print(f"JSON saved to: {output_path}")
 
 
+def save_dinov3_vs_clip_figure(
+    *,
+    dinov3_frozen: dict[str, float],
+    clip_delta: dict[str, float],
+    output_path: Path,
+) -> None:
+    """Render the single-panel DINOv3-frozen-IoU vs CLIP-Δ-IoU scatter (Fig 7).
+
+    Publication figure for the final report: one point per annotated image,
+    regression line with a 95% confidence band, and correlation stats annotated
+    in the upper-left corner. No title — the report caption carries it.
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("matplotlib not available — skipping DINOv3-vs-CLIP figure.")
+        return
+
+    x_vals, y_vals, _ = align_vectors(dinov3_frozen, clip_delta)
+    if len(x_vals) < 3:
+        print("Not enough aligned points for DINOv3-vs-CLIP figure — skipping.")
+        return
+
+    corr = pearson_and_spearman(x_vals, y_vals)
+    dot_color = MODEL_COLORS["dinov3"]
+    line_color = "#3A3A3A"  # complementary dark grey
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(5.5, 4))
+
+    ax.scatter(x_vals, y_vals, alpha=0.55, s=28, color=dot_color, zorder=3)
+    ax.axhline(0, color="gray", linewidth=0.6, linestyle="--", zorder=2)
+
+    # OLS regression line with 95% confidence band (t-distribution, df = n-2).
+    n = len(x_vals)
+    slope, intercept, *_ = stats.linregress(x_vals, y_vals)
+    x_grid = np.linspace(x_vals.min(), x_vals.max(), 200)
+    y_pred = slope * x_grid + intercept
+
+    y_hat = slope * x_vals + intercept
+    dof = n - 2
+    s_err = np.sqrt(np.sum((y_vals - y_hat) ** 2) / dof)
+    x_mean = x_vals.mean()
+    ss_x = np.sum((x_vals - x_mean) ** 2)
+    se_fit = s_err * np.sqrt(1.0 / n + (x_grid - x_mean) ** 2 / ss_x)
+    t_crit = stats.t.ppf(0.975, dof)
+    band = t_crit * se_fit
+
+    ax.fill_between(
+        x_grid, y_pred - band, y_pred + band,
+        color=line_color, alpha=0.2, zorder=3, linewidth=0,
+    )
+    ax.plot(x_grid, y_pred, color=line_color, linewidth=1.5, zorder=4)
+
+    ax.set_xlabel("DINOv3 frozen IoU@90", fontsize=12)
+    ax.set_ylabel("CLIP ΔIoU@90 (Full fine-tuning − Frozen)", fontsize=12)
+    ax.tick_params(labelsize=11)
+
+    p_val = corr["pearson_p"]
+    p_text = "p < 0.0001" if p_val < 1e-4 else f"p = {p_val:.4f}"
+    annotation = (
+        f"Pearson r = {corr['pearson_r']:+.3f}\n"
+        f"Spearman ρ = {corr['spearman_r']:+.3f}\n"
+        f"{p_text}"
+    )
+    ax.text(
+        0.03, 0.97, annotation,
+        transform=ax.transAxes, va="top", ha="left", fontsize=11,
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": "white",
+              "edgecolor": "0.7", "alpha": 0.85},
+        zorder=5,
+    )
+
+    fig.tight_layout()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"DINOv3-vs-CLIP figure saved to: {output_path}")
+
+
 def save_figures(
     *,
     clip_delta: dict[str, float],
@@ -413,6 +493,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Output heatmap figure path. Defaults to <experiment_dir>/model_correlation_heatmap.png.",
     )
+    parser.add_argument(
+        "--output-dinov3-scatter",
+        type=Path,
+        default=(
+            project_root
+            / "docs/final_report/figures/model_correlation_dinov3_vs_clip.png"
+        ),
+        help=(
+            "Output path for the single-panel DINOv3-vs-CLIP report figure. "
+            "Defaults to docs/final_report/figures/model_correlation_dinov3_vs_clip.png."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -534,6 +626,16 @@ def main() -> None:
         strategy=args.strategy,
         percentile=args.percentile,
     )
+
+    # Single-panel report figure (Fig 7): DINOv3 frozen IoU vs CLIP Δ IoU.
+    if "dinov3" in frozen_iou_all and frozen_iou_all["dinov3"]:
+        save_dinov3_vs_clip_figure(
+            dinov3_frozen=frozen_iou_all["dinov3"],
+            clip_delta=clip_delta,
+            output_path=args.output_dinov3_scatter,
+        )
+    else:
+        print("DINOv3 frozen IoU unavailable — skipping single-panel report figure.")
 
     print("\nDone!")
 

@@ -1,6 +1,11 @@
 # macOS
 .DS_Store
 
+# All agentic tooling config files
+.codex/
+.claude/
+.beads/
+
 # Python-generated files
 __pycache__/
 *.py[oc]
