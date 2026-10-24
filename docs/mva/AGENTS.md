@@ -10,6 +10,14 @@
 - Section, figure, table and line references in the comments point to `round2_v1024.tex`.
 - The editor asks for accurate results, rewritten overstated conclusions and fully explained limitations. The resubmission includes a clean PDF, a tracked-changes PDF and the point-by-point reply letter.
 
+## Keep revision scope focused
+- Keep reviews, plans and edits focused on the requested reviewer item, TJ's note, the agreed `TODO` and the user's instructions. Choose the smallest change that directly answers the request.
+- Clearly distinguish **Requested changes**, **Necessary correctness fixes** and **Optional / out of scope**. Tie requested changes to the actual request. For each necessary correctness fix, identify the concrete error and explain why it affects the requested result.
+- Keep optional suggestions brief and separate from the required work. Do not add them to implementation steps, acceptance criteria or completion conditions unless the user requests them. They must not block progress.
+- Do not add experiments, metrics, confidence intervals, sensitivity checks, confound analyses, figures or manuscript claims merely for completeness. Include them only when requested or needed to correct a concrete error affecting the requested result.
+- Reuse valid existing results and workflows. Resolve relevant label, split, data-source and comparison-setting inconsistencies while keeping the scientific scope focused on the request.
+- Keep conclusions and limitations tied to observed results. Flag issues belonging to another reviewer item separately instead of expanding the current item.
+
 ## Files
 - `round2_v1024.tex`: the submitted baseline. Never edit it.
 - `round2_v1024_changes.tex`: the revised manuscript. Make every manuscript change here.
