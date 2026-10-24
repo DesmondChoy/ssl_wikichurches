@@ -88,8 +88,12 @@ def load_q2_metrics(experiment_id: str | None) -> tuple[dict[str, Any], str]:
     return data, experiment_id
 
 
-def load_image_styles() -> dict[str, list[str]]:
-    """Return {image_filename: [style_name, ...]} from building_parts.json."""
+def load_image_styles() -> dict[str, str]:
+    """Return {image_filename: primary_style_name} from building_parts.json.
+
+    The primary style is the first listed style, as in AnnotatedSubset. Using only
+    it keeps the style groups disjoint, which Kruskal-Wallis requires.
+    """
     if not ANNOTATIONS_PATH.exists():
         raise FileNotFoundError(f"Annotations not found at {ANNOTATIONS_PATH}")
 
@@ -97,12 +101,9 @@ def load_image_styles() -> dict[str, list[str]]:
         ann = json.load(f)
 
     return {
-        img_id: [
-            STYLE_BY_ID[s]
-            for s in img_data.get("styles", [])
-            if s in STYLE_BY_ID
-        ]
+        img_id: STYLE_BY_ID[styles[0]]
         for img_id, img_data in ann["annotations"].items()
+        if (styles := img_data.get("styles", [])) and styles[0] in STYLE_BY_ID
     }
 
 
@@ -112,14 +113,14 @@ def load_image_styles() -> dict[str, list[str]]:
 
 def group_deltas_by_style(
     per_image_deltas: dict[str, float],
-    image_styles: dict[str, list[str]],
+    image_styles: dict[str, str],
 ) -> dict[str, list[float]]:
     """Map per-image deltas to a dict of {style_name: [delta, ...]}."""
     style_deltas: dict[str, list[float]] = {s: [] for s in STYLE_ORDER}
     for image_id, delta in per_image_deltas.items():
-        for style in image_styles.get(image_id, []):
-            if style in style_deltas:
-                style_deltas[style].append(delta)
+        style = image_styles.get(image_id)
+        if style in style_deltas:
+            style_deltas[style].append(delta)
     return style_deltas
 
 
@@ -155,7 +156,7 @@ def kruskal_wallis_test(style_deltas: dict[str, list[float]]) -> dict[str, Any]:
 
 def analyze_rows(
     q2_data: dict[str, Any],
-    image_styles: dict[str, list[str]],
+    image_styles: dict[str, str],
     *,
     strategy: str,
     metric: str,
