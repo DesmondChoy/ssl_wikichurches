@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ACTIVE_EXPERIMENT_PATH = PROJECT_ROOT / "outputs" / "results" / "active_experiment.json"
 Q2_JSON_FALLBACK = PROJECT_ROOT / "outputs" / "results" / "q2_metrics_analysis.json"
-OUTPUT_PATH = PROJECT_ROOT / "docs" / "paper" / "714_fig6.png"
+OUTPUT_PATH = PROJECT_ROOT / "docs" / "mva" / "714_fig6.png"
 
 MODEL_ORDER = ["dinov2", "dinov3", "mae", "clip", "siglip", "siglip2"]
 MODEL_LABELS = {
