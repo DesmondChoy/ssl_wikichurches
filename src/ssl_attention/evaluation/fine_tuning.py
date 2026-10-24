@@ -75,7 +75,7 @@ from ssl_attention.evaluation.fine_tuning_artifacts import (
     save_run_matrix,
     write_active_experiment,
 )
-from ssl_attention.models.base import forward_mae_for_analysis
+from ssl_attention.models.base import forward_mae_for_analysis, load_full_image_processor
 from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import clear_memory, get_device
 
@@ -467,9 +467,11 @@ class FineTunableModel(nn.Module):
             )
         self._config = MODELS[model_name]
 
-        # Load backbone and processor
+        # Attention evaluation sees the whole image; classification keeps the
+        # checkpoint's native preprocessing, which center-crops for DINOv2 and CLIP.
         self.backbone = self._load_backbone()
-        self.processor = AutoImageProcessor.from_pretrained(self._config.model_id)
+        self.processor = load_full_image_processor(self._config.model_id)
+        self.classification_processor = AutoImageProcessor.from_pretrained(self._config.model_id)
 
         # Apply LoRA adapters before moving to device
         if use_lora:
@@ -623,7 +625,7 @@ class FineTunableModel(nn.Module):
         return cls_features, attentions
 
     def preprocess(self, images: list) -> Tensor:
-        """Preprocess PIL images for model input.
+        """Preprocess PIL images for attention evaluation (whole image, no crop).
 
         Args:
             images: List of PIL Images.
@@ -631,7 +633,14 @@ class FineTunableModel(nn.Module):
         Returns:
             Tensor of shape (B, C, H, W) on the model's device.
         """
-        processed = self.processor(images=images, return_tensors="pt")
+        return self._to_pixel_values(self.processor, images)
+
+    def preprocess_for_classification(self, images: list) -> Tensor:
+        """Preprocess PIL images with the checkpoint's native processor for training and validation."""
+        return self._to_pixel_values(self.classification_processor, images)
+
+    def _to_pixel_values(self, processor: Any, images: list) -> Tensor:
+        processed = processor(images=images, return_tensors="pt")
         pixel_values: Tensor = processed["pixel_values"]
         return pixel_values.to(device=self.device, dtype=self.dtype)
 
@@ -1025,7 +1034,7 @@ class FineTuner:
         """Build data augmentation transform for training images.
 
         Returns a transform that applies random crop, flip, and color jitter.
-        Outputs PIL images — model.preprocess() handles ToTensor/Normalize.
+        Outputs PIL images — model.preprocess_for_classification() handles ToTensor/Normalize.
         """
         return T.Compose([
             T.RandomResizedCrop(224, scale=(0.8, 1.0)),
@@ -1184,7 +1193,7 @@ class FineTuner:
                     images = self._augment_train_images(images, train_transform)
 
                 # Preprocess and forward
-                pixel_values = model.preprocess(images)
+                pixel_values = model.preprocess_for_classification(images)
                 labels = batch["labels"].to(self.device)
 
                 optimizer.zero_grad()
@@ -1220,7 +1229,7 @@ class FineTuner:
                     if len(batch["images"]) == 0:
                         continue
 
-                    pixel_values = model.preprocess(batch["images"])
+                    pixel_values = model.preprocess_for_classification(batch["images"])
                     labels = batch["labels"].to(self.device)
 
                     logits, _, _ = model(pixel_values)

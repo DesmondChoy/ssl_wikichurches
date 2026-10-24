@@ -10,8 +10,22 @@ from PIL import Image
 from torch import Tensor, nn
 from transformers import AutoConfig, AutoImageProcessor, BatchFeature
 
+from ssl_attention.config import DEFAULT_IMAGE_SIZE
 from ssl_attention.models.protocols import ModelOutput
 from ssl_attention.utils.device import get_device, get_dtype_for_device
+
+
+def load_full_image_processor(model_id: str) -> Any:
+    """Load a processor that resizes the whole image to 224x224 without cropping.
+
+    Expert boxes are rasterized on the full image, so attention inputs must not
+    be center-cropped. DINOv2 and CLIP crop by default.
+    """
+    return AutoImageProcessor.from_pretrained(
+        model_id,
+        do_center_crop=False,
+        size={"height": DEFAULT_IMAGE_SIZE, "width": DEFAULT_IMAGE_SIZE},
+    )
 
 
 def _resolve_mae_patch_size(model: nn.Module) -> tuple[int, int]:
@@ -132,9 +146,9 @@ class BaseVisionModel(ABC, nn.Module):
         """Load the image processor for this model.
 
         Returns:
-            HuggingFace image processor.
+            HuggingFace image processor that keeps the whole image.
         """
-        return AutoImageProcessor.from_pretrained(self.model_id)
+        return load_full_image_processor(self.model_id)
 
     def _load_config(self) -> Any:
         """Load model config with attention output enabled.
