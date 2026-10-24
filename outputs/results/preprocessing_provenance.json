@@ -1,0 +1,173 @@
+{
+  "recorded_at": "2026-10-24T23:26:45.780200+00:00",
+  "git_commit": "d3778d7ac924cbc22607b16911a2596771bbeb55",
+  "python": "3.12.11",
+  "packages": {
+    "torch": "2.10.0",
+    "torchvision": "0.25.0",
+    "transformers": "5.0.0",
+    "pillow": "12.1.0"
+  },
+  "models": {
+    "clip": {
+      "model_id": "openai/clip-vit-base-patch16",
+      "attention": {
+        "image_processor_type": "CLIPImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 3,
+        "do_center_crop": false,
+        "crop_size": {
+          "height": 224,
+          "width": 224
+        }
+      },
+      "classification": {
+        "image_processor_type": "CLIPImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "shortest_edge": 224
+        },
+        "resample": 3,
+        "do_center_crop": true,
+        "crop_size": {
+          "height": 224,
+          "width": 224
+        }
+      }
+    },
+    "dinov2": {
+      "model_id": "facebook/dinov2-with-registers-base",
+      "attention": {
+        "image_processor_type": "BitImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 3,
+        "do_center_crop": false,
+        "crop_size": {
+          "height": 224,
+          "width": 224
+        }
+      },
+      "classification": {
+        "image_processor_type": "BitImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "shortest_edge": 256
+        },
+        "resample": 3,
+        "do_center_crop": true,
+        "crop_size": {
+          "height": 224,
+          "width": 224
+        }
+      }
+    },
+    "dinov3": {
+      "model_id": "facebook/dinov3-vitb16-pretrain-lvd1689m",
+      "attention": {
+        "image_processor_type": "DINOv3ViTImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": false,
+        "crop_size": null
+      },
+      "classification": {
+        "image_processor_type": "DINOv3ViTImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": null,
+        "crop_size": null
+      }
+    },
+    "mae": {
+      "model_id": "facebook/vit-mae-base",
+      "attention": {
+        "image_processor_type": "ViTImageProcessor",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": false,
+        "crop_size": null
+      },
+      "classification": {
+        "image_processor_type": "ViTImageProcessor",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": null,
+        "crop_size": null
+      }
+    },
+    "siglip": {
+      "model_id": "google/siglip-base-patch16-224",
+      "attention": {
+        "image_processor_type": "SiglipImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 3,
+        "do_center_crop": false,
+        "crop_size": null
+      },
+      "classification": {
+        "image_processor_type": "SiglipImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 3,
+        "do_center_crop": null,
+        "crop_size": null
+      }
+    },
+    "siglip2": {
+      "model_id": "google/siglip2-base-patch16-224",
+      "attention": {
+        "image_processor_type": "SiglipImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": false,
+        "crop_size": null
+      },
+      "classification": {
+        "image_processor_type": "SiglipImageProcessorFast",
+        "do_resize": true,
+        "size": {
+          "height": 224,
+          "width": 224
+        },
+        "resample": 2,
+        "do_center_crop": null,
+        "crop_size": null
+      }
+    }
+  }
+}
