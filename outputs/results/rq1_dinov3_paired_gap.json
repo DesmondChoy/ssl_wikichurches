@@ -1,0 +1,62 @@
+{
+  "percentile": 90,
+  "test": "Wilcoxon signed-rank, Holm",
+  "comparisons": [
+    {
+      "metric": "iou",
+      "dinov3_layer": "layer11",
+      "dinov3_score": 0.13274657726287842,
+      "runner_up": "dinov2",
+      "runner_up_layer": "layer11",
+      "runner_up_score": 0.11777035146951675,
+      "gap": 0.014976225793361664,
+      "dinov3_wins": 85,
+      "num_images": 139,
+      "p_value": 0.005861284966554382,
+      "p_holm": 0.005861284966554382,
+      "significant": true
+    },
+    {
+      "metric": "coverage",
+      "dinov3_layer": "layer11",
+      "dinov3_score": 0.13732272386550903,
+      "runner_up": "dinov2",
+      "runner_up_layer": "layer11",
+      "runner_up_score": 0.12758494913578033,
+      "gap": 0.009737774729728699,
+      "dinov3_wins": 92,
+      "num_images": 139,
+      "p_value": 3.89236318344725e-06,
+      "p_holm": 1.1677089550341748e-05,
+      "significant": true
+    },
+    {
+      "metric": "kl",
+      "dinov3_layer": "layer11",
+      "dinov3_score": 2.324707508087158,
+      "runner_up": "dinov2",
+      "runner_up_layer": "layer11",
+      "runner_up_score": 2.3761725425720215,
+      "gap": 0.05146503448486328,
+      "dinov3_wins": 85,
+      "num_images": 139,
+      "p_value": 0.00036859746508236045,
+      "p_holm": 0.0007371949301647209,
+      "significant": true
+    },
+    {
+      "metric": "emd",
+      "dinov3_layer": "layer11",
+      "dinov3_score": 0.2600095868110657,
+      "runner_up": "dinov2",
+      "runner_up_layer": "layer11",
+      "runner_up_score": 0.2711177170276642,
+      "gap": 0.01110813021659851,
+      "dinov3_wins": 104,
+      "num_images": 139,
+      "p_value": 2.215756075348757e-12,
+      "p_holm": 8.863024301395029e-12,
+      "significant": true
+    }
+  ]
+}
