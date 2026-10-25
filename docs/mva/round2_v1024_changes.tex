@@ -295,6 +295,7 @@ box centre. The per-axis standard deviations are set according to the box size a
 \qquad
 \sigma_{i,y} = \max\left(\frac{h_i}{4}, 1\right).
 \end{equation}
+The purpose of the Gaussian is to turn each box into a continuous map, so that attention just outside an annotated region is penalized less than attention far from it. With $\sigma = w_i/4$, the box edges lie $2\sigma$ from the centre, so about 95\% of the Gaussian's mass along each axis, and about 91\% in two dimensions, falls inside the box, while the target value at the box edge is $e^{-2} \approx 0.14$ rather than zero. Tying $\sigma$ to the width and height of each box keeps this spread the same relative to the box for large and small elements and preserves the box's aspect ratio. The lower bound of one pixel prevents very small boxes from collapsing to a single-pixel spike; on the $224 \times 224$ grid it applies to 28 of the 631 boxes along at least one axis. The value of $\sigma$ was fixed in advance and not tuned, and it affects only the MSE, KL divergence and EMD metrics, since IoU@90 and Coverage use the binary mask.
 The resulting per-box Gaussian map ($G_i$) is peak-normalized to one as
 \begin{equation}
 G_i(x, y) = \exp\left[-\frac{(x - c_{i,x})^{2}}{2\sigma_{i,x}^{2}}-\frac{(y - c_{i,y})^{2}}{2\sigma_{i,y}^{2}}\right].
