@@ -125,7 +125,7 @@
 %% Sample for unstructured abstract %%
 %%==================================%%
 
-\abstract{Vision foundation models achieve strong recognition performance, but it remains unclear whether their attention aligns with the visual evidence that human experts consider discriminative. This paper presents a comparative study of attention alignment in image recognition, using the WikiChurches benchmark dataset, in which expert-annotated bounding boxes identify style-relevant architectural features. The study examines the attention alignment by formulating three research questions: whether frozen models exhibit expert-aligned attention, how attention alignment varies across intermediate layers and heads, and how downstream adaptation changes attention alignment. This paper presents a comprehensive comparison of six vision foundation models, spanning image-only self-supervised and vision-language models, and measures attention alignment using five complementary metrics, three types of attention maps, and two adaptation strategies. The findings show that attention alignment provides a useful diagnostic lens beyond classification accuracy, while remaining evidence of spatial plausibility rather than causal explanation.}
+\abstract{Vision foundation models achieve strong recognition performance, but it remains unclear whether their attention aligns with the visual evidence that human experts consider discriminative. This paper presents a comparative study of attention alignment in image recognition, using the WikiChurches benchmark dataset, in which expert-annotated bounding boxes identify style-relevant architectural features. The study examines the attention alignment by formulating three research questions: whether frozen models exhibit expert-aligned attention, how attention alignment varies across intermediate layers and heads, and how downstream adaptation changes attention alignment. This paper presents a comprehensive comparison of six vision foundation models, spanning image-only self-supervised and vision-language models, and measures attention alignment using five complementary metrics, two types of attention maps, and two adaptation strategies. The findings show that attention alignment provides a useful diagnostic lens beyond classification accuracy, while remaining evidence of spatial plausibility rather than causal explanation.}
 
 
 \keywords{Explainable computer vision; vision foundation model; attention map; attentional alignment; image recognition}
@@ -154,7 +154,7 @@ The contributions of this paper are threefold.
 \begin{itemize}
 \item First, we formulate attention alignment as an evaluation problem that measures the correspondence between attention maps from vision foundation models and expert-annotated architectural regions. This formulation enables systematic analysis of whether model attention is spatially consistent with human-recognized discriminative evidence.
 \item Second, we study attention alignment along three complementary axes: model-level alignment, layer-level and head-level specialization, and adaptation-induced changes during downstream tuning. This design allows us to examine not only where models attend, but also how attention evolves internally and how it changes after task adaptation.
-\item Third, we conduct a comprehensive empirical study covering six vision foundation models, three types of attention maps, two adaptation strategies, and five alignment metrics on a benchmark architectural image dataset. This provides a broad comparative view of how different pretraining paradigms and adaptation choices influence attention alignment.
+\item Third, we conduct a comprehensive empirical study covering six vision foundation models, two types of attention maps, two adaptation strategies, and five alignment metrics on a benchmark architectural image dataset. This provides a broad comparative view of how different pretraining paradigms and adaptation choices influence attention alignment.
 \end{itemize}
 
 The rest of this paper is organized as follows. Section~\ref{section related works} reviews prior work on explaining vision foundation models and evaluating model explanations, and highlights the distinction between this study and existing literature. Section~\ref{section proposed approach} presents the research questions and details the study design, including the evaluated models, attention maps, adaptation strategies, and performance metrics. Section~\ref{section results} reports the experimental results, analysis, and limitations. Finally, Section~\ref{section conclusions} concludes the paper.
@@ -230,12 +230,12 @@ This study is guided by three research questions that examine attention alignmen
 
 \textit{Motivation.} Different adaptation strategies modify the pretrained model to different degrees: LoRA introduces parameter-efficient updates, and full fine-tuning changes the model more extensively. This question examines whether these strategies strengthen, weaken, or reorganize alignment with expert-annotated regions, providing insight into how adaptation changes not only prediction performance but also the visual evidence used by the model.
 \end{itemize}
-To answer these research questions, we conduct a comparative study using six vision foundation models, three types of attention maps, two adaptation strategies, and five evaluation metrics on the WikiChurches benchmark dataset~\cite{Barz21WikiChurches}. Figure \ref{figure framework overview} illustrates the overview of this study. The detailed experimental configurations are described in the following subsection.
+To answer these research questions, we conduct a comparative study using six vision foundation models, two types of attention maps, two adaptation strategies, and five evaluation metrics on the WikiChurches benchmark dataset~\cite{Barz21WikiChurches}. Figure \ref{figure framework overview} illustrates the overview of this study. The detailed experimental configurations are described in the following subsection.
 
 
 \begin{figure}[!h]
 \centering\includegraphics[width=\textwidth]{framework_v3.png}
-\caption{Our comparative study compares 6 vision foundation models, 3 types of attention maps, 2 model adaptation strategies, and 5 performance metrics on 1 benchmark dataset. \label{figure framework overview}}
+\caption{Our comparative study compares 6 vision foundation models, 2 types of attention maps, 2 model adaptation strategies, and 5 performance metrics on 1 benchmark dataset. \label{figure framework overview}}
 \end{figure}
 
 \subsection{Dataset}
