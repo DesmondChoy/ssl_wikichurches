@@ -23,6 +23,7 @@
 - `round2_v1024_changes.tex`: the revised manuscript. Make every manuscript change here.
 - `sn-jnl.cls`, `sn-mathphys-num.bst`, `xvision.bib`, `*.png`: needed to build. Put new figures in this folder. Delete a PNG only when neither `.tex` file references it.
 - `build/`: build output (gitignored). Do not commit PDFs from it.
+- `notes/`: per-item plans (`R1-Qn_plan.md`) and review notes. Put new plans and notes here, not beside the manuscript.
 
 ## Render
 Install once with `brew install tectonic latexdiff`. Run everything from `docs/mva/`.

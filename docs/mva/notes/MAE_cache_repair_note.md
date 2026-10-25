@@ -8,15 +8,15 @@ Status (2026-10-25): repair verified independently and completed under `ssl_wiki
 
 This was an internal correctness issue discovered while preparing the journal revision, rather than a direct request from a reviewer. It surfaced during the R1-Q4 preprocessing review and was also a prerequisite for the R1-Q3 analysis relating classification correctness to attention alignment. The original concern appears in [`R1-Q4_plan.md`](R1-Q4_plan.md) and [`R1-Q3_plan.md`](R1-Q3_plan.md); this note records its resolution.
 
-The relevant manuscript is [`round2_v1024_changes.tex`](round2_v1024_changes.tex). The submitted baseline, [`round2_v1024.tex`](round2_v1024.tex), was not edited for this repair.
+The relevant manuscript is [`round2_v1024_changes.tex`](../round2_v1024_changes.tex). The submitted baseline, [`round2_v1024.tex`](../round2_v1024.tex), was not edited for this repair.
 
 ## Why the repair was necessary
 
 The cached MAE LoRA and full fine-tuning attention maps did not all come from the selected checkpoints in `outputs/checkpoints/fine_tuning_primary_20260327/`. The maps combining attention across heads, called **fused maps**, matched superseded checkpoints in the root `outputs/checkpoints/` directory. Their corresponding database metrics therefore described a different trained model from the one selected for the paper.
 
-The [selected experiment's Q2 analysis](../../outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json) computed attention directly from the selected checkpoints and was already correct. The individual-head results were also already correct. This explains how the application cache could disagree with the Q2 analysis while the paper's figures and head rankings remained valid. The root-level `outputs/results/q2_metrics_analysis.json` is an older run; the experiment-scoped file is the comparison source for this repair.
+The [selected experiment's Q2 analysis](../../../outputs/results/experiments/fine_tuning_primary_20260327/q2_metrics_analysis.json) computed attention directly from the selected checkpoints and was already correct. The individual-head results were also already correct. This explains how the application cache could disagree with the Q2 analysis while the paper's figures and head rankings remained valid. The root-level `outputs/results/q2_metrics_analysis.json` is an older run; the experiment-scoped file is the comparison source for this repair.
 
-The cache scripts previously defaulted to the root checkpoint directory. Commit `3736641` fixes that default in both [`generate_attention_cache.py`](../../app/precompute/generate_attention_cache.py) and [`generate_feature_cache.py`](../../app/precompute/generate_feature_cache.py). Both now default to the selected March experiment directory. This code fix was recorded separately in px47.
+The cache scripts previously defaulted to the root checkpoint directory. Commit `3736641` fixes that default in both [`generate_attention_cache.py`](../../../app/precompute/generate_attention_cache.py) and [`generate_feature_cache.py`](../../../app/precompute/generate_feature_cache.py). Both now default to the selected March experiment directory. This code fix was recorded separately in px47.
 
 ## Which numbers changed
 
@@ -63,11 +63,11 @@ The regeneration added 1,980,000 MAE rows to `head_feature_image_metrics`, which
 
 The following evidence files are local, gitignored outputs retained in this checkout:
 
-- [Before-repair cache means](../../outputs/cache/z74t-mae-fix-2026-10-25/before-metrics.json) and [the repaired-cache/Q2 comparisons](../../outputs/cache/z74t-mae-fix-2026-10-25/metrics-verification.json).
-- [Head rankings and comparison with the backup](../../outputs/cache/z74t-mae-fix-2026-10-25/head-ranking-verification.json).
-- [Cache completeness checks](../../outputs/cache/z74t-mae-fix-2026-10-25/completeness-verification.json) and [attention/feature array checks](../../outputs/cache/z74t-mae-fix-2026-10-25/arrays-verification.json). Interpret the row-ID checks with the new-entry distinction above.
+- [Before-repair cache means](../../../outputs/cache/z74t-mae-fix-2026-10-25/before-metrics.json) and [the repaired-cache/Q2 comparisons](../../../outputs/cache/z74t-mae-fix-2026-10-25/metrics-verification.json).
+- [Head rankings and comparison with the backup](../../../outputs/cache/z74t-mae-fix-2026-10-25/head-ranking-verification.json).
+- [Cache completeness checks](../../../outputs/cache/z74t-mae-fix-2026-10-25/completeness-verification.json) and [attention/feature array checks](../../../outputs/cache/z74t-mae-fix-2026-10-25/arrays-verification.json). Interpret the row-ID checks with the new-entry distinction above.
 
-The closed z74t issue and its entry in the tracked [Beads interaction log](../../.beads/interactions.jsonl) retain the verified repair summary. The default-directory code change is in `3736641`; the z74t closure record is in `acbb6a6`.
+The closed z74t issue and its entry in the tracked [Beads interaction log](../../../.beads/interactions.jsonl) retain the verified repair summary. The default-directory code change is in `3736641`; the z74t closure record is in `acbb6a6`.
 
 ## How to interpret other numerical changes in the LaTeX diff
 
