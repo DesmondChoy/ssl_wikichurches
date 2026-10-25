@@ -37,6 +37,8 @@ Tracked-changes PDF (`build/round2_v1024_diff.pdf`):
 ```bash
 latexdiff --append-textcmd=abstract round2_v1024.tex round2_v1024_changes.tex 2>/dev/null > build/round2_v1024_diff.tex
 perl -pi -e 's/^((?:\x5cDIFdelbeginFL )?\x5cDIFdelFL\{.*?\})%DIFDELCMD < (&|\x5c\x5c)/$1 $2/' build/round2_v1024_diff.tex
+perl -pi -e 's/^\x5cprovidecommand\{\x5cDIFaddFL\}\[1\]\{\x5cDIFadd\{#1\}\}/\x5cprovidecommand{\x5cDIFaddFL}[1]{{\x5cprotect\x5ccolor{blue}#1}}/' build/round2_v1024_diff.tex
+perl -pi -e 's/\x5cDIFaddFL\{([^{}]*?) \}/\x5cDIFaddFL{$1}/g if /&/' build/round2_v1024_diff.tex
 tectonic -Z search-path=. -o build build/round2_v1024_diff.tex
 ```
 
@@ -44,7 +46,8 @@ tectonic -Z search-path=. -o build build/round2_v1024_diff.tex
 - Expect and ignore two warnings from the template: `Object @figure.N already defined` and invalid UTF-8 in `algorithm.sty`.
 - Without `--append-textcmd=abstract`, edits inside `\abstract{...}` appear in the diff PDF with no markup.
 - `-Z search-path=.` lets the diff source in `build/` find the class file and the figures.
-- `latexdiff` comments out the `&` and `\\` of a deleted table row, so the struck text spills into the next row and widens the table. The `perl` line restores them. It uses `\x5c` for the backslash so it runs the same in bash, zsh and fish.
+- `latexdiff` comments out the `&` and `\\` of a deleted table row, so the struck text spills into the next row and widens the table. The first `perl` line restores them. All three `perl` lines use `\x5c` for the backslash so they run the same in bash, zsh and fish.
+- Inside floats, `latexdiff` underlines added text with a wavy line that makes every table row deeper, and it writes each new table cell as `\DIFaddFL{.215 }`, whose trailing space widens the cell. A long new table then runs into the line numbers and the page footer. The second `perl` line shows added float text in blue without the underline. The third removes the trailing space on lines that contain `&`. Deleted float text keeps its red strikeout.
 - `latexdiff` prints harmless `Missing characters near ... IoU@90` warnings, so its stderr is discarded. If `build/round2_v1024_diff.tex` comes out empty, rerun it without `2>/dev/null`.
 - Tectonic uses XeTeX, so line breaks can differ slightly from an Overleaf pdfLaTeX build.
 - To check a page visually: `pdftoppm -r 80 -png -f 5 -l 5 build/round2_v1024_changes.pdf /tmp/page`.
