@@ -480,7 +480,7 @@ Wimperg & 18 & .063 & .063 & .104 & .005 & .018 & .013 & .078 & .027 & \textbf{.
 \caption{Representative head-feature matrix for frozen DINOv3 at layer~10 using IoU@90. Each cell is the mean IoU@90 of one attention head over the expert-annotated boxes of one feature, and Boxes is the number of these boxes. Bold marks H8, the dominant head in this setting. The rows are the eight features with the highest H8 score among the 50 features with at least three boxes. The feature rows show that the dominant head aligns most strongly with portal-scale and facade-scale structures.\label{figure rq2_head_feature_matrix}}
 \end{figure}
 
-The second experiment examines the strongest and weakest feature alignments for each model's best-performing head. For each model, we identify its IoU@90 dominant head and rank all architectural features with at least three annotations. Figure~\ref{figure RQ2 top bottom} illustrates the two strongest and two weakest supported features for each model. DINOv3's \texttt{layer10/head8} reaches mean feature-level IoU@90 of 0.215 on \emph{Columned Portal}, 0.204 on \emph{Round Arch Portal}, and 0.181 on \emph{Ornate Portal}, while its weakest supported features are near zero for \emph{Blind Tracery}, \emph{Crocket}, and \emph{Tabernacle}. DINOv2's strongest supported features are \emph{Ornate Portal} and \emph{Tracery Rose Window}, and it shows a similar failure boundary on small details. MAE also favours large facade parts, although its third-strongest feature is \emph{Wimperg}. CLIP's inclusion of \emph{Belt Course} indicates that feature extent and clean geometry also influence alignment. The strongest heads obtain spatial patterns compatible with expert-annotated structural parts. The weak cases show that poorly aligned features tend to be small, thin, and repeated across model families.
+The second experiment examines the strongest and weakest feature alignments for each model's best-performing head. For each model, we identify its IoU@90 dominant head and rank all architectural features with at least three annotations. Figure~\ref{figure RQ2 top bottom} illustrates the two strongest and two weakest supported features for each model. DINOv3's \texttt{layer10/head8} reaches mean feature-level IoU@90 of 0.215 on \emph{Columned Portal}, 0.204 on \emph{Round Arch Portal}, and 0.181 on \emph{Ornate Portal}, while its weakest supported features are near zero for \emph{Blind Tracery}, \emph{Crocket}, and \emph{Tabernacle}. DINOv2's strongest supported features are \emph{Ornate Portal} and \emph{Tracery Rose Window}, and it shows a similar failure boundary on small details. MAE also favours large facade parts, although its third-strongest feature is \emph{Wimperg}. CLIP's inclusion of \emph{Belt Course} indicates that feature extent and clean geometry also influence alignment. The strongest heads obtain spatial patterns compatible with expert-annotated structural parts. The weak cases show that poorly aligned features tend to be small, thin, and repeated across model families. Appendix~\ref{appendix head feature} gives the complete head-feature matrices for the dominant layer of DINOv2, DINOv3, MAE, and CLIP, with all 12 heads and all 50 features that have at least three annotations. These matrices cover the four models scored with \texttt{[CLS]}-token attention, whereas Figure~\ref{figure RQ2 top bottom} reports SigLIP and SigLIP2 at the layer level with the mean-attention proxy.
 
 \begin{figure}[!h]
 \centering
@@ -665,6 +665,7 @@ X. Xie: Formal analysis, Writing - Original Draft, Writing - Review \& Editing.
 \begin{appendices}
 % Appendix tables restart at 1, so hyperref needs the lettered number to keep their link targets unique.
 \renewcommand{\theHtable}{\thetable}
+\counterwithin*{table}{section}
 
 \section{Correctness comparison for the other alignment metrics}\label{appendix correctness}
 
@@ -695,6 +696,256 @@ SigLIP   & Frozen & +0.31 & 0.325 & +0.25 & 0.952 & $-$0.33 & 0.197 & $-$0.01 & 
 SigLIP2  & Frozen & +0.19 & 1.000 & +0.15 & 1.000 & $-$0.21 & 1.000 & $-$0.10 & 1.000 \\
          & LoRA   & +0.05 & 1.000 & $-$0.04 & 1.000 & $-$0.05 & 1.000 & +0.17 & 1.000 \\
          & Full   & $-$0.06 & 1.000 & $-$0.24 & 1.000 & +0.07 & 1.000 & +0.36 & 0.148 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\FloatBarrier
+
+\section{Complete head-feature matrices}\label{appendix head feature}
+
+Tables~\ref{table appendix head feature dinov2}--\ref{table appendix head feature clip} give the complete head-feature matrices for the four models scored with \texttt{[CLS]}-token attention. Each table covers the layer of the model's dominant frozen head, the head with the highest mean IoU@90 over the 139 images, and lists all 12 heads of that layer and all 50 features with at least three boxes. These are the dominant heads of Figure~\ref{figure RQ2 top bottom}, so each bold column gives the complete feature ranking behind that figure. The first eight rows of Table~\ref{table appendix head feature dinov3} are the rows shown in Figure~\ref{figure rq2_head_feature_matrix}.
+
+\begin{table}[!htbp]
+\centering
+\caption{Head-feature matrix for frozen DINOv2 at layer~11 using IoU@90, with all 50 features that have at least three boxes. Each cell is the mean IoU@90 of one attention head over the expert-annotated boxes of one feature, and Boxes is the number of these boxes. Bold marks H11, the dominant head. Rows are sorted by the H11 score.\label{table appendix head feature dinov2}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrcccccccccccc@{}}
+\toprule
+Feature & Boxes & H0 & H1 & H2 & H3 & H4 & H5 & H6 & H7 & H8 & H9 & H10 & \textbf{H11} \\ \midrule
+Ornate Portal & 7 & .010 & .065 & .110 & .133 & .060 & .042 & .112 & .013 & .033 & .290 & .071 & \textbf{.202} \\
+Tracery Rose Window & 21 & .026 & .014 & .038 & .007 & .057 & .075 & .187 & .014 & .054 & .056 & .007 & \textbf{.181} \\
+Columned Portal & 15 & .007 & .070 & .086 & .097 & .049 & .028 & .086 & .002 & .000 & .246 & .090 & \textbf{.170} \\
+Round Arch Portal & 5 & .011 & .151 & .124 & .046 & .156 & .123 & .138 & .020 & .000 & .280 & .108 & \textbf{.165} \\
+Wimperg & 18 & .011 & .005 & .092 & .045 & .066 & .020 & .147 & .024 & .021 & .103 & .031 & \textbf{.142} \\
+Archivolted Portal & 11 & .003 & .055 & .032 & .116 & .047 & .029 & .058 & .006 & .001 & .184 & .018 & \textbf{.136} \\
+Conical Roof & 12 & .037 & .018 & .132 & .009 & .071 & .013 & .015 & .090 & .175 & .159 & .018 & \textbf{.129} \\
+Pointed Arch Window & 37 & .021 & .012 & .017 & .005 & .048 & .108 & .036 & .005 & .008 & .011 & .011 & \textbf{.104} \\
+Tracery & 25 & .013 & .011 & .008 & .002 & .049 & .104 & .045 & .003 & .003 & .009 & .006 & \textbf{.096} \\
+Bull's-eye Window & 7 & .015 & .012 & .018 & .009 & .011 & .077 & .084 & .016 & .000 & .028 & .011 & \textbf{.089} \\
+Pointed Arch Portal & 8 & .000 & .032 & .032 & .104 & .026 & .014 & .062 & .000 & .000 & .199 & .016 & \textbf{.088} \\
+Dwarf Gallery & 4 & .007 & .000 & .086 & .002 & .083 & .031 & .007 & .010 & .044 & .012 & .007 & \textbf{.059} \\
+Blind Arcade & 9 & .046 & .017 & .044 & .027 & .085 & .037 & .028 & .033 & .004 & .007 & .014 & \textbf{.057} \\
+Segmental Pediment & 8 & .006 & .001 & .018 & .000 & .008 & .008 & .032 & .016 & .000 & .041 & .023 & \textbf{.053} \\
+Round Arch Window & 38 & .008 & .007 & .010 & .001 & .022 & .071 & .026 & .011 & .003 & .005 & .016 & \textbf{.051} \\
+Blind Arch & 5 & .054 & .010 & .043 & .024 & .065 & .035 & .004 & .021 & .002 & .001 & .013 & \textbf{.049} \\
+Buttress Arch & 17 & .008 & .001 & .038 & .003 & .026 & .019 & .029 & .033 & .040 & .019 & .015 & \textbf{.048} \\
+Segmental Arch & 5 & .002 & .003 & .000 & .000 & .002 & .034 & .007 & .000 & .002 & .008 & .010 & \textbf{.041} \\
+Broken Pediment & 10 & .007 & .009 & .029 & .000 & .014 & .006 & .030 & .045 & .006 & .031 & .044 & \textbf{.040} \\
+Lancet Window & 6 & .031 & .005 & .010 & .002 & .018 & .082 & .014 & .001 & .002 & .013 & .017 & \textbf{.037} \\
+Cranked Pediment & 5 & .007 & .009 & .112 & .000 & .025 & .007 & .043 & .114 & .137 & .039 & .030 & \textbf{.036} \\
+Triangular Pediment & 19 & .014 & .013 & .088 & .004 & .029 & .008 & .072 & .058 & .104 & .034 & .068 & \textbf{.035} \\
+Buttress & 31 & .037 & .006 & .037 & .017 & .017 & .019 & .017 & .032 & .017 & .007 & .033 & \textbf{.035} \\
+Volute & 10 & .012 & .003 & .009 & .009 & .031 & .003 & .020 & .094 & .102 & .018 & .047 & \textbf{.032} \\
+Belt Course & 9 & .035 & .019 & .172 & .003 & .056 & .030 & .037 & .023 & .034 & .010 & .028 & \textbf{.030} \\
+Cranked Cornice & 5 & .007 & .001 & .068 & .000 & .016 & .012 & .014 & .014 & .028 & .014 & .017 & \textbf{.028} \\
+Sexfoil & 4 & .002 & .004 & .003 & .000 & .005 & .023 & .019 & .002 & .001 & .001 & .002 & \textbf{.022} \\
+Round Arch Niche & 7 & .017 & .002 & .002 & .001 & .014 & .030 & .034 & .064 & .000 & .000 & .014 & \textbf{.021} \\
+Projecting Cornice & 6 & .021 & .002 & .097 & .002 & .028 & .003 & .006 & .009 & .038 & .006 & .040 & \textbf{.021} \\
+Pilaster & 20 & .034 & .004 & .012 & .007 & .016 & .017 & .009 & .004 & .007 & .009 & .010 & \textbf{.020} \\
+Balustrade & 4 & .001 & .000 & .031 & .001 & .034 & .005 & .010 & .020 & .028 & .002 & .016 & \textbf{.017} \\
+Column & 8 & .009 & .000 & .015 & .003 & .019 & .013 & .013 & .002 & .001 & .031 & .015 & \textbf{.016} \\
+Gallery of Kings & 3 & .041 & .000 & .183 & .000 & .248 & .016 & .024 & .075 & .110 & .002 & .038 & \textbf{.013} \\
+Lesene & 13 & .040 & .004 & .018 & .007 & .013 & .008 & .002 & .002 & .007 & .000 & .002 & \textbf{.012} \\
+Coupled Twin Window & 12 & .013 & .008 & .005 & .001 & .048 & .051 & .005 & .004 & .002 & .003 & .048 & \textbf{.010} \\
+Blind Window & 8 & .026 & .000 & .005 & .001 & .005 & .003 & .000 & .007 & .005 & .007 & .008 & \textbf{.010} \\
+Quatrefoil & 14 & .003 & .000 & .004 & .000 & .006 & .008 & .007 & .003 & .002 & .001 & .004 & \textbf{.009} \\
+Saw-tooth Frieze & 6 & .002 & .002 & .012 & .001 & .016 & .003 & .002 & .004 & .003 & .007 & .004 & \textbf{.009} \\
+Dentil & 14 & .005 & .002 & .029 & .002 & .017 & .004 & .003 & .010 & .014 & .003 & .006 & \textbf{.008} \\
+Trefoil & 12 & .002 & .001 & .001 & .000 & .006 & .008 & .006 & .000 & .000 & .001 & .001 & \textbf{.007} \\
+Coupled Column & 5 & .007 & .000 & .009 & .006 & .004 & .005 & .008 & .002 & .000 & .001 & .018 & \textbf{.007} \\
+Engaged Column & 6 & .008 & .000 & .006 & .003 & .014 & .011 & .006 & .005 & .001 & .001 & .011 & \textbf{.006} \\
+Lombard Band & 24 & .013 & .001 & .023 & .000 & .021 & .003 & .002 & .007 & .014 & .004 & .008 & \textbf{.006} \\
+Pinnacle & 28 & .002 & .001 & .003 & .002 & .004 & .002 & .005 & .014 & .005 & .007 & .008 & \textbf{.003} \\
+Twin Window & 9 & .012 & .012 & .000 & .000 & .038 & .035 & .004 & .009 & .001 & .009 & .038 & \textbf{.002} \\
+Fleuron & 15 & .000 & .002 & .000 & .001 & .000 & .000 & .005 & .001 & .001 & .002 & .000 & \textbf{.000} \\
+Blind Tracery & 4 & .014 & .000 & .052 & .006 & .089 & .011 & .019 & .013 & .002 & .000 & .019 & \textbf{.000} \\
+\begin{tabular}[c]{@{}l@{}}Coupled Twin Window\\with Discharging Arch\end{tabular} & 3 & .022 & .001 & .000 & .000 & .037 & .032 & .000 & .016 & .000 & .001 & .037 & \textbf{.000} \\
+Crocket & 6 & .000 & .000 & .000 & .000 & .001 & .000 & .000 & .001 & .000 & .001 & .001 & \textbf{.000} \\
+Tabernacle & 4 & .004 & .002 & .002 & .001 & .007 & .002 & .000 & .014 & .002 & .000 & .013 & \textbf{.000} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{Head-feature matrix for frozen DINOv3 at layer~10 using IoU@90, with all 50 features that have at least three boxes. Each cell is the mean IoU@90 of one attention head over the expert-annotated boxes of one feature, and Boxes is the number of these boxes. Bold marks H8, the dominant head. Rows are sorted by the H8 score.\label{table appendix head feature dinov3}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrcccccccccccc@{}}
+\toprule
+Feature & Boxes & H0 & H1 & H2 & H3 & H4 & H5 & H6 & H7 & \textbf{H8} & H9 & H10 & H11 \\ \midrule
+Columned Portal & 15 & .099 & .030 & .114 & .042 & .013 & .137 & .034 & .003 & \textbf{.215} & .135 & .075 & .003 \\
+Round Arch Portal & 5 & .167 & .050 & .021 & .037 & .003 & .144 & .064 & .003 & \textbf{.204} & .176 & .086 & .002 \\
+Ornate Portal & 7 & .134 & .058 & .126 & .041 & .052 & .141 & .067 & .030 & \textbf{.181} & .156 & .039 & .018 \\
+Pointed Arch Portal & 8 & .045 & .026 & .057 & .023 & .002 & .065 & .039 & .003 & \textbf{.171} & .080 & .059 & .000 \\
+Archivolted Portal & 11 & .070 & .021 & .093 & .017 & .035 & .093 & .040 & .006 & \textbf{.151} & .089 & .075 & .010 \\
+Tracery Rose Window & 21 & .105 & .036 & .140 & .005 & .046 & .050 & .028 & .050 & \textbf{.130} & .044 & .006 & .066 \\
+Wimperg & 18 & .063 & .063 & .104 & .005 & .018 & .013 & .078 & .027 & \textbf{.125} & .017 & .009 & .010 \\
+Pointed Arch Window & 37 & .041 & .021 & .044 & .002 & .025 & .029 & .011 & .028 & \textbf{.103} & .047 & .007 & .019 \\
+Bull's-eye Window & 7 & .058 & .012 & .021 & .002 & .006 & .029 & .018 & .034 & \textbf{.095} & .036 & .012 & .018 \\
+Tracery & 25 & .043 & .006 & .047 & .001 & .028 & .035 & .010 & .029 & \textbf{.088} & .045 & .005 & .020 \\
+Blind Arcade & 9 & .017 & .022 & .011 & .004 & .024 & .014 & .021 & .013 & \textbf{.066} & .029 & .002 & .013 \\
+Round Arch Window & 38 & .022 & .013 & .014 & .001 & .007 & .018 & .012 & .009 & \textbf{.060} & .034 & .000 & .005 \\
+Segmental Pediment & 8 & .008 & .013 & .022 & .000 & .000 & .000 & .016 & .037 & \textbf{.059} & .004 & .001 & .000 \\
+Conical Roof & 12 & .036 & .159 & .042 & .020 & .121 & .031 & .031 & .084 & \textbf{.046} & .016 & .012 & .090 \\
+Dwarf Gallery & 4 & .024 & .075 & .018 & .000 & .038 & .011 & .000 & .011 & \textbf{.044} & .000 & .000 & .034 \\
+Lancet Window & 6 & .025 & .012 & .020 & .005 & .047 & .028 & .000 & .026 & \textbf{.044} & .029 & .000 & .013 \\
+Broken Pediment & 10 & .011 & .063 & .017 & .006 & .003 & .013 & .030 & .020 & \textbf{.042} & .009 & .000 & .013 \\
+Cranked Cornice & 5 & .000 & .067 & .002 & .008 & .015 & .000 & .003 & .002 & \textbf{.039} & .005 & .000 & .005 \\
+Blind Arch & 5 & .008 & .013 & .003 & .000 & .035 & .001 & .018 & .015 & \textbf{.038} & .010 & .004 & .001 \\
+Coupled Twin Window & 12 & .009 & .012 & .006 & .000 & .005 & .045 & .003 & .018 & \textbf{.036} & .014 & .000 & .001 \\
+Round Arch Niche & 7 & .005 & .002 & .031 & .000 & .000 & .023 & .032 & .012 & \textbf{.036} & .000 & .000 & .000 \\
+Buttress & 31 & .009 & .028 & .005 & .004 & .020 & .011 & .038 & .022 & \textbf{.030} & .010 & .011 & .007 \\
+Triangular Pediment & 19 & .012 & .158 & .025 & .027 & .024 & .014 & .054 & .037 & \textbf{.027} & .008 & .001 & .022 \\
+\begin{tabular}[c]{@{}l@{}}Coupled Twin Window\\with Discharging Arch\end{tabular} & 3 & .005 & .002 & .000 & .000 & .001 & .030 & .000 & .025 & \textbf{.026} & .016 & .000 & .002 \\
+Cranked Pediment & 5 & .015 & .153 & .011 & .009 & .029 & .007 & .043 & .042 & \textbf{.026} & .001 & .000 & .001 \\
+Segmental Arch & 5 & .000 & .005 & .000 & .000 & .001 & .001 & .000 & .000 & \textbf{.026} & .008 & .000 & .000 \\
+Pilaster & 20 & .005 & .006 & .004 & .007 & .018 & .012 & .006 & .014 & \textbf{.025} & .009 & .004 & .006 \\
+Buttress Arch & 17 & .002 & .020 & .004 & .002 & .006 & .007 & .017 & .020 & \textbf{.024} & .003 & .001 & .001 \\
+Sexfoil & 4 & .006 & .006 & .009 & .000 & .006 & .010 & .000 & .009 & \textbf{.022} & .005 & .000 & .003 \\
+Belt Course & 9 & .020 & .108 & .027 & .006 & .027 & .016 & .024 & .009 & \textbf{.022} & .024 & .006 & .024 \\
+Twin Window & 9 & .006 & .014 & .008 & .000 & .001 & .032 & .009 & .026 & \textbf{.021} & .016 & .000 & .010 \\
+Column & 8 & .009 & .002 & .012 & .000 & .002 & .009 & .006 & .009 & \textbf{.020} & .005 & .004 & .000 \\
+Blind Window & 8 & .000 & .005 & .001 & .000 & .008 & .000 & .010 & .006 & \textbf{.016} & .005 & .003 & .002 \\
+Gallery of Kings & 3 & .012 & .103 & .036 & .000 & .046 & .000 & .019 & .025 & \textbf{.015} & .006 & .000 & .003 \\
+Lesene & 13 & .007 & .010 & .001 & .000 & .015 & .006 & .005 & .009 & \textbf{.015} & .007 & .002 & .003 \\
+Balustrade & 4 & .000 & .038 & .000 & .004 & .003 & .007 & .015 & .001 & \textbf{.015} & .000 & .000 & .000 \\
+Engaged Column & 6 & .004 & .010 & .001 & .000 & .003 & .005 & .013 & .007 & \textbf{.013} & .006 & .000 & .002 \\
+Volute & 10 & .003 & .010 & .025 & .013 & .009 & .007 & .044 & .080 & \textbf{.011} & .004 & .001 & .007 \\
+Quatrefoil & 14 & .005 & .007 & .004 & .000 & .001 & .004 & .005 & .005 & \textbf{.009} & .001 & .000 & .001 \\
+Saw-tooth Frieze & 6 & .004 & .003 & .001 & .000 & .006 & .002 & .000 & .000 & \textbf{.008} & .000 & .000 & .001 \\
+Lombard Band & 24 & .006 & .023 & .004 & .001 & .004 & .008 & .005 & .007 & \textbf{.007} & .001 & .000 & .003 \\
+Trefoil & 12 & .004 & .001 & .005 & .000 & .000 & .004 & .000 & .003 & \textbf{.007} & .003 & .000 & .000 \\
+Coupled Column & 5 & .001 & .002 & .001 & .000 & .000 & .004 & .000 & .006 & \textbf{.005} & .005 & .000 & .000 \\
+Dentil & 14 & .003 & .034 & .001 & .000 & .009 & .001 & .002 & .005 & \textbf{.005} & .000 & .001 & .001 \\
+Projecting Cornice & 6 & .000 & .100 & .016 & .000 & .003 & .000 & .014 & .017 & \textbf{.004} & .002 & .001 & .014 \\
+Pinnacle & 28 & .002 & .007 & .000 & .001 & .002 & .003 & .006 & .007 & \textbf{.002} & .002 & .000 & .001 \\
+Fleuron & 15 & .001 & .001 & .001 & .000 & .001 & .000 & .001 & .003 & \textbf{.001} & .002 & .000 & .001 \\
+Blind Tracery & 4 & .000 & .013 & .011 & .000 & .001 & .000 & .010 & .000 & \textbf{.000} & .000 & .000 & .000 \\
+Crocket & 6 & .000 & .000 & .000 & .000 & .000 & .000 & .000 & .002 & \textbf{.000} & .000 & .000 & .000 \\
+Tabernacle & 4 & .000 & .001 & .001 & .000 & .008 & .000 & .014 & .011 & \textbf{.000} & .002 & .001 & .005 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{Head-feature matrix for frozen MAE at layer~10 using IoU@90, with all 50 features that have at least three boxes. Each cell is the mean IoU@90 of one attention head over the expert-annotated boxes of one feature, and Boxes is the number of these boxes. Bold marks H5, the dominant head. Rows are sorted by the H5 score.\label{table appendix head feature mae}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrcccccccccccc@{}}
+\toprule
+Feature & Boxes & H0 & H1 & H2 & H3 & H4 & \textbf{H5} & H6 & H7 & H8 & H9 & H10 & H11 \\ \midrule
+Ornate Portal & 7 & .025 & .058 & .019 & .000 & .029 & \textbf{.223} & .021 & .036 & .061 & .018 & .024 & .000 \\
+Columned Portal & 15 & .032 & .038 & .043 & .000 & .035 & \textbf{.135} & .037 & .062 & .037 & .012 & .075 & .000 \\
+Wimperg & 18 & .010 & .020 & .022 & .000 & .003 & \textbf{.130} & .003 & .036 & .028 & .006 & .031 & .002 \\
+Pointed Arch Portal & 8 & .002 & .009 & .013 & .000 & .029 & \textbf{.121} & .019 & .020 & .042 & .006 & .039 & .000 \\
+Archivolted Portal & 11 & .019 & .055 & .016 & .000 & .022 & \textbf{.112} & .014 & .063 & .044 & .022 & .029 & .000 \\
+Conical Roof & 12 & .014 & .137 & .050 & .010 & .027 & \textbf{.091} & .062 & .012 & .057 & .038 & .035 & .009 \\
+Round Arch Portal & 5 & .102 & .019 & .064 & .000 & .029 & \textbf{.088} & .061 & .108 & .118 & .013 & .035 & .000 \\
+Tracery Rose Window & 21 & .021 & .021 & .062 & .000 & .001 & \textbf{.082} & .007 & .015 & .037 & .002 & .015 & .004 \\
+Pointed Arch Window & 37 & .044 & .008 & .048 & .000 & .009 & \textbf{.073} & .016 & .034 & .026 & .006 & .025 & .017 \\
+Tracery & 25 & .040 & .003 & .041 & .000 & .005 & \textbf{.065} & .013 & .022 & .020 & .002 & .018 & .014 \\
+Lancet Window & 6 & .028 & .015 & .045 & .000 & .004 & \textbf{.065} & .000 & .025 & .032 & .006 & .013 & .020 \\
+Blind Arch & 5 & .008 & .007 & .019 & .000 & .001 & \textbf{.062} & .001 & .053 & .035 & .013 & .018 & .009 \\
+Blind Arcade & 9 & .032 & .002 & .041 & .000 & .000 & \textbf{.060} & .026 & .036 & .040 & .017 & .034 & .005 \\
+Belt Course & 9 & .033 & .015 & .011 & .011 & .012 & \textbf{.053} & .013 & .020 & .017 & .020 & .059 & .008 \\
+Bull's-eye Window & 7 & .024 & .021 & .013 & .000 & .020 & \textbf{.050} & .001 & .010 & .014 & .020 & .016 & .011 \\
+Cranked Pediment & 5 & .015 & .077 & .038 & .011 & .014 & \textbf{.047} & .099 & .018 & .016 & .012 & .055 & .080 \\
+Column & 8 & .002 & .004 & .009 & .000 & .005 & \textbf{.041} & .012 & .036 & .040 & .000 & .014 & .000 \\
+Broken Pediment & 10 & .003 & .016 & .042 & .002 & .003 & \textbf{.039} & .027 & .005 & .032 & .013 & .022 & .026 \\
+Round Arch Window & 38 & .017 & .004 & .028 & .000 & .003 & \textbf{.036} & .018 & .022 & .025 & .014 & .016 & .012 \\
+Pilaster & 20 & .011 & .004 & .017 & .001 & .000 & \textbf{.032} & .003 & .046 & .014 & .004 & .014 & .004 \\
+Buttress & 31 & .014 & .009 & .014 & .004 & .011 & \textbf{.030} & .022 & .030 & .029 & .013 & .031 & .011 \\
+Dwarf Gallery & 4 & .000 & .025 & .049 & .000 & .007 & \textbf{.029} & .074 & .003 & .023 & .000 & .012 & .001 \\
+Round Arch Niche & 7 & .000 & .001 & .003 & .000 & .000 & \textbf{.024} & .001 & .018 & .045 & .000 & .011 & .004 \\
+\begin{tabular}[c]{@{}l@{}}Coupled Twin Window\\with Discharging Arch\end{tabular} & 3 & .010 & .005 & .037 & .000 & .000 & \textbf{.022} & .030 & .024 & .015 & .029 & .028 & .035 \\
+Gallery of Kings & 3 & .047 & .041 & .033 & .000 & .000 & \textbf{.020} & .060 & .029 & .003 & .002 & .109 & .042 \\
+Coupled Twin Window & 12 & .015 & .001 & .046 & .000 & .000 & \textbf{.020} & .030 & .010 & .019 & .025 & .038 & .045 \\
+Segmental Pediment & 8 & .000 & .011 & .022 & .000 & .023 & \textbf{.018} & .031 & .000 & .015 & .026 & .025 & .012 \\
+Triangular Pediment & 19 & .030 & .034 & .081 & .029 & .030 & \textbf{.018} & .107 & .016 & .018 & .014 & .039 & .062 \\
+Cranked Cornice & 5 & .001 & .030 & .005 & .000 & .000 & \textbf{.018} & .014 & .006 & .000 & .000 & .011 & .008 \\
+Blind Tracery & 4 & .023 & .013 & .030 & .000 & .016 & \textbf{.017} & .000 & .026 & .009 & .000 & .038 & .007 \\
+Projecting Cornice & 6 & .013 & .032 & .030 & .007 & .018 & \textbf{.017} & .043 & .013 & .005 & .026 & .057 & .015 \\
+Lesene & 13 & .003 & .002 & .018 & .000 & .000 & \textbf{.014} & .010 & .027 & .011 & .008 & .016 & .007 \\
+Coupled Column & 5 & .001 & .006 & .005 & .000 & .004 & \textbf{.012} & .000 & .007 & .022 & .000 & .014 & .003 \\
+Lombard Band & 24 & .003 & .006 & .012 & .000 & .002 & \textbf{.010} & .009 & .002 & .002 & .012 & .011 & .009 \\
+Engaged Column & 6 & .003 & .000 & .006 & .003 & .001 & \textbf{.010} & .004 & .008 & .016 & .006 & .005 & .006 \\
+Segmental Arch & 5 & .001 & .005 & .021 & .000 & .000 & \textbf{.010} & .007 & .005 & .011 & .000 & .005 & .001 \\
+Balustrade & 4 & .000 & .007 & .022 & .000 & .000 & \textbf{.010} & .025 & .005 & .019 & .010 & .027 & .003 \\
+Twin Window & 9 & .009 & .000 & .038 & .000 & .001 & \textbf{.009} & .032 & .010 & .025 & .020 & .018 & .025 \\
+Buttress Arch & 17 & .007 & .010 & .008 & .002 & .012 & \textbf{.009} & .019 & .011 & .007 & .010 & .016 & .023 \\
+Blind Window & 8 & .000 & .002 & .006 & .000 & .002 & \textbf{.008} & .001 & .012 & .005 & .006 & .014 & .005 \\
+Sexfoil & 4 & .000 & .000 & .004 & .000 & .000 & \textbf{.006} & .002 & .000 & .002 & .000 & .011 & .000 \\
+Quatrefoil & 14 & .002 & .000 & .005 & .000 & .001 & \textbf{.006} & .001 & .003 & .004 & .000 & .003 & .001 \\
+Trefoil & 12 & .000 & .000 & .002 & .000 & .001 & \textbf{.005} & .001 & .001 & .004 & .000 & .004 & .003 \\
+Volute & 10 & .019 & .025 & .016 & .015 & .018 & \textbf{.005} & .013 & .014 & .027 & .016 & .024 & .013 \\
+Dentil & 14 & .002 & .003 & .003 & .000 & .004 & \textbf{.002} & .015 & .002 & .002 & .006 & .006 & .002 \\
+Saw-tooth Frieze & 6 & .006 & .005 & .000 & .000 & .002 & \textbf{.002} & .006 & .002 & .003 & .001 & .009 & .000 \\
+Pinnacle & 28 & .004 & .002 & .001 & .001 & .001 & \textbf{.001} & .004 & .004 & .003 & .003 & .004 & .003 \\
+Fleuron & 15 & .000 & .000 & .001 & .000 & .001 & \textbf{.000} & .001 & .001 & .000 & .001 & .000 & .001 \\
+Crocket & 6 & .000 & .000 & .000 & .000 & .000 & \textbf{.000} & .001 & .001 & .000 & .000 & .001 & .000 \\
+Tabernacle & 4 & .000 & .000 & .000 & .000 & .000 & \textbf{.000} & .000 & .029 & .000 & .013 & .013 & .009 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{Head-feature matrix for frozen CLIP at layer~4 using IoU@90, with all 50 features that have at least three boxes. Each cell is the mean IoU@90 of one attention head over the expert-annotated boxes of one feature, and Boxes is the number of these boxes. Bold marks H5, the dominant head. Rows are sorted by the H5 score.\label{table appendix head feature clip}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrcccccccccccc@{}}
+\toprule
+Feature & Boxes & H0 & H1 & H2 & H3 & H4 & \textbf{H5} & H6 & H7 & H8 & H9 & H10 & H11 \\ \midrule
+Round Arch Portal & 5 & .011 & .065 & .060 & .053 & .039 & \textbf{.112} & .091 & .005 & .047 & .078 & .036 & .011 \\
+Belt Course & 9 & .002 & .011 & .002 & .011 & .018 & \textbf{.094} & .020 & .003 & .013 & .010 & .013 & .002 \\
+Ornate Portal & 7 & .071 & .048 & .086 & .110 & .090 & \textbf{.080} & .043 & .050 & .055 & .064 & .019 & .022 \\
+Columned Portal & 15 & .035 & .030 & .077 & .063 & .063 & \textbf{.072} & .071 & .021 & .031 & .055 & .056 & .028 \\
+Wimperg & 18 & .017 & .005 & .031 & .010 & .022 & \textbf{.065} & .029 & .017 & .011 & .007 & .006 & .003 \\
+Blind Arch & 5 & .009 & .001 & .007 & .002 & .014 & \textbf{.060} & .000 & .015 & .007 & .000 & .007 & .005 \\
+Blind Arcade & 9 & .010 & .002 & .006 & .008 & .009 & \textbf{.053} & .004 & .006 & .011 & .007 & .008 & .008 \\
+Conical Roof & 12 & .030 & .032 & .034 & .035 & .030 & \textbf{.050} & .047 & .011 & .033 & .025 & .026 & .041 \\
+Tracery Rose Window & 21 & .032 & .016 & .018 & .028 & .017 & \textbf{.047} & .035 & .013 & .004 & .003 & .033 & .013 \\
+Archivolted Portal & 11 & .043 & .025 & .087 & .092 & .047 & \textbf{.039} & .035 & .022 & .035 & .025 & .025 & .025 \\
+Cranked Pediment & 5 & .004 & .002 & .002 & .014 & .024 & \textbf{.037} & .058 & .067 & .026 & .020 & .011 & .079 \\
+Buttress & 31 & .009 & .014 & .005 & .005 & .011 & \textbf{.034} & .019 & .010 & .014 & .013 & .011 & .016 \\
+Pointed Arch Window & 37 & .010 & .019 & .019 & .009 & .012 & \textbf{.033} & .011 & .007 & .012 & .008 & .018 & .016 \\
+Pilaster & 20 & .003 & .000 & .007 & .001 & .002 & \textbf{.030} & .004 & .005 & .013 & .001 & .003 & .002 \\
+Round Arch Niche & 7 & .010 & .021 & .007 & .002 & .001 & \textbf{.026} & .021 & .000 & .013 & .000 & .001 & .000 \\
+Segmental Pediment & 8 & .002 & .000 & .002 & .000 & .002 & \textbf{.026} & .001 & .002 & .000 & .005 & .010 & .042 \\
+Lancet Window & 6 & .001 & .010 & .007 & .001 & .001 & \textbf{.026} & .008 & .002 & .011 & .000 & .004 & .007 \\
+Tracery & 25 & .008 & .020 & .019 & .006 & .004 & \textbf{.024} & .008 & .002 & .008 & .008 & .012 & .009 \\
+Blind Tracery & 4 & .000 & .013 & .000 & .000 & .000 & \textbf{.024} & .004 & .000 & .000 & .000 & .000 & .000 \\
+Gallery of Kings & 3 & .002 & .001 & .000 & .004 & .005 & \textbf{.020} & .005 & .000 & .006 & .001 & .009 & .003 \\
+Broken Pediment & 10 & .002 & .012 & .008 & .004 & .016 & \textbf{.019} & .006 & .008 & .003 & .008 & .029 & .059 \\
+Column & 8 & .001 & .001 & .003 & .001 & .006 & \textbf{.018} & .006 & .015 & .003 & .001 & .002 & .002 \\
+Round Arch Window & 38 & .010 & .006 & .007 & .003 & .002 & \textbf{.017} & .013 & .004 & .001 & .004 & .013 & .008 \\
+Pointed Arch Portal & 8 & .032 & .044 & .061 & .071 & .041 & \textbf{.017} & .053 & .003 & .006 & .051 & .031 & .031 \\
+Lesene & 13 & .008 & .000 & .001 & .003 & .005 & \textbf{.015} & .002 & .005 & .001 & .000 & .002 & .002 \\
+Blind Window & 8 & .008 & .003 & .011 & .000 & .002 & \textbf{.014} & .003 & .000 & .002 & .007 & .006 & .008 \\
+Segmental Arch & 5 & .000 & .000 & .000 & .000 & .000 & \textbf{.007} & .001 & .000 & .000 & .000 & .001 & .007 \\
+Engaged Column & 6 & .003 & .005 & .006 & .000 & .000 & \textbf{.006} & .003 & .000 & .001 & .002 & .000 & .014 \\
+Tabernacle & 4 & .000 & .001 & .000 & .000 & .000 & \textbf{.006} & .005 & .000 & .000 & .004 & .003 & .000 \\
+Cranked Cornice & 5 & .000 & .001 & .000 & .011 & .001 & \textbf{.006} & .006 & .002 & .006 & .004 & .011 & .034 \\
+Triangular Pediment & 19 & .010 & .017 & .010 & .020 & .029 & \textbf{.006} & .037 & .065 & .022 & .017 & .037 & .167 \\
+Quatrefoil & 14 & .000 & .000 & .001 & .000 & .003 & \textbf{.005} & .003 & .002 & .000 & .000 & .002 & .001 \\
+Coupled Twin Window & 12 & .000 & .006 & .009 & .005 & .003 & \textbf{.004} & .023 & .000 & .000 & .003 & .011 & .020 \\
+Coupled Column & 5 & .000 & .000 & .000 & .000 & .001 & \textbf{.004} & .006 & .012 & .001 & .004 & .000 & .000 \\
+Bull's-eye Window & 7 & .025 & .035 & .044 & .030 & .013 & \textbf{.004} & .023 & .013 & .010 & .011 & .004 & .012 \\
+Lombard Band & 24 & .004 & .001 & .000 & .001 & .001 & \textbf{.004} & .002 & .001 & .003 & .002 & .003 & .002 \\
+Balustrade & 4 & .000 & .000 & .000 & .000 & .001 & \textbf{.003} & .001 & .000 & .000 & .000 & .000 & .021 \\
+Buttress Arch & 17 & .003 & .004 & .000 & .001 & .001 & \textbf{.003} & .012 & .016 & .014 & .004 & .008 & .012 \\
+Pinnacle & 28 & .001 & .001 & .002 & .001 & .003 & \textbf{.002} & .004 & .003 & .004 & .004 & .002 & .002 \\
+Saw-tooth Frieze & 6 & .000 & .001 & .001 & .002 & .002 & \textbf{.002} & .003 & .000 & .002 & .000 & .002 & .002 \\
+Trefoil & 12 & .000 & .000 & .000 & .000 & .001 & \textbf{.002} & .001 & .000 & .000 & .002 & .001 & .002 \\
+Dentil & 14 & .000 & .000 & .000 & .002 & .003 & \textbf{.001} & .003 & .001 & .007 & .002 & .002 & .004 \\
+Projecting Cornice & 6 & .002 & .000 & .001 & .019 & .000 & \textbf{.001} & .005 & .000 & .005 & .002 & .003 & .021 \\
+Dwarf Gallery & 4 & .007 & .001 & .003 & .005 & .000 & \textbf{.001} & .018 & .017 & .000 & .000 & .000 & .005 \\
+Fleuron & 15 & .001 & .001 & .001 & .001 & .002 & \textbf{.001} & .003 & .004 & .002 & .001 & .000 & .002 \\
+Sexfoil & 4 & .000 & .000 & .000 & .001 & .003 & \textbf{.000} & .007 & .000 & .000 & .000 & .000 & .005 \\
+\begin{tabular}[c]{@{}l@{}}Coupled Twin Window\\with Discharging Arch\end{tabular} & 3 & .000 & .001 & .000 & .000 & .005 & \textbf{.000} & .021 & .000 & .000 & .001 & .009 & .025 \\
+Crocket & 6 & .001 & .000 & .000 & .000 & .000 & \textbf{.000} & .000 & .000 & .000 & .001 & .000 & .000 \\
+Twin Window & 9 & .003 & .014 & .009 & .015 & .006 & \textbf{.000} & .023 & .005 & .000 & .003 & .019 & .026 \\
+Volute & 10 & .007 & .004 & .012 & .002 & .020 & \textbf{.000} & .026 & .029 & .011 & .001 & .015 & .038 \\
 \bottomrule
 \end{tabular}
 \end{table}
