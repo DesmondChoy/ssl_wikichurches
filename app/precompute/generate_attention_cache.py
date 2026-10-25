@@ -443,8 +443,8 @@ def main() -> int:
     parser.add_argument(
         "--checkpoint-dir",
         type=Path,
-        default=CHECKPOINTS_PATH,
-        help=f"Directory containing fine-tuned checkpoints (default: {CHECKPOINTS_PATH})",
+        default=CHECKPOINTS_PATH / "fine_tuning_primary_20260327",
+        help="Directory containing fine-tuned checkpoints (default: %(default)s)",
     )
     parser.add_argument(
         "--strategies",
