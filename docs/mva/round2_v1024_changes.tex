@@ -379,16 +379,16 @@ Table~\ref{table RQ1 result} summarizes the results obtained using the five perf
 
 \begin{table}[!h]
 \centering
-\caption{Results from RQ1: Frozen-model alignment using the best default-method layer selected separately for each metric.\label{table RQ1 result}}
+\caption{Results from RQ1: Frozen-model alignment using the best default-method layer selected separately for each metric. Bold marks the best value in each column.\label{table RQ1 result}}
 \begin{tabular}{cccccc}
 \toprule
 Vision foundation model & IoU@90 $\uparrow$ & Coverage $\uparrow$ & MSE $\downarrow$ & KL divergence $\downarrow$ & EMD $\downarrow$ \\ \midrule
 DINOv2    & 0.118 & 0.128 & 0.021 & 2.376 & 0.271 \\
-DINOv3     & 0.133 & 0.137 & 0.027 & 2.325 & 0.260 \\
+DINOv3     & \textbf{0.133} & \textbf{0.137} & 0.027 & \textbf{2.325} & \textbf{0.260} \\
 MAE        & 0.070 & 0.090 & 0.048 & 2.756 & 0.318 \\
 CLIP      & 0.051 & 0.088 & 0.021 & 2.853 & 0.323 \\
 SigLIP    & 0.074 & 0.076 & 0.018 & 3.002 & 0.348 \\
-SigLIP2   & 0.047 & 0.071 & 0.017 & 3.071 & 0.354 \\ \bottomrule
+SigLIP2   & 0.047 & 0.071 & \textbf{0.017} & 3.071 & 0.354 \\ \bottomrule
 \end{tabular}
 \end{table}
 
