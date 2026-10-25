@@ -242,7 +242,7 @@ To answer these research questions, we conduct a comparative study using six vis
 
 The image dataset used in this study is the WikiChurches benchmark dataset~\cite{Barz21WikiChurches}, which is a fine-grained architectural-style dataset of European church buildings. Its annotation file defines 106 architectural feature types, including arches, windows, towers, and portals, and provides bounding-box annotations with normalized coordinates.
 
-This study uses two data scopes. First, we use an expert-annotated evaluation subset containing 139 images and 631 bounding boxes across four architectural styles: Romanesque~(51 images), Gothic~(49 images), Renaissance~(22 images), and Baroque~(17 images). This subset is used exclusively for attention-alignment evaluation. Second, for downstream fine-tuning, we draw from the larger WikiChurches style-labelled metadata release but restrict training to primary images whose metadata maps directly to the same four target styles. Under this four-style setting, the candidate fine-tuning pool contains 4,713 labelled primary images. All 139 expert-annotated evaluation image IDs are treated as held out from training; 125 of these IDs overlap the metadata-derived candidate pool, while the remaining 14 are assigned more specific or adjacent metadata labels outside the four exact target classes, such as Brick Gothic, French Gothic, English Gothic, Norman Architecture, Gothic Revival, or Spanish Renaissance. Removing the 125 overlapping evaluation images leaves 4,588 images for the train-validation split. The image examples are illustrated in Figure \ref{figure wikichurches overview}.
+This study uses two data scopes. First, we use an expert-annotated evaluation subset containing 139 images and 631 bounding boxes across four architectural styles: Romanesque~(51 images), Gothic~(49 images), Renaissance~(22 images), and Baroque~(17 images). This subset is used exclusively for evaluation, mainly of attention alignment and, in Section~\ref{section RQ3 correctness}, of classification correctness. Second, for downstream fine-tuning, we draw from the larger WikiChurches style-labelled metadata release but restrict training to primary images whose metadata maps directly to the same four target styles. Under this four-style setting, the candidate fine-tuning pool contains 4,713 labelled primary images. All 139 expert-annotated evaluation image IDs are treated as held out from training; 125 of these IDs overlap the metadata-derived candidate pool, while the remaining 14 are assigned more specific or adjacent metadata labels outside the four exact target classes, such as Brick Gothic, French Gothic, English Gothic, Norman Architecture, Gothic Revival, or Spanish Renaissance. Removing the 125 overlapping evaluation images leaves 4,588 images for the train-validation split. The image examples are illustrated in Figure \ref{figure wikichurches overview}.
 
 
 \begin{figure}[!h]
@@ -351,7 +351,7 @@ All statistical analyses use the image as the unit of analysis. For paired compa
 
 \subsection{Implementation details}
 
-The WikiChurches benchmark dataset~\cite{Barz21WikiChurches} was divided into two non-overlapping subsets. The expert-annotated evaluation subset contains 139 images with 631 bounding-box annotation instances drawn from a 106-type architectural-feature ontology. The primary-style distribution is 51 Romanesque images with 217 boxes, 49 Gothic images with 290 boxes, 22 Renaissance images with 93 boxes, and 17 Baroque images with 31 boxes. This gives an average of 4.54 expert-annotated boxes per image overall. This subset was used only for attention-alignment evaluation and was excluded from all downstream training and validation splits.
+The WikiChurches benchmark dataset~\cite{Barz21WikiChurches} was divided into two non-overlapping subsets. The expert-annotated evaluation subset contains 139 images with 631 bounding-box annotation instances drawn from a 106-type architectural-feature ontology. The primary-style distribution is 51 Romanesque images with 217 boxes, 49 Gothic images with 290 boxes, 22 Renaissance images with 93 boxes, and 17 Baroque images with 31 boxes. This gives an average of 4.54 expert-annotated boxes per image overall. This subset was used only for evaluation, of attention alignment and of classification correctness (Section~\ref{section RQ3 correctness}), and was excluded from all downstream training and validation splits.
 
 The annotation file organizes the 631 boxes into 566 groups. Most groups contain a single box, while the 60 groups with several boxes describe a composite element through its parts; for example, a tracery window may be annotated with separate boxes for the pointed-arch window, its tracery, and a trefoil. We used the feature label of each individual box rather than the group label. Boxes can overlap, both within and across groups. Of the 1,420 pairs of boxes in the same image, 136 overlap, and in 54 of these one box lies entirely inside the other; such overlaps occur in 66 of the 139 images. Images contain 1 to 10 boxes (median 4), and the union of an image's boxes covers 0.4\% to 30.8\% of the image (median 4.8\%). Overlapping pixels are counted once in the binary union mask and take the pixel-wise maximum in the Gaussian target, so a region annotated twice receives no extra weight. In the feature-level analysis, each box is scored separately.
 
@@ -365,11 +365,11 @@ We evaluated three model adaptation settings, including linear probing, LoRA ada
 
 All training runs used the AdamW optimizer with class-weighted cross-entropy to account for style imbalance. The batch size was 16, weight decay was 0.01, and training lasted for 3 epochs. The classifier-head learning rate was set to $1 \times 10^{-3}$ in all settings. The backbone learning rate was $1 \times 10^{-5}$ for full fine-tuning and $1 \times 10^{-4}$ for LoRA. The learning-rate schedule used linear warmup for 10\% of training steps, followed by cosine decay. Gradients were clipped to a maximum norm of 1.0. Training images were augmented using random resized crop to $224 \times 224$ with a scale range of $0.8$-$1.0$, random horizontal flipping with probability 0.5, and color jitter with brightness and contrast set to 0.2. Validation and attention-alignment evaluation used deterministic preprocessing and did not include these random augmentations. Training and validation images were passed through each model's native Hugging Face preprocessing, which for DINOv2 and CLIP includes a central $224 \times 224$ crop. Checkpoints were selected on validation accuracy under this preprocessing, and attention maps from all checkpoints were then extracted with the full-image resize described above.
 
-For each model-strategy run, we selected the checkpoint with the highest classification accuracy on the shared non-annotated validation split. The selected checkpoint was then evaluated on the untouched 139-image expert-annotated subset for attention alignment. The experiment consists of 18 runs, corresponding to six models and three adaptation strategies. The selected epochs came from epochs 1 through 3, depending on the model and adaptation strategy, but every run was trained for the same maximum of 3 epochs.
+For each model-strategy run, we selected the checkpoint with the highest classification accuracy on the shared non-annotated validation split. The selected checkpoint was then evaluated on the untouched 139-image expert-annotated subset for attention alignment. The experiment consists of 18 runs, corresponding to six models and three adaptation strategies. The selected epochs came from epochs 1 through 3, depending on the model and adaptation strategy, but every run was trained for the same maximum of 3 epochs. To relate classification correctness to attention alignment (Section~\ref{section RQ3 correctness}), each selected checkpoint also classified the 139 evaluation images with the same native preprocessing as validation. For the frozen models, these predictions come from the linear-probe checkpoint, whose backbone is frozen and therefore produces the frozen model's attention. The true style of each evaluation image is its primary style in the expert annotation file, which differs from the WikiChurches metadata label used for training and validation for 4 of the 139 images.
 
 All experiments were implemented in Python 3.12.11 using PyTorch 2.10.0. Experiments were conducted on a MacBook Pro with an Apple M4 Pro chip, 14-core CPU, 20-core integrated GPU, and 48 GB unified memory. The PyTorch MPS backend was used when available; CUDA was not available in this environment.
 
-\subsection{Results from RQ1: the final attention alignment of frozen pretrained models}
+\subsection{Results from RQ1: the final attention alignment of frozen pretrained models}\label{section RQ1 results}
 
 For RQ1, we evaluate attention alignment in frozen pretrained models before any task-specific adaptation.
 
@@ -514,6 +514,49 @@ We further examine whether adaptation changes the dominant layer and attention h
 \caption{Dominant layer-head locations under different adaptation strategies. Each figure shows the top three layer-head locations ranked by mean IoU@90. The linear probe is omitted because it freezes the backbone and therefore does not create a new attention-head configuration.\label{figure RQ3 head ranking}}
 \end{figure}
 
+\subsubsection{Relation to classification correctness}\label{section RQ3 correctness}
+
+Attention alignment does not replace classification accuracy as an evaluation criterion, so we also related each run's classification correctness to its attention alignment on the 139 expert-annotated images. Figure~\ref{figure RQ3 accuracy alignment} plots each run's accuracy against its mean IoU@90 at layer 11. Table~\ref{table RQ3 correctness} compares the per-image IoU@90 of correctly and wrongly classified images within each run, using a two-sided Mann-Whitney U test with Holm adjustment across the 18 runs. Accuracy and alignment do not rank the models in the same order. DINOv2 and DINOv3 combine the highest alignment with accuracies from 0.856 to 0.906, whereas CLIP, SigLIP, and SigLIP2 reach accuracies from 0.820 to 0.899 with a mean IoU@90 of at most 0.091. Frozen MAE has the lowest accuracy (0.518). Adaptation increased accuracy in 11 of the 12 adapted runs; the exception is DINOv2 under full fine-tuning (0.871 to 0.856).
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{RQ3_accuracy_alignment.png}
+\caption{Classification accuracy and attention alignment on the 139 expert-annotated images. Each point is one run, with accuracy on the horizontal axis and mean IoU@90 at layer 11 on the vertical axis. Hollow markers show the frozen backbone with its trained linear classifier. Dashed and solid arrows lead from each frozen model to its LoRA and fully fine-tuned checkpoints.\label{figure RQ3 accuracy alignment}}
+\end{figure}
+
+\begin{table}[!htbp]
+\centering
+\caption{Classification correctness and attention alignment on the 139 expert-annotated images. Accuracy and balanced accuracy use the expert-annotation style labels. Median IoU@90 at layer 11 is reported separately for correctly and wrongly classified images. $p_{\text{Holm}}$ is the two-sided Mann-Whitney U $p$-value comparing the two groups, Holm-adjusted across the 18 runs. Bold marks $p_{\text{Holm}} < 0.05$.\label{table RQ3 correctness}}
+\begin{tabular}{llccrrccc}
+\toprule
+ & & & & \multicolumn{2}{c}{Images} & \multicolumn{2}{c}{Median IoU@90} & \\
+Model & Strategy & Acc. & Bal. acc. & Correct & Wrong & Correct & Wrong & $p_{\text{Holm}}$ \\ \midrule
+DINOv2   & Frozen & 0.871 & 0.840 & 121 & 18 & 0.1039 & 0.0535 & 0.661 \\
+         & LoRA   & 0.878 & 0.845 & 122 & 17 & 0.1145 & 0.0675 & 0.661 \\
+         & Full   & 0.856 & 0.795 & 119 & 20 & 0.1276 & 0.0608 & 0.231 \\ \midrule
+DINOv3   & Frozen & 0.885 & 0.847 & 123 & 16 & 0.1085 & 0.0817 & 1.000 \\
+         & LoRA   & 0.906 & 0.855 & 126 & 13 & 0.1263 & 0.0479 & 0.076 \\
+         & Full   & 0.906 & 0.855 & 126 & 13 & 0.1229 & 0.0563 & 0.213 \\ \midrule
+MAE      & Frozen & 0.518 & 0.585 & 72 & 67 & 0.0362 & 0.0752 & \textbf{0.021} \\
+         & LoRA   & 0.727 & 0.767 & 101 & 38 & 0.0760 & 0.0966 & 1.000 \\
+         & Full   & 0.770 & 0.790 & 107 & 32 & 0.0807 & 0.0882 & 1.000 \\ \midrule
+CLIP     & Frozen & 0.820 & 0.832 & 114 & 25 & 0.0083 & 0.0068 & 1.000 \\
+         & LoRA   & 0.899 & 0.870 & 125 & 14 & 0.0445 & 0.0363 & 1.000 \\
+         & Full   & 0.885 & 0.834 & 123 & 16 & 0.0779 & 0.0434 & 0.226 \\ \midrule
+SigLIP   & Frozen & 0.835 & 0.845 & 116 & 23 & 0.0230 & 0.0090 & 0.231 \\
+         & LoRA   & 0.878 & 0.836 & 122 & 17 & 0.0429 & 0.0091 & \textbf{0.031} \\
+         & Full   & 0.863 & 0.803 & 120 & 19 & 0.0457 & 0.0128 & \textbf{0.041} \\ \midrule
+SigLIP2  & Frozen & 0.820 & 0.841 & 114 & 25 & 0.0154 & 0.0097 & 1.000 \\
+         & LoRA   & 0.871 & 0.869 & 121 & 18 & 0.0391 & 0.0231 & 0.231 \\
+         & Full   & 0.849 & 0.809 & 118 & 21 & 0.0425 & 0.0301 & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Within runs, correctly classified images had a higher median IoU@90 than misclassified images in 15 of the 18 runs. The exceptions are the three MAE runs. After Holm correction, the difference is significant in only three runs. For SigLIP under LoRA ($p_{\text{Holm}}=0.031$) and full fine-tuning ($p_{\text{Holm}}=0.041$), correctly classified images aligned better. For frozen MAE ($p_{\text{Holm}}=0.021$), misclassified images aligned better. Coverage, MSE, KL divergence, and EMD show no significant difference in any run (Table~\ref{table appendix correctness}). In this benchmark, therefore, correct predictions tend to coincide with better-aligned attention, but the association is significant only for adapted SigLIP and is reversed for MAE. Most runs misclassify few images, so these tests have limited power, and a non-significant result does not show that no association exists. The comparison is also observational. It is not adjusted for style or for the size of the annotated regions, which also affects IoU@90 (Section~\ref{section RQ1 results}), and it does not show that alignment causes correct predictions.
+
+\FloatBarrier
+
 
 \subsection{Summary of key findings}
 
@@ -528,7 +571,7 @@ Two additional observations clarify the interpretation. First, the linear probe 
 
 \subsection{Limitations}
 
-This study has several limitations. First, the expert-annotated benchmark \cite{Barz21WikiChurches} used in this study is relatively small, containing 631 bounding-box instances across 139 images. The limited sample size constrains the statistical power of fine-grained analyses, especially for rare architectural features and underrepresented styles. In addition, the benchmark is restricted to architectural images. Therefore, the findings should not be assumed to generalize directly to other visual domains, such as medical images or general object-recognition datasets. Second, the measurement of attention alignment depends on metric design choices. For example, IoU@90 requires a thresholding rule for converting continuous attention maps into binary masks, and EMD depends on the spatial support used for transport-distance computation. The full-image resize used for attention evaluation also distorts the aspect ratio of non-square images, which may affect models pretrained on aspect-preserving crops, and we did not evaluate aspect-preserving alternatives such as padding. For DINOv2 and CLIP, attention was evaluated on a different input geometry from the one used for checkpoint selection. Third, this study evaluates spatial attention alignment rather than causal model reasoning. Strong alignment between attention maps and expert-annotated regions indicates that a model's attention is spatially plausible with respect to human-recognized architectural evidence. However, it does not prove that the model causally relies on those regions when making predictions. 
+This study has several limitations. First, the expert-annotated benchmark \cite{Barz21WikiChurches} used in this study is relatively small, containing 631 bounding-box instances across 139 images. The limited sample size constrains the statistical power of fine-grained analyses, especially for rare architectural features and underrepresented styles. It also limits the correctness comparison in Section~\ref{section RQ3 correctness}, where 17 of the 18 runs misclassify only 13 to 38 of the 139 images. In addition, the benchmark is restricted to architectural images. Therefore, the findings should not be assumed to generalize directly to other visual domains, such as medical images or general object-recognition datasets. Second, the measurement of attention alignment depends on metric design choices. For example, IoU@90 requires a thresholding rule for converting continuous attention maps into binary masks, and EMD depends on the spatial support used for transport-distance computation. The full-image resize used for attention evaluation also distorts the aspect ratio of non-square images, which may affect models pretrained on aspect-preserving crops, and we did not evaluate aspect-preserving alternatives such as padding. For DINOv2 and CLIP, attention was evaluated on a different input geometry from the one used for checkpoint selection and for the classification predictions in Section~\ref{section RQ3 correctness}. Third, this study evaluates spatial attention alignment rather than causal model reasoning. Strong alignment between attention maps and expert-annotated regions indicates that a model's attention is spatially plausible with respect to human-recognized architectural evidence. However, it does not prove that the model causally relies on those regions when making predictions. 
 
 \section{Conclusions} \label{section conclusions}
 
@@ -593,6 +636,47 @@ X. Xie: Formal analysis, Writing - Original Draft, Writing - Review \& Editing.
 % Supervision
 % Project administration
 % Funding acquisition
+
+\begin{appendices}
+% Appendix tables restart at 1, so hyperref needs the lettered number to keep their link targets unique.
+\renewcommand{\theHtable}{\thetable}
+
+\section{Correctness comparison for the other alignment metrics}\label{appendix correctness}
+
+Table~\ref{table appendix correctness} repeats the correct-versus-wrong comparison of Table~\ref{table RQ3 correctness} for Coverage, MSE, KL divergence, and EMD.
+
+\begin{table}[!h]
+\centering
+\caption{Correct-versus-wrong comparison for Coverage, MSE, KL divergence, and EMD at layer 11 on the 139 expert-annotated images. $r$ is the rank-biserial correlation from the two-sided Mann-Whitney U test; a positive $r$ means that correctly classified images have higher values. Higher is better for Coverage, and lower is better for MSE, KL divergence, and EMD. $p_{\text{Holm}}$ is Holm-adjusted across the 18 runs separately for each metric.\label{table appendix correctness}}
+\begin{tabular}{llcccccccc}
+\toprule
+ & & \multicolumn{2}{c}{Coverage} & \multicolumn{2}{c}{MSE} & \multicolumn{2}{c}{KL divergence} & \multicolumn{2}{c}{EMD} \\
+Model & Strategy & $r$ & $p_{\text{Holm}}$ & $r$ & $p_{\text{Holm}}$ & $r$ & $p_{\text{Holm}}$ & $r$ & $p_{\text{Holm}}$ \\ \midrule
+DINOv2   & Frozen & $-$0.08 & 1.000 & $-$0.20 & 1.000 & +0.09 & 1.000 & +0.16 & 1.000 \\
+         & LoRA   & $-$0.07 & 1.000 & $-$0.24 & 1.000 & +0.04 & 1.000 & +0.08 & 1.000 \\
+         & Full   & $-$0.12 & 1.000 & $-$0.28 & 0.760 & +0.11 & 1.000 & +0.05 & 1.000 \\ \midrule
+DINOv3   & Frozen & $-$0.06 & 1.000 & $-$0.27 & 1.000 & +0.07 & 1.000 & +0.15 & 1.000 \\
+         & LoRA   & $-$0.07 & 1.000 & $-$0.43 & 0.202 & +0.06 & 1.000 & $-$0.06 & 1.000 \\
+         & Full   & +0.01 & 1.000 & $-$0.23 & 1.000 & $-$0.03 & 1.000 & $-$0.16 & 1.000 \\ \midrule
+MAE      & Frozen & $-$0.28 & 0.088 & $-$0.05 & 1.000 & +0.29 & 0.057 & +0.23 & 0.291 \\
+         & LoRA   & $-$0.15 & 1.000 & +0.09 & 1.000 & +0.15 & 1.000 & $-$0.06 & 1.000 \\
+         & Full   & +0.01 & 1.000 & +0.14 & 1.000 & $-$0.01 & 1.000 & $-$0.08 & 1.000 \\ \midrule
+CLIP     & Frozen & +0.10 & 1.000 & +0.13 & 1.000 & $-$0.07 & 1.000 & +0.06 & 1.000 \\
+         & LoRA   & $-$0.18 & 1.000 & $-$0.17 & 1.000 & +0.17 & 1.000 & +0.21 & 1.000 \\
+         & Full   & $-$0.01 & 1.000 & +0.19 & 1.000 & $-$0.01 & 1.000 & +0.11 & 1.000 \\ \midrule
+SigLIP   & Frozen & +0.31 & 0.325 & +0.25 & 0.952 & $-$0.33 & 0.197 & $-$0.01 & 1.000 \\
+         & LoRA   & $-$0.05 & 1.000 & $-$0.20 & 1.000 & +0.01 & 1.000 & +0.15 & 1.000 \\
+         & Full   & $-$0.02 & 1.000 & $-$0.16 & 1.000 & $-$0.08 & 1.000 & +0.12 & 1.000 \\ \midrule
+SigLIP2  & Frozen & +0.19 & 1.000 & +0.15 & 1.000 & $-$0.21 & 1.000 & $-$0.10 & 1.000 \\
+         & LoRA   & +0.05 & 1.000 & $-$0.04 & 1.000 & $-$0.05 & 1.000 & +0.17 & 1.000 \\
+         & Full   & $-$0.06 & 1.000 & $-$0.24 & 1.000 & +0.07 & 1.000 & +0.36 & 0.148 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\FloatBarrier
+
+\end{appendices}
 
 %%===========================================================================================%%
 %% If you are submitting to one of the Nature Portfolio journals, using the eJP submission   %%

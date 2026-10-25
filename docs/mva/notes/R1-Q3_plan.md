@@ -1,8 +1,8 @@
 # Plan: R1-Q3, classification accuracy vs. attention alignment
 
-Status (2026-10-25): Steps 1–6 are done, tracked as beads issue `ssl_wikichurches-4myv`. The manuscript edits and both PDFs are waiting for human approval. The reply-letter text (Step 7) and the commit (Step 8) follow approval. Nothing is committed yet.
+Status (2026-10-25): Steps 1–6 and 8 are done, tracked as beads issue `ssl_wikichurches-4myv`. The human approved the manuscript changes, and they are committed. The A3 reply-letter text (Step 7) is still to do.
 
-Results: `experiments/scripts/analyze_accuracy_alignment.py` wrote `classification_predictions.json` and `accuracy_alignment_analysis.json`. Both checks passed. Recomputed validation accuracy equals `best_val_acc` for all 18 runs, and all 90 run-by-metric alignment means equal the layer-11 rows of `q2_metrics_analysis.json`. `experiments/scripts/generate_paper_accuracy_alignment.py` wrote `RQ3_accuracy_alignment.png`. The manuscript has new Section 4.4.1, Figure 9, Table 7 and Appendix Table A1, plus additions to Implementation Details and Limitations.
+Results: `experiments/scripts/analyze_accuracy_alignment.py` wrote `classification_predictions.json` and `accuracy_alignment_analysis.json`. All checks passed. Recomputed validation accuracy equals `best_val_acc` for all 18 runs. All 90 run-by-metric alignment means equal the layer-11 rows of `q2_metrics_analysis.json`. All 60 per-image LoRA and Full changes from Frozen equal its `per_image_deltas`. A Codex review found a Table A1 link collision, a replay path that accepted duplicated records, and two dataset sentences that said the annotated images were used only for attention evaluation. All three are fixed. `experiments/scripts/generate_paper_accuracy_alignment.py` wrote `RQ3_accuracy_alignment.png`. The manuscript has new Section 4.4.1, Figure 9, Table 7 and Appendix Table A1, plus additions to Implementation Details and Limitations.
 
 ## The item
 
