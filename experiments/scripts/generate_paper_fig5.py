@@ -21,7 +21,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable  # type: ignore[import-u
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ACTIVE_EXPERIMENT_PATH = PROJECT_ROOT / 'outputs' / 'results' / 'active_experiment.json'
 Q2_JSON_FALLBACK = PROJECT_ROOT / 'outputs' / 'results' / 'q2_metrics_analysis.json'
-OUTPUT_PATH = PROJECT_ROOT / 'docs' / 'mva' / '667_fig5.png'
+OUTPUT_PATH = PROJECT_ROOT / 'docs' / 'mva' / 'RQ3_adaptation_heatmap.png'
 
 MODEL_ORDER = ['dinov2', 'dinov3', 'mae', 'clip', 'siglip', 'siglip2']
 MODEL_LABELS = {
@@ -32,9 +32,8 @@ MODEL_LABELS = {
     'siglip': 'SigLIP',
     'siglip2': 'SigLIP2',
 }
-STRATEGIES = ['linear_probe', 'lora', 'full']
+STRATEGIES = ['lora', 'full']
 STRATEGY_LABELS = {
-    'linear_probe': 'Linear Probe',
     'lora': 'LoRA',
     'full': 'Full',
 }
