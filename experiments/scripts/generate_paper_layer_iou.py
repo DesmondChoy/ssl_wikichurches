@@ -23,7 +23,7 @@ NUM_LAYERS = 12
 MARKER = "o"
 
 MODELS = [
-    ("dinov2", "DINOv2", "cls", "#D7261E"),
+    ("dinov2", "DINOv2", "cls", "#2E45A8"),
     ("dinov3", "DINOv3", "cls", "#22D35A"),
     ("mae", "MAE", "cls", "#8A2BE2"),
     ("clip", "CLIP", "cls", "#D8C12A"),
