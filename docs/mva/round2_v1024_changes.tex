@@ -315,6 +315,8 @@ Let $A$ denote the attention map obtained from a vision foundation model, and le
 \end{equation}
 where $\hat{A}$ is the binary mask containing the $K$ pixels with the highest attention values. In our study, $K$ is set to $10\%$ of the total number of heatmap pixels. This is equivalent to thresholding $A$ at the $90$-th percentile of attention values. Therefore, we denote this metric as IoU@90. A higher IoU@90 value indicates better alignment performance.
 
+We report the 90th percentile because the expert-annotated regions are small. Their union covers less than 10\% of the image in 102 of the 139 images (Section~\ref{section RQ1 results}). For these images, a lower percentile selects even more pixels than the annotations cover, which lowers the highest IoU they can reach. Because $K$ is a fixed share of pixels rather than a fixed attention value, every model is scored on the same number of pixels, regardless of its patch grid or the scale of its attention values. We also computed IoU at the 50th, 60th, 70th, 75th, 80th, and 85th percentiles. Among the frozen models, each at its best layer, DINOv3 and DINOv2 rank first and second and SigLIP2 ranks last at every threshold, whereas the order of SigLIP, MAE, and CLIP changes. We therefore report only IoU@90 and use Coverage, which needs no threshold, as a complementary measure.
+
 \item \textit{Coverage}. It measures the fraction of total attention energy inside that falls inside the mask $M$ as
 \begin{equation}
 \text{Coverage} = \frac{\sum_{i \in M} A_i}{\sum_i A_i}.
