@@ -1,6 +1,6 @@
 # Plan: R1-Q6, the SigLIP mean-attention proxy as a confound
 
-Status (2026-10-25): done. The human approved the manuscript changes, and they are committed in `c05ba48`. The human is pasting the A6 reply into the letter (see "Reply letter (A6)"). Tracked in beads issue `ssl_wikichurches-u5he`.
+Status (2026-10-25): done. The human approved the manuscript changes, and they are committed in `c05ba48`. The human pasted the A6 reply into the letter, and the Drive connector confirmed it appears once in the stored `.docx`. Tracked in beads issue `ssl_wikichurches-u5he`.
 
 ## The item
 
@@ -80,7 +80,7 @@ latexdiff 1.4.0 comments out the `&` and `\\` of a deleted table row, so the str
 
 ## Reply letter (A6)
 
-On 2026-10-25 the text below was typed into the letter through Claude in Chrome, as a green "A6:" paragraph between TJ's A6 note and the TODO line, matching A4 and A5. The editor kept it after a reload but reported "Unsaved changes to Drive", and the Drive connector still read the old A6 from the stored `.docx`, as happened with R1-Q3. The human then chose to paste A6 in themselves. If the typed copy is still in the Google Docs editor, remove it so the letter does not hold A6 twice.
+On 2026-10-25 the text below was typed into the letter through Claude in Chrome, as a green "A6:" paragraph between TJ's A6 note and the TODO line, matching A4 and A5. The editor kept it after a reload but reported "Unsaved changes to Drive", and the Drive connector still read the old A6 from the stored `.docx`, as happened with R1-Q3. The human then pasted A6 in themselves, below the TODO line as in A5. The Drive connector confirmed that the stored `.docx` holds it once.
 
 > A6: We agree. SigLIP and SigLIP2 have no [CLS] token, so their attention maps come from a mean-attention proxy, whereas DINOv2, DINOv3, MAE and CLIP use [CLS]-token attention in all reported results. Section 3.3 and Table 2 now state that each model is evaluated with one of these two methods and define the proxy. The earlier text also listed attention rollout, which no reported result uses, so we removed it. Section 4.2 now states that comparisons between the two groups (Tables 3 and 5, Figures 3 and 9) mix the two methods and may partly reflect the method rather than the model, whereas comparisons within a model and between SigLIP and SigLIP2 are not affected. Section 4.6 lists this as a limitation. The experiments are unchanged.
 
