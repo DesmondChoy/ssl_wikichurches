@@ -80,7 +80,7 @@ def test_compare_strategies_within_model_returns_pairwise_rows() -> None:
     assert row.corrected_p_value is not None
 
 
-def test_apply_holm_correction_includes_all_strategies_in_same_family() -> None:
+def test_apply_holm_correction_excludes_linear_probe_from_family() -> None:
     module = _load_module()
 
     linear_probe = module.summarize_metric_delta(
@@ -111,7 +111,7 @@ def test_apply_holm_correction_includes_all_strategies_in_same_family() -> None:
         finetuned_values={"a": 0.47, "b": 0.46},
     )
 
-    linear_probe.p_value = 0.001
+    linear_probe.p_value = 1.0
     lora.p_value = 0.01
     full.p_value = 0.02
 
@@ -127,26 +127,26 @@ def test_apply_holm_correction_includes_all_strategies_in_same_family() -> None:
 
     module.apply_holm_correction(model_results, metric="iou", percentile=90)
 
-    expected = module.multiple_comparison_correction([0.001, 0.01, 0.02], method="holm", alpha=0.05)
     family_id = module.build_correction_family_id("iou", 90)
 
-    assert linear_probe.corrected_p_value == expected[0][0]
-    assert linear_probe.significant is expected[0][1]
-    assert linear_probe.correction_method == "holm"
-    assert linear_probe.correction_family_id == family_id
-    assert linear_probe.correction_family_size == 3
+    assert linear_probe.p_value == 1.0
+    assert linear_probe.corrected_p_value is None
+    assert linear_probe.significant is False
+    assert linear_probe.correction_method is None
+    assert linear_probe.correction_family_id is None
+    assert linear_probe.correction_family_size is None
 
-    assert lora.corrected_p_value == expected[1][0]
-    assert lora.significant is expected[1][1]
+    assert lora.corrected_p_value == pytest.approx(0.02)
+    assert lora.significant is True
     assert lora.correction_method == "holm"
     assert lora.correction_family_id == family_id
-    assert lora.correction_family_size == 3
+    assert lora.correction_family_size == 2
 
-    assert full.corrected_p_value == expected[2][0]
-    assert full.significant is expected[2][1]
+    assert full.corrected_p_value == pytest.approx(0.02)
+    assert full.significant is True
     assert full.correction_method == "holm"
     assert full.correction_family_id == family_id
-    assert full.correction_family_size == 3
+    assert full.correction_family_size == 2
 
 
 def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> None:
@@ -171,7 +171,7 @@ def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> N
         finetuned_values={"a": 0.45, "b": 0.44},
     )
 
-    linear_probe.p_value = 0.001
+    linear_probe.p_value = 1.0
     lora.p_value = 0.01
 
     model_results = {
@@ -202,14 +202,22 @@ def test_save_results_serializes_correction_family_metadata(tmp_path: Path) -> N
     module.save_results(results, output_path)
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    row = next(item for item in payload["rows"] if item["strategy_id"] == "linear_probe")
+    row = next(item for item in payload["rows"] if item["strategy_id"] == "lora")
+    excluded = next(item for item in payload["rows"] if item["strategy_id"] == "linear_probe")
 
     assert payload["analysis_git_commit_sha"] == "abc123"
     assert "git_commit_sha" not in payload
     assert row["correction_method"] == "holm"
     assert row["correction_family_id"] == "cross_model_summary:iou:p90"
-    assert row["correction_family_size"] == 2
+    assert row["correction_family_size"] == 1
+    assert row["corrected_p_value"] == pytest.approx(0.01)
     assert set(row["per_image_deltas"]) == {"a", "b"}
+    assert excluded["p_value"] == 1.0
+    assert excluded["corrected_p_value"] is None
+    assert excluded["significant"] is False
+    assert excluded["correction_method"] is None
+    assert excluded["correction_family_id"] is None
+    assert excluded["correction_family_size"] is None
 
 
 def test_update_experiment_analysis_outputs_writes_analysis_provenance(

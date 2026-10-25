@@ -49,6 +49,7 @@ from ssl_attention.config import (  # noqa: E402
     FINETUNE_STRATEGIES,
     MODELS,
     AttentionMethod,
+    FineTuningStrategy,
 )
 from ssl_attention.data.wikichurches import AnnotatedSubset  # noqa: E402
 from ssl_attention.evaluation.fine_tuning import (  # noqa: E402
@@ -92,6 +93,9 @@ if TYPE_CHECKING:
 
 AnalysisMetric = Literal["iou", "coverage", "mse", "kl", "emd"]
 MetricDirection = Literal["higher", "lower"]
+
+# These strategies leave the backbone and its attention maps unchanged.
+HOLM_EXCLUDED_STRATEGIES = frozenset({FineTuningStrategy.LINEAR_PROBE.value})
 
 
 @dataclass(frozen=True)
@@ -515,7 +519,7 @@ def apply_holm_correction(
     percentile: int | None,
     alpha: float = 0.05,
 ) -> None:
-    """Apply Holm correction across all discovered rows for one metric bucket."""
+    """Apply Holm correction across backbone adaptations for one metric bucket."""
     keys: list[tuple[str, str]] = []
     p_values: list[float] = []
     family_id = build_correction_family_id(metric, percentile)
@@ -524,6 +528,13 @@ def apply_holm_correction(
         for strategy_id, metric_results in strategy_results.items():
             row = metric_results.get(metric, {}).get(percentile)
             if row is None:
+                continue
+            if strategy_id in HOLM_EXCLUDED_STRATEGIES:
+                row.corrected_p_value = None
+                row.significant = False
+                row.correction_method = None
+                row.correction_family_id = None
+                row.correction_family_size = None
                 continue
             keys.append((model_name, strategy_id))
             p_values.append(row.p_value)
