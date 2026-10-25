@@ -51,7 +51,10 @@ tectonic -Z search-path=. -o build build/round2_v1024_diff.tex
 2. Edit only `round2_v1024_changes.tex`. Every new or changed number must come from code or outputs in this repo. Never estimate or invent results.
 3. Build both PDFs and check the change in each.
 4. Show the human the change and wait for approval.
-5. After approval, update the reply letter. Under that item's `An`, add one to three sentences on what changed and where in the revised manuscript (section, table, figure). Leave TJ's notes and the `TODO` lines for the humans to remove.
-   - The letter is a `.docx` in Drive. The Drive connector can read it but cannot write its content. Give the human the exact text to paste, or edit it in the browser only after the human says to.
+5. After approval, update the reply letter. Under that item's `An`, say what changed and where in the revised manuscript (section, table, figure). Leave TJ's notes and the `TODO` lines for the humans to remove.
+   - The letter is a `.docx` in Google Drive. The Drive connector can read it but cannot write its content.
+   - To edit it, open the [letter's Google Docs link](https://docs.google.com/document/d/1z1jEHklwWdebqoxusVEL7Pt5vTpvtQFf/edit) in a browser plugin that uses the human's signed-in session, such as Claude in Chrome (`mcp__claude-in-chrome__*`), or in any other connected plugin that can edit Google Docs. Google Docs edits the `.docx` in place.
+   - After editing, read the page text back to confirm the change landed under the right `An`, then close any tabs you opened.
+   - If no plugin can reach the document, give the human the exact text to paste.
    - Do not rename, move, or convert the file.
 6. Commit the `.tex` file and any new figures. Do not commit `build/`.
