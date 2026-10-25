@@ -19,9 +19,10 @@
 - Keep conclusions and limitations tied to observed results. Flag issues belonging to another reviewer item separately instead of expanding the current item.
 
 ## Files
-- `round2_v1024.tex`: the submitted baseline. Never edit it.
+- `round2_v1024.tex`: the submitted baseline. Never edit it, except to follow a `stale_` rename.
 - `round2_v1024_changes.tex`: the revised manuscript. Make every manuscript change here.
 - `sn-jnl.cls`, `sn-mathphys-num.bst`, `xvision.bib`, `*.png`: needed to build. Put new figures in this folder. Delete a PNG only when neither `.tex` file references it.
+- `stale_*.png`: figures that only the baseline still references. When the revised manuscript stops using a PNG, rename it with `git mv` to add the `stale_` prefix and update its `\includegraphics` in `round2_v1024.tex`. The rename leaves every PDF unchanged, because `latexdiff` comments out deleted figures.
 - `build/`: build output (gitignored). Do not commit PDFs from it.
 - `notes/`: per-item plans (`R1-Qn_plan.md`) and review notes. Put new plans and notes here, not beside the manuscript.
 

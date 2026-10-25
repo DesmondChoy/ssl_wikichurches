@@ -234,7 +234,7 @@ To answer these research questions, we conduct a comparative study using six vis
 
 
 \begin{figure}[!h]
-\centering\includegraphics[width=\textwidth]{framework_v2.png}
+\centering\includegraphics[width=\textwidth]{stale_framework_v2.png}
 \caption{Our comparative study compares 6 vision foundation models, 3 types of attention maps, 3 model adaptation strategies, and 5 performance metrics on 1 benchmark dataset. \label{figure framework overview}}
 \end{figure}
 
@@ -429,7 +429,7 @@ To evaluate head-level behavior, we conduct two experiments. The first experimen
 
 \begin{figure}[!ht]
 \centering
-\includegraphics[width=\textwidth]{590_fig3.png}
+\includegraphics[width=\textwidth]{stale_590_fig3.png}
 \caption{Representative head-feature matrix for frozen DINOv3 at layer~10 using IoU@90. The shaded H8 column marks the dominant head in this setting. Lighter cells indicate weaker expert-annotated box alignment, while darker cells indicate stronger expert-annotated box alignment. The feature rows show that the dominant head aligns most strongly with portal-scale and facade-scale structures.\label{figure rq2_head_feature_matrix}}
 \end{figure}
 
@@ -449,13 +449,13 @@ The RQ3 examines how downstream adaptation changes attention alignment with expe
 
 \begin{figure}[!ht]
 \centering
-\includegraphics[width=\textwidth]{667_fig5.png}
+\includegraphics[width=\textwidth]{stale_667_fig5.png}
 \caption{Attention-alignment changes under downstream adaptation. Each cell reports the mean change relative to the frozen model for the linear probe, LoRA, and full fine-tuning across DINOv2, DINOv3, MAE, CLIP, SigLIP, and SigLIP2. Blue cells indicate improvement in the corresponding metric and red cells indicate degradation; asterisks mark effects that remain significant after Holm correction. \label{figure RQ3 heatmap}}
 \end{figure}
 
 \begin{figure}[!ht]
 \centering
-\includegraphics[width=\textwidth]{714_fig6.png}
+\includegraphics[width=\textwidth]{stale_714_fig6.png}
 \caption{Mean attention-alignment change with 95\% bootstrap confidence intervals. Each figure reports the change relative to the frozen model for LoRA and full fine-tuning. For MSE, KL divergence, and EMD, signs are flipped so that rightward movement consistently indicates improvement. Asterisks mark effects that remain significant after Holm correction.\label{figure RQ3 forest}}
 \end{figure}
 
