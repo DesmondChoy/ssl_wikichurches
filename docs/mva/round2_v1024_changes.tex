@@ -449,7 +449,7 @@ To evaluate how attention alignment varies across models' depth, we plot the IoU
 
 \begin{figure}[!h]
 \centering
-\includegraphics[width=\linewidth]{RQ2_layer_iou_new.png}
+\includegraphics[width=\linewidth]{RQ2_layer_iou.png}
 \caption{Layer-wise attention alignment with expert annotations. The mean IoU@90 performance across the 139 expert-annotated images is reported for each transformer layer.\label{figure RQ2 layer ranking}}
 \end{figure}
 
@@ -484,7 +484,7 @@ The second experiment examines the strongest and weakest feature alignments for 
 
 \begin{figure}[!h]
 \centering
-\includegraphics[width=\textwidth]{633_fig4.png}
+\includegraphics[width=\textwidth]{RQ2_top_bottom_features.png}
 \caption{Two strongest and two weakest feature alignments for each model's dominant frozen head. DINOv2 \texttt{layer11/head11}, DINOv3 \texttt{layer10/head8}, MAE \texttt{layer10/head5}, CLIP \texttt{layer4/head5}, SigLIP \texttt{layer8/mean proxy}, and SigLIP2 \texttt{layer4/mean proxy}. Green panels indicate high-alignment feature cells, and red panels indicate weak feature cells.\label{figure RQ2 top bottom}}
 \end{figure}
 
@@ -531,7 +531,7 @@ We further examine whether adaptation changes the dominant layer and attention h
 
 \begin{figure}[!h]
 \centering
-\includegraphics[width=\textwidth]{787_tbl7_enlarge.png}
+\includegraphics[width=\textwidth]{RQ3_head_ranking.png}
 \caption{Dominant layer-head locations under different adaptation strategies. Each figure shows the top three layer-head locations ranked by mean IoU@90.\label{figure RQ3 head ranking}}
 \end{figure}
 

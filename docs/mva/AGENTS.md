@@ -21,7 +21,7 @@
 ## Files
 - `round2_v1024.tex`: the submitted baseline. Never edit it.
 - `round2_v1024_changes.tex`: the revised manuscript. Make every manuscript change here.
-- `sn-jnl.cls`, `sn-mathphys-num.bst`, `xvision.bib`, `*.png`: needed to build. Put new figures in this folder. Delete a PNG only when neither `.tex` file references it.
+- `sn-jnl.cls`, `sn-mathphys-num.bst`, `xvision.bib`, `*.png`: needed to build. Put new figures in this folder. Never overwrite a PNG that `round2_v1024.tex` references: save the new version under a new name, so the baseline still renders as submitted and `latexdiff` frames the updated figure in the tracked-changes PDF. Delete a PNG only when neither `.tex` file references it.
 - `build/`: build output (gitignored). Do not commit PDFs from it.
 - `notes/`: per-item plans (`R1-Qn_plan.md`) and review notes. Put new plans and notes here, not beside the manuscript.
 

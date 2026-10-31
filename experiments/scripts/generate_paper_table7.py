@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the paper's dominant layer-head location figure (787_tbl7_enlarge.png).
+"""Generate the paper's dominant layer-head location figure (RQ3_head_ranking.png).
 
 Reads per-head IoU@90 from metrics.db and SigLIP-family proxy heads from attention_viz.h5.
 """
@@ -26,7 +26,7 @@ from ssl_attention.metrics.iou import EPSILON
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = PROJECT_ROOT / 'outputs' / 'cache' / 'metrics.db'
 H5_PATH = PROJECT_ROOT / 'outputs' / 'cache' / 'attention_viz.h5'
-OUT_PATH = PROJECT_ROOT / 'docs' / 'mva' / '787_tbl7_enlarge.png'
+OUT_PATH = PROJECT_ROOT / 'docs' / 'mva' / 'RQ3_head_ranking.png'
 PERCENTILE = 90
 NUM_LAYERS = 12
 NUM_HEADS = 12

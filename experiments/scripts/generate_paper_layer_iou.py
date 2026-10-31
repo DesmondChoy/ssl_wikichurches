@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the paper's layer-wise frozen IoU@90 figure (RQ2_layer_iou_new.png).
+"""Generate the paper's layer-wise frozen IoU@90 figure (RQ2_layer_iou.png).
 
 Reads aggregate_metrics from metrics.db using each model's default attention method.
 """
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = PROJECT_ROOT / "outputs" / "cache" / "metrics.db"
-OUTPUT_PATH = PROJECT_ROOT / "docs" / "mva" / "RQ2_layer_iou_new.png"
+OUTPUT_PATH = PROJECT_ROOT / "docs" / "mva" / "RQ2_layer_iou.png"
 PERCENTILE = 90
 NUM_LAYERS = 12
 MARKER = "o"

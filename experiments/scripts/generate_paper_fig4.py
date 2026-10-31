@@ -21,7 +21,7 @@ from ssl_attention.data.wikichurches import AnnotatedSubset
 from ssl_attention.metrics.iou import compute_per_bbox_iou
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'docs' / 'mva' / '633_fig4.png'
+OUT = ROOT / 'docs' / 'mva' / 'RQ2_top_bottom_features.png'
 
 FONT_REG = '/System/Library/Fonts/Supplemental/Arial.ttf'
 FONT_BOLD = '/System/Library/Fonts/Supplemental/Arial Bold.ttf'
