@@ -1,6 +1,6 @@
 # Plan: R1-Q13, language supervision versus image-only SSL, and DINO versus MAE
 
-Status (2026-10-25): done. The human approved the manuscript change, and it is committed in `3a6a468`. The A13 reply was given in chat for the human to paste into the letter. Tracked in beads issue `ssl_wikichurches-x1tf`, closed in `5afd61c`.
+Status (2026-10-25): done. The human approved the manuscript change, and it is committed in `3a6a468`. The A13 reply was given in chat for the human to paste into the letter. Tracked in beads issue `ssl_wikichurches-x1tf`, closed in `5afd61c`. The 2026-10-31 fresh-eyes review removed one clause from the paragraph (see below).
 
 ## The item
 
@@ -42,6 +42,19 @@ Both PDFs build with no undefined citations. In the clean build at `54f23d0`, th
 The human asked for a shorter reply than the first draft. Given in chat on 2026-10-25 for the human to paste:
 
 > A13: We added a paragraph to Section 4.5. To avoid the SigLIP proxy confound (see our reply to Q6), we compare only the four models that use [CLS]-token attention. All three image-only models align better than CLIP, but MAE only slightly, whereas the DINO models lead clearly (Table 3). The language-supervised models still classify nearly as well as DINO and far better than MAE (Table 7), so language supervision helps classification more than alignment. Within the image-only models, DINO's loss trains both the [CLS] token and the patch tokens, while MAE's loss ignores its [CLS] token, which fits MAE's weaker alignment. We conclude that which tokens the training objective acts on matters more than whether it uses language, and we cite three supporting studies.
+
+## Fresh-eyes review (2026-10-31)
+
+A review of all Reviewer 1 items checked the paragraph's citations against the papers. One clause was removed from Section 4.5. The reply letter is unchanged.
+
+**The error.** The paragraph said Bolya et al.'s finding "is consistent with the decline of CLIP's alignment after its earliest layers (Figure 3)". Their best layers are deep, for example layer 47 of 50 for frozen visual Q&A, so the finding concerns layers shortly before the output, not the earliest ones. Figure 3 does not show that pattern either, because CLIP's layer 11 scores higher than its layers 5 to 10.
+
+**The change.** The sentence now ends at "rather than at the output." The Bolya citation stays, so the three new references and A13's "we cite three supporting studies" still hold.
+
+**Left unchanged.**
+
+- He et al. state that the loss is computed on masked patches, not that it ignores the [CLS] output. The manuscript wording is still accurate, because the decoder drops that token's output before the loss.
+- The clauses on Lan et al. and Przewiezlikowski et al. closely follow those papers' abstracts. They are short, so they were not reworded.
 
 ## Out of scope
 

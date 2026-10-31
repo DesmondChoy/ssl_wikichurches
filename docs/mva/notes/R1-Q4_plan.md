@@ -1,6 +1,6 @@
 # Plan: R1-Q4, original image dimensions and resizing
 
-Status (2026-10-25): implemented. Decision: full-image fix, existing checkpoints kept, preprocessing difference disclosed. Code is committed (`d33fcd9` failing test, `d6ce99e` fix, `981d288` figure and analysis generators). The DINOv2 and CLIP caches, the Q2 analysis, the style breakdown, every affected figure and the manuscript text have been regenerated. Waiting for human approval of the manuscript changes before the `.tex`, figures and result files are committed and the reply letter is updated.
+Status (2026-10-25): implemented. Decision: full-image fix, existing checkpoints kept, preprocessing difference disclosed. Code is committed (`d33fcd9` failing test, `d6ce99e` fix, `981d288` figure and analysis generators). The DINOv2 and CLIP caches, the Q2 analysis, the style breakdown, every affected figure and the manuscript text have been regenerated. Waiting for human approval of the manuscript changes before the `.tex`, figures and result files are committed and the reply letter is updated. The 2026-10-31 fresh-eyes review added one sentence to A4 (see below).
 
 ## The item
 
@@ -133,6 +133,18 @@ Limitations, one or two sentences: the aspect-ratio distortion may affect models
    - `outputs/cache/metrics.db` is gitignored. Copy it to a dated backup before regenerating the DINOv2 and CLIP rows.
    - Run only the full 18-run Q2 analysis against the experiment. Do one-off checks, such as the MAE recompute, from a scratch script.
 2. **Finish this fix before R1-Q3 finalizes DINOv2 and CLIP.** R1-Q3 reads alignment from the refreshed caches, and the classification input follows the decision above.
+
+## Fresh-eyes review (2026-10-31)
+
+A review of all Reviewer 1 items found one gap in A4. No manuscript text changed.
+
+**The gap.** The submitted Figure 3 (`RQ2_layer_iou_new.png`) plots MAE as a nearly flat line, at about 0.039 at layer 11, whereas the submitted Table 3 gives 0.070. Regenerating the figure from `metrics.db` for this item (`87bb7a7`) replaced the line with the `cls` series (0.031 to 0.070), and the text changed from "remains relatively stable" to "fluctuates". The crop fix did not cause this. MAE's preprocessing did not change, and its `cls` series is identical in `metrics.db.2026-10-25-before-crop-fix.bak`. A4 named only DINOv2 and CLIP, so it did not explain the new curve.
+
+**The cause is not proven.** The submitted curve matches neither the `cls` nor the `rollout` series in any stored copy of `metrics.db`. The flat shape suggests a cache from before the MAE patch-order fix (`2f6e770`), and the old-schema `metrics.db.bak` holds a similar curve (0.030 to 0.040), but no copy matches it exactly. The letter therefore says only that the curve was out of date.
+
+**The change.** The human added this sentence to the end of A4 in the letter:
+
+> Regenerating Figure 3 also corrected its MAE curve, which in the submitted figure was out of date and disagreed with the MAE value in Table 3.
 
 ## Out of scope
 
